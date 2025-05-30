@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KDP.Cool 原型预览 - 插画作品交易平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .iframe-container {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            background: white;
+        }
+        .iframe-container:hover {
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        .page-title {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="hero-gradient text-white py-12">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <div class="flex items-center justify-center space-x-3 mb-6">
+                <div class="w-16 h-16 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center">
+                    <i class="fas fa-palette text-white text-2xl"></i>
+                </div>
+                <h1 class="text-4xl font-bold">KDP.Cool 原型预览</h1>
+            </div>
+            <p class="text-xl text-purple-100 mb-8 max-w-3xl mx-auto">
+                高保真插画作品交易平台原型展示 - 连接全球插画师与买家的专业平台
+            </p>
+            <div class="flex flex-wrap justify-center gap-4">
+                <span class="px-4 py-2 bg-white bg-opacity-20 rounded-full text-sm font-medium">HTML5</span>
+                <span class="px-4 py-2 bg-white bg-opacity-20 rounded-full text-sm font-medium">Tailwind CSS</span>
+                <span class="px-4 py-2 bg-white bg-opacity-20 rounded-full text-sm font-medium">FontAwesome</span>
+                <span class="px-4 py-2 bg-white bg-opacity-20 rounded-full text-sm font-medium">响应式设计</span>
+                <span class="px-4 py-2 bg-white bg-opacity-20 rounded-full text-sm font-medium">Web端优化</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Project Overview -->
+    <section class="py-12">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="bg-white rounded-2xl p-8 shadow-sm mb-12">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">项目概述</h2>
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">平台特色</h3>
+                        <ul class="space-y-3 text-gray-600">
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span>多用户插画作品交易平台</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span>灵活的版权授权机制</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span>插画师个人品牌展示</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span>安全的在线支付系统</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span>完善的作品分类体系</span>
+                            </li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">技术实现</h3>
+                        <ul class="space-y-3 text-gray-600">
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-code text-blue-500"></i>
+                                <span>现代化响应式设计</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-code text-blue-500"></i>
+                                <span>优雅的用户交互体验</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-code text-blue-500"></i>
+                                <span>高质量视觉设计</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-code text-blue-500"></i>
+                                <span>Web端浏览器优化</span>
+                            </li>
+                            <li class="flex items-center space-x-3">
+                                <i class="fas fa-code text-blue-500"></i>
+                                <span>真实图片与内容填充</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Core Features -->
+            <div class="bg-white rounded-2xl p-8 shadow-sm">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">核心功能</h2>
+                <div class="grid md:grid-cols-3 lg:grid-cols-6 gap-6">
+                    <div class="text-center p-6 bg-purple-50 rounded-xl">
+                        <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-home text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">平台首页</h3>
+                        <p class="text-gray-600 text-sm">展示平台特色与精选作品</p>
+                    </div>
+                    <div class="text-center p-6 bg-blue-50 rounded-xl">
+                        <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-store text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">作品市场</h3>
+                        <p class="text-gray-600 text-sm">浏览和购买高质量插画作品</p>
+                    </div>
+                    <div class="text-center p-6 bg-green-50 rounded-xl">
+                        <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-users text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">插画师</h3>
+                        <p class="text-gray-600 text-sm">发现优秀插画师和创作者</p>
+                    </div>
+                    <div class="text-center p-6 bg-orange-50 rounded-xl">
+                        <div class="w-16 h-16 bg-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-image text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">作品详情</h3>
+                        <p class="text-gray-600 text-sm">详细的作品信息与购买</p>
+                    </div>
+                    <div class="text-center p-6 bg-pink-50 rounded-xl">
+                        <div class="w-16 h-16 bg-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-user text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">用户主页</h3>
+                        <p class="text-gray-600 text-sm">个人作品集与信息展示</p>
+                    </div>
+                    <div class="text-center p-6 bg-indigo-50 rounded-xl">
+                        <div class="w-16 h-16 bg-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-th-large text-white text-xl"></i>
+                        </div>
+                        <h3 class="font-semibold text-gray-800 mb-2">作品分类</h3>
+                        <p class="text-gray-600 text-sm">完善的分类浏览体系</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Page Previews -->
+    <section class="py-12">
+        <div class="max-w-7xl mx-auto px-6">
+            <h2 class="text-3xl font-bold text-gray-800 text-center mb-12">页面预览</h2>
+            
+            <!-- Marketplace Home Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">1. 平台首页</h3>
+                    <a href="marketplace-home.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="marketplace-home.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <!-- Marketplace Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">2. 作品市场</h3>
+                    <a href="marketplace.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="marketplace.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <!-- Artists Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">3. 插画师页面</h3>
+                    <a href="artists.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="artists.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <!-- Artwork Detail Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">4. 作品详情页</h3>
+                    <a href="artwork-detail.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="artwork-detail.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <!-- User Profile Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">5. 用户个人主页</h3>
+                    <a href="user-profile.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="user-profile.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <!-- Categories Page -->
+            <div class="mb-16">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold page-title">6. 作品分类页</h3>
+                    <a href="categories.html" target="_blank" class="text-purple-600 hover:text-purple-700 font-medium">
+                        在新窗口打开 <i class="fas fa-external-link-alt ml-1"></i>
+                    </a>
+                </div>
+                <div class="iframe-container">
+                    <iframe src="categories.html" class="w-full h-screen" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technical Specifications -->
+    <section class="py-12 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <h2 class="text-3xl font-bold text-gray-800 text-center mb-12">技术规格</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="text-center p-6">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-desktop text-blue-600 text-xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-800 mb-2">目标平台</h3>
+                    <p class="text-gray-600">Web桌面端、移动端Web、平板端Web</p>
+                </div>
+                <div class="text-center p-6">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-code text-green-600 text-xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-800 mb-2">技术栈</h3>
+                    <p class="text-gray-600">HTML5, Tailwind CSS, FontAwesome, JavaScript</p>
+                </div>
+                <div class="text-center p-6">
+                    <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-paint-brush text-purple-600 text-xl"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-800 mb-2">设计风格</h3>
+                    <p class="text-gray-600">现代化、专业、用户友好的界面设计</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <div class="flex items-center justify-center space-x-3 mb-6">
+                <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                    <i class="fas fa-palette text-white text-lg"></i>
+                </div>
+                <span class="text-xl font-bold">KDP.Cool</span>
+            </div>
+            <p class="text-gray-400 mb-6">高保真插画作品交易平台原型 - 展示现代化设计与用户体验</p>
+            <div class="flex justify-center space-x-6 text-sm text-gray-400">
+                <span>HTML5 + Tailwind CSS</span>
+                <span>•</span>
+                <span>响应式设计</span>
+                <span>•</span>
+                <span>现代化UI/UX</span>
+                <span>•</span>
+                <span>Web端优化</span>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
