@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关于我 - KDP.Cool | 专业插画师</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .skill-bar {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+        .timeline-item {
+            position: relative;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 60px;
+            bottom: -20px;
+            width: 2px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        }
+        .timeline-item:last-child::before {
+            display: none;
+        }
+        .floating-card {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm fixed w-full top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                        <i class="fas fa-palette text-white text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-800">KDP.Cool</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="home.html" class="text-gray-600 hover:text-purple-600 transition-colors">首页</a>
+                    <a href="portfolio.html" class="text-gray-600 hover:text-purple-600 transition-colors">作品集</a>
+                    <a href="#" class="text-purple-600 font-medium">关于我</a>
+                    <a href="contact.html" class="text-gray-600 hover:text-purple-600 transition-colors">联系合作</a>
+                </div>
+                <button class="hero-gradient text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                    <i class="fas fa-envelope mr-2"></i>立即咨询
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-16 hero-gradient">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="text-white">
+                    <h1 class="text-5xl font-bold mb-6">你好，我是 KDP</h1>
+                    <p class="text-xl text-purple-100 mb-8 leading-relaxed">
+                        一位充满激情的数字插画师，专注于创造富有情感和故事性的视觉作品。
+                        我相信每一幅插画都应该能够触动人心，传达深刻的意义。
+                    </p>
+                    <div class="flex flex-wrap gap-4 mb-8">
+                        <span class="bg-white bg-opacity-20 text-white px-4 py-2 rounded-full text-sm">
+                            <i class="fas fa-map-marker-alt mr-2"></i>北京，中国
+                        </span>
+                        <span class="bg-white bg-opacity-20 text-white px-4 py-2 rounded-full text-sm">
+                            <i class="fas fa-calendar mr-2"></i>5年+ 经验
+                        </span>
+                        <span class="bg-white bg-opacity-20 text-white px-4 py-2 rounded-full text-sm">
+                            <i class="fas fa-award mr-2"></i>50+ 项目
+                        </span>
+                    </div>
+                    <div class="flex space-x-4">
+                        <button class="bg-white text-purple-600 px-8 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-download mr-2"></i>下载简历
+                        </button>
+                        <button class="border-2 border-white text-white px-8 py-3 rounded-lg font-medium hover:bg-white hover:text-purple-600 transition-colors">
+                            <i class="fas fa-envelope mr-2"></i>联系我
+                        </button>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="floating-card bg-white bg-opacity-10 backdrop-blur-sm rounded-3xl p-8">
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=600&q=80" 
+                             alt="KDP 个人照片" 
+                             class="w-full rounded-2xl shadow-2xl">
+                        <!-- 图片来源: Unsplash - https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d -->
+                        <div class="mt-6 text-center">
+                            <h3 class="text-xl font-semibold text-white mb-2">KDP (Kedoupi)</h3>
+                            <p class="text-purple-100">数字插画师 & 视觉设计师</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Content -->
+    <section class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid lg:grid-cols-2 gap-16 items-start">
+                <!-- Personal Story -->
+                <div>
+                    <h2 class="text-4xl font-bold text-gray-800 mb-8">我的故事</h2>
+                    <div class="space-y-6 text-gray-600 leading-relaxed">
+                        <p>
+                            从小就对色彩和形状有着特殊的敏感度，我在大学期间选择了视觉传达设计专业，
+                            正式踏上了设计师的道路。毕业后，我在几家知名设计公司工作，
+                            积累了丰富的商业设计经验。
+                        </p>
+                        <p>
+                            2019年，我决定成为一名自由插画师，专注于数字插画创作。
+                            我的作品风格多样，从超现实主义到极简主义，从商业插画到个人艺术创作，
+                            每一幅作品都承载着我对美的理解和对生活的感悟。
+                        </p>
+                        <p>
+                            我相信插画不仅仅是装饰，更是一种沟通的语言。通过我的作品，
+                            我希望能够与观者建立情感连接，传达深层的意义和价值。
+                            无论是为品牌创作商业插画，还是表达个人情感的艺术作品，
+                            我都投入全部的热情和专业技能。
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Philosophy -->
+                <div>
+                    <h2 class="text-4xl font-bold text-gray-800 mb-8">创作理念</h2>
+                    <div class="space-y-8">
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 hero-gradient rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-heart text-white text-lg"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold text-gray-800">情感驱动</h3>
+                            </div>
+                            <p class="text-gray-600">
+                                每一幅作品都应该能够触动人心，传达真实的情感。
+                                我相信最好的插画是那些能够让观者产生共鸣的作品。
+                            </p>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 hero-gradient rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-lightbulb text-white text-lg"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold text-gray-800">创新思维</h3>
+                            </div>
+                            <p class="text-gray-600">
+                                不断探索新的表现形式和技术手段，
+                                将传统艺术与现代数字技术相结合，创造独特的视觉体验。
+                            </p>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center mb-4">
+                                <div class="w-12 h-12 hero-gradient rounded-lg flex items-center justify-center mr-4">
+                                    <i class="fas fa-users text-white text-lg"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold text-gray-800">合作共赢</h3>
+                            </div>
+                            <p class="text-gray-600">
+                                与客户建立深度合作关系，深入理解项目需求，
+                                确保每个作品都能完美契合品牌调性和传播目标。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills Section -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">专业技能</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    多年的实践经验让我掌握了全面的设计技能，从概念构思到最终执行，
+                    我能够为客户提供一站式的视觉解决方案。
+                </p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-16">
+                <!-- Technical Skills -->
+                <div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-8">技术技能</h3>
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">Adobe Photoshop</span>
+                                <span class="text-sm text-gray-600">95%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 95%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">Adobe Illustrator</span>
+                                <span class="text-sm text-gray-600">90%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 90%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">Procreate</span>
+                                <span class="text-sm text-gray-600">88%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 88%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">Figma</span>
+                                <span class="text-sm text-gray-600">85%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 85%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">Cinema 4D</span>
+                                <span class="text-sm text-gray-600">75%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 75%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="font-medium text-gray-800">After Effects</span>
+                                <span class="text-sm text-gray-600">70%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3">
+                                <div class="skill-bar h-3 rounded-full" style="width: 70%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Creative Skills -->
+                <div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-8">创意技能</h3>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-palette text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">色彩理论</h4>
+                            <p class="text-sm text-gray-600">深入理解色彩心理学和配色原理</p>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-shapes text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">构图设计</h4>
+                            <p class="text-sm text-gray-600">掌握各种构图技巧和视觉平衡</p>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-lightbulb text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">概念开发</h4>
+                            <p class="text-sm text-gray-600">从抽象概念到具体视觉的转化</p>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-users text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">品牌理解</h4>
+                            <p class="text-sm text-gray-600">深度理解品牌调性和传播需求</p>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-clock text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">项目管理</h4>
+                            <p class="text-sm text-gray-600">高效的时间管理和项目执行</p>
+                        </div>
+
+                        <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                            <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-comments text-white text-xl"></i>
+                            </div>
+                            <h4 class="font-semibold text-gray-800 mb-2">沟通协作</h4>
+                            <p class="text-sm text-gray-600">与客户和团队的有效沟通</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Experience Timeline -->
+    <section class="py-20 bg-white">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">职业经历</h2>
+                <p class="text-xl text-gray-600">
+                    从设计学生到专业插画师的成长历程
+                </p>
+            </div>
+
+            <div class="space-y-12">
+                <!-- Timeline Item 1 -->
+                <div class="timeline-item flex items-start space-x-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 hero-gradient rounded-full flex items-center justify-center">
+                            <i class="fas fa-star text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">自由插画师</h3>
+                                <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">2019 - 至今</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">
+                                成立个人工作室，专注于数字插画创作。为多家知名品牌提供插画服务，
+                                包括科技公司、时尚品牌、出版社等。作品风格多样，获得客户一致好评。
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">品牌插画</span>
+                                <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">数字艺术</span>
+                                <span class="px-3 py-1 bg-green-100 text-green-700 text-sm rounded-full">概念设计</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Item 2 -->
+                <div class="timeline-item flex items-start space-x-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 hero-gradient rounded-full flex items-center justify-center">
+                            <i class="fas fa-building text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">高级视觉设计师</h3>
+                                <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">2017 - 2019</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">
+                                在知名互联网公司担任高级视觉设计师，负责产品界面设计和品牌视觉规范制定。
+                                参与多个重要项目，积累了丰富的商业设计经验。
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-orange-100 text-orange-700 text-sm rounded-full">UI设计</span>
+                                <span class="px-3 py-1 bg-pink-100 text-pink-700 text-sm rounded-full">品牌设计</span>
+                                <span class="px-3 py-1 bg-yellow-100 text-yellow-700 text-sm rounded-full">团队协作</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Item 3 -->
+                <div class="timeline-item flex items-start space-x-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 hero-gradient rounded-full flex items-center justify-center">
+                            <i class="fas fa-pencil-alt text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">初级设计师</h3>
+                                <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">2015 - 2017</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">
+                                在设计公司开始职业生涯，主要负责平面设计和插画创作。
+                                在导师指导下快速成长，掌握了扎实的设计基础和专业技能。
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-full">平面设计</span>
+                                <span class="px-3 py-1 bg-indigo-100 text-indigo-700 text-sm rounded-full">插画创作</span>
+                                <span class="px-3 py-1 bg-teal-100 text-teal-700 text-sm rounded-full">技能学习</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline Item 4 -->
+                <div class="timeline-item flex items-start space-x-6">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 hero-gradient rounded-full flex items-center justify-center">
+                            <i class="fas fa-graduation-cap text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="bg-gray-50 rounded-2xl p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-xl font-semibold text-gray-800">视觉传达设计学士</h3>
+                                <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">2011 - 2015</span>
+                            </div>
+                            <p class="text-gray-600 mb-4">
+                                在中央美术学院学习视觉传达设计专业，系统学习了设计理论和实践技能。
+                                毕业设计获得优秀奖，为后续的职业发展奠定了坚实基础。
+                            </p>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">设计理论</span>
+                                <span class="px-3 py-1 bg-purple-100 text-purple-700 text-sm rounded-full">艺术基础</span>
+                                <span class="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">创意思维</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Awards & Recognition -->
+    <section class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">荣誉与认可</h2>
+                <p class="text-xl text-gray-600">
+                    专业能力获得行业认可
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Award 1 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-trophy text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">最佳商业插画奖</h3>
+                    <p class="text-gray-600 text-sm mb-2">中国设计师协会</p>
+                    <p class="text-gray-500 text-xs">2023年</p>
+                </div>
+
+                <!-- Award 2 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-medal text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">年度优秀设计师</h3>
+                    <p class="text-gray-600 text-sm mb-2">北京设计周</p>
+                    <p class="text-gray-500 text-xs">2022年</p>
+                </div>
+
+                <!-- Award 3 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-star text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">创意设计金奖</h3>
+                    <p class="text-gray-600 text-sm mb-2">亚洲设计大赛</p>
+                    <p class="text-gray-500 text-xs">2021年</p>
+                </div>
+
+                <!-- Award 4 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-certificate text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">Adobe认证专家</h3>
+                    <p class="text-gray-600 text-sm mb-2">Adobe官方认证</p>
+                    <p class="text-gray-500 text-xs">2020年</p>
+                </div>
+
+                <!-- Award 5 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-heart text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">最受欢迎作品</h3>
+                    <p class="text-gray-600 text-sm mb-2">Behance平台</p>
+                    <p class="text-gray-500 text-xs">2019年</p>
+                </div>
+
+                <!-- Award 6 -->
+                <div class="bg-white rounded-2xl p-6 text-center shadow-sm">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-graduation-cap text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">优秀毕业设计</h3>
+                    <p class="text-gray-600 text-sm mb-2">中央美术学院</p>
+                    <p class="text-gray-500 text-xs">2015年</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 hero-gradient">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h2 class="text-4xl font-bold text-white mb-6">让我们一起创造精彩</h2>
+            <p class="text-xl text-purple-100 mb-8 leading-relaxed">
+                如果您正在寻找一位专业、有创意、负责任的插画师，
+                我很乐意与您讨论您的项目需求。让我们一起将您的想法转化为令人惊艳的视觉作品。
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button class="bg-white text-purple-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-envelope mr-2"></i>开始合作
+                </button>
+                <button class="border-2 border-white text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white hover:text-purple-600 transition-colors">
+                    <i class="fas fa-eye mr-2"></i>查看作品集
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="col-span-2">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                            <i class="fas fa-palette text-white text-lg"></i>
+                        </div>
+                        <span class="text-xl font-bold">KDP.Cool</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 max-w-md">
+                        专业插画师，致力于为客户提供高质量的创意设计服务。每一个项目都是艺术与商业的完美结合。
+                    </p>
+                    <div class="flex space-x-4">
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-weibo"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-wechat"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-behance"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-dribbble"></i>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">服务项目</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white transition-colors">商业插画</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">品牌设计</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">数字艺术</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">概念设计</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">联系方式</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><i class="fas fa-envelope mr-2"></i>hello@kdp.cool</li>
+                        <li><i class="fas fa-phone mr-2"></i>+86 138 0013 8000</li>
+                        <li><i class="fas fa-map-marker-alt mr-2"></i>北京市朝阳区</li>
+                        <li><i class="fas fa-clock mr-2"></i>周一至周五 9:00-18:00</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 KDP.Cool. 保留所有权利。</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

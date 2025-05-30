@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alex Chen - 插画师主页 | KDP.Cool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .profile-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+        .tab-active {
+            border-bottom: 2px solid #667eea;
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .masonry {
+            column-count: 3;
+            column-gap: 1.5rem;
+        }
+        .masonry-item {
+            break-inside: avoid;
+            margin-bottom: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .masonry {
+                column-count: 2;
+            }
+        }
+        @media (max-width: 640px) {
+            .masonry {
+                column-count: 1;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm fixed w-full top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                        <i class="fas fa-palette text-white text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-800">KDP.Cool</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="marketplace-home.html" class="text-gray-600 hover:text-purple-600 transition-colors">首页</a>
+                    <a href="marketplace.html" class="text-gray-600 hover:text-purple-600 transition-colors">作品市场</a>
+                    <a href="artists.html" class="text-gray-600 hover:text-purple-600 transition-colors">插画师</a>
+                    <a href="categories.html" class="text-gray-600 hover:text-purple-600 transition-colors">分类</a>
+                    <a href="about.html" class="text-gray-600 hover:text-purple-600 transition-colors">关于我们</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="relative hidden md:block">
+                        <input type="text" placeholder="搜索作品或插画师..." 
+                               class="w-64 px-4 py-2 pl-10 bg-gray-100 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    </div>
+                    <button class="text-gray-600 hover:text-purple-600 transition-colors">
+                        <i class="fas fa-heart text-lg"></i>
+                    </button>
+                    <button class="text-gray-600 hover:text-purple-600 transition-colors relative">
+                        <i class="fas fa-shopping-cart text-lg"></i>
+                        <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
+                    </button>
+                    <button class="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors">
+                        登录
+                    </button>
+                    <button class="hero-gradient text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        注册
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Profile Header -->
+    <section class="pt-16 profile-gradient">
+        <div class="max-w-7xl mx-auto px-6 py-16">
+            <div class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
+                <!-- Avatar -->
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" 
+                         alt="Alex Chen" class="w-32 h-32 rounded-full border-4 border-white shadow-lg">
+                    <!-- 来源: Unsplash - https://unsplash.com/photo-1507003211169-0a1dd7228f2d -->
+                    <div class="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-2 border-white rounded-full"></div>
+                </div>
+                
+                <!-- Profile Info -->
+                <div class="flex-1 text-center md:text-left">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+                        <div>
+                            <h1 class="text-3xl font-bold text-white mb-2">Alex Chen</h1>
+                            <p class="text-purple-100 text-lg mb-3">科技插画专家 • 5年经验</p>
+                            <div class="flex items-center justify-center md:justify-start space-x-6 text-white">
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold">892</div>
+                                    <div class="text-sm text-purple-100">作品</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold">12.5K</div>
+                                    <div class="text-sm text-purple-100">粉丝</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold">4.9</div>
+                                    <div class="text-sm text-purple-100">评分</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-2xl font-bold">¥156K</div>
+                                    <div class="text-sm text-purple-100">总收入</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex space-x-3 mt-6 md:mt-0">
+                            <button class="bg-white text-purple-600 px-6 py-3 rounded-lg font-medium hover:bg-gray-100 transition-colors">
+                                <i class="fas fa-user-plus mr-2"></i>关注
+                            </button>
+                            <button class="border border-white text-white px-6 py-3 rounded-lg font-medium hover:bg-white hover:text-purple-600 transition-colors">
+                                <i class="fas fa-comment mr-2"></i>私信
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Bio -->
+                    <div class="bg-white bg-opacity-20 rounded-lg p-4 text-white">
+                        <p class="leading-relaxed">
+                            专注于科技、未来概念和商业插画创作，拥有5年以上行业经验。作品被多家知名科技公司采用，擅长将复杂的技术概念转化为直观的视觉表达。致力于通过艺术创作推动科技与人文的融合。
+                        </p>
+                    </div>
+                    
+                    <!-- Skills & Tags -->
+                    <div class="mt-4">
+                        <div class="flex flex-wrap gap-2 justify-center md:justify-start">
+                            <span class="px-3 py-1 bg-white bg-opacity-20 text-white rounded-full text-sm">科技插画</span>
+                            <span class="px-3 py-1 bg-white bg-opacity-20 text-white rounded-full text-sm">概念设计</span>
+                            <span class="px-3 py-1 bg-white bg-opacity-20 text-white rounded-full text-sm">商业插画</span>
+                            <span class="px-3 py-1 bg-white bg-opacity-20 text-white rounded-full text-sm">UI设计</span>
+                            <span class="px-3 py-1 bg-white bg-opacity-20 text-white rounded-full text-sm">品牌设计</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Content Tabs -->
+    <section class="bg-white shadow-sm sticky top-16 z-40">
+        <div class="max-w-7xl mx-auto px-6">
+            <nav class="flex space-x-8">
+                <button class="py-4 px-6 text-sm font-medium tab-active rounded-t-lg">作品集 (892)</button>
+                <button class="py-4 px-6 text-sm font-medium text-gray-600 hover:text-purple-600 transition-colors">收藏 (156)</button>
+                <button class="py-4 px-6 text-sm font-medium text-gray-600 hover:text-purple-600 transition-colors">评价 (127)</button>
+                <button class="py-4 px-6 text-sm font-medium text-gray-600 hover:text-purple-600 transition-colors">关于</button>
+            </nav>
+        </div>
+    </section>
+
+    <!-- Portfolio Content -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Filter Bar -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                <div class="flex flex-wrap gap-3">
+                    <button class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium">全部</button>
+                    <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-purple-100 hover:text-purple-600 transition-colors">科技插画</button>
+                    <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-purple-100 hover:text-purple-600 transition-colors">商业设计</button>
+                    <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-purple-100 hover:text-purple-600 transition-colors">概念艺术</button>
+                    <button class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-purple-100 hover:text-purple-600 transition-colors">UI设计</button>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <select class="px-4 py-2 bg-gray-100 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <option>最新发布</option>
+                        <option>最受欢迎</option>
+                        <option>价格最高</option>
+                        <option>价格最低</option>
+                    </select>
+                    <div class="flex border border-gray-200 rounded-lg">
+                        <button class="p-2 text-purple-600 bg-purple-50">
+                            <i class="fas fa-th text-sm"></i>
+                        </button>
+                        <button class="p-2 text-gray-600 hover:text-purple-600 transition-colors">
+                            <i class="fas fa-list text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Grid -->
+        <div class="masonry">
+            <!-- Artwork 1 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="未来科技概念" class="w-full h-64 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1578662996442-48f60103fc96 -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-gray-600 hover:text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-medium">科技</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">未来科技概念设计</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥199</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.9 (23)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>156 次收藏</span>
+                            <span>2.3K 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artwork 2 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1541961017774-22349e4a1262?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="数字化转型" class="w-full h-48 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1541961017774-22349e4a1262 -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-medium">商业</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">数字化转型概念</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥149</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.8 (18)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>89 次收藏</span>
+                            <span>1.8K 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artwork 3 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="抽象几何" class="w-full h-56 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1558618666-fcd25c85cd64 -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-gray-600 hover:text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">艺术</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">抽象几何艺术</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥89</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.7 (12)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>67 次收藏</span>
+                            <span>1.2K 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artwork 4 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1596854407944-bf87f6fdd49e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="自然风景" class="w-full h-72 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1596854407944-bf87f6fdd49e -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-gray-600 hover:text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-emerald-600 text-white px-2 py-1 rounded-full text-xs font-medium">自然</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">自然风景插画</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥129</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.9 (31)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>203 次收藏</span>
+                            <span>3.1K 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artwork 5 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1569163139394-de4e4f43e4e5?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="可爱动物" class="w-full h-44 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1569163139394-de4e4f43e4e5 -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-pink-600 text-white px-2 py-1 rounded-full text-xs font-medium">可爱</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">可爱动物系列</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥59</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.6 (8)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>45 次收藏</span>
+                            <span>892 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artwork 6 -->
+            <div class="masonry-item">
+                <div class="card-hover bg-white rounded-2xl overflow-hidden shadow-sm">
+                    <div class="relative">
+                        <img src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                             alt="UI界面设计" class="w-full h-60 object-cover">
+                        <!-- 来源: Unsplash - https://unsplash.com/photo-1550745165-9bc0b252726f -->
+                        <div class="absolute top-3 right-3">
+                            <button class="bg-white bg-opacity-90 p-2 rounded-full hover:bg-opacity-100 transition-all">
+                                <i class="fas fa-heart text-gray-600 hover:text-red-500"></i>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-3 left-3">
+                            <span class="bg-indigo-600 text-white px-2 py-1 rounded-full text-xs font-medium">UI</span>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <h3 class="font-semibold text-gray-800 mb-2">移动应用UI设计</h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-purple-600 font-bold">¥299</span>
+                            <div class="flex items-center space-x-1 text-yellow-500">
+                                <i class="fas fa-star text-xs"></i>
+                                <span class="text-xs text-gray-600">4.8 (15)</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>112 次收藏</span>
+                            <span>1.9K 浏览</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Load More -->
+        <div class="text-center mt-12">
+            <button class="hero-gradient text-white px-8 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                加载更多作品
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-16 mt-20">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                            <i class="fas fa-palette text-white text-lg"></i>
+                        </div>
+                        <span class="text-xl font-bold">KDP.Cool</span>
+                    </div>
+                    <p class="text-gray-400 mb-6">连接全球插画师与买家的专业交易平台，让创意价值得到公平体现。</p>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="fab fa-weibo text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="fab fa-wechat text-xl"></i>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white transition-colors">
+                            <i class="fab fa-qq text-xl"></i>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-6">平台服务</h3>
+                    <ul class="space-y-3 text-gray-400">
+                        <li><a href="#" class="hover:text-white transition-colors">作品市场</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">插画师入驻</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">版权保护</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">定制服务</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-6">帮助中心</h3>
+                    <ul class="space-y-3 text-gray-400">
+                        <li><a href="#" class="hover:text-white transition-colors">使用指南</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">支付帮助</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">版权说明</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">联系客服</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-6">关于我们</h3>
+                    <ul class="space-y-3 text-gray-400">
+                        <li><a href="#" class="hover:text-white transition-colors">公司介绍</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">加入我们</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">媒体报道</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">合作伙伴</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 KDP.Cool. 保留所有权利. | 沪ICP备xxxxxxxx号 | 隐私政策 | 服务条款</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

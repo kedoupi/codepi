@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联系合作 - KDP.Cool | 专业插画师</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .hero-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .service-card {
+            transition: all 0.3s ease;
+        }
+        .service-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        .step-card {
+            position: relative;
+        }
+        .step-card::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -20px;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid #667eea;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+        }
+        .step-card:last-child::after {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .step-card::after {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm fixed w-full top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                        <i class="fas fa-palette text-white text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold text-gray-800">KDP.Cool</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="home.html" class="text-gray-600 hover:text-purple-600 transition-colors">首页</a>
+                    <a href="portfolio.html" class="text-gray-600 hover:text-purple-600 transition-colors">作品集</a>
+                    <a href="about.html" class="text-gray-600 hover:text-purple-600 transition-colors">关于我</a>
+                    <a href="#" class="text-purple-600 font-medium">联系合作</a>
+                </div>
+                <button class="hero-gradient text-white px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                    <i class="fas fa-envelope mr-2"></i>立即咨询
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-16 hero-gradient">
+        <div class="max-w-7xl mx-auto px-6 py-20">
+            <div class="text-center text-white">
+                <h1 class="text-5xl font-bold mb-6">让我们开始合作</h1>
+                <p class="text-xl text-purple-100 mb-8 max-w-3xl mx-auto leading-relaxed">
+                    无论您是需要品牌插画、产品设计还是个人艺术作品，我都能为您提供专业的创意解决方案。
+                    让我们一起将您的想法转化为令人惊艳的视觉作品。
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                    <a href="#contact-form" class="bg-white text-purple-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-envelope mr-2"></i>立即咨询
+                    </a>
+                    <a href="#services" class="border-2 border-white text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white hover:text-purple-600 transition-colors">
+                        <i class="fas fa-info-circle mr-2"></i>了解服务
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Info -->
+    <section class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- Contact Card 1 -->
+                <div class="text-center p-8 bg-gray-50 rounded-2xl">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-envelope text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">邮箱联系</h3>
+                    <p class="text-gray-600 mb-4">最快的联系方式，通常24小时内回复</p>
+                    <a href="mailto:hello@kdp.cool" class="text-purple-600 hover:text-purple-700 font-medium">
+                        hello@kdp.cool
+                    </a>
+                </div>
+
+                <!-- Contact Card 2 -->
+                <div class="text-center p-8 bg-gray-50 rounded-2xl">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-phone text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">电话咨询</h3>
+                    <p class="text-gray-600 mb-4">工作时间内可直接电话沟通项目需求</p>
+                    <a href="tel:+8613800138000" class="text-purple-600 hover:text-purple-700 font-medium">
+                        +86 138 0013 8000
+                    </a>
+                </div>
+
+                <!-- Contact Card 3 -->
+                <div class="text-center p-8 bg-gray-50 rounded-2xl">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fab fa-wechat text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">微信咨询</h3>
+                    <p class="text-gray-600 mb-4">扫码添加微信，随时沟通项目进展</p>
+                    <span class="text-purple-600 font-medium">KDP_Cool_2024</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="py-20 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">服务项目</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    提供全方位的插画设计服务，从概念构思到最终交付，
+                    确保每个项目都能达到您的期望。
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Service 1 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-briefcase text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">商业插画</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        为企业品牌、产品宣传、广告营销等商业用途创作专业插画，
+                        帮助提升品牌形象和传播效果。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>品牌形象插画</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>产品宣传插画</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>广告创意插画</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥3,000 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+
+                <!-- Service 2 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-palette text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">品牌设计</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        提供完整的品牌视觉设计服务，包括logo设计、
+                        品牌色彩规范、视觉识别系统等。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>Logo设计</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>视觉识别系统</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>品牌应用设计</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥5,000 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+
+                <!-- Service 3 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-laptop text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">数字艺术</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        创作独特的数字艺术作品，适用于装饰、收藏、
+                        NFT发行等多种用途。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>概念艺术</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>装饰插画</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>NFT艺术品</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥2,000 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+
+                <!-- Service 4 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-book text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">出版插画</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        为书籍、杂志、期刊等出版物创作插画，
+                        增强内容的视觉表现力和阅读体验。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>书籍封面设计</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>内页插图</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>杂志配图</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥1,500 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+
+                <!-- Service 5 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-mobile-alt text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">UI插画</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        为移动应用、网站、软件界面创作插画元素，
+                        提升用户体验和界面美观度。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>应用界面插画</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>网站配图</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>图标设计</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥2,500 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+
+                <!-- Service 6 -->
+                <div class="service-card bg-white rounded-2xl p-8 shadow-lg">
+                    <div class="w-16 h-16 hero-gradient rounded-lg flex items-center justify-center mb-6">
+                        <i class="fas fa-heart text-white text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">定制创作</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        根据您的特殊需求定制独一无二的插画作品，
+                        包括肖像画、纪念品设计等个性化创作。
+                    </p>
+                    <div class="space-y-2 mb-6">
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>个人肖像</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>纪念品设计</span>
+                        </div>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-check text-green-500 mr-2"></i>
+                            <span>特殊主题创作</span>
+                        </div>
+                    </div>
+                    <div class="text-purple-600 font-semibold text-lg mb-4">¥1,000 起</div>
+                    <button class="w-full hero-gradient text-white py-3 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                        了解详情
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Process Section -->
+    <section class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">合作流程</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    简单高效的合作流程，确保项目顺利进行，
+                    让您的创意想法完美呈现。
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-5 gap-8">
+                <!-- Step 1 -->
+                <div class="step-card text-center">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-white font-bold text-lg">1</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">需求沟通</h3>
+                    <p class="text-gray-600 text-sm">
+                        详细了解您的项目需求、
+                        预算范围和时间安排
+                    </p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="step-card text-center">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-white font-bold text-lg">2</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">方案制定</h3>
+                    <p class="text-gray-600 text-sm">
+                        根据需求制定详细的
+                        创作方案和报价
+                    </p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="step-card text-center">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-white font-bold text-lg">3</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">合同签署</h3>
+                    <p class="text-gray-600 text-sm">
+                        确认合作细节，
+                        签署正式合作协议
+                    </p>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="step-card text-center">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-white font-bold text-lg">4</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">创作执行</h3>
+                    <p class="text-gray-600 text-sm">
+                        开始创作，定期汇报
+                        进度并接受反馈
+                    </p>
+                </div>
+
+                <!-- Step 5 -->
+                <div class="step-card text-center">
+                    <div class="w-16 h-16 hero-gradient rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span class="text-white font-bold text-lg">5</span>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-800 mb-2">交付验收</h3>
+                    <p class="text-gray-600 text-sm">
+                        完成最终作品交付，
+                        提供源文件和使用授权
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Form Section -->
+    <section id="contact-form" class="py-20 bg-gray-50">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">开始您的项目</h2>
+                <p class="text-xl text-gray-600">
+                    填写下面的表单，我会在24小时内与您联系
+                </p>
+            </div>
+
+            <div class="bg-white rounded-3xl p-8 shadow-lg">
+                <form class="space-y-6">
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">您的姓名 *</label>
+                            <input type="text" 
+                                   placeholder="请输入您的姓名" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">联系电话 *</label>
+                            <input type="tel" 
+                                   placeholder="请输入您的手机号" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">邮箱地址 *</label>
+                            <input type="email" 
+                                   placeholder="请输入您的邮箱" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">公司/组织</label>
+                            <input type="text" 
+                                   placeholder="请输入公司或组织名称" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">服务类型 *</label>
+                            <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="">请选择服务类型</option>
+                                <option value="commercial">商业插画</option>
+                                <option value="brand">品牌设计</option>
+                                <option value="digital">数字艺术</option>
+                                <option value="publishing">出版插画</option>
+                                <option value="ui">UI插画</option>
+                                <option value="custom">定制创作</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">预算范围</label>
+                            <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="">请选择预算范围</option>
+                                <option value="1000-3000">¥1,000 - ¥3,000</option>
+                                <option value="3000-5000">¥3,000 - ¥5,000</option>
+                                <option value="5000-10000">¥5,000 - ¥10,000</option>
+                                <option value="10000+">¥10,000 以上</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">项目描述 *</label>
+                        <textarea rows="6" 
+                                  placeholder="请详细描述您的项目需求，包括风格偏好、用途、尺寸要求等..." 
+                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">期望完成时间</label>
+                        <input type="date" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">参考文件</label>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors cursor-pointer">
+                            <i class="fas fa-cloud-upload-alt text-gray-400 text-2xl mb-2"></i>
+                            <p class="text-gray-600">点击上传或拖拽文件到此处</p>
+                            <p class="text-sm text-gray-500 mt-1">支持 JPG, PNG, PDF 格式，最大 10MB</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center">
+                        <input type="checkbox" 
+                               id="agreement" 
+                               class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                        <label for="agreement" class="ml-2 text-sm text-gray-600">
+                            我已阅读并同意 <a href="#" class="text-purple-600 hover:text-purple-700">服务条款</a> 和 <a href="#" class="text-purple-600 hover:text-purple-700">隐私政策</a>
+                        </label>
+                    </div>
+
+                    <button type="submit" 
+                            class="w-full hero-gradient text-white py-4 rounded-lg font-medium text-lg hover:opacity-90 transition-opacity">
+                        <i class="fas fa-paper-plane mr-2"></i>提交咨询
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="py-20 bg-white">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl font-bold text-gray-800 mb-6">常见问题</h2>
+                <p class="text-xl text-gray-600">
+                    解答您可能关心的问题
+                </p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- FAQ Item 1 -->
+                <div class="bg-gray-50 rounded-2xl p-6">
+                    <div class="flex items-center justify-between cursor-pointer">
+                        <h3 class="text-lg font-semibold text-gray-800">项目的一般制作周期是多长？</h3>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </div>
+                    <div class="mt-4 text-gray-600">
+                        <p>制作周期根据项目复杂度而定：简单插画通常需要3-5个工作日，复杂的品牌设计项目可能需要1-2周。我会在项目开始前与您确认具体的时间安排。</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 2 -->
+                <div class="bg-gray-50 rounded-2xl p-6">
+                    <div class="flex items-center justify-between cursor-pointer">
+                        <h3 class="text-lg font-semibold text-gray-800">如何确定项目的最终价格？</h3>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </div>
+                    <div class="mt-4 text-gray-600">
+                        <p>价格主要基于项目的复杂度、使用范围、交付时间等因素。我会根据您的具体需求提供详细的报价单，确保价格透明合理。</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 3 -->
+                <div class="bg-gray-50 rounded-2xl p-6">
+                    <div class="flex items-center justify-between cursor-pointer">
+                        <h3 class="text-lg font-semibold text-gray-800">可以提供哪些格式的文件？</h3>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </div>
+                    <div class="mt-4 text-gray-600">
+                        <p>我可以提供多种格式的文件，包括高分辨率的PNG、JPG、PDF，以及可编辑的PSD、AI源文件。具体格式会根据您的使用需求来确定。</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 4 -->
+                <div class="bg-gray-50 rounded-2xl p-6">
+                    <div class="flex items-center justify-between cursor-pointer">
+                        <h3 class="text-lg font-semibold text-gray-800">项目完成后是否提供修改服务？</h3>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </div>
+                    <div class="mt-4 text-gray-600">
+                        <p>是的，我提供合理范围内的修改服务。通常包含2-3次免费修改机会，超出范围的大幅修改会根据工作量收取额外费用。</p>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 5 -->
+                <div class="bg-gray-50 rounded-2xl p-6">
+                    <div class="flex items-center justify-between cursor-pointer">
+                        <h3 class="text-lg font-semibold text-gray-800">版权归属如何处理？</h3>
+                        <i class="fas fa-chevron-down text-gray-400"></i>
+                    </div>
+                    <div class="mt-4 text-gray-600">
+                        <p>项目完成并收到全额付款后，作品的商业使用权归您所有。我保留作品在个人作品集中展示的权利，具体条款会在合同中明确说明。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 hero-gradient">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h2 class="text-4xl font-bold text-white mb-6">准备开始您的项目了吗？</h2>
+            <p class="text-xl text-purple-100 mb-8 leading-relaxed">
+                无论您的项目大小，我都会以专业的态度和创意的思维为您提供最优质的服务。
+                让我们一起创造出令人惊艳的视觉作品！
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="#contact-form" class="bg-white text-purple-600 px-8 py-4 rounded-lg font-medium text-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-envelope mr-2"></i>立即咨询
+                </a>
+                <a href="portfolio.html" class="border-2 border-white text-white px-8 py-4 rounded-lg font-medium text-lg hover:bg-white hover:text-purple-600 transition-colors">
+                    <i class="fas fa-eye mr-2"></i>查看作品集
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div class="col-span-2">
+                    <div class="flex items-center space-x-3 mb-6">
+                        <div class="w-10 h-10 hero-gradient rounded-lg flex items-center justify-center">
+                            <i class="fas fa-palette text-white text-lg"></i>
+                        </div>
+                        <span class="text-xl font-bold">KDP.Cool</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 max-w-md">
+                        专业插画师，致力于为客户提供高质量的创意设计服务。每一个项目都是艺术与商业的完美结合。
+                    </p>
+                    <div class="flex space-x-4">
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-weibo"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-wechat"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-behance"></i>
+                        </a>
+                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-purple-600 transition-colors">
+                            <i class="fab fa-dribbble"></i>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">服务项目</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white transition-colors">商业插画</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">品牌设计</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">数字艺术</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">定制创作</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">联系方式</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><i class="fas fa-envelope mr-2"></i>hello@kdp.cool</li>
+                        <li><i class="fas fa-phone mr-2"></i>+86 138 0013 8000</li>
+                        <li><i class="fas fa-map-marker-alt mr-2"></i>北京市朝阳区</li>
+                        <li><i class="fas fa-clock mr-2"></i>周一至周五 9:00-18:00</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 KDP.Cool. 保留所有权利。</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
