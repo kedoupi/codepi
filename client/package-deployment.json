@@ -1,0 +1,54 @@
+{
+  "name": "kdp-cool-deployment",
+  "version": "1.0.0",
+  "description": "KDP.Cool deployment configuration and scripts",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy:vercel": "vercel --prod",
+    "deploy:netlify": "netlify deploy --prod --dir=dist",
+    "setup:env": "node setup-env.js",
+    "test:connection": "node quick-test.js",
+    "setup:database": "node setup-database.js",
+    "health-check": "node health-check.js"
+  },
+  "deployment": {
+    "platforms": {
+      "vercel": {
+        "framework": "vite",
+        "buildCommand": "npm run build",
+        "outputDirectory": "dist",
+        "envVars": [
+          "VITE_SUPABASE_URL",
+          "VITE_SUPABASE_ANON_KEY",
+          "VITE_APP_URL"
+        ]
+      },
+      "netlify": {
+        "buildCommand": "npm run build",
+        "publishDirectory": "dist",
+        "envVars": [
+          "VITE_SUPABASE_URL", 
+          "VITE_SUPABASE_ANON_KEY",
+          "VITE_APP_URL"
+        ]
+      }
+    }
+  },
+  "supabase": {
+    "required_tables": [
+      "profiles",
+      "artworks", 
+      "categories",
+      "favorites",
+      "comments",
+      "orders"
+    ],
+    "required_buckets": [
+      "artworks"
+    ],
+    "required_auth_providers": [
+      "google"
+    ]
+  }
+}
