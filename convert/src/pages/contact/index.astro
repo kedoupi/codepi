@@ -1,0 +1,29 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Contact';
+const description = 'Reach the ConvertKDP team. We read every email — bug reports, feature requests, and feedback all welcome.';
+---
+<BaseLayout title={title} description={description} pathname="/contact/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Contact</h1>
+
+    <p>The fastest way to reach us is email:</p>
+    <p class="text-lg"><a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a></p>
+
+    <p class="text-sm text-slate-600">We read everything — bug reports, feature requests, converter suggestions, and corrections to math or reference data are all welcome. Replies usually within a few days.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Found a bug?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, what you expected, and what you got. Screenshots help.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Looking for a converter we don't have?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>. We prioritize converters that get high search volume and have authoritative source data we can cite (when applicable).</p>
+
+    <h2 class="text-xl font-semibold mt-6">What to include</h2>
+    <p>For a conversion bug, include the page URL, the original value, the source unit, the target unit, and any date or location that affects the result. Time-zone reports should include the city or IANA time zone name plus the exact date and time because daylight saving rules can change the answer.</p>
+    <p>For a new converter request, describe the real task behind it. A useful converter should have clear units, a stable formula or data source, and a result that can be explained on the page.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Privacy note</h2>
+    <p>Please avoid sending private travel plans, addresses, customer records, shipping documents, or other sensitive data. Use representative example values when the exact value is not needed to reproduce the issue.</p>
+  </article>
+</BaseLayout>

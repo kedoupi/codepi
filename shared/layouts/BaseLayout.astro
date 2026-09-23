@@ -1,0 +1,332 @@
+---
+import * as siteConfig from '@site/site.config.js';
+import { defaultLocale, getLocale, localizedPath, locales, stripLocale } from '@shared/i18n/config.js';
+import { zhToolTranslations } from '@shared/i18n/zh-tool-translations.js';
+
+const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
+const extraFooterLinks = siteConfig.extraFooterLinks ?? [];
+
+interface Props {
+  title: string;
+  description: string;
+  pathname: string; // e.g. "/mortgage-calculator/"
+  schemaType?: 'WebApplication' | 'WebSite' | 'WebPage';
+  locale?: string;
+}
+const SITE = import.meta.env.SITE;
+const { title, description, pathname, schemaType = 'WebApplication', locale = defaultLocale } = Astro.props;
+const queryLocale = Astro.url.searchParams.get('lang') === 'zh' ? 'zh' : null;
+const effectiveLocale = locale === defaultLocale && queryLocale ? queryLocale : locale;
+const localeInfo = getLocale(effectiveLocale);
+const canonicalURL = new URL(pathname, SITE).toString();
+const fullTitle = `${title} | ${siteName}`;
+const hasLocalizedPage = stripLocale(pathname) === '/';
+const buildLanguageHref = (code) => {
+  if (hasLocalizedPage) return localizedPath(pathname, code);
+  if (code === defaultLocale) return stripLocale(pathname);
+  if (code === 'zh') return `${stripLocale(pathname)}?lang=zh`;
+  return localizedPath('/', code);
+};
+const languageLinks = locales.map((entry) => ({
+  ...entry,
+  href: new URL(buildLanguageHref(entry.code), SITE).toString(),
+}));
+const alternateLinks = hasLocalizedPage ? languageLinks : [];
+const localePayload = JSON.stringify({
+  current: effectiveLocale,
+  defaultLocale,
+  alternates: Object.fromEntries(languageLinks.map((entry) => [entry.code, entry.href])),
+  supported: locales.map((entry) => entry.code),
+  pathname: stripLocale(pathname),
+});
+const zhToolTranslationPayload = JSON.stringify(zhToolTranslations);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': schemaType,
+  name: title,
+  url: canonicalURL,
+  description,
+  ...(schemaType === 'WebApplication' ? { applicationCategory: applicationCategory || 'WebApplication' } : {}),
+};
+---
+<!doctype html>
+<html lang={localeInfo.htmlLang} dir={localeInfo.dir}>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{fullTitle}</title>
+  <meta name="description" content={description} />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href={canonicalURL} />
+  {alternateLinks.map((link) => (
+    <link rel="alternate" hreflang={link.htmlLang} href={link.href} />
+  ))}
+  {hasLocalizedPage && (
+    <link rel="alternate" hreflang="x-default" href={new URL(localizedPath(pathname, defaultLocale), SITE).toString()} />
+  )}
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:url" content={canonicalURL} />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content={siteName} />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content={title} />
+  <meta name="twitter:description" content={description} />
+
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4790759596265225" crossorigin="anonymous"></script>
+  <meta name="google-adsense-account" content="ca-pub-4790759596265225" />
+  <style>
+    :global(:root) {
+      --kdp-ink: #171412;
+      --kdp-muted: #6f675e;
+      --kdp-paper: #fbf7ef;
+      --kdp-paper-deep: #f3eadc;
+      --kdp-line: #e6d9c8;
+      --kdp-accent: #b45309;
+      --kdp-accent-strong: #92400e;
+      --kdp-focus: #0f766e;
+    }
+
+    :global(body) {
+      background:
+        radial-gradient(circle at top left, rgba(180, 83, 9, 0.08), transparent 34rem),
+        linear-gradient(180deg, var(--kdp-paper) 0%, #fffdf8 46%, #ffffff 100%);
+      color: var(--kdp-ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    :global(h1),
+    :global(.kdp-display) {
+      font-family: Georgia, "Times New Roman", serif;
+      letter-spacing: 0;
+    }
+
+    :global(.kdp-card) {
+      border: 1px solid var(--kdp-line);
+      background: rgba(255, 253, 248, 0.88);
+      box-shadow: 0 1px 0 rgba(23, 20, 18, 0.04);
+      transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+
+    :global(.kdp-card:hover) {
+      border-color: rgba(146, 64, 14, 0.42);
+      box-shadow: 0 14px 30px rgba(92, 64, 36, 0.10);
+      transform: translateY(-1px);
+    }
+
+    :global(.kdp-card h2::before),
+    :global(.kdp-card h3::before) {
+      content: "";
+      display: inline-block;
+      width: 0.72em;
+      height: 0.72em;
+      margin-right: 0.42em;
+      border-radius: 0.22em;
+      background:
+        linear-gradient(135deg, #171412 0 48%, transparent 49%),
+        linear-gradient(135deg, transparent 0 52%, #b45309 53%);
+      box-shadow: inset 0 0 0 1px rgba(23, 20, 18, 0.14);
+      vertical-align: 0.02em;
+    }
+
+    :global(.kdp-section-label) {
+      color: var(--kdp-accent-strong);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    :global(.kdp-link) {
+      color: var(--kdp-accent-strong);
+      font-weight: 650;
+    }
+
+    :global(.kdp-link:hover) {
+      color: var(--kdp-ink);
+    }
+
+    :global(.kdp-prose) {
+      color: #3d362f;
+      line-height: 1.72;
+    }
+
+    :global(.kdp-language-select) {
+      color: var(--kdp-ink);
+      background: rgba(255, 253, 248, 0.78);
+      border: 1px solid #d7c7b5;
+      border-radius: 999px;
+      min-height: 36px;
+      padding: 0 2.25rem 0 0.9rem;
+      font-size: 0.875rem;
+    }
+
+    :global([dir="rtl"] .kdp-language-select) {
+      padding: 0 0.9rem 0 2.25rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-stone-950 antialiased">
+  <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-stone-950 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white">Skip to main content</a>
+  <header class="border-b border-[#e6d9c8]/90 bg-[#fbf7ef]/88 backdrop-blur">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <a href="/" class="group inline-flex items-center gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <img src="/brand-mark.svg" alt="" width="40" height="40" class="h-10 w-10 rounded-xl shadow-sm" />
+        <span>
+          <span class="block font-serif text-xl leading-none tracking-normal text-stone-950">{siteName}</span>
+          <span class="hidden text-xs text-stone-500 sm:block">{tagline}</span>
+        </span>
+      </a>
+      <nav class="text-sm text-stone-600 flex flex-wrap items-center gap-2" aria-label="Primary navigation">
+        {navLinks.map((link) => (
+          link.external
+            ? <a href={link.href} class="rounded-full border border-transparent px-3 py-1.5 transition hover:border-[#d7c7b5] hover:bg-white/70 hover:text-stone-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2" target="_blank" rel="noopener">{link.label}</a>
+            : <a href={link.href} class="rounded-full border border-transparent px-3 py-1.5 transition hover:border-[#d7c7b5] hover:bg-white/70 hover:text-stone-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">{link.label}</a>
+        ))}
+        <label class="sr-only" for="kdp-language-select">Language</label>
+        <select id="kdp-language-select" class="kdp-language-select focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2" aria-label="Language">
+          {languageLinks.map((link) => (
+            <option value={link.href} data-locale={link.code} selected={link.code === effectiveLocale}>{link.shortLabel}</option>
+          ))}
+        </select>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" class="max-w-6xl mx-auto px-4 py-10 sm:py-14" tabindex="-1">
+    <slot />
+  </main>
+
+  <footer class="border-t border-[#e6d9c8] mt-16 bg-[#fbf7ef]/70">
+    <div class="max-w-6xl mx-auto px-4 py-8 text-sm text-stone-500 flex flex-col gap-3 sm:flex-row sm:gap-4 sm:justify-between">
+      <p>© {new Date().getFullYear()} {siteName}. {tagline}</p>
+      <p class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span>{footerNote}</span>
+        <span aria-hidden="true" class="text-stone-300">·</span>
+        {extraFooterLinks.map((link) => (
+          <a href={link.href} class="rounded hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">{link.label}</a>
+        ))}
+        <a href="/privacy/" class="rounded hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">Privacy</a>
+        <a href="/terms/" class="rounded hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">Terms</a>
+        <a href="/about/" class="rounded hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">About</a>
+        <a href="/contact/" class="rounded hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">Contact</a>
+      </p>
+    </div>
+  </footer>
+  <script is:inline set:html={`
+    (() => {
+      const data = ${localePayload};
+      const zhTranslations = ${zhToolTranslationPayload};
+      const select = document.getElementById('kdp-language-select');
+      if (select) {
+        select.addEventListener('change', (event) => {
+          const option = event.target.options[event.target.selectedIndex];
+          try { localStorage.setItem('kdpLocale', option.dataset.locale || data.defaultLocale); } catch (_) {}
+          window.location.href = event.target.value;
+        });
+      }
+
+      let stored = null;
+      try { stored = localStorage.getItem('kdpLocale'); } catch (_) {}
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('lang') === 'zh') {
+        stored = 'zh';
+        try { localStorage.setItem('kdpLocale', 'zh'); } catch (_) {}
+      }
+      const wantsZh = params.get('lang') === 'zh' || data.current === 'zh' || stored === 'zh';
+
+      if (!stored && data.current === data.defaultLocale) {
+        const candidates = (navigator.languages || [navigator.language || '']).map((item) => String(item).toLowerCase().split('-')[0]);
+        const match = candidates.find((code) => data.supported.includes(code) && code !== data.defaultLocale);
+        const target = match ? data.alternates[match] : '';
+        if (match && target) {
+          try { localStorage.setItem('kdpLocale', match); } catch (_) {}
+          try {
+            const dest = new URL(target, window.location.href);
+            const next = dest.pathname + dest.search;
+            const here = window.location.pathname + window.location.search;
+            if (next !== here) {
+              window.location.href = next;
+              return;
+            }
+          } catch (_) {
+            window.location.href = target;
+            return;
+          }
+        }
+      }
+
+      const translateZh = () => {
+        if (!wantsZh || !zhTranslations) return;
+        const exact = zhTranslations.text || {};
+        const attrs = zhTranslations.attributes || {};
+        const phrasePairs = zhTranslations.phrases || [];
+        const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'CODE', 'PRE', 'SVG']);
+        const translateValue = (value) => {
+          if (!value) return value;
+          const trimmed = value.trim();
+          if (!trimmed) return value;
+          if (exact[trimmed]) return value.replace(trimmed, exact[trimmed]);
+          let output = value;
+          phrasePairs.forEach(([from, to]) => {
+            output = output.split(from).join(to);
+          });
+          return output;
+        };
+
+        document.documentElement.lang = 'zh-CN';
+        document.documentElement.dir = 'ltr';
+        document.querySelectorAll('input[placeholder], textarea[placeholder]').forEach((node) => {
+          const current = node.getAttribute('placeholder');
+          if (attrs[current]) node.setAttribute('placeholder', attrs[current]);
+        });
+        document.querySelectorAll('[aria-label], [title], input[type="button"], input[type="submit"]').forEach((node) => {
+          ['aria-label', 'title', 'value'].forEach((name) => {
+            const current = node.getAttribute(name);
+            if (attrs[current]) node.setAttribute(name, attrs[current]);
+            else if (exact[current]) node.setAttribute(name, exact[current]);
+          });
+        });
+
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            const parent = node.parentElement;
+            if (!parent || skipTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          },
+        });
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach((node) => {
+          const next = translateValue(node.nodeValue);
+          if (next !== node.nodeValue) node.nodeValue = next;
+        });
+      };
+
+      let translating = false;
+      const scheduleTranslateZh = () => {
+        if (!wantsZh || translating) return;
+        translating = true;
+        window.requestAnimationFrame(() => {
+          translateZh();
+          translating = false;
+        });
+      };
+      translateZh();
+      window.addEventListener('DOMContentLoaded', translateZh, { once: true });
+      if (wantsZh && document.body) {
+        const observer = new MutationObserver(scheduleTranslateZh);
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+      }
+    })();
+  `} />
+</body>
+</html>

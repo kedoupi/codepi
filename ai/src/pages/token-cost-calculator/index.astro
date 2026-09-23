@@ -1,0 +1,195 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+
+const title = 'AI Token & Cost Calculator - Prompt Token and API Cost Estimator';
+const description = 'Estimate prompt tokens, output tokens, and AI API cost for common OpenAI, Anthropic, Gemini, and OpenRouter-style billing. Browser-only, no signup.';
+
+const lastReviewed = '2026-05-14';
+
+const faqs = [
+  {
+    q: 'Is this the exact number that my provider will bill?',
+    a: 'No. This is an estimate. Real billing can include tokenizer differences, reasoning tokens, tool calls, image/audio costs, cached input discounts, batch pricing, taxes, and provider-specific rounding.',
+  },
+  {
+    q: 'Why does the calculator estimate tokens from characters?',
+    a: 'A browser-only static page cannot perfectly match every provider tokenizer. The default estimate uses about four characters per token, which is useful for planning but not a billing source of truth.',
+  },
+  {
+    q: 'Is my prompt uploaded?',
+    a: 'No. The token estimate and cost math run locally in your browser. Your pasted text is not sent to a server.',
+  },
+];
+---
+<BaseLayout title={title} description={description} pathname="/token-cost-calculator/">
+  <CalculatorShell
+    title="AI Token & Cost Calculator"
+    intro="Paste a prompt, choose a model, estimate output length, and see rough per-run cost. The math is transparent and runs in your browser."
+  >
+    <AdSense slot="top-ad" adSlot="ai-token-top" style="min-height:90px" />
+
+    <div slot="inputs" class="space-y-4">
+      <div>
+        <label for="tc-model" class="block text-sm font-medium text-slate-700 mb-1">Model pricing preset</label>
+        <select id="tc-model" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-600">
+          <optgroup label="OpenAI">
+            <option value="openai-gpt-5">GPT-5 estimate ($1.25 in / $10 out per 1M)</option>
+            <option value="openai-gpt-5-mini">GPT-5 mini estimate ($0.25 in / $2 out per 1M)</option>
+            <option value="openai-gpt-5-nano">GPT-5 nano estimate ($0.05 in / $0.40 out per 1M)</option>
+          </optgroup>
+          <optgroup label="Anthropic">
+            <option value="anthropic-sonnet-45">Claude Sonnet 4.5 estimate ($3 in / $15 out per 1M)</option>
+            <option value="anthropic-haiku-45">Claude Haiku 4.5 estimate ($1 in / $5 out per 1M)</option>
+          </optgroup>
+          <optgroup label="Google Gemini">
+            <option value="gemini-flash-lite">Gemini Flash-Lite style estimate ($0.10 in / $0.40 out per 1M)</option>
+            <option value="gemini-flash">Gemini Flash style estimate ($0.30 in / $2.50 out per 1M)</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div>
+        <label for="tc-text" class="block text-sm font-medium text-slate-700 mb-1">Prompt / input text</label>
+        <textarea id="tc-text" rows="12" spellcheck="false" placeholder="Paste the prompt, document excerpt, or messages you plan to send..."
+          class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-600 font-mono text-sm leading-relaxed resize-y"></textarea>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="tc-output" class="block text-sm font-medium text-slate-700 mb-1">Estimated output tokens</label>
+          <input id="tc-output" type="number" min="0" step="100" value="1000"
+            class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-600" />
+        </div>
+        <div>
+          <label for="tc-runs" class="block text-sm font-medium text-slate-700 mb-1">Runs / requests</label>
+          <input id="tc-runs" type="number" min="1" step="1" value="1"
+            class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-600" />
+        </div>
+      </div>
+
+      <p class="text-xs text-slate-500">Advanced billing like prompt caching, batch discounts, web search, image generation, and tool calls is not included.</p>
+    </div>
+
+    <div slot="results" class="space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Characters</p>
+          <p id="tc-chars" class="text-2xl font-bold tabular-nums">0</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Input tokens</p>
+          <p id="tc-input-tokens" class="text-2xl font-bold tabular-nums">0</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">One run</p>
+          <p id="tc-one-cost" class="text-2xl font-bold tabular-nums">$0.0000</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Total</p>
+          <p id="tc-total-cost" class="text-2xl font-bold tabular-nums">$0.0000</p>
+        </div>
+      </div>
+      <div class="rounded border border-slate-200 bg-white p-4 text-sm text-slate-700">
+        <p id="tc-rate-line" class="font-medium"></p>
+        <p id="tc-math" class="mt-2 font-mono whitespace-pre-line text-xs"></p>
+      </div>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="ai-token-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <h2 class="text-2xl font-bold mb-3">How the estimate works</h2>
+      <p class="mb-3">The calculator estimates input tokens from your text length, adds the output tokens you expect, and multiplies both by the selected per-million-token rates. The default text estimate is roughly one token per four characters.</p>
+      <p class="mb-3">Formula: <code>cost = inputTokens / 1,000,000 * inputRate + outputTokens / 1,000,000 * outputRate</code>. Total cost multiplies that per-request estimate by the number of runs.</p>
+
+      <h3 class="text-xl font-bold mt-6 mb-2">Sources</h3>
+      <ul class="list-disc pl-6 space-y-1 mb-3">
+        <li><a href="https://openai.com/api/pricing/" class="text-teal-700 hover:underline">OpenAI API pricing</a></li>
+        <li><a href="https://docs.anthropic.com/en/docs/about-claude/pricing" class="text-teal-700 hover:underline">Anthropic Claude pricing</a></li>
+        <li><a href="https://ai.google.dev/gemini-api/docs/pricing" class="text-teal-700 hover:underline">Gemini API pricing</a></li>
+        <li><a href="https://openrouter.ai/pricing" class="text-teal-700 hover:underline">OpenRouter pricing</a></li>
+      </ul>
+
+      <h3 class="text-xl font-bold mt-6 mb-2">Limitations</h3>
+      <p class="mb-3">This page is for planning, not accounting. It does not perfectly reproduce provider tokenizers, cached-input pricing, batch discounts, reasoning-token billing, retrieval storage, web search fees, tool calls, images, audio, or enterprise discounts.</p>
+      <p class="text-sm text-slate-500">Last reviewed: {lastReviewed}. Pricing presets are manually reviewed and should be checked against official provider pages before budget decisions.</p>
+
+      <section class="mt-10">
+        <h2 class="text-2xl font-bold mb-4">Frequently asked questions</h2>
+        <div class="space-y-2">
+          {faqs.map((f) => (
+            <details class="border border-slate-200 rounded p-4 group">
+              <summary class="cursor-pointer font-medium text-slate-900">{f.q}</summary>
+              <p class="mt-3 text-slate-700 leading-relaxed">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <script type="application/ld+json" set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((f) => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      })} />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="ai-token-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    const MODELS: Record<string, { name: string; input: number; output: number }> = {
+      'openai-gpt-5': { name: 'GPT-5 estimate', input: 1.25, output: 10 },
+      'openai-gpt-5-mini': { name: 'GPT-5 mini estimate', input: 0.25, output: 2 },
+      'openai-gpt-5-nano': { name: 'GPT-5 nano estimate', input: 0.05, output: 0.40 },
+      'anthropic-sonnet-45': { name: 'Claude Sonnet 4.5 estimate', input: 3, output: 15 },
+      'anthropic-haiku-45': { name: 'Claude Haiku 4.5 estimate', input: 1, output: 5 },
+      'gemini-flash-lite': { name: 'Gemini Flash-Lite style estimate', input: 0.10, output: 0.40 },
+      'gemini-flash': { name: 'Gemini Flash style estimate', input: 0.30, output: 2.50 },
+    };
+
+    const $model = document.getElementById('tc-model') as HTMLSelectElement;
+    const $text = document.getElementById('tc-text') as HTMLTextAreaElement;
+    const $output = document.getElementById('tc-output') as HTMLInputElement;
+    const $runs = document.getElementById('tc-runs') as HTMLInputElement;
+
+    function money(n: number): string {
+      if (n < 0.01) return `$${n.toFixed(6)}`;
+      if (n < 1) return `$${n.toFixed(4)}`;
+      return `$${n.toFixed(2)}`;
+    }
+
+    function update() {
+      const model = MODELS[$model.value] || MODELS['openai-gpt-5'];
+      const chars = $text.value.length;
+      const inputTokens = Math.ceil(chars / 4);
+      const outputTokens = Math.max(0, Number($output.value) || 0);
+      const runs = Math.max(1, Number($runs.value) || 1);
+      const inputCost = inputTokens / 1_000_000 * model.input;
+      const outputCost = outputTokens / 1_000_000 * model.output;
+      const one = inputCost + outputCost;
+      const total = one * runs;
+
+      document.getElementById('tc-chars')!.textContent = chars.toLocaleString();
+      document.getElementById('tc-input-tokens')!.textContent = inputTokens.toLocaleString();
+      document.getElementById('tc-one-cost')!.textContent = money(one);
+      document.getElementById('tc-total-cost')!.textContent = money(total);
+      document.getElementById('tc-rate-line')!.textContent = `${model.name}: $${model.input}/1M input tokens, $${model.output}/1M output tokens`;
+      document.getElementById('tc-math')!.textContent = [
+        `Input: ${inputTokens.toLocaleString()} / 1,000,000 * $${model.input} = ${money(inputCost)}`,
+        `Output: ${outputTokens.toLocaleString()} / 1,000,000 * $${model.output} = ${money(outputCost)}`,
+        `One run: ${money(one)}`,
+        `${runs.toLocaleString()} run(s): ${money(total)}`,
+      ].join('\n');
+    }
+
+    [$model, $text, $output, $runs].forEach((el) => el.addEventListener('input', update));
+    $model.addEventListener('change', update);
+    update();
+  </script>
+</BaseLayout>

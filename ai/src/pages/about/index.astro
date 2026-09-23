@@ -1,0 +1,38 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'About AIKDP';
+const description = 'AIKDP builds practical browser-only AI workflow tools for prompts, token costs, and privacy checks.';
+---
+<BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">About AIKDP</h1>
+    <p class="text-sm text-slate-500">Practical AI utilities from the kdp.cool tool family.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What this is</h2>
+    <p>AIKDP helps people use AI tools with less guesswork. The first tools focus on prompt structure, cost estimation, and privacy checks before sending text to a chatbot or API.</p>
+    <p>The site is part of the kdp.cool tool family: small browser-first utilities, clear limitations, no signup walls, and no hidden workflow that sends your draft somewhere else. AIKDP is not an AI model provider and does not rank products for affiliate clicks. It exists to make the preparation step easier to inspect.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Why most tools run without an AI API</h2>
+    <p>Many AI workflow problems are not model problems. A cost estimate, privacy-pattern scan, or structured prompt draft can be handled with deterministic browser logic. That makes the result faster, easier to explain, and safer for text you have not reviewed yet.</p>
+    <p>When a page depends on outside information such as model pricing, it should name the assumption and remind you to verify current provider pricing before using the estimate for budgeting. Prices, billing units, context windows, and model names can change.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What makes a page worth publishing</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li>The page must include a usable tool, not just an article.</li>
+      <li>Inputs should stay in the browser whenever the task can be solved locally.</li>
+      <li>Pages should explain assumptions, limitations, and sources in plain language.</li>
+      <li>We avoid fake rankings, scraped AI directories, and pages made only for search keywords.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">Advertising</h2>
+    <p>The site may show Google AdSense ads in fixed positions. Ads should not interrupt the tool or encourage accidental clicks.</p>
+
+    <h2 class="text-xl font-semibold mt-6">How we review pages</h2>
+    <p>Before publishing or updating an AIKDP page, we check whether the tool has a clear input, an understandable output, and a useful explanation for edge cases. A page should help you decide what to do next, not just generate a block of text that looks authoritative.</p>
+    <p>Feedback is welcome when a template is confusing, a privacy pattern creates false positives, or a pricing assumption no longer matches a provider's official documentation.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Contact</h2>
+    <p>See <a href="/contact/" class="text-teal-700 hover:underline">Contact</a>.</p>
+  </article>
+</BaseLayout>

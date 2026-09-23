@@ -1,0 +1,124 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('how-monthly-mortgage-payments-are-calculated');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-09-16"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    A monthly mortgage payment is not one mysterious number. For a standard fixed-rate home loan in the United States, the lender is usually collecting two different things at once: repayment of the amount you borrowed, and interest on the amount you still owe. That pair is called principal and interest, or P&amp;I. Many listing websites then fold in property tax and homeowners insurance and call the larger total PITI. If you only remember one distinction from this page, remember that one. The famous loan formula prices P&amp;I. Tax and insurance are separate bills that happen to be collected in the same monthly draft.
+  </p>
+  <p>
+    This guide walks through the formula, then fills it with a static example that matches the default scenario on our <a href="https://calc.kdp.cool/mortgage-calculator/" class="kdp-link">mortgage calculator</a>: a $400,000 home, 20% down, 6.5% annual interest, and a 30-year term. You do not need JavaScript to check the arithmetic. A basic calculator is enough. The result is an estimate for planning, not an offer, pre-approval, or quote from a lender.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What the payment is buying</h2>
+  <p>
+    On a fully amortizing loan, every scheduled payment is the same dollar amount, but the split inside that payment changes. Early on, most of the payment is interest. Later, most of it is principal. That is not a trick and it is not unique to mortgages. It is the natural result of charging interest on the remaining balance. Month 1, the balance is almost the full loan. Month 240, the balance is much smaller, so the same interest rate produces a smaller interest charge, and more of the fixed payment can go to principal.
+  </p>
+  <p>
+    Lenders like this structure because it pays interest as it accrues. Borrowers like it because the payment does not jump around the way a credit-card minimum can. The tradeoff is that you cannot look at month 1 and assume you are “mostly done paying interest.” You are not. Interest is front-loaded because the unpaid balance is front-loaded.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">The standard amortizing formula</h2>
+  <p>
+    For a fixed monthly rate <em>r</em> and <em>n</em> months, the level payment <em>M</em> on principal <em>P</em> is:
+  </p>
+  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+    M = P × [ r (1 + r)<sup>n</sup> ] / [ (1 + r)<sup>n</sup> − 1 ]
+  </p>
+  <p>
+    If the interest rate is zero, the formula is unnecessary: <em>M</em> is just <em>P / n</em>. For any positive rate, the monthly rate is the quoted annual percentage rate divided by 12. A 6.5% annual rate is 0.065 / 12 = 0.00541666… per month. The term is the number of months, not years: 30 years is 360 payments.
+  </p>
+  <p>
+    This is the ordinary fully amortizing payment used in introductory finance texts and in consumer-facing explainers from agencies such as the Consumer Financial Protection Bureau. It assumes a fixed rate, monthly compounding that matches the payment schedule, and no extra principal payments. It does not invent a special “mortgage-only” law. It is the same math used for many installment loans.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Worked example: $400,000 home, 20% down, 6.5%, 30 years</h2>
+  <p>
+    Start with the purchase price and subtract the down payment. $400,000 − $80,000 = <strong>$320,000</strong> of loan principal. That $320,000 is <em>P</em>. The annual rate is 6.5%, so <em>r</em> = 0.065 / 12. The term is 360 months.
+  </p>
+  <p>
+    Plug those into the formula. (1 + r)<sup>360</sup> is approximately 6.97347. Then:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>Numerator: 320,000 × 0.00541666… × 6.97347 ≈ 12,088.68</li>
+    <li>Denominator: 6.97347 − 1 ≈ 5.97347</li>
+    <li>Monthly P&amp;I: 12,088.68 / 5.97347 ≈ <strong>$2,022.62</strong></li>
+  </ul>
+  <p>
+    Rounded to the nearest dollar, that is $2,023. Our calculator keeps the unrounded value $2,022.617… and only rounds when it displays a figure, which is why a hand check and an on-screen total can differ by a dollar if you mix rounded intermediates. If you want to verify the exact implementation, use the same formula without rounding until the end.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Static mortgage example figures</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Item</th>
+          <th class="px-4 py-3 font-semibold">Amount</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Home price</td><td class="px-4 py-2.5">$400,000</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Down payment (20%)</td><td class="px-4 py-2.5">$80,000</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Loan principal</td><td class="px-4 py-2.5">$320,000</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Monthly P&amp;I</td><td class="px-4 py-2.5">$2,022.62</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Property tax ($5,000 / 12)</td><td class="px-4 py-2.5">$416.67</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Insurance ($1,500 / 12)</td><td class="px-4 py-2.5">$125.00</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Estimated housing payment</td><td class="px-4 py-2.5">$2,564.28</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Over 360 payments, P&amp;I alone adds up to about <strong>$728,142</strong>. Subtract the $320,000 principal and you have about <strong>$408,142</strong> of interest if you never pay extra and never refinance. That interest number surprises people more often than the monthly payment does. It is also the number that shrinks fastest if you choose a shorter term or a lower rate.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">The first month, split by hand</h2>
+  <p>
+    Interest for a month is remaining balance times <em>r</em>. In month 1 that is 320,000 × 0.065 / 12 = <strong>$1,733.33</strong>. The rest of the $2,022.62 payment is principal: 2,022.62 − 1,733.33 = <strong>$289.28</strong>. After that payment, the balance is $319,710.72.
+  </p>
+  <p>
+    Month 2 repeats the same idea on the new balance. Interest falls by a few dollars. Principal rises by the same few dollars. Nothing in the formula requires a computer for a single month. The computer is only a convenience once you want all 360 rows.
+  </p>
+  <p>
+    If this loan also escrowed $5,000 of annual property tax and $1,500 of annual insurance — the same extras used as defaults on the live calculator — the monthly draft becomes $2,022.62 + $416.67 + $125.00 = <strong>$2,564.28</strong>. Those extras do not reduce the loan balance. They are pass-through costs.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What a lower rate or a shorter term changes</h2>
+  <p>
+    The formula has three levers you actually control after the purchase price is set: down payment (which changes <em>P</em>), rate (which changes <em>r</em>), and term (which changes <em>n</em>). A larger down payment lowers every month’s payment and the lifetime interest. A lower rate does the same, more dramatically, because rate sits in both the numerator and the compound factor. A shorter term raises the monthly payment and cuts lifetime interest, often by a lot.
+  </p>
+  <p>
+    People sometimes treat “the payment I can afford” as the only scoreboard. That hides the interest column. Two loans can have similar monthly P&amp;I and very different total cost if one lasts 15 years and the other lasts 30. The guide is not telling you which term to pick. It is telling you that the formula will show the tradeoff if you change one input at a time.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>Fixed rate, fully amortizing, monthly payments. Adjustable-rate mortgages, interest-only periods, balloons, and biweekly-payment products need different schedules.</li>
+    <li>No private mortgage insurance. Many loans with less than 20% down add PMI, which is not in the formula above.</li>
+    <li>No HOA dues, flood insurance, or closing costs. Those can be large and they do not amortize.</li>
+    <li>Property tax and insurance are simple annual totals divided by 12. Real escrow accounts true-up when the tax bill changes.</li>
+    <li>No extra principal payments. An extra $100 in a given month reduces the balance immediately and changes every later interest charge.</li>
+    <li>Quoted APR can include lender fees. The <em>r</em> in this example is the note rate used for amortization, not a complete APR disclosure.</li>
+  </ul>
+  <p>
+    Because of those limits, a lender’s Loan Estimate can disagree with this page and still be the document that matters for the actual loan. Use the guide to understand the shape of the payment. Use the official disclosures to decide whether to sign.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    The payment equation is the standard fully amortizing installment formula: <em>M = P r (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</em>, with <em>r</em> as the monthly periodic rate. It is the same relation used in our open-source <code>calcAmortizedLoan</code> helper. We do not treat it as a statute. For a consumer-facing discussion of how mortgage payments are built, see the Consumer Financial Protection Bureau’s materials on loan estimates and closing disclosures. Property tax and insurance in the example are illustrative annual amounts, not an assessment from any county.
+  </p>
+  <p>
+    The numeric example is intentionally identical to the calculator’s shipped defaults so you can open the tool, leave the fields alone, and see the same P&amp;I. If a later rate environment makes 6.5% look dated, the method does not change — only the inputs do.
+  </p>
+</GuideArticle>

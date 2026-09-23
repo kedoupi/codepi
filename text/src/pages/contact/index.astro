@@ -1,0 +1,29 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Contact';
+const description = 'Reach the TextKDP team. We read every email — bug reports, feature requests, and feedback all welcome.';
+---
+<BaseLayout title={title} description={description} pathname="/contact/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Contact</h1>
+
+    <p>The fastest way to reach us is email:</p>
+    <p class="text-lg"><a href="mailto:hello@kdp.cool" class="text-violet-600 hover:underline">hello@kdp.cool</a></p>
+
+    <p class="text-sm text-slate-600">We read everything — bug reports, feature requests, tool suggestions, and corrections to counting rules or copy are all welcome. Replies usually within a few days.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Found a bug?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-violet-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, what you expected, and what you got. Screenshots help.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Looking for a tool we don't have?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-violet-600 hover:underline">hello@kdp.cool</a>. We prioritize tools that get high search volume and have clear, well-defined behavior we can implement client-side.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What to include</h2>
+    <p>For a counting bug, include the page URL, a short sample text, and the count you expected. Different editors may treat punctuation, emoji, non-Latin scripts, or line breaks differently, so a small reproducible sample is more useful than a long private draft.</p>
+    <p>For tool suggestions, describe the writing, editing, design, or publishing workflow the tool should support. We prioritize utilities that can give clear local results without asking users to create an account.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Privacy note</h2>
+    <p>Please do not send unpublished manuscripts, private customer messages, legal drafts, or confidential business documents unless you have already removed sensitive details. A simplified sample usually gives us enough context to investigate.</p>
+  </article>
+</BaseLayout>

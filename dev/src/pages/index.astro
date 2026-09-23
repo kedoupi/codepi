@@ -1,0 +1,68 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import AdSense from '@shared/components/AdSense.astro';
+
+const title = 'Free Developer Utilities for JSON and Base64';
+const description = 'Free browser-only developer tools for formatting JSON and encoding or decoding Base64. Instant validation, readable output, no signup.';
+
+const tools = [
+  { href: '/json-formatter/',   name: 'JSON Formatter',   blurb: 'Format, minify, validate JSON in real time, with common error guidance.' },
+  { href: '/base64-encoder/',   name: 'Base64 Encoder',   blurb: 'Encode and decode text, with standard and URL-safe Base64 variants.' },
+];
+---
+<BaseLayout title={title} description={description} pathname="/" schemaType="WebSite">
+  <section class="mb-10 max-w-4xl space-y-4">
+    <p class="kdp-section-label">Browser-only utilities for small debugging jobs</p>
+    <h1 class="text-5xl font-semibold leading-[1.02] sm:text-6xl">Free Developer Utilities</h1>
+    <p class="max-w-3xl text-xl leading-8 text-stone-700">Fast, no-signup developer tools for everyday debugging and data cleanup. Format JSON, catch syntax errors, minify payloads, and encode or decode Base64 without sending your input to a backend.</p>
+    <p class="max-w-3xl text-stone-600 leading-7">DevKDP favors small tools with clear explanations over large dashboards. Each page includes practical notes about safe usage, common mistakes, and where browser-only utilities are not enough.</p>
+  </section>
+
+  <AdSense adSlot="dev-home-top" style="min-height:90px" />
+
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
+    {tools.map((c) => (
+      <a href={c.href} class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <article>
+          <h2 class="font-serif text-2xl font-semibold tracking-normal mb-2">{c.name}</h2>
+          <p class="text-sm leading-6 text-stone-600 mb-4">{c.blurb}</p>
+          <p class="kdp-link text-sm">Use Tool -></p>
+        </article>
+      </a>
+    ))}
+  </section>
+
+  <section class="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="kdp-prose space-y-3">
+      <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950">Built for quick checks, not data storage</h2>
+      <p>
+        Developer utilities often handle logs, API payloads, configuration snippets, and copied command output. The active tools on DevKDP run in the browser, so ordinary formatting and encoding tasks can be completed without creating an account or uploading the input to a remote formatter.
+      </p>
+      <p>
+        Browser-only tools still require judgment. Do not paste production secrets, private keys, customer records, or regulated data into any website unless your team has approved that workflow. For sensitive debugging, prefer local command-line tools or a controlled internal environment.
+      </p>
+    </div>
+
+    <div class="kdp-prose space-y-3">
+      <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950">What the current tools cover</h2>
+      <ul class="list-disc pl-6 space-y-2">
+        <li>Pretty-print JSON to make nested objects and arrays readable.</li>
+        <li>Minify JSON before copying a compact payload into tests or fixtures.</li>
+        <li>Decode Base64 to inspect text payloads and encode text for transport-safe examples.</li>
+        <li>Compare standard Base64 and URL-safe Base64 when a value needs to move through links or query strings.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="mt-12 pt-8 border-t border-[#e6d9c8]">
+    <h2 class="kdp-section-label mb-3">About this site</h2>
+    <ul class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+      <li><a href="/about/" class="text-orange-600 hover:underline">About</a></li>
+      <li><a href="/privacy/" class="text-orange-600 hover:underline">Privacy</a></li>
+      <li><a href="/terms/" class="text-orange-600 hover:underline">Terms</a></li>
+      <li><a href="/contact/" class="text-orange-600 hover:underline">Contact</a></li>
+    </ul>
+  </section>
+
+  <AdSense adSlot="dev-home-bottom" style="min-height:90px" />
+</BaseLayout>

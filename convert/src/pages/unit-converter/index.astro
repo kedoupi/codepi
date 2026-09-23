@@ -1,0 +1,353 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+
+const title = 'Unit Converter - Length, Weight, Volume, Area';
+const description = 'Free online unit converter — length, weight, volume, area. Metric ↔ Imperial. Instant conversion in your browser.';
+
+const faqs = [
+  {
+    q: 'What unit categories does this support?',
+    a: 'Length (mm/cm/m/km/in/ft/yd/mi), Weight (mg/g/kg/t/oz/lb/st/US ton), Volume (mL/L/tsp/tbsp/floz/cup/pt/qt/US gal/UK gal), Area (m²/km²/ha/ft²/yd²/acre/mi²). Pick a category, enter a value, choose units.',
+  },
+  {
+    q: 'Are these conversion rates exact?',
+    a: 'Length, weight, area are exact international definitions. Volume uses US customary measures with 6 significant digits — common in cooking and casual measurements. For lab-grade precision, use SI units directly.',
+  },
+  {
+    q: 'Does this support currency conversion?',
+    a: 'Not yet — currency converter is on the roadmap. Currency requires live exchange rates from a real-time API. For now, search "USD to EUR" in any browser for current rates.',
+  },
+];
+
+// NOTE (tech-debt): the same UNITS object is duplicated inside the inline <script>
+// so the SSR'd <option> tags appear in the HTML source for SEO crawlers, while
+// client JS still has access to the multipliers. Keep the two copies in sync.
+const UNITS = {
+  length: {
+    label: 'Length',
+    base: 'meter',
+    units: [
+      { id: 'mm', label: 'Millimeter (mm)', toBase: 0.001 },
+      { id: 'cm', label: 'Centimeter (cm)', toBase: 0.01 },
+      { id: 'm',  label: 'Meter (m)',       toBase: 1 },
+      { id: 'km', label: 'Kilometer (km)',  toBase: 1000 },
+      { id: 'in', label: 'Inch (in)',       toBase: 0.0254 },
+      { id: 'ft', label: 'Foot (ft)',       toBase: 0.3048 },
+      { id: 'yd', label: 'Yard (yd)',       toBase: 0.9144 },
+      { id: 'mi', label: 'Mile (mi)',       toBase: 1609.344 },
+    ],
+  },
+  weight: {
+    label: 'Weight / Mass',
+    base: 'kilogram',
+    units: [
+      { id: 'mg',  label: 'Milligram (mg)', toBase: 0.000001 },
+      { id: 'g',   label: 'Gram (g)',       toBase: 0.001 },
+      { id: 'kg',  label: 'Kilogram (kg)',  toBase: 1 },
+      { id: 't',   label: 'Metric ton (t)', toBase: 1000 },
+      { id: 'oz',  label: 'Ounce (oz)',     toBase: 0.028349523125 },
+      { id: 'lb',  label: 'Pound (lb)',     toBase: 0.45359237 },
+      { id: 'st',  label: 'Stone (st)',     toBase: 6.35029318 },
+      { id: 'ton', label: 'US ton',         toBase: 907.18474 },
+    ],
+  },
+  volume: {
+    label: 'Volume',
+    base: 'liter',
+    units: [
+      { id: 'ml',     label: 'Milliliter (mL)',      toBase: 0.001 },
+      { id: 'L',      label: 'Liter (L)',            toBase: 1 },
+      { id: 'tsp',    label: 'US teaspoon (tsp)',    toBase: 0.00492892 },
+      { id: 'tbsp',   label: 'US tablespoon (tbsp)', toBase: 0.0147868 },
+      { id: 'floz',   label: 'US fluid ounce',       toBase: 0.0295735 },
+      { id: 'cup',    label: 'US cup',               toBase: 0.236588 },
+      { id: 'pt',     label: 'US pint',              toBase: 0.473176 },
+      { id: 'qt',     label: 'US quart',             toBase: 0.946353 },
+      { id: 'gal_us', label: 'US gallon',            toBase: 3.785411784 },
+      { id: 'gal_uk', label: 'UK gallon',            toBase: 4.54609 },
+    ],
+  },
+  area: {
+    label: 'Area',
+    base: 'square meter',
+    units: [
+      { id: 'sqm',  label: 'Square meter (m²)',  toBase: 1 },
+      { id: 'sqkm', label: 'Square kilometer',   toBase: 1_000_000 },
+      { id: 'ha',   label: 'Hectare (ha)',       toBase: 10_000 },
+      { id: 'sqft', label: 'Square foot (ft²)',  toBase: 0.092903 },
+      { id: 'sqyd', label: 'Square yard (yd²)',  toBase: 0.836127 },
+      { id: 'acre', label: 'Acre',               toBase: 4046.8564224 },
+      { id: 'sqmi', label: 'Square mile (mi²)',  toBase: 2_589_988.110336 },
+    ],
+  },
+};
+
+const CATEGORIES = Object.entries(UNITS).map(([id, c]) => ({ id, label: c.label }));
+---
+<BaseLayout title={title} description={description} pathname="/unit-converter/">
+  <CalculatorShell
+    title="Unit Converter"
+    intro="Convert between metric and imperial units of length, weight, volume, and area. Instant, in-browser, no signup."
+  >
+    <AdSense slot="top-ad" adSlot="unit-top" style="min-height:90px" />
+
+    <form id="uc-form" class="space-y-5" slot="inputs" autocomplete="off">
+      <div>
+        <label for="uc-category" class="block text-sm font-medium text-slate-700 mb-1">Category</label>
+        <select id="uc-category" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {CATEGORIES.map((c) => <option value={c.id}>{c.label}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label for="uc-value" class="block text-sm font-medium text-slate-700 mb-1">Value</label>
+        <input id="uc-value" type="number" inputmode="decimal" step="any" value="1"
+               class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+
+      <div>
+        <label for="uc-from" class="block text-sm font-medium text-slate-700 mb-1">From</label>
+        <select id="uc-from" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {Object.entries(UNITS).map(([catId, cat]) => (
+            <optgroup label={cat.label} data-cat={catId}>
+              {cat.units.map((u) => <option value={u.id} data-cat={catId}>{u.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label for="uc-to" class="block text-sm font-medium text-slate-700 mb-1">To</label>
+        <select id="uc-to" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {Object.entries(UNITS).map(([catId, cat]) => (
+            <optgroup label={cat.label} data-cat={catId}>
+              {cat.units.map((u) => <option value={u.id} data-cat={catId}>{u.label}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+
+      <button type="button" id="uc-swap-btn" class="text-sm text-blue-600 hover:text-blue-700 underline">Swap From / To</button>
+    </form>
+
+    <div slot="results" class="space-y-5">
+      <div>
+        <p class="text-sm uppercase tracking-wider text-slate-500">Result</p>
+        <p id="uc-r-value" class="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums"></p>
+        <p id="uc-r-equation" class="text-sm text-slate-500 mt-1"></p>
+      </div>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="unit-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <h2 class="text-2xl font-bold mb-3">How unit conversion works</h2>
+      <p class="mb-3">Each unit has a fixed ratio to a category-defined base unit (meters for length, kilograms for weight, liters for volume, square meters for area). To convert <em>from</em> unit A <em>to</em> unit B in the same category, we go through the base: <code>result = value × A.toBase ÷ B.toBase</code>.</p>
+      <p class="mb-3">All conversion factors here come from internationally agreed definitions (e.g., 1 inch = 0.0254 m exactly, 1 lb = 0.45359237 kg exactly, 1 US gallon = 3.785411784 L exactly). UK and US gallons are different — pay attention to which one you need.</p>
+      <p>Note: temperature is not a simple ratio (zero points differ), so it lives on its <a href="/temperature-converter/" class="text-blue-600 hover:underline">own page</a>.</p>
+
+      <details class="mt-6 group">
+        <summary class="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">Show the math</summary>
+        <div id="uc-show-math" class="mt-3 text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 font-mono whitespace-pre-line"></div>
+      </details>
+
+      <section class="mt-10">
+        <h2 class="text-2xl font-bold mb-4">Frequently asked questions</h2>
+        <div class="space-y-2">
+          {faqs.map((f) => (
+            <details class="border border-slate-200 rounded p-4 group">
+              <summary class="cursor-pointer font-medium text-slate-900">{f.q}</summary>
+              <p class="mt-3 text-slate-700 leading-relaxed">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <script type="application/ld+json" set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((f) => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      })} />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="unit-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    // Duplicated from frontmatter (Astro frontmatter constants are unreachable
+    // from client JS). Keep in sync with the SSR'd UNITS object above.
+    const UNITS = {
+      length: {
+        label: 'Length',
+        base: 'meter',
+        units: [
+          { id: 'mm', label: 'Millimeter (mm)', toBase: 0.001 },
+          { id: 'cm', label: 'Centimeter (cm)', toBase: 0.01 },
+          { id: 'm',  label: 'Meter (m)',       toBase: 1 },
+          { id: 'km', label: 'Kilometer (km)',  toBase: 1000 },
+          { id: 'in', label: 'Inch (in)',       toBase: 0.0254 },
+          { id: 'ft', label: 'Foot (ft)',       toBase: 0.3048 },
+          { id: 'yd', label: 'Yard (yd)',       toBase: 0.9144 },
+          { id: 'mi', label: 'Mile (mi)',       toBase: 1609.344 },
+        ],
+      },
+      weight: {
+        label: 'Weight / Mass',
+        base: 'kilogram',
+        units: [
+          { id: 'mg',  label: 'Milligram (mg)', toBase: 0.000001 },
+          { id: 'g',   label: 'Gram (g)',       toBase: 0.001 },
+          { id: 'kg',  label: 'Kilogram (kg)',  toBase: 1 },
+          { id: 't',   label: 'Metric ton (t)', toBase: 1000 },
+          { id: 'oz',  label: 'Ounce (oz)',     toBase: 0.028349523125 },
+          { id: 'lb',  label: 'Pound (lb)',     toBase: 0.45359237 },
+          { id: 'st',  label: 'Stone (st)',     toBase: 6.35029318 },
+          { id: 'ton', label: 'US ton',         toBase: 907.18474 },
+        ],
+      },
+      volume: {
+        label: 'Volume',
+        base: 'liter',
+        units: [
+          { id: 'ml',     label: 'Milliliter (mL)',      toBase: 0.001 },
+          { id: 'L',      label: 'Liter (L)',            toBase: 1 },
+          { id: 'tsp',    label: 'US teaspoon (tsp)',    toBase: 0.00492892 },
+          { id: 'tbsp',   label: 'US tablespoon (tbsp)', toBase: 0.0147868 },
+          { id: 'floz',   label: 'US fluid ounce',       toBase: 0.0295735 },
+          { id: 'cup',    label: 'US cup',               toBase: 0.236588 },
+          { id: 'pt',     label: 'US pint',              toBase: 0.473176 },
+          { id: 'qt',     label: 'US quart',             toBase: 0.946353 },
+          { id: 'gal_us', label: 'US gallon',            toBase: 3.785411784 },
+          { id: 'gal_uk', label: 'UK gallon',            toBase: 4.54609 },
+        ],
+      },
+      area: {
+        label: 'Area',
+        base: 'square meter',
+        units: [
+          { id: 'sqm',  label: 'Square meter (m²)',  toBase: 1 },
+          { id: 'sqkm', label: 'Square kilometer',   toBase: 1_000_000 },
+          { id: 'ha',   label: 'Hectare (ha)',       toBase: 10_000 },
+          { id: 'sqft', label: 'Square foot (ft²)',  toBase: 0.092903 },
+          { id: 'sqyd', label: 'Square yard (yd²)',  toBase: 0.836127 },
+          { id: 'acre', label: 'Acre',               toBase: 4046.8564224 },
+          { id: 'sqmi', label: 'Square mile (mi²)',  toBase: 2_589_988.110336 },
+        ],
+      },
+    };
+
+    const $cat = document.getElementById('uc-category');
+    const $val = document.getElementById('uc-value');
+    const $from = document.getElementById('uc-from');
+    const $to = document.getElementById('uc-to');
+
+    const DEFAULTS = { cat: 'length', val: 1, from: 'm', to: 'ft' };
+    const init = decodeState(window.location.search, DEFAULTS);
+
+    // Filter the from/to selects to only show options for the active category by
+    // hiding non-matching <optgroup>s. Native <select> doesn't honour `hidden` on
+    // optgroup in all browsers, so we rebuild the option list instead.
+    function applyCategory(catId) {
+      const cat = UNITS[catId];
+      if (!cat) return;
+      for (const sel of [$from, $to]) {
+        // Capture currently selected id; fall back if it's no longer in the new list.
+        const prev = sel.value;
+        sel.innerHTML = '';
+        for (const u of cat.units) {
+          const opt = document.createElement('option');
+          opt.value = u.id;
+          opt.textContent = u.label;
+          sel.appendChild(opt);
+        }
+        const stillThere = cat.units.some((u) => u.id === prev);
+        sel.value = stillThere ? prev : cat.units[0].id;
+      }
+    }
+
+    $cat.value = UNITS[init.cat] ? init.cat : 'length';
+    applyCategory($cat.value);
+
+    // Restore from/to (only if they belong to the active category).
+    const activeUnits = UNITS[$cat.value].units;
+    if (activeUnits.some((u) => u.id === init.from)) $from.value = init.from;
+    if (activeUnits.some((u) => u.id === init.to)) $to.value = init.to;
+
+    if (Number.isFinite(init.val)) $val.value = String(init.val);
+
+    document.getElementById('uc-swap-btn').addEventListener('click', () => {
+      const f = $from.value, t = $to.value;
+      $from.value = t; $to.value = f;
+      update();
+    });
+
+    $cat.addEventListener('change', () => {
+      applyCategory($cat.value);
+      update();
+    });
+
+    let urlTimer;
+    function syncUrl() {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(() => pushUrlState({
+        cat: $cat.value, val: $val.value, from: $from.value, to: $to.value,
+      }), 250);
+    }
+
+    function fmt(n) {
+      if (!Number.isFinite(n)) return '—';
+      if (n === 0) return '0';
+      const abs = Math.abs(n);
+      // Up to 6 significant digits, but trim trailing zeros.
+      if (abs >= 1e-4 && abs < 1e9) {
+        return Number(n.toPrecision(6)).toString();
+      }
+      return n.toExponential(4);
+    }
+
+    function update() {
+      const cat = UNITS[$cat.value];
+      if (!cat) return;
+      const fromUnit = cat.units.find((u) => u.id === $from.value);
+      const toUnit = cat.units.find((u) => u.id === $to.value);
+      if (!fromUnit || !toUnit) return;
+
+      const value = parseFloat($val.value);
+      const valid = Number.isFinite(value);
+      const result = valid ? (value * fromUnit.toBase) / toUnit.toBase : NaN;
+
+      document.getElementById('uc-r-value').textContent = valid ? `${fmt(result)} ${toUnit.label.replace(/\s*\([^)]*\)\s*/, '').trim() || toUnit.id}` : '—';
+      document.getElementById('uc-r-equation').textContent = valid
+        ? `${fmt(value)} ${fromUnit.label} = ${fmt(result)} ${toUnit.label}`
+        : 'Enter a numeric value to see the result.';
+
+      const mathEl = document.getElementById('uc-show-math');
+      if (valid) {
+        mathEl.textContent = [
+          `Value = ${value} ${fromUnit.label}`,
+          `1 ${fromUnit.label} = ${fromUnit.toBase} ${cat.base}`,
+          `1 ${toUnit.label} = ${toUnit.toBase} ${cat.base}`,
+          ``,
+          `result = value × fromUnit.toBase ÷ toUnit.toBase`,
+          `       = ${value} × ${fromUnit.toBase} ÷ ${toUnit.toBase}`,
+          `       = ${fmt(result)} ${toUnit.label}`,
+        ].join('\n');
+      } else {
+        mathEl.textContent = 'Enter a numeric value to see the math.';
+      }
+
+      syncUrl();
+    }
+
+    document.getElementById('uc-form').addEventListener('input', update);
+    update();
+  </script>
+</BaseLayout>

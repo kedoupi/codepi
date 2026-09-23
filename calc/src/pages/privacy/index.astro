@@ -1,0 +1,45 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Privacy Policy';
+const description = 'How CalcKDP handles your data. Short answer: we don\'t collect personal information; calculator inputs stay in your browser.';
+---
+<BaseLayout title={title} description={description} pathname="/privacy/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Privacy Policy</h1>
+    <p class="text-sm text-slate-500">Last updated: 2026-05-08</p>
+
+    <h2 class="text-xl font-semibold mt-6">Short version</h2>
+    <p>CalcKDP runs entirely in your browser. We do not ask for accounts, do not collect personal information, and do not sell data. Calculator inputs stay on your device.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What we collect</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>Anonymous traffic analytics</strong> via Cloudflare's built-in Web Analytics (no cookies, no fingerprinting).</li>
+      <li><strong>Calculator state in URL parameters</strong> when you change inputs — this is so you can share scenarios. Nothing is sent to a server beyond the static page request.</li>
+      <li><strong>Advertising</strong> via Google AdSense. AdSense may use cookies and third-party identifiers to serve personalized ads, subject to <a href="https://policies.google.com/privacy" class="text-blue-600 hover:underline">Google's privacy policy</a>. You can opt out of personalized ads at <a href="https://adssettings.google.com" class="text-blue-600 hover:underline">Google Ads Settings</a>.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">What we don't collect</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li>Email addresses</li>
+      <li>Names</li>
+      <li>The financial values you enter into calculators (these never leave your browser)</li>
+      <li>Account credentials (we have no accounts)</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">Cookies</h2>
+    <p>CalcKDP itself does not set cookies. Google AdSense may set cookies to serve and measure ads. If you're in the EU, EEA, or UK, AdSense will show a consent prompt before personalized ads are served.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Children</h2>
+    <p>CalcKDP is not directed at children under 13. We do not knowingly collect any information from children.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Your rights (GDPR / CCPA)</h2>
+    <p>Because we don't store personal information, there's typically nothing to access, delete, or export. If you have questions, see Contact below.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Changes</h2>
+    <p>If we change this policy, we'll update the "Last updated" date above. Material changes will be highlighted on the homepage.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Contact</h2>
+    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+  </article>
+</BaseLayout>

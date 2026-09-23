@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'About DevKDP';
+const description = 'DevKDP builds fast, ad-supported developer utilities — JSON formatter, Base64 encoder, regex tester, JWT decoder, and more. No signup, no tracking beyond anonymous analytics.';
+---
+<BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">About DevKDP</h1>
+    <p class="text-sm text-slate-500">Free, instant developer utilities.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What this is</h2>
+    <p>DevKDP (dev.kdp.cool) is the developer-utilities family in the <a href="https://kdp.cool/" class="text-orange-600 hover:underline">Kdp.Cool</a> tool portal. Each tool is a single-purpose, browser-side utility: paste your input, see results instantly, copy or share — nothing is sent to a server.</p>
+
+    <h2 class="text-xl font-semibold mt-6">The lineup</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>JSON Formatter</strong> (live) — Format, minify, and validate JSON in real time. Indent with 2 spaces, 4 spaces, or tabs. Line-level error reporting plus depth and key-count statistics.</li>
+      <li><strong>Base64 Encoder / Decoder</strong> (live) — UTF-8-safe text encode/decode plus binary file upload via FileReader. URL-safe variant supported for JWT-style tokens.</li>
+      <li><strong>Regex Tester</strong> (planned) — Live JavaScript regex matcher with capture-group highlighting and flag toggles.</li>
+      <li><strong>JWT Decoder</strong> (planned) — Decode and inspect JSON Web Tokens, with header / payload / signature breakdown.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
+    <p>Most online developer tools are wrapped in autoplay videos, popups, and email-walls for "premium" features that should be free. We built DevKDP because we wanted the opposite: instant results, no signup, no tracking of inputs, no nonsense.</p>
+
+    <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
+    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>Browser-side only</strong>: every tool runs in your browser. The JSON you paste, the file you upload, the Base64 you decode — none of it touches our servers.</li>
+      <li><strong>Standards first</strong>: parsing uses the browser's native <code>JSON.parse</code>; Base64 uses <code>btoa</code> / <code>atob</code> with UTF-8 wrapping; URL-safe Base64 follows RFC 4648 §5.</li>
+      <li><strong>Open source</strong>: the site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-orange-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">What's next</h2>
+    <p>Active work is on expanding the tool set: a regex tester, JWT decoder, URL encoder, hash generator, and color picker. Suggestions welcome — see Contact.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Contact</h2>
+    <p>See <a href="/contact/" class="text-orange-600 hover:underline">Contact</a>.</p>
+  </article>
+</BaseLayout>

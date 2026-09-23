@@ -1,0 +1,308 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+
+const title = 'JSON Formatter & Validator - Free Online JSON Pretty Print';
+const description = 'Format, minify, and validate JSON in real time. Indent with 2 spaces, 4 spaces, or tabs. Line-level error reporting. Free, no signup, runs in your browser.';
+
+const faqs = [
+  {
+    q: 'How do I format JSON?',
+    a: 'Paste raw JSON into the input on the left. The formatted output appears on the right in real time. Choose 2-space, 4-space, tab indent, or "Minify" to compress to one line.',
+  },
+  {
+    q: 'What does the validator catch?',
+    a: 'Trailing commas, missing quotes around keys, unescaped quotes inside strings, unbalanced brackets. The error banner shows the line and column where parsing fails (when the browser provides them).',
+  },
+  {
+    q: 'Is my JSON sent to a server?',
+    a: "No. Everything runs in your browser via JavaScript's built-in JSON.parse and JSON.stringify. Nothing leaves your computer. No analytics on input content.",
+  },
+  {
+    q: 'Why does my big JSON cause stats to lag?',
+    a: 'JSON.parse + JSON.stringify is O(n). On 10MB+ inputs the browser may take a moment. The depth and key-count stats use a recursive walker, also O(n). For multi-megabyte JSON, type into a text file and use a CLI tool like `jq` instead.',
+  },
+];
+
+const SAMPLE = `{
+  "name": "kdp-tools",
+  "version": "1.0.0",
+  "tools": [
+    { "subdomain": "calc.kdp.cool", "category": "finance" },
+    { "subdomain": "convert.kdp.cool", "category": "format" }
+  ],
+  "owner": { "github": "kedoupi" }
+}`;
+---
+<BaseLayout title={title} description={description} pathname="/json-formatter/">
+  <CalculatorShell
+    title="JSON Formatter"
+    intro="Paste any JSON to format, minify, or validate in real time. Errors are pinpointed by line; depth and key counts shown for inspection. Everything runs in your browser — nothing is sent to a server."
+  >
+    <AdSense slot="top-ad" adSlot="json-top" style="min-height:90px" />
+
+    <div slot="inputs" class="space-y-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="json-indent" class="text-sm font-medium text-slate-700">Indent</label>
+        <select id="json-indent" class="px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">
+          <option value="2">2 spaces</option>
+          <option value="4">4 spaces</option>
+          <option value="tab">Tabs</option>
+          <option value="min">Minify</option>
+        </select>
+        <button type="button" id="json-format" class="px-3 py-1.5 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm font-medium">Format</button>
+        <button type="button" id="json-minify" class="px-3 py-1.5 bg-slate-200 text-slate-800 rounded hover:bg-slate-300 text-sm font-medium">Minify</button>
+        <button type="button" id="json-clear" class="px-3 py-1.5 text-slate-500 hover:text-slate-700 text-sm">Clear</button>
+      </div>
+      <label for="json-input" class="block text-sm font-medium text-slate-700">Input JSON</label>
+      <textarea id="json-input" rows="18" spellcheck="false" placeholder="Paste JSON here..."
+                class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono text-sm leading-relaxed resize-y">{SAMPLE}</textarea>
+    </div>
+
+    <div slot="results" class="space-y-3">
+      <div id="json-status" class="rounded border px-3 py-2 text-sm font-medium border-emerald-200 bg-emerald-50 text-emerald-800">Valid JSON</div>
+      <div class="grid grid-cols-3 gap-2">
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Bytes</p>
+          <p id="json-bytes" class="text-xl font-bold tabular-nums">0</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Depth</p>
+          <p id="json-depth" class="text-xl font-bold tabular-nums">0</p>
+        </div>
+        <div class="rounded-lg border border-slate-200 p-3 bg-white">
+          <p class="text-xs uppercase tracking-wider text-slate-500">Keys</p>
+          <p id="json-keys" class="text-xl font-bold tabular-nums">0</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-between">
+        <label for="json-output" class="text-sm font-medium text-slate-700">Output</label>
+        <div class="flex items-center gap-3">
+          <span id="json-copy-status" class="text-xs text-emerald-600 hidden">Copied!</span>
+          <button type="button" id="json-copy" class="text-sm text-orange-600 hover:text-orange-700 font-medium">Copy</button>
+        </div>
+      </div>
+      <textarea id="json-output" rows="16" readonly spellcheck="false"
+                class="w-full px-3 py-2 border border-slate-300 rounded font-mono text-sm leading-relaxed resize-y bg-white"></textarea>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="json-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <h2 class="text-2xl font-bold mb-3">How the JSON formatter works</h2>
+      <p class="mb-3">The tool calls the browser's native <code>JSON.parse()</code> to validate input, then re-serializes with <code>JSON.stringify(value, null, indent)</code>. The whole pipeline runs in your browser — your data never reaches a server.</p>
+      <p class="mb-3"><strong>Indent options:</strong></p>
+      <ul class="list-disc pl-6 space-y-1 mb-3">
+        <li><strong>2 spaces</strong> — the GitHub / npm / Prettier default. Compact and readable.</li>
+        <li><strong>4 spaces</strong> — common in older Java and Python codebases.</li>
+        <li><strong>Tabs</strong> — preferred when teams allow per-developer indent width.</li>
+        <li><strong>Minify</strong> — strips all whitespace; smallest possible payload for HTTP responses or embedded config.</li>
+      </ul>
+      <p class="mb-3"><strong>Stats:</strong> <em>Bytes</em> is the UTF-8 byte length of the output. <em>Depth</em> is the maximum nesting level (1 = a flat object/array, 2 = one level deep, etc.). <em>Keys</em> is the total count of object keys reachable from the root, including nested objects.</p>
+      <p class="mb-3"><strong>Error reporting:</strong> on invalid JSON the status banner turns red and shows the parser's message. The line number is parsed from the error string when available — V8 (Chrome, Node, Edge) and SpiderMonkey (Firefox) format the message slightly differently, so the line number is best-effort. The character position is always shown.</p>
+      <p class="mb-3"><strong>Limitations:</strong> valid JSON can still be wrong for your application. This formatter checks syntax only; it does not know whether a field is required, whether an ID exists, whether a date is in the right timezone, or whether an API response matches your schema.</p>
+
+      <h3 class="text-xl font-bold mt-6 mb-2">JSON cheat sheet</h3>
+      <ul class="list-disc pl-6 space-y-1 mb-3">
+        <li>Strings must use <strong>double quotes</strong>. Single quotes are not legal JSON.</li>
+        <li>Object keys must also be double-quoted strings — bare identifiers (like in JavaScript) are not allowed.</li>
+        <li><strong>No trailing commas</strong> in objects or arrays — that's a JavaScript/JSON5 extension, not standard JSON.</li>
+        <li><strong>No comments.</strong> If you need them, use JSON5 or JSONC instead.</li>
+        <li>Numbers can't have leading zeros (<code>007</code> is invalid), and you can't use <code>NaN</code>, <code>Infinity</code>, or <code>undefined</code>.</li>
+        <li>Allowed values: <code>string</code>, <code>number</code>, <code>true</code>, <code>false</code>, <code>null</code>, <code>object</code>, <code>array</code>. Nothing else.</li>
+        <li>Strings must escape <code>\\</code>, <code>\"</code>, and control characters. Forward slashes <code>/</code> may be escaped but don't have to be.</li>
+        <li>The whole document must be valid UTF-8. BOM is technically not allowed but many parsers tolerate it.</li>
+      </ul>
+      <p class="mb-3">Use this tool to: lint API responses before storing them as fixtures, shrink JSON before embedding it in HTML, or quickly sanity-check a configuration file.</p>
+
+      <h3 class="text-xl font-bold mt-6 mb-2">Sources and review status</h3>
+      <p class="mb-3">The parser behavior comes from the browser's JavaScript runtime via <code>JSON.parse()</code> and <code>JSON.stringify()</code>. For the language reference, see MDN's JSON documentation and the ECMAScript JSON object specification.</p>
+      <p class="text-sm text-slate-500">Last reviewed: 2026-05-14. The tool is maintained as a browser-side formatter, not a schema validator.</p>
+
+      <section class="mt-10">
+        <h2 class="text-2xl font-bold mb-4">Frequently asked questions</h2>
+        <div class="space-y-2">
+          {faqs.map((f) => (
+            <details class="border border-slate-200 rounded p-4 group">
+              <summary class="cursor-pointer font-medium text-slate-900">{f.q}</summary>
+              <p class="mt-3 text-slate-700 leading-relaxed">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <script type="application/ld+json" set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((f) => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      })} />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="json-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    type IndentMode = '2' | '4' | 'tab' | 'min';
+
+    const $input = document.getElementById('json-input') as HTMLTextAreaElement;
+    const $output = document.getElementById('json-output') as HTMLTextAreaElement;
+    const $indent = document.getElementById('json-indent') as HTMLSelectElement;
+    const $status = document.getElementById('json-status') as HTMLDivElement;
+    const $bytes = document.getElementById('json-bytes') as HTMLElement;
+    const $depth = document.getElementById('json-depth') as HTMLElement;
+    const $keys = document.getElementById('json-keys') as HTMLElement;
+    const $format = document.getElementById('json-format') as HTMLButtonElement;
+    const $minify = document.getElementById('json-minify') as HTMLButtonElement;
+    const $clear = document.getElementById('json-clear') as HTMLButtonElement;
+    const $copy = document.getElementById('json-copy') as HTMLButtonElement;
+    const $copyStatus = document.getElementById('json-copy-status') as HTMLElement;
+
+    const initial = decodeState(window.location.search, { indent: '2' });
+    if (['2', '4', 'tab', 'min'].includes(initial.indent)) {
+      $indent.value = initial.indent;
+    }
+
+    function indentArg(mode: IndentMode): string | number | undefined {
+      if (mode === '2') return 2;
+      if (mode === '4') return 4;
+      if (mode === 'tab') return '\t';
+      return undefined; // minify
+    }
+
+    function setStatusOk(msg: string) {
+      $status.textContent = msg;
+      $status.className = 'rounded border px-3 py-2 text-sm font-medium border-emerald-200 bg-emerald-50 text-emerald-800';
+    }
+    function setStatusErr(msg: string) {
+      $status.textContent = msg;
+      $status.className = 'rounded border px-3 py-2 text-sm font-medium border-red-200 bg-red-50 text-red-800';
+    }
+
+    // Best-effort: extract a 1-based line/column number from a SyntaxError message.
+    // V8 (Chrome / Node / Edge):    "Unexpected token } in JSON at position 42"  or  "... at line 3 column 5"
+    // SpiderMonkey (Firefox):       "JSON.parse: ...  at line 3 column 5 of the JSON data"
+    // Safari (older):                "JSON Parse error: ..." — no position
+    function locateError(text: string, msg: string): { line?: number; col?: number; pos?: number } {
+      // line/column form
+      const m1 = msg.match(/line\s+(\d+)\s+column\s+(\d+)/i);
+      if (m1) return { line: parseInt(m1[1], 10), col: parseInt(m1[2], 10) };
+      // position form (V8 default in modern Chrome/Node)
+      const m2 = msg.match(/at position\s+(\d+)/i);
+      if (m2) {
+        const pos = parseInt(m2[1], 10);
+        // Convert byte offset to (line, col)
+        const upTo = text.slice(0, pos);
+        const line = (upTo.match(/\n/g) || []).length + 1;
+        const lastNl = upTo.lastIndexOf('\n');
+        const col = pos - (lastNl + 1) + 1;
+        return { line, col, pos };
+      }
+      return {};
+    }
+
+    function countStats(value: unknown): { depth: number; keys: number } {
+      let maxDepth = 0;
+      let keyCount = 0;
+      function walk(v: unknown, d: number) {
+        if (d > maxDepth) maxDepth = d;
+        if (v && typeof v === 'object') {
+          if (Array.isArray(v)) {
+            for (const item of v) walk(item, d + 1);
+          } else {
+            for (const k of Object.keys(v as object)) {
+              keyCount++;
+              walk((v as Record<string, unknown>)[k], d + 1);
+            }
+          }
+        }
+      }
+      walk(value, value && typeof value === 'object' ? 1 : 0);
+      return { depth: maxDepth, keys: keyCount };
+    }
+
+    function utf8Bytes(s: string): number {
+      return new TextEncoder().encode(s).length;
+    }
+
+    function update(force?: 'format' | 'minify') {
+      const text = $input.value;
+      if (!text.trim()) {
+        $output.value = '';
+        setStatusOk('Empty input');
+        $bytes.textContent = '0';
+        $depth.textContent = '0';
+        $keys.textContent = '0';
+        return;
+      }
+      try {
+        const parsed = JSON.parse(text);
+        let mode: IndentMode = $indent.value as IndentMode;
+        if (force === 'minify') mode = 'min';
+        if (force === 'format' && mode === 'min') mode = '2';
+        const out = JSON.stringify(parsed, null, indentArg(mode));
+        $output.value = out ?? '';
+        setStatusOk('Valid JSON');
+        const { depth, keys } = countStats(parsed);
+        $bytes.textContent = utf8Bytes(out ?? '').toLocaleString();
+        $depth.textContent = String(depth);
+        $keys.textContent = keys.toLocaleString();
+      } catch (e) {
+        const err = e as Error;
+        const loc = locateError(text, err.message);
+        let prefix = 'Invalid JSON';
+        if (loc.line !== undefined) {
+          prefix = `Error at line ${loc.line}, column ${loc.col ?? '?'}`;
+        } else if (loc.pos !== undefined) {
+          prefix = `Error at position ${loc.pos}`;
+        }
+        setStatusErr(`${prefix}: ${err.message}`);
+        $output.value = '';
+        $bytes.textContent = '0';
+        $depth.textContent = '0';
+        $keys.textContent = '0';
+      }
+    }
+
+    $input.addEventListener('input', () => update());
+    $indent.addEventListener('change', () => {
+      pushUrlState({ indent: $indent.value });
+      update();
+    });
+    $format.addEventListener('click', () => {
+      if ($indent.value === 'min') $indent.value = '2';
+      pushUrlState({ indent: $indent.value });
+      update('format');
+    });
+    $minify.addEventListener('click', () => {
+      $indent.value = 'min';
+      pushUrlState({ indent: 'min' });
+      update('minify');
+    });
+    $clear.addEventListener('click', () => {
+      $input.value = '';
+      update();
+      $input.focus();
+    });
+    $copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText($output.value);
+        $copyStatus.classList.remove('hidden');
+        setTimeout(() => $copyStatus.classList.add('hidden'), 1500);
+      } catch (e) {
+        $output.select();
+        document.execCommand('copy');
+        $copyStatus.classList.remove('hidden');
+        setTimeout(() => $copyStatus.classList.add('hidden'), 1500);
+      }
+    });
+
+    update();
+  </script>
+</BaseLayout>

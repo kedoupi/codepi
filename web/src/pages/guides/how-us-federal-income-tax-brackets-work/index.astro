@@ -1,0 +1,123 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('how-us-federal-income-tax-brackets-work');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-09-16"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    The most common story about US federal income tax is also the wrong one: “I am in the 22% bracket, so the government takes 22% of my income.” That would be a flat tax with a cliff. The actual system is progressive. Each slice of taxable income is taxed at the rate for that slice. Crossing into a higher bracket raises the rate on the dollars above the threshold, not on the dollars you already earned.
+  </p>
+  <p>
+    This page uses tax year 2026 figures from IRS Revenue Procedure 2025-32. Those are the same brackets wired into our <a href="https://calc.kdp.cool/income-tax-calculator/" class="kdp-link">income tax calculator</a>. The arithmetic below is static. If you can add and multiply, you can audit it. None of this is a filing instruction, and it is not advice about your return.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Taxable income is not your salary</h2>
+  <p>
+    Brackets apply to <em>taxable</em> income, which is a smaller number than the salary on an offer letter. For many employees, the path looks like this: start with wages and other income, apply adjustments, arrive at adjusted gross income (AGI), then subtract either the standard deduction or itemized deductions. For 2026, the standard deduction is $16,100 if you file single, $32,200 if you file married filing jointly, $16,100 if you file married filing separately, and $24,150 if you file as head of household.
+  </p>
+  <p>
+    That deduction is why two people with the same gross pay can owe different tax, and why “22% of my salary” overstates the bill twice: it ignores the deduction, and it applies the top rate to every dollar. Credits, which are not shown in the example below, subtract from tax after the brackets are done. A credit of $2,000 is not a $2,000 deduction. It is $2,000 off the tax itself.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">The 2026 single-filer ladder</h2>
+  <p>
+    For a single filer in 2026, ordinary taxable income is stacked like this (lower bound inclusive, next bound exclusive, matching the way our calculator stores the table):
+  </p>
+  <div class="not-prose my-6 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">2026 federal income tax brackets for single filers</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Rate</th>
+          <th class="px-4 py-3 font-semibold">Taxable income in this slice</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">10%</td><td class="px-4 py-2.5">$0 to $12,400</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">12%</td><td class="px-4 py-2.5">$12,400 to $50,400</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">22%</td><td class="px-4 py-2.5">$50,400 to $105,700</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">24%</td><td class="px-4 py-2.5">$105,700 to $201,775</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">32%</td><td class="px-4 py-2.5">$201,775 to $256,225</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">35%</td><td class="px-4 py-2.5">$256,225 to $640,600</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">37%</td><td class="px-4 py-2.5">over $640,600</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Married filing jointly uses the same rates on wider rungs: 10% to $24,800, 12% to $100,800, 22% to $211,400, and so on. Head of household sits between single and joint on the lower rungs. The rates themselves — 10, 12, 22, 24, 32, 35, 37 — are the current ordinary-income schedule made permanent in recent legislation; the IRS then inflation-adjusts the thresholds each year in a revenue procedure. We do not invent those thresholds.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Worked example: $90,000 income, single, standard deduction</h2>
+  <p>
+    Take $90,000 of ordinary income and the 2026 single standard deduction of $16,100. Taxable income is 90,000 − 16,100 = <strong>$73,900</strong>. That number lands in the 22% bracket, which means the last dollar is taxed at 22%. It does not mean the first dollar is taxed at 22%.
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>10% × $12,400 = <strong>$1,240</strong></li>
+    <li>12% × ($50,400 − $12,400) = 12% × $38,000 = <strong>$4,560</strong></li>
+    <li>22% × ($73,900 − $50,400) = 22% × $23,500 = <strong>$5,170</strong></li>
+    <li>Add them: 1,240 + 4,560 + 5,170 = <strong>$10,970</strong></li>
+  </ul>
+  <p>
+    The marginal rate is 22%. The effective rate on taxable income is 10,970 / 73,900 ≈ <strong>14.84%</strong>. The effective rate on the original $90,000 is 10,970 / 90,000 ≈ <strong>12.19%</strong>. Those two effective rates are both useful, and they are not interchangeable. One describes the tax table. The other describes the bite relative to the income people actually say out loud.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Bracket-by-bracket tax for $73,900 of taxable income</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Slice</th>
+          <th class="px-4 py-3 font-semibold">Income in slice</th>
+          <th class="px-4 py-3 font-semibold">Tax from slice</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">10% on $0–$12,400</td><td class="px-4 py-2.5">$12,400</td><td class="px-4 py-2.5">$1,240</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">12% on $12,400–$50,400</td><td class="px-4 py-2.5">$38,000</td><td class="px-4 py-2.5">$4,560</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">22% on $50,400–$73,900</td><td class="px-4 py-2.5">$23,500</td><td class="px-4 py-2.5">$5,170</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Total</td><td class="px-4 py-2.5">$73,900</td><td class="px-4 py-2.5">$10,970</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The flat-tax mistake is easy to price. If someone applied 22% to the entire $73,900, they would get $16,258. That is <strong>$5,288 too high</strong>. The overstatement is exactly the discount you received from the lower brackets: you “saved” 12 percentage points on the first $12,400 and 10 percentage points on the next $38,000. Progressive tax is a stack of discounts under your marginal rate, not a penalty that retroactively reprices your earlier dollars.
+  </p>
+  <p>
+    A raise can still be worth taking when it crosses a bracket line. Suppose taxable income moves from $50,399 to $50,401. Only two dollars are taxed at 22% instead of 12%. The extra tax is 20 cents, not a sudden 10-point levy on the whole return. Cliff effects exist elsewhere in the tax code — some credits phase out sharply — but the ordinary-rate brackets are not that kind of cliff.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Marginal rate versus effective rate</h2>
+  <p>
+    Use the marginal rate when you ask “what happens to the next dollar?” That is the right lens for a side gig, an extra withholding election, or the federal benefit of a traditional 401(k) contribution. Use the effective rate when you ask “what fraction of this income went to federal income tax?” That is the right lens for comparing years, or for sanity-checking a calculator.
+  </p>
+  <p>
+    Neither rate includes FICA. Social Security and Medicare are separate, and they often exceed federal income tax at moderate wages. The $90,000 single example above owes $10,970 of income tax. Employee FICA on $90,000 of wages would be 90,000 × 6.2% + 90,000 × 1.45% = $5,580 + $1,305 = $6,885, assuming the wage is under the Social Security cap. A take-home estimate needs both systems. See <a href="/guides/how-to-read-take-home-pay/" class="kdp-link">How to read take-home pay</a> for that combination.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>Ordinary income only. Long-term capital gains and qualified dividends use a different rate schedule published in the same revenue procedure.</li>
+    <li>No tax credits, no alternative minimum tax, no net investment income tax, no additional Medicare tax.</li>
+    <li>The example uses the standard deduction and ignores above-the-line adjustments, student-loan interest, and the qualified business income deduction.</li>
+    <li>Filing status matters. The same taxable income produces a different bill for single versus married filing jointly.</li>
+    <li>These are 2026 inflation-adjusted amounts. Do not use them for a 2024 or 2025 return.</li>
+    <li>The calculator and this page estimate tax. They do not file a return or replace IRS Form 1040 instructions.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    Bracket widths, rates, and standard deductions are taken from IRS Revenue Procedure 2025-32, which is the IRS inflation-adjustment document for tax year 2026. A convenient public cross-check is the Tax Foundation’s 2026 bracket table, which cites the same procedure. Our implementation stores each bracket as a rate plus a lower bound and taxes the income between that bound and the next one. That is ordinary progressive-rate math, not a private formula.
+  </p>
+  <p>
+    For the official text, read the revenue procedure on IRS.gov (file <code>rp-25-32.pdf</code> in the IRS drop folder) rather than a blog’s screenshot. If a later procedure supersedes 2025-32, the method on this page stays useful and the dollar thresholds should be updated.
+  </p>
+</GuideArticle>
