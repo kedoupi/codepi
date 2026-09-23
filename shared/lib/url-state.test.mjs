@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeState, decodeState } from './url-state.js';
+import { encodeState, decodeState, pushUrlState } from './url-state.js';
 
 test('encode primitives to query string', () => {
   const s = encodeState({ homePrice: 400000, downMode: 'percent', termYears: 30, rate: 6.5 });
@@ -37,4 +37,36 @@ test('encode skips undefined and null', () => {
   assert.equal(params.has('b'), false);
   assert.equal(params.has('c'), false);
   assert.equal(params.get('d'), 'x');
+});
+
+test('pushUrlState preserves external query parameters', () => {
+  const previousWindow = globalThis.window;
+  const calls = [];
+  globalThis.window = {
+    location: { pathname: '/tool/', search: '?lang=zh&utm_source=test&step=old' },
+    history: { replaceState: (...args) => calls.push(args) },
+  };
+
+  try {
+    pushUrlState({ step: 'new', mode: 'compact' }, { ownedKeys: ['step', 'mode'] });
+    assert.equal(calls[0][2], '/tool/?lang=zh&utm_source=test&step=new&mode=compact');
+  } finally {
+    globalThis.window = previousWindow;
+  }
+});
+
+test('pushUrlState removes owned null fields without removing external fields', () => {
+  const previousWindow = globalThis.window;
+  const calls = [];
+  globalThis.window = {
+    location: { pathname: '/tool/', search: '?lang=zh&step=old&keep=yes' },
+    history: { replaceState: (...args) => calls.push(args) },
+  };
+
+  try {
+    pushUrlState({ step: null }, { ownedKeys: ['step'] });
+    assert.equal(calls[0][2], '/tool/?lang=zh&keep=yes');
+  } finally {
+    globalThis.window = previousWindow;
+  }
 });

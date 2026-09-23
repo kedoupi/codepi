@@ -50,9 +50,15 @@ export function decodeState(qs, defaults) {
  *
  * @param {Record<string, any>} state
  */
-export function pushUrlState(state) {
+export function pushUrlState(state, { ownedKeys = Object.keys(state) } = {}) {
   if (typeof window === 'undefined') return;
-  const qs = encodeState(state);
+  const params = new URLSearchParams(window.location.search);
+  for (const key of ownedKeys) params.delete(key);
+  for (const [key, value] of Object.entries(state)) {
+    if (value === undefined || value === null) continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
   const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
   window.history.replaceState(null, '', newUrl);
 }

@@ -21,13 +21,16 @@ const localeInfo = getLocale(effectiveLocale);
 const canonicalURL = new URL(pathname, SITE).toString();
 const fullTitle = `${title} | ${siteName}`;
 const hasLocalizedPage = stripLocale(pathname) === '/';
+const supportedLocales = hasLocalizedPage
+  ? locales
+  : locales.filter((entry) => entry.code === defaultLocale || entry.code === 'zh');
 const buildLanguageHref = (code) => {
   if (hasLocalizedPage) return localizedPath(pathname, code);
   if (code === defaultLocale) return stripLocale(pathname);
   if (code === 'zh') return `${stripLocale(pathname)}?lang=zh`;
   return localizedPath('/', code);
 };
-const languageLinks = locales.map((entry) => ({
+const languageLinks = supportedLocales.map((entry) => ({
   ...entry,
   href: new URL(buildLanguageHref(entry.code), SITE).toString(),
 }));
@@ -36,7 +39,7 @@ const localePayload = JSON.stringify({
   current: effectiveLocale,
   defaultLocale,
   alternates: Object.fromEntries(languageLinks.map((entry) => [entry.code, entry.href])),
-  supported: locales.map((entry) => entry.code),
+  supported: supportedLocales.map((entry) => entry.code),
   pathname: stripLocale(pathname),
 });
 const zhToolTranslationPayload = JSON.stringify(zhToolTranslations);
