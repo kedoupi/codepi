@@ -431,18 +431,15 @@ const faqs = [
       window.clearTimeout((updateUrlSoon as any).timer);
       (updateUrlSoon as any).timer = window.setTimeout(() => {
         const data = state();
-        pushUrlState({
-          template: data.template,
-          client: data.client,
-          name: data.name,
-          purpose: data.purpose,
-          trigger: data.trigger,
-          steps: data.steps,
-          inputs: data.inputs,
-          output: data.output,
-          limits: data.limits,
-          safety: data.safety,
-        });
+        pushUrlState(
+          {
+            template: data.template,
+            client: data.client,
+          },
+          {
+            ownedKeys: ['template', 'client', 'name', 'purpose', 'trigger', 'steps', 'inputs', 'output', 'limits', 'safety'],
+          },
+        );
       }, 250);
     }
 
