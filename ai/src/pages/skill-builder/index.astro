@@ -182,6 +182,7 @@ const faqs = [
 
   <script>
     import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+    import { getSkillBuilderUrlState } from '@shared/lib/skill-builder-url-state.js';
 
     const templates = {
       custom: {
@@ -431,15 +432,8 @@ const faqs = [
       window.clearTimeout((updateUrlSoon as any).timer);
       (updateUrlSoon as any).timer = window.setTimeout(() => {
         const data = state();
-        pushUrlState(
-          {
-            template: data.template,
-            client: data.client,
-          },
-          {
-            ownedKeys: ['template', 'client', 'name', 'purpose', 'trigger', 'steps', 'inputs', 'output', 'limits', 'safety'],
-          },
-        );
+        const { state: urlState, ownedKeys } = getSkillBuilderUrlState(data);
+        pushUrlState(urlState, { ownedKeys });
       }, 250);
     }
 
