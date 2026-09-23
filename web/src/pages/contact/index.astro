@@ -1,0 +1,29 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Contact';
+const description = 'Reach the Kdp.Cool team. We read every email — bug reports, feature requests, and feedback all welcome.';
+---
+<BaseLayout title={title} description={description} pathname="/contact/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Contact</h1>
+
+    <p>The fastest way to reach us is email:</p>
+    <p class="text-lg"><a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a></p>
+
+    <p class="text-sm text-slate-600">We read everything — bug reports, feature requests, tool suggestions, and corrections to math or reference data are all welcome. Replies usually within a few days.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Found a bug?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, what you expected, and what you got. Screenshots help.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Looking for a tool we don't have?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>. We prioritize tools that get high search volume and have authoritative source data we can cite (when applicable).</p>
+
+    <h2 class="text-xl font-semibold mt-6">What to include</h2>
+    <p>If you are reporting a bug, include the exact page URL, your browser, the input that produced the issue, and the result you expected. If the issue involves a calculator or converter, include the units, dates, rates, or assumptions you used so we can reproduce the same result.</p>
+    <p>If you are suggesting a new tool, describe the job it should help with, who would use it, and what a correct result looks like. We prefer focused tools with transparent behavior over broad tools that hide important assumptions.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Privacy note</h2>
+    <p>Please do not send passwords, private keys, bank records, tax documents, customer data, or other sensitive personal information. If a screenshot is useful, redact anything private before sharing it by email.</p>
+  </article>
+</BaseLayout>

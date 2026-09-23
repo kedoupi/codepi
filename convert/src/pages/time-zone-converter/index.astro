@@ -1,0 +1,388 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+
+const title = 'Time Zone Converter - Free, Instant Conversion';
+const description = 'Convert any time between two time zones instantly. 80+ time zones with current UTC offset and DST handling. Free, no signup.';
+
+const faqs = [
+  {
+    q: 'How does the time zone converter handle daylight saving time (DST)?',
+    a: "The tool uses the browser's IANA time zone database via Intl.DateTimeFormat with timeZoneName: 'shortOffset'. Each conversion computes the actual UTC offset for that specific date — so March 14 in New York is UTC−5 but March 15 (after DST starts) is UTC−4, automatically.",
+  },
+  {
+    q: "What's the difference between EST and EDT?",
+    a: 'EST (Eastern Standard Time, UTC−5) is winter time in places like New York. EDT (Eastern Daylight Time, UTC−4) is summer time. Most of the US uses EST/EDT — a few places (Arizona, Hawaii) don’t observe DST. This converter handles both seasons automatically based on the date you enter.',
+  },
+  {
+    q: 'Can I use IANA time zone names like Asia/Kolkata?',
+    a: "The dropdown lists ~80 popular zones. For an exotic zone we don't list, email us. Internally the tool always uses IANA names (the modern standard) — the friendly labels are just for display.",
+  },
+  {
+    q: 'Why does my "now" time look slightly off?',
+    a: "The \"Use current time\" button reads your system clock and formats it for the From zone. If your computer's clock is wrong, the result will be wrong. Sync your OS time settings to fix.",
+  },
+];
+
+// NOTE (tech-debt): the same ZONES array is duplicated inside the inline <script>
+// below because Astro frontmatter constants are not visible to client-side JS.
+// SSR'd here so the option labels appear in the HTML source for SEO crawlers.
+const ZONES = [
+  // Americas
+  { id: 'America/Los_Angeles', label: 'Los Angeles (PT)' },
+  { id: 'America/Denver', label: 'Denver (MT)' },
+  { id: 'America/Chicago', label: 'Chicago (CT)' },
+  { id: 'America/New_York', label: 'New York (ET)' },
+  { id: 'America/Anchorage', label: 'Anchorage' },
+  { id: 'America/Honolulu', label: 'Honolulu' },
+  { id: 'America/Phoenix', label: 'Phoenix (no DST)' },
+  { id: 'America/Toronto', label: 'Toronto' },
+  { id: 'America/Vancouver', label: 'Vancouver' },
+  { id: 'America/Mexico_City', label: 'Mexico City' },
+  { id: 'America/Bogota', label: 'Bogotá' },
+  { id: 'America/Lima', label: 'Lima' },
+  { id: 'America/Santiago', label: 'Santiago' },
+  { id: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires' },
+  { id: 'America/Sao_Paulo', label: 'São Paulo' },
+  // Europe
+  { id: 'Europe/London', label: 'London (GMT/BST)' },
+  { id: 'Europe/Dublin', label: 'Dublin' },
+  { id: 'Europe/Lisbon', label: 'Lisbon' },
+  { id: 'Europe/Paris', label: 'Paris' },
+  { id: 'Europe/Madrid', label: 'Madrid' },
+  { id: 'Europe/Amsterdam', label: 'Amsterdam' },
+  { id: 'Europe/Brussels', label: 'Brussels' },
+  { id: 'Europe/Berlin', label: 'Berlin' },
+  { id: 'Europe/Zurich', label: 'Zurich' },
+  { id: 'Europe/Rome', label: 'Rome' },
+  { id: 'Europe/Athens', label: 'Athens' },
+  { id: 'Europe/Helsinki', label: 'Helsinki' },
+  { id: 'Europe/Stockholm', label: 'Stockholm' },
+  { id: 'Europe/Warsaw', label: 'Warsaw' },
+  { id: 'Europe/Prague', label: 'Prague' },
+  { id: 'Europe/Bucharest', label: 'Bucharest' },
+  { id: 'Europe/Istanbul', label: 'Istanbul' },
+  { id: 'Europe/Moscow', label: 'Moscow' },
+  // Africa
+  { id: 'Africa/Cairo', label: 'Cairo' },
+  { id: 'Africa/Lagos', label: 'Lagos' },
+  { id: 'Africa/Nairobi', label: 'Nairobi' },
+  { id: 'Africa/Johannesburg', label: 'Johannesburg' },
+  { id: 'Africa/Casablanca', label: 'Casablanca' },
+  // Middle East
+  { id: 'Asia/Jerusalem', label: 'Jerusalem' },
+  { id: 'Asia/Beirut', label: 'Beirut' },
+  { id: 'Asia/Riyadh', label: 'Riyadh' },
+  { id: 'Asia/Dubai', label: 'Dubai' },
+  { id: 'Asia/Tehran', label: 'Tehran' },
+  // Asia
+  { id: 'Asia/Karachi', label: 'Karachi' },
+  { id: 'Asia/Kolkata', label: 'India (Mumbai/Delhi/Kolkata)' },
+  { id: 'Asia/Kathmandu', label: 'Kathmandu' },
+  { id: 'Asia/Dhaka', label: 'Dhaka' },
+  { id: 'Asia/Bangkok', label: 'Bangkok' },
+  { id: 'Asia/Jakarta', label: 'Jakarta' },
+  { id: 'Asia/Singapore', label: 'Singapore' },
+  { id: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur' },
+  { id: 'Asia/Hong_Kong', label: 'Hong Kong' },
+  { id: 'Asia/Taipei', label: 'Taipei' },
+  { id: 'Asia/Shanghai', label: 'Shanghai / Beijing' },
+  { id: 'Asia/Manila', label: 'Manila' },
+  { id: 'Asia/Seoul', label: 'Seoul' },
+  { id: 'Asia/Tokyo', label: 'Tokyo' },
+  // Pacific
+  { id: 'Australia/Perth', label: 'Perth' },
+  { id: 'Australia/Adelaide', label: 'Adelaide' },
+  { id: 'Australia/Brisbane', label: 'Brisbane' },
+  { id: 'Australia/Sydney', label: 'Sydney' },
+  { id: 'Pacific/Auckland', label: 'Auckland' },
+  { id: 'Pacific/Honolulu', label: 'Honolulu (PT)' },
+  { id: 'Pacific/Fiji', label: 'Fiji' },
+  // UTC reference
+  { id: 'UTC', label: 'UTC' },
+];
+---
+<BaseLayout title={title} description={description} pathname="/time-zone-converter/">
+  <CalculatorShell
+    title="Time Zone Converter"
+    intro="Convert any date and time between two time zones, with current UTC offset and daylight-saving handling."
+  >
+    <AdSense slot="top-ad" adSlot="tz-top" style="min-height:90px" />
+
+    <form id="tz-form" class="space-y-5" slot="inputs" autocomplete="off">
+      <div>
+        <label for="tz-datetime" class="block text-sm font-medium text-slate-700 mb-1">Date &amp; Time</label>
+        <input id="tz-datetime" type="datetime-local" step="60"
+               class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button type="button" id="tz-now-btn" class="mt-1 text-xs text-blue-600 hover:text-blue-700">Use current time</button>
+      </div>
+
+      <div>
+        <label for="tz-from" class="block text-sm font-medium text-slate-700 mb-1">From Time Zone</label>
+        <select id="tz-from" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {ZONES.map((z) => <option value={z.id}>{z.label}</option>)}
+        </select>
+      </div>
+
+      <div>
+        <label for="tz-to" class="block text-sm font-medium text-slate-700 mb-1">To Time Zone</label>
+        <select id="tz-to" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          {ZONES.map((z) => <option value={z.id}>{z.label}</option>)}
+        </select>
+      </div>
+
+      <button type="button" id="tz-swap-btn" class="text-sm text-blue-600 hover:text-blue-700 underline">Swap From / To</button>
+    </form>
+
+    <div slot="results" class="space-y-5">
+      <div>
+        <p class="text-sm uppercase tracking-wider text-slate-500" id="tz-r-to-label">Converted time</p>
+        <p id="tz-r-to" class="text-3xl sm:text-4xl font-bold text-slate-900 tabular-nums"></p>
+        <p id="tz-r-to-zone" class="text-sm text-slate-500 mt-1"></p>
+      </div>
+
+      <div class="border-t border-slate-200 pt-4">
+        <p class="text-sm uppercase tracking-wider text-slate-500" id="tz-r-from-label">From</p>
+        <p id="tz-r-from" class="text-xl text-slate-700 tabular-nums"></p>
+        <p id="tz-r-from-zone" class="text-sm text-slate-500 mt-1"></p>
+      </div>
+
+      <p class="text-xs text-slate-500" id="tz-r-offset"></p>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="tz-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <h2 class="text-2xl font-bold mb-3">How time zone conversion works</h2>
+      <p class="mb-3">Every time zone has an offset from Coordinated Universal Time (UTC). To convert between zones, we compute the moment in UTC, then re-format it for the target zone — using the IANA time zone database and the browser's <code>Intl.DateTimeFormat</code> API for accurate daylight-saving handling.</p>
+      <p class="mb-3">DST transitions matter: New York is UTC−5 in winter and UTC−4 in summer; some places (Arizona, India) don't observe DST at all. Your browser handles all 600+ IANA zones — we expose ~80 popular ones in the dropdowns above. To request a zone we don't list, email us.</p>
+      <p>Common conversion examples we'll soon expand into a comparison grid: New York → London, San Francisco → Tokyo, London → Sydney, Singapore → São Paulo.</p>
+
+      <details class="mt-6 group">
+        <summary class="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">Show the math</summary>
+        <div id="tz-show-math" class="mt-3 text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 font-mono"></div>
+      </details>
+
+      <section class="mt-10">
+        <h2 class="text-2xl font-bold mb-4">Frequently asked questions</h2>
+        <div class="space-y-2">
+          {faqs.map((f) => (
+            <details class="border border-slate-200 rounded p-4 group">
+              <summary class="cursor-pointer font-medium text-slate-900">{f.q}</summary>
+              <p class="mt-3 text-slate-700 leading-relaxed">{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <script type="application/ld+json" set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        mainEntity: faqs.map((f) => ({
+          '@type': 'Question',
+          name: f.q,
+          acceptedAnswer: { '@type': 'Answer', text: f.a },
+        })),
+      })} />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="tz-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    // Curated list of ~80 popular IANA time zones, grouped by region.
+    // NOTE (tech-debt): duplicated from the Astro frontmatter above. The frontmatter
+    // copy SSR's the <option> tags for SEO; this copy is needed for in-browser
+    // ZONES.find() lookups inside update(). Keep both in sync.
+    const ZONES = [
+      // Americas
+      { id: 'America/Los_Angeles', label: 'Los Angeles (PT)' },
+      { id: 'America/Denver', label: 'Denver (MT)' },
+      { id: 'America/Chicago', label: 'Chicago (CT)' },
+      { id: 'America/New_York', label: 'New York (ET)' },
+      { id: 'America/Anchorage', label: 'Anchorage' },
+      { id: 'America/Honolulu', label: 'Honolulu' },
+      { id: 'America/Phoenix', label: 'Phoenix (no DST)' },
+      { id: 'America/Toronto', label: 'Toronto' },
+      { id: 'America/Vancouver', label: 'Vancouver' },
+      { id: 'America/Mexico_City', label: 'Mexico City' },
+      { id: 'America/Bogota', label: 'Bogotá' },
+      { id: 'America/Lima', label: 'Lima' },
+      { id: 'America/Santiago', label: 'Santiago' },
+      { id: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires' },
+      { id: 'America/Sao_Paulo', label: 'São Paulo' },
+      // Europe
+      { id: 'Europe/London', label: 'London (GMT/BST)' },
+      { id: 'Europe/Dublin', label: 'Dublin' },
+      { id: 'Europe/Lisbon', label: 'Lisbon' },
+      { id: 'Europe/Paris', label: 'Paris' },
+      { id: 'Europe/Madrid', label: 'Madrid' },
+      { id: 'Europe/Amsterdam', label: 'Amsterdam' },
+      { id: 'Europe/Brussels', label: 'Brussels' },
+      { id: 'Europe/Berlin', label: 'Berlin' },
+      { id: 'Europe/Zurich', label: 'Zurich' },
+      { id: 'Europe/Rome', label: 'Rome' },
+      { id: 'Europe/Athens', label: 'Athens' },
+      { id: 'Europe/Helsinki', label: 'Helsinki' },
+      { id: 'Europe/Stockholm', label: 'Stockholm' },
+      { id: 'Europe/Warsaw', label: 'Warsaw' },
+      { id: 'Europe/Prague', label: 'Prague' },
+      { id: 'Europe/Bucharest', label: 'Bucharest' },
+      { id: 'Europe/Istanbul', label: 'Istanbul' },
+      { id: 'Europe/Moscow', label: 'Moscow' },
+      // Africa
+      { id: 'Africa/Cairo', label: 'Cairo' },
+      { id: 'Africa/Lagos', label: 'Lagos' },
+      { id: 'Africa/Nairobi', label: 'Nairobi' },
+      { id: 'Africa/Johannesburg', label: 'Johannesburg' },
+      { id: 'Africa/Casablanca', label: 'Casablanca' },
+      // Middle East
+      { id: 'Asia/Jerusalem', label: 'Jerusalem' },
+      { id: 'Asia/Beirut', label: 'Beirut' },
+      { id: 'Asia/Riyadh', label: 'Riyadh' },
+      { id: 'Asia/Dubai', label: 'Dubai' },
+      { id: 'Asia/Tehran', label: 'Tehran' },
+      // Asia
+      { id: 'Asia/Karachi', label: 'Karachi' },
+      { id: 'Asia/Kolkata', label: 'India (Mumbai/Delhi/Kolkata)' },
+      { id: 'Asia/Kathmandu', label: 'Kathmandu' },
+      { id: 'Asia/Dhaka', label: 'Dhaka' },
+      { id: 'Asia/Bangkok', label: 'Bangkok' },
+      { id: 'Asia/Jakarta', label: 'Jakarta' },
+      { id: 'Asia/Singapore', label: 'Singapore' },
+      { id: 'Asia/Kuala_Lumpur', label: 'Kuala Lumpur' },
+      { id: 'Asia/Hong_Kong', label: 'Hong Kong' },
+      { id: 'Asia/Taipei', label: 'Taipei' },
+      { id: 'Asia/Shanghai', label: 'Shanghai / Beijing' },
+      { id: 'Asia/Manila', label: 'Manila' },
+      { id: 'Asia/Seoul', label: 'Seoul' },
+      { id: 'Asia/Tokyo', label: 'Tokyo' },
+      // Pacific
+      { id: 'Australia/Perth', label: 'Perth' },
+      { id: 'Australia/Adelaide', label: 'Adelaide' },
+      { id: 'Australia/Brisbane', label: 'Brisbane' },
+      { id: 'Australia/Sydney', label: 'Sydney' },
+      { id: 'Pacific/Auckland', label: 'Auckland' },
+      { id: 'Pacific/Honolulu', label: 'Honolulu (PT)' },
+      { id: 'Pacific/Fiji', label: 'Fiji' },
+      // UTC reference
+      { id: 'UTC', label: 'UTC' },
+    ];
+
+    const $dt = document.getElementById('tz-datetime');
+    const $from = document.getElementById('tz-from');
+    const $to = document.getElementById('tz-to');
+
+    // Defaults: from = browser tz, to = America/New_York (or fallback)
+    const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const DEFAULTS = {
+      dt: '',           // empty = "now"
+      from: ZONES.find((z) => z.id === browserTz) ? browserTz : 'America/Los_Angeles',
+      to: 'America/New_York',
+    };
+    const init = decodeState(window.location.search, DEFAULTS);
+    $from.value = init.from;
+    $to.value = init.to;
+
+    function setNow() {
+      const d = new Date();
+      // Format for datetime-local in the FROM zone
+      const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: $from.value,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+      const parts = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
+      $dt.value = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+    }
+
+    if (init.dt) {
+      $dt.value = init.dt;
+    } else {
+      setNow();
+    }
+
+    document.getElementById('tz-now-btn').addEventListener('click', () => { setNow(); update(); });
+    document.getElementById('tz-swap-btn').addEventListener('click', () => {
+      const f = $from.value, t = $to.value;
+      $from.value = t; $to.value = f;
+      update();
+    });
+
+    let urlTimer;
+    function syncUrl() {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(() => pushUrlState({
+        dt: $dt.value, from: $from.value, to: $to.value,
+      }), 250);
+    }
+
+    function offsetMinutes(date, tz) {
+      const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' });
+      const part = f.formatToParts(date).find((p) => p.type === 'timeZoneName')?.value || 'GMT';
+      // Match GMT±H or GMT±H:MM
+      const m = part.match(/GMT([+-]?)(\d{1,2})(?::(\d{2}))?/);
+      if (!m) return 0;
+      const sign = m[1] === '-' ? -1 : 1;
+      return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
+    }
+
+    function fmtOffset(min) {
+      const sign = min >= 0 ? '+' : '-';
+      const h = Math.floor(Math.abs(min) / 60);
+      const mm = (Math.abs(min) % 60).toString().padStart(2, '0');
+      return `UTC${sign}${h}:${mm}`;
+    }
+
+    function fmtIn(date, tz) {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true,
+      }).format(date);
+    }
+
+    function update() {
+      // Parse the datetime-local input AS-IF it's in the FROM zone.
+      // Trick: build a Date in browser local zone first, then adjust by (browserOffset - fromOffset).
+      const local = new Date($dt.value);
+      if (Number.isNaN(local.getTime())) return;
+      const browserOff = -local.getTimezoneOffset();          // positive east of UTC
+      const fromOff = offsetMinutes(local, $from.value);
+      const utcMs = local.getTime() - (browserOff - fromOff) * 60_000;
+      const moment = new Date(utcMs);
+
+      const fromZoneOff = offsetMinutes(moment, $from.value);
+      const toZoneOff = offsetMinutes(moment, $to.value);
+      const diff = toZoneOff - fromZoneOff;
+
+      const fromLabel = ZONES.find((z) => z.id === $from.value)?.label || $from.value;
+      const toLabel = ZONES.find((z) => z.id === $to.value)?.label || $to.value;
+
+      document.getElementById('tz-r-from').textContent = fmtIn(moment, $from.value);
+      document.getElementById('tz-r-from-zone').textContent = `${fromLabel} · ${fmtOffset(fromZoneOff)}`;
+      document.getElementById('tz-r-to').textContent = fmtIn(moment, $to.value);
+      document.getElementById('tz-r-to-zone').textContent = `${toLabel} · ${fmtOffset(toZoneOff)}`;
+      const diffSign = diff === 0 ? 'same time' : `${diff > 0 ? '+' : ''}${(diff / 60).toFixed(diff % 60 === 0 ? 0 : 1)} h`;
+      document.getElementById('tz-r-offset').textContent = `Time difference: ${diffSign} (${fmtOffset(toZoneOff - fromZoneOff)} relative to ${fromLabel})`;
+
+      document.getElementById('tz-show-math').innerHTML = `
+Input = ${$dt.value} (interpreted in ${fromLabel})<br>
+${fromLabel} offset on this date = ${fmtOffset(fromZoneOff)}<br>
+${toLabel} offset on this date = ${fmtOffset(toZoneOff)}<br>
+Difference = ${(diff / 60).toFixed(2)} hours (${toLabel} is ${diff >= 0 ? 'ahead of' : 'behind'} ${fromLabel})<br>
+<br>
+UTC moment = ${moment.toISOString()}<br>
+Rendered in ${fromLabel} = <strong>${fmtIn(moment, $from.value)}</strong><br>
+Rendered in ${toLabel} = <strong>${fmtIn(moment, $to.value)}</strong>
+      `.trim();
+      syncUrl();
+    }
+
+    document.getElementById('tz-form').addEventListener('input', update);
+    update();
+  </script>
+</BaseLayout>

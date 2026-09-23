@@ -1,0 +1,30 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Contact AIKDP';
+const description = 'Contact AIKDP for bugs, source corrections, and AI utility suggestions.';
+---
+<BaseLayout title={title} description={description} pathname="/contact/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Contact</h1>
+
+    <p>The fastest way to reach us is email:</p>
+    <p class="text-lg"><a href="mailto:hello@kdp.cool" class="text-teal-700 hover:underline">hello@kdp.cool</a></p>
+
+    <p class="text-sm text-slate-600">We read everything — bug reports, stale model prices, confusing prompt templates, privacy false positives, and AI utility suggestions. Replies usually within a few days.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Found a bug?</h2>
+    <p>Email <a href="mailto:hello@kdp.cool" class="text-teal-700 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, what you expected, and what happened.</p>
+    <p>We prioritize tools that solve repeatable AI workflow problems, can run locally in the browser, and can explain their assumptions clearly.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What to include</h2>
+    <p>For a token, cost, prompt, skill, or privacy-checker issue, include the page URL, a minimal sample input, the output you expected, and the browser you used. If a provider price or model name looks stale, include the official pricing or documentation link so we can verify the source.</p>
+    <p>For a new AI utility request, describe the workflow step it should improve: estimating cost, preparing prompts, reviewing sensitive text, structuring reusable instructions, or checking assumptions before sending data to an AI service.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Privacy note</h2>
+    <p>Please do not send real API keys, customer prompts, private documents, account identifiers, or confidential logs. Replace sensitive values with safe placeholders before emailing. The privacy checker is a local review aid, not a guarantee that every sensitive value has been removed.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Response expectations</h2>
+    <p>We review messages based on reproducibility and user impact. Clear bug reports with short examples are usually faster to fix than broad requests, screenshots without inputs, or examples that cannot be safely shared.</p>
+  </article>
+</BaseLayout>

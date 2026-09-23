@@ -1,0 +1,12 @@
+# DevKDP — Free Developer Tools
+
+> JSON formatter, Base64 encoder, and developer utilities. Real-time validation, no signup, runs in your browser.
+
+## Tools
+
+- [JSON Formatter](https://dev.kdp.cool/json-formatter/): real-time format, minify, and validate JSON with line-error parsing, depth and key-count stats.
+- [Base64 Encoder/Decoder](https://dev.kdp.cool/base64-encoder/): UTF-8 safe encoding, file upload (FileReader), URL-safe variant toggle.
+
+## About
+
+- [About](/about/) · [Privacy](/privacy/) · [Terms](/terms/) · [Contact](/contact/)

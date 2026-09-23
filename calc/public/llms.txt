@@ -1,0 +1,20 @@
+# CalcKDP — Free Financial Calculators
+
+> Free, no-signup financial calculators for US users. Mortgage, auto loan, paycheck, income tax, compound interest. Every result shows the underlying math with formulas and step-by-step explanations.
+
+## Calculators
+
+- [Mortgage Calculator](https://calc.kdp.cool/mortgage-calculator/): monthly payment with principal, interest, property tax, and insurance.
+- [Auto Loan Calculator](https://calc.kdp.cool/auto-loan-calculator/): vehicle financing including sales tax and trade-in.
+- [Compound Interest Calculator](https://calc.kdp.cool/compound-interest-calculator/): investment growth with monthly contributions and year-by-year breakdown.
+- [Paycheck Calculator](https://calc.kdp.cool/paycheck-calculator/): take-home pay after federal tax, FICA (Social Security 6.2% + Medicare 1.45% + Additional Medicare 0.9%), state tax, 401(k).
+- [Income Tax Calculator (2026)](https://calc.kdp.cool/income-tax-calculator/): US federal income tax with 2026 IRS brackets (Rev. Proc. 2025-32) and standard deductions.
+
+## Data sources
+
+- IRS Revenue Procedure 2025-32 (October 2025) for 2026 federal income tax brackets, standard deduction, Social Security wage base ($184,500), and Additional Medicare thresholds.
+- Source: https://www.irs.gov/pub/irs-drop/rp-25-32.pdf
+
+## About
+
+- [About](/about/) · [Privacy](/privacy/) · [Terms](/terms/) · [Contact](/contact/)

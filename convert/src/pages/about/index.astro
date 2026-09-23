@@ -1,0 +1,42 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'About ConvertKDP';
+const description = 'ConvertKDP builds fast, ad-supported format converters — time zones, units, temperatures, currencies, and more. No signup, no tracking beyond anonymous analytics.';
+---
+<BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">About ConvertKDP</h1>
+    <p class="text-sm text-slate-500">Free, instant format converters.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What this is</h2>
+    <p>ConvertKDP (convert.kdp.cool) is the format-converter family in the <a href="https://kdp.cool/" class="text-blue-600 hover:underline">Kdp.Cool</a> tool portal. Each converter is a single-purpose, browser-side tool: type your input, see the result instantly, and share a link if you want — nothing is sent to a server.</p>
+
+    <h2 class="text-xl font-semibold mt-6">The lineup</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>Time Zone Converter</strong> (live) — Convert any date and time between 80+ IANA time zones. Daylight-saving handled automatically by the browser's <code>Intl.DateTimeFormat</code> API.</li>
+      <li><strong>Unit Converter</strong> (planned) — Length, weight, volume, area, speed, and pressure with all common unit systems.</li>
+      <li><strong>Temperature Converter</strong> (planned) — Celsius, Fahrenheit, Kelvin, Rankine.</li>
+      <li><strong>Currency Converter</strong> (planned) — Live exchange rates for major currencies, refreshed daily.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
+    <p>Most online converters are bloated with autoplay videos, popups, and email-walls for "premium" features that should be free. We built ConvertKDP because we wanted the opposite: instant results, transparent math, no signup.</p>
+
+    <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
+    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>Source data</strong>: Where applicable, we cite the authoritative source (e.g., the IANA time zone database for time zones).</li>
+      <li><strong>Math</strong>: Every converter shows its formula in a "Show the math" section, so you can verify or learn. No black boxes.</li>
+      <li><strong>Open source</strong>: The site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">What's next</h2>
+    <p>Active work is on expanding the converter set: a unit converter (length, weight, volume, area), temperature, and a currency converter with daily-refreshed rates. Suggestions welcome — see Contact.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Contact</h2>
+    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+  </article>
+</BaseLayout>

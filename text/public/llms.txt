@@ -1,0 +1,12 @@
+# TextKDP — Free Text Utilities
+
+> Word counter, Lorem Ipsum generator, and writing tools. Real-time, no signup.
+
+## Tools
+
+- [Word Counter](https://text.kdp.cool/word-counter/): real-time word, character, sentence, paragraph counts; reading and speaking time estimates; most-common word detection.
+- [Lorem Ipsum Generator](https://text.kdp.cool/lorem-ipsum-generator/): configurable filler text in paragraphs, words, sentences, or list items.
+
+## About
+
+- [About](/about/) · [Privacy](/privacy/) · [Terms](/terms/) · [Contact](/contact/)

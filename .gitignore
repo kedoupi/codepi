@@ -1,40 +1,25 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# deps
+node_modules/
 
-# testing
-/coverage
+# build
+dist/
+.astro/
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-.env*.local
-.env
-
-# debug
+# logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# IDE
-.idea
-.vscode
+# env
+.env
+.env.production
+.env.local
 
-# vercel
-.vercel
+# editors / OS
+.DS_Store
+.vscode/
+.idea/
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# sitemap
-/public/sitemap*.xml
-/public/robots.txt
+# Cloudflare
+.wrangler/

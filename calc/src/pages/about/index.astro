@@ -1,0 +1,35 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'About CalcKDP';
+const description = 'CalcKDP builds fast, ad-supported financial calculators for US users. No signup, no tracking beyond anonymous analytics, results computed in your browser.';
+---
+<BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">About CalcKDP</h1>
+    <p class="text-sm text-slate-500">A fast, no-signup financial calculator site.</p>
+
+    <h2 class="text-xl font-semibold mt-6">What this is</h2>
+    <p>CalcKDP is a small set of financial calculators for US users — mortgage, auto loan, compound interest, paycheck, and federal income tax. Each tool runs entirely in your browser, gives instant results as you type, and shows the underlying math so you can verify what's happening.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
+    <p>Most online calculators are slow, require email signups for "premium features," hide the math, and hammer you with intrusive ads. We built CalcKDP because we wanted the opposite: instant, transparent, free.</p>
+
+    <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
+    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
+    <ul class="list-disc pl-6 space-y-1">
+      <li><strong>Tax data</strong>: We cite the IRS source (Revenue Procedure number) for every published table. 2026 brackets are from Rev. Proc. 2025-32.</li>
+      <li><strong>Math</strong>: Every calculator shows its formula in a "Show the math" section, so you can verify or learn. No black boxes.</li>
+      <li><strong>Open source</strong>: The site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+    </ul>
+
+    <h2 class="text-xl font-semibold mt-6">How to use the calculators responsibly</h2>
+    <p>Use CalcKDP as a planning and comparison tool, not as a final quote. A lender, payroll provider, brokerage, or tax professional may use additional fees, local rules, rounding methods, deductions, credits, or eligibility checks that are outside a lightweight browser calculator.</p>
+    <p>For best results, start with conservative assumptions. Compare several interest rates, loan terms, or contribution levels instead of relying on one optimistic scenario. When a calculator cites a public tax table or formula, use that source note to verify whether the filing year and assumptions match your situation.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Contact</h2>
+    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+  </article>
+</BaseLayout>

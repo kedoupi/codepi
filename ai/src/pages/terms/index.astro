@@ -1,0 +1,23 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+
+const title = 'Terms of Use — AIKDP';
+const description = 'Terms for using AIKDP browser-only AI utilities.';
+---
+<BaseLayout title={title} description={description} pathname="/terms/" schemaType="WebPage">
+  <article class="prose-like max-w-3xl space-y-4">
+    <h1 class="text-3xl font-bold tracking-tight">Terms of Use</h1>
+    <p class="text-sm text-slate-500">Last updated: 2026-05-14</p>
+
+    <p>AIKDP provides free browser-based utilities for estimation, formatting, and workflow preparation. Results are best-effort and are not professional, legal, financial, security, or procurement advice.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Cost estimates</h2>
+    <p>Token and API cost estimates are based on visible assumptions and selected rate cards. Provider pricing, discounts, context caching, batch pricing, taxes, and product-specific billing can change. Check the official provider before making budget decisions.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Privacy checker</h2>
+    <p>The privacy checker uses pattern matching. It can miss sensitive data and can flag harmless text. It is a reminder tool, not a data-loss-prevention system.</p>
+
+    <h2 class="text-xl font-semibold mt-6">Ads and third parties</h2>
+    <p>Pages may contain ads via Google AdSense and links to third-party sites. We do not endorse or control third-party content.</p>
+  </article>
+</BaseLayout>

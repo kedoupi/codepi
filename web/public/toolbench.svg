@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" role="img" aria-label="Illustration of browser-based calculators and utility tools">
+  <rect width="960" height="640" rx="48" fill="#fffaf0"/>
+  <rect x="86" y="88" width="788" height="464" rx="36" fill="#171412"/>
+  <rect x="126" y="128" width="708" height="384" rx="28" fill="#fffdf8"/>
+  <rect x="166" y="168" width="250" height="148" rx="22" fill="#f3eadc" stroke="#d9c8b3" stroke-width="4"/>
+  <rect x="450" y="168" width="344" height="148" rx="22" fill="#e8f5f2" stroke="#bfd8d1" stroke-width="4"/>
+  <rect x="166" y="344" width="186" height="128" rx="22" fill="#fff1df" stroke="#e0c4a2" stroke-width="4"/>
+  <rect x="382" y="344" width="186" height="128" rx="22" fill="#f7f0ff" stroke="#d8c8eb" stroke-width="4"/>
+  <rect x="598" y="344" width="196" height="128" rx="22" fill="#f0f7ff" stroke="#c7d8ea" stroke-width="4"/>
+  <path d="M204 214h74m-74 34h152m-152 34h112" stroke="#171412" stroke-width="12" stroke-linecap="round"/>
+  <path d="M494 224h256m-256 42h182" stroke="#0f766e" stroke-width="12" stroke-linecap="round"/>
+  <path d="M214 390h90m-90 34h58" stroke="#b45309" stroke-width="12" stroke-linecap="round"/>
+  <path d="M430 390h90m-90 34h58" stroke="#7c3aed" stroke-width="12" stroke-linecap="round"/>
+  <path d="M646 390h96m-96 34h64" stroke="#2563eb" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="806" cy="116" r="36" fill="#b45309"/>
+  <path d="M800 98l20 18-28 30" fill="none" stroke="#fffaf0" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,199 +1,167 @@
-# KDP.Cool - 数字艺术品交易平台
+# kdp-tools
 
-> 基于 React + Supabase 的现代化数字艺术品展示和交易平台
+Monorepo for the `kdp.cool` family of single-purpose web tools. Each subdirectory is one independent static Astro site, deployed to its own Cloudflare Pages project on its own (sub)domain. Shared layout / components / utilities live under `shared/` and are imported via the `@shared/*` Vite alias.
 
-## 🎨 项目概述
+## Live family (17 tools across 6 domains)
 
-KDP.Cool 是一个专为数字艺术家打造的作品展示和交易平台，支持插画、图标、海报等多种艺术作品的上传、展示和销售。
+| Path      | Domain                    | Tools | CF Pages project |
+| --------- | ------------------------- | ----- | ---------------- |
+| `web/`    | `kdp.cool` + `www.`       | portal landing + 4 brand pages | `kdp-portal` |
+| `calc/`   | `calc.kdp.cool`           | mortgage, auto loan, compound interest, paycheck, income tax | `kdp-tools` |
+| `convert/`| `convert.kdp.cool`        | time zone, unit, temperature | `kdp-convert` |
+| `text/`   | `text.kdp.cool`           | word counter, Lorem Ipsum generator | `kdp-text` |
+| `dev/`    | `dev.kdp.cool`            | JSON formatter, Base64 encoder | `kdp-dev` |
+| `ai/`     | `ai.kdp.cool`             | token cost calculator, prompt builder, skill builder, prompt cleaner, privacy checker | `kdp-ai` |
+| `shared/` | —                         | BaseLayout, AdSense, CalculatorShell, charts.js, url-state.js | — |
 
-### ✨ 核心功能
+Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 
-- **🔐 用户认证** - Google OAuth 一键登录
-- **📤 作品上传** - 支持多种图片格式，自动生成缩略图
-- **🖼️ 作品展示** - 响应式网格布局，支持搜索和筛选
-- **👤 用户资料** - 个人作品管理，收藏系统
-- **💰 价格设置** - 支持免费和付费作品
-- **🏷️ 标签系统** - 便于作品分类和发现
+## AdSense
 
-## 🛠️ 技术栈
+| Item                    | Value                              |
+| ----------------------- | ---------------------------------- |
+| Account                 | `kedoupi1121@gmail.com`            |
+| Publisher ID            | `pub-4790759596265225`             |
+| Client ID (script src)  | `ca-pub-4790759596265225`          |
+| Verified property       | `kdp.cool` (apex; covers all subdomains) |
+| Status                  | In review (submitted 2026-05-08; ads.txt authorized) |
 
-### 前端
-- **React 19** - 用户界面框架
-- **Vite** - 构建工具和开发服务器
-- **Ant Design** - UI 组件库
-- **React Router** - 客户端路由
+`ads.txt` lives at the root of every domain (`web/calc/convert/text/dev/ai/public/ads.txt`). The AdSense `<script>` + `<meta name="google-adsense-account">` tag are injected by `shared/layouts/BaseLayout.astro`, so every page across all 6 domains carries them.
 
-### 后端服务
-- **Supabase** - 后端即服务 (BaaS)
-  - PostgreSQL 数据库
-  - 实时数据同步
-  - 用户认证 (Google OAuth)
-  - 文件存储服务
-  - 行级安全策略 (RLS)
+Ad placeholders in `shared/components/AdSense.astro` reserve `min-height` for CLS and stay visually quiet during review (no bordered "Advertisement" boxes, no real `<ins class="adsbygoogle">` until approval).
 
-### 开发工具
-- **ESLint** - 代码质量检查
-- **Prettier** - 代码格式化（推荐）
+### Post-approval (after Google emails "Approved")
 
-## 🚀 快速开始
+1. **No script change needed** — the AdSense loader is already injected by `BaseLayout`.
+2. **Replace the placeholder body in `shared/components/AdSense.astro`**: swap the `<div class="adsense-placeholder">` for a real `<ins class="adsbygoogle">` block plus a `<script is:inline>(adsbygoogle = window.adsbygoogle || []).push({});</script>`. Because `AdSense.astro` is in `shared/`, one change applies across all 5 domains.
+3. Per ad placement (e.g. `mortgage-top`, `home-top`, `wc-top`, `tz-top`, `json-top`, `portal-top`), create an ad unit in AdSense and map its generated numeric `data-ad-slot` ID to the semantic name we use in `adSlot` props — easiest is a small lookup table inside `AdSense.astro` (`SLOT_IDS = { 'mortgage-top': '1234567890', ... }`).
 
-### 环境要求
-- Node.js 18+ 
-- npm 或 yarn
+## SEO + GEO
 
-### 1. 克隆项目
+We optimize for both classical SEO (Google / Bing / DuckDuckGo) and Generative Engine Optimization (citation by ChatGPT, Claude, Perplexity, Google AI Overviews, etc).
+
+| Lever                                | Where it lives                              |
+| ------------------------------------ | ------------------------------------------- |
+| Sitemaps (`sitemap-index.xml` + `sitemap-0.xml`) | Auto-emitted by `@astrojs/sitemap` per site |
+| `robots.txt` explicitly Allows AI bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) | `<site>/public/robots.txt` |
+| `llms.txt` (site summary + key page links per [llmstxt.org](https://llmstxt.org/)) | `<site>/public/llms.txt` |
+| FAQ schema (`FAQPage` JSON-LD + visible `<details>` Q&A) | Top tool pages: mortgage, income-tax, paycheck, time-zone, unit-converter, json-formatter, word-counter, Base64, AI tools |
+| "Show the math" disclosure (citation-friendly stepwise content) | All calculator + converter tool pages |
+| Internal cross-links between related tools | `calc/` pages link to siblings |
+| Cross-site links from `kdp.cool` portal to subdomain families | `web/src/pages/index.astro` |
+| Crawler Hints (IndexNow protocol — pings Bing/Yandex on changes) | CF zone setting (Caching → Configuration → Crawler Hints) — enabled |
+| Cloudflare "Block AI bots" feature | **Disabled** in CF Security → Bot traffic |
+| Cloudflare "Managed robots.txt" feature | **Disabled** in CF Security → Bot traffic |
+
+To submit to Google Search Console (next step, manual): add each domain as a property (DNS verification via a TXT record in CF), then submit `https://<domain>/sitemap-index.xml`. Repeat for Bing Webmaster.
+
+## Local development
+
+Each site is an independent Astro project that imports from `shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`.
+
 ```bash
-git clone <repository-url>
-cd kdp.cool
+cd calc    && npm install --legacy-peer-deps && npm run dev    # :4321
+cd convert && npm install --legacy-peer-deps && npm run dev    # :4321 (one at a time)
+cd text    && npm install --legacy-peer-deps && npm run dev
+cd dev     && npm install --legacy-peer-deps && npm run dev
+cd ai      && npm install --legacy-peer-deps && npm run dev
+cd web     && npm install --legacy-peer-deps && npm run dev
+
+cd calc    && npm test    # node:test, 36 tests covering all calc math + url-state util
 ```
 
-### 2. 安装依赖
-```bash
-cd client
-npm install
-```
+`npm install` requires `--legacy-peer-deps` because `@astrojs/tailwind@6` declares peer `astro@^3||^4||^5` while we run Astro 6. Every project's `.npmrc` already pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/` so CF Pages and other CI installs work.
 
-### 3. 配置环境变量
-在 `client` 目录下创建 `.env` 文件：
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+The `shared/` directory has no `package.json` — it's a raw source folder pulled in via Vite alias. Its only test file is `shared/lib/url-state.test.mjs`, run by `calc/`'s `npm test` script (which globs both `src/lib/*.test.mjs` and `../shared/lib/*.test.mjs`).
 
-# App Configuration  
-VITE_APP_URL=http://localhost:5173
-```
+## Deployment
 
-### 4. 设置数据库
-1. 在 Supabase Dashboard 的 SQL Editor 中执行 `docs/supabase_setup.sql`
-2. 创建存储桶 `artworks`（公开访问）
-3. 配置 Google OAuth 认证
+Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watching the same repo but a different `Root directory`). Most pushes only change one site, but CF rebuilds everyone — harmless, builds are ~30s each.
 
-### 5. 初始化数据
-```bash
-cd client
-node setup-database.js
-```
+### CF Pages settings (reference)
 
-### 6. 启动开发服务器
-```bash
-npm run dev
-```
+| Project       | Root      | Build cmd       | Output | Node | Custom domains                                  |
+| ------------- | --------- | --------------- | ------ | ---- | ----------------------------------------------- |
+| `kdp-portal`  | `web`     | `npm run build` | `dist` | 22   | `kdp.cool` (apex), `www.kdp.cool`               |
+| `kdp-tools`   | `calc`    | `npm run build` | `dist` | 22   | `calc.kdp.cool`                                 |
+| `kdp-convert` | `convert` | `npm run build` | `dist` | 22   | `convert.kdp.cool`                              |
+| `kdp-text`    | `text`    | `npm run build` | `dist` | 22   | `text.kdp.cool`                                 |
+| `kdp-dev`     | `dev`     | `npm run build` | `dist` | 22   | `dev.kdp.cool`                                  |
+| `kdp-ai`      | `ai`      | `npm run build` | `dist` | 22   | `ai.kdp.cool`                                   |
 
-访问 http://localhost:5173 开始使用！
+### DNS records (CF zone for `kdp.cool`)
 
-## 📁 项目结构
+| Name              | Type  | Target                       | Proxied |
+| ----------------- | ----- | ---------------------------- | ------- |
+| `kdp.cool` (apex) | CNAME | `kdp-portal.pages.dev`       | yes (CF flattens at apex) |
+| `www`             | CNAME | `kdp-portal.pages.dev`       | yes |
+| `calc`            | CNAME | `kdp-tools.pages.dev`        | yes |
+| `convert`         | CNAME | `kdp-convert.pages.dev`      | yes |
+| `text`            | CNAME | `kdp-text.pages.dev`         | yes |
+| `dev`             | CNAME | `kdp-dev.pages.dev`          | yes |
+| `ai`              | CNAME | `kdp-ai.pages.dev`           | yes |
+| `kdp.cool` (apex) | MX/TXT | Cloudflare Email Routing — handles `hello@kdp.cool` (separate from web traffic) |
 
-```
-kdp.cool/
-├── client/                 # 前端应用
-│   ├── public/             # 静态资源
-│   ├── src/
-│   │   ├── components/     # 可复用组件
-│   │   ├── context/        # React Context
-│   │   ├── hooks/          # 自定义 Hooks
-│   │   ├── lib/            # 工具库和服务
-│   │   ├── pages/          # 页面组件
-│   │   ├── styles/         # 样式文件
-│   │   └── main.jsx        # 应用入口
-│   ├── .env               # 环境变量
-│   ├── package.json       # 依赖配置
-│   └── vite.config.js     # Vite 配置
-├── docs/                   # 项目文档
-│   ├── supabase_setup.sql  # 数据库设置脚本
-│   ├── Technical_Architecture.md
-│   └── User_Story_Map.md
-└── README.md              # 项目说明
-```
+## Add a new tool
 
-## 🗄️ 数据库设计
+To a calculator-style subdomain (e.g. another converter on `convert/`):
 
-### 核心表结构
+1. Create `<subdomain>/src/pages/<slug>/index.astro` modeled on an existing tool page (e.g. `convert/src/pages/temperature-converter/index.astro` or `calc/src/pages/mortgage-calculator/index.astro`).
+2. Import shared bits from `@shared/*`: `BaseLayout`, `CalculatorShell`, `AdSense`, `renderPie`/`renderLineChart` from `charts.js`, `decodeState`/`pushUrlState` from `url-state.js`.
+3. If the tool needs custom math, put it in `<subdomain>/src/lib/<slug>.js` plus a `<slug>.test.mjs`. Wire it into the test script in `<subdomain>/package.json` if not already covered by the glob.
+4. Add a card entry to the homepage (`<subdomain>/src/pages/index.astro`)'s `tools` array (mark `available: true`, set `href`).
+5. (Optional) Add an FAQ block + `FAQPage` JSON-LD if the tool has natural Q&A potential.
+6. (Optional) Cross-link from related tools in the same subdomain ("Related" section at the bottom of the content slot).
+7. `npm run build` locally; push to `main`. CF deploys in ~1 min.
 
-- **profiles** - 用户资料表
-- **artworks** - 作品信息表
-- **categories** - 作品分类表
-- **favorites** - 收藏关系表
-- **comments** - 评论表
-- **orders** - 订单表（预留）
+## Add a new subdomain tool family
 
-详细的数据库架构请查看 `docs/Technical_Architecture.md`
+Tested recipe (used for `convert/`, `text/`, `dev/`):
 
-## 🔧 主要功能模块
+1. **Astro scaffold:**
+   ```bash
+   cd kdp-tools
+   npm create astro@latest <family> -- --template minimal --install --no-git --typescript strict --skip-houston --yes
+   ```
+2. **Replace `<family>/.npmrc`** with `legacy-peer-deps=true` + `registry=https://registry.npmjs.org/`.
+3. **Reinstall against public registry, then add Tailwind + sitemap manually** (`npx astro add` is unreliable on private mirrors):
+   ```bash
+   cd <family> && rm -rf node_modules package-lock.json
+   npm install --legacy-peer-deps --registry=https://registry.npmjs.org/
+   npm install --save-dev --legacy-peer-deps --registry=https://registry.npmjs.org/ @astrojs/tailwind @astrojs/sitemap tailwindcss@^3
+   ```
+4. **Write `<family>/astro.config.mjs`** mirroring an existing one — change `site:` to `https://<family>.kdp.cool`, keep the `vite.resolve.alias` block with `@shared` and `@site` paths.
+5. **Write `<family>/tailwind.config.mjs`** with content globs including `'./src/**/*.{astro,...}'` AND `'../shared/**/*.{astro,...}'`.
+6. **Write `<family>/src/site.config.js`** exporting `siteName`, `tagline`, `footerNote`, `navLinks`, `applicationCategory`.
+7. **Pages:** delete the default `src/pages/index.astro`, then write a homepage + tool pages + clone the 4 brand pages (privacy/terms/about/contact) from a sibling project, brand-swapping.
+8. **Public files:** `ads.txt` (clone), `_headers` (clone), `favicon.svg` (visually distinct color/letter), `robots.txt` (template with the 11 AI-bot Allows + sitemap line for the new domain), `llms.txt` (custom summary).
+9. **Commit + push.**
+10. **CF Pages provisioning** (via API or dashboard):
+    - Create CF Pages project with `root_dir: <family>`, `build_command: npm run build`, `destination_dir: dist`, env var `NODE_VERSION=22`, source = GitHub `kedoupi/kdp-tools` main branch.
+    - Add custom domain `<family>.kdp.cool`.
+    - Add DNS CNAME `<family>` → `<project>.pages.dev` proxied.
+    - Trigger first deployment.
 
-### 认证系统 (`src/context/AuthContext.jsx`)
-- Google OAuth 集成
-- 用户状态管理
-- 自动创建用户资料
+## Notes
 
-### 文件上传 (`src/lib/storage.js`)
-- 图片验证和压缩
-- 缩略图自动生成
-- Supabase Storage 集成
+- `output: 'static'` + `trailingSlash: 'always'` + `format: 'directory'` produces clean URLs like `/mortgage-calculator/` with `index.html` inside.
+- Sitemap is emitted as `sitemap-index.xml` (index) referencing `sitemap-0.xml`. `robots.txt` points at the index.
+- The `_headers` file under each site's `public/` is consumed by Cloudflare Pages for security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
+- All math modules use `node:test` (no test framework dependency). Run with `npm test` per project.
+- `docs/superpowers/specs/` and `docs/superpowers/plans/` hold design specs and implementation plans from the brainstorm → plan → execute workflow used to build this repo.
+- `shared/` does not have its own `package.json`; it is a raw source folder consumed by every site via Vite alias `@shared/*`.
 
-### 作品管理 (`src/lib/artworks.js`)
-- CRUD 操作
-- 搜索和筛选
-- 收藏功能
+## Roadmap
 
-### 响应式设计 (`src/styles/responsive.css`)
-- 移动端优化
-- 灵活网格布局
-- 自适应组件
-
-## 🎯 开发计划
-
-### ✅ 已完成
-- 用户认证系统
-- 作品上传和展示
-- 搜索和筛选功能
-- 个人资料管理
-- 响应式设计
-
-### 🚧 开发中
-- 支付集成
-- 评论系统
-- 高级搜索
-
-### 📋 计划中
-- 作品推荐算法
-- 社交功能
-- 移动端应用
-
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/新功能`)
-3. 提交更改 (`git commit -am '添加新功能'`)
-4. 推送到分支 (`git push origin feature/新功能`)
-5. 创建 Pull Request
-
-## 📝 开发注意事项
-
-### 代码规范
-- 使用 ESLint 进行代码检查
-- 组件名使用 PascalCase
-- 文件名使用 camelCase
-- 优先使用函数组件和 Hooks
-
-### 性能优化
-- 图片懒加载
-- 分页数据加载
-- 组件级代码分割
-
-### 安全考虑
-- 所有 API 调用都经过 RLS 策略验证
-- 文件上传类型和大小限制
-- 用户输入验证和清理
-
-## 📄 许可证
-
-MIT License - 详见 LICENSE 文件
-
-## 🆘 支持
-
-如有问题，请创建 Issue 或联系项目维护者。
-
----
-
-**KDP.Cool** - 让每个数字艺术家都能展示和销售自己的作品 🎨✨
+| Phase | Status | Notes |
+| ----- | ------ | ----- |
+| Phase 1 — calc to AdSense-ready | ✅ | 5 calculators, brand pages, AdSense submitted |
+| Phase 2 — extract `shared/` | ✅ | BaseLayout, AdSense, CalculatorShell, charts, url-state in `shared/` |
+| Phase 3 — convert/text/dev subdomains | ✅ | each with 2-3 tools + brand pages |
+| Phase 4 — `kdp.cool` portal | ✅ | shipped early to satisfy AdSense apex requirement |
+| Sprint D — SEO + GEO | ✅ | llms.txt, AI-bot Allow, FAQ schema, internal links, Crawler Hints |
+| Sprint E — people-first quality pass + `ai.kdp.cool` | ✅ | evergreen title cleanup, review/limitations/source signals, 4 browser-only AI tools |
+| **Awaiting AdSense approval** | 🟡 | Once approved: swap `<div>` → `<ins>` in `AdSense.astro`, map slot IDs |
+| Future — currency converter | ⏳ | Needs live FX API |
+| Future — regex tester, JWT decoder, case converter, markdown↔HTML | ⏳ | Pure JS candidates; keep off public homepages until shipped |
+| Future — calc P1.5 (scenario compare, CSV export, OBBBA tax features) | ⏳ | Hold during AdSense review |
