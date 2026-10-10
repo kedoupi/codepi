@@ -1,0 +1,332 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+import FaqSection from '../../components/FaqSection.astro';
+
+const title = 'Paycheck Calculator - US Take-Home Pay 2026';
+const description = 'Calculate your 2026 take-home pay. Federal tax + FICA + state tax + 401(k). Free US paycheck calculator with full breakdown.';
+
+const faqs = [
+  {
+    q: 'What is FICA?',
+    a: 'FICA (Federal Insurance Contributions Act) is the employee share of Social Security tax (6.2% of wages up to the annual wage base) plus Medicare tax (1.45% of all wages). For 2026 the Social Security wage base is $184,500, so the maximum employee OASDI tax is $11,439. High earners may also owe Additional Medicare Tax of 0.9% on wages above $200,000 (single / head of household) or $250,000 (married filing jointly). Your employer pays a matching Social Security and Medicare amount that never appears in net pay.',
+  },
+  {
+    q: 'What is the 2026 Social Security wage base, with a concrete example?',
+    a: 'The Social Security Administration set the 2026 contribution and benefit base at $184,500. On $200,000 of W-2 wages, employee Social Security is 6.2% × $184,500 = $11,439 — not 6.2% × $200,000 ($12,400). The $961 difference is the tax you do not pay on the $15,500 above the cap. Medicare still applies to the full $200,000: 1.45% × $200,000 = $2,900. Additional Medicare Tax on exactly $200,000 single is $0 because the 0.9% applies to wages above the threshold.',
+  },
+  {
+    q: 'How does a traditional 401(k) change take-home pay?',
+    a: 'Traditional 401(k) deferrals reduce wages for federal income tax. They do not reduce Social Security or Medicare wages. On this page’s default — $80,000 single, biweekly, 6% deferral, 5% flat state — $4,800 goes to 401(k), federal tax is $7,714, FICA is $4,960 + $1,160, state is $3,760, and annual net is $57,606 ($2,215.62 per paycheck). Roth 401(k) is the opposite and is not modeled: it leaves federal taxable wages alone.',
+  },
+  {
+    q: 'Why is my stub different from annual tax ÷ 26?',
+    a: 'This tool estimates annual federal income tax with 2026 brackets and the standard deduction, then divides by the number of pay periods. Payroll systems follow IRS Publication 15-T: they annualize each check, apply Form W-4 steps, and can treat bonuses or extra withholding differently. A $2,215.62 planning number and Friday’s deposit can both be “correct” for different problems.',
+  },
+  {
+    q: 'Does this work for 1099 / self-employed income?',
+    a: 'No. This page is for W-2 employees only. A 1099 contractor generally pays both halves of Social Security and Medicare (12.4% + 2.9% = 15.3% self-employment tax on net earnings, subject to the same wage base for the Social Security portion) and usually sends quarterly estimated taxes. There is no employer match sitting off to the side. Do not use this net-pay figure as a 1099 cash forecast.',
+  },
+  {
+    q: 'Does a 401(k) contribution reduce FICA?',
+    a: 'Usually no. Traditional 401(k) elective deferrals are excluded from federal income-tax wages but remain in the Social Security and Medicare wage base. HSA contributions and many Section 125 health premiums can reduce both income-tax and FICA wages; this form’s “other pretax” line is treated like a federal-and-state income-tax reduction and is still included in FICA, so it is a simplified model.',
+  },
+  {
+    q: 'How is state tax modeled?',
+    a: 'As a single flat percentage of wages after pretax 401(k) and the “other pretax” amount. Real state systems have brackets, credits, and sometimes city tax (for example New York City or San Francisco payroll tax). Entering 5% is a sketch, not your state’s withholding table. Some states levy no broad wage income tax; 0% is the right sketch there, not a claim that no locality withholds anything.',
+  },
+  {
+    q: 'Where does the federal line come from?',
+    a: 'The same 2026 ordinary brackets and standard deductions as the income tax calculator (IRS Rev. Proc. 2025-32). It is an annual bracket estimate, not Publication 15-T withholding. For the full slice-by-slice walkthrough, open the income tax calculator with the same income and filing status.',
+  },
+  {
+    q: 'What is the Additional Medicare Tax boundary?',
+    a: 'The 0.9% Additional Medicare Tax applies to wages above $200,000 (single / HoH), $250,000 (MFJ), or $125,000 (MFS). Employers generally begin withholding it at $200,000 of wages from that employer regardless of filing status; the annual return reconciles the true threshold. On this page, $200,000 single produces $0 of Additional Medicare; $201,000 would produce $9.',
+  },
+];
+---
+<BaseLayout title={title} description={description} pathname="/paycheck-calculator/">
+  <CalculatorShell
+    title="Paycheck Calculator (2026)"
+    intro="See your real take-home pay after federal tax, FICA, state tax, and pretax deductions like 401(k)."
+  >
+    <AdSense slot="top-ad" adSlot="pay-top" style="min-height:90px" />
+
+    <form id="pay-form" class="space-y-5" slot="inputs" autocomplete="off">
+      <div>
+        <label for="pay-gross" class="block text-sm font-medium text-slate-700 mb-1">Annual Gross Salary</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input id="pay-gross" type="number" min="0" step="1000" value="80000"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="pay-status" class="block text-sm font-medium text-slate-700 mb-1">Filing Status</label>
+          <select id="pay-status" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="single">Single</option>
+            <option value="mfj">Married (Joint)</option>
+            <option value="mfs">Married (Separate)</option>
+            <option value="hoh">Head of Household</option>
+          </select>
+        </div>
+        <div>
+          <label for="pay-freq" class="block text-sm font-medium text-slate-700 mb-1">Pay Frequency</label>
+          <select id="pay-freq" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="weekly">Weekly</option>
+            <option value="biweekly" selected>Bi-weekly</option>
+            <option value="semimonthly">Semi-monthly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="pay-state" class="block text-sm font-medium text-slate-700 mb-1">State Tax Rate</label>
+          <div class="relative">
+            <input id="pay-state" type="number" min="0" max="20" step="0.1" value="5"
+                   class="w-full pr-7 pl-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+          </div>
+        </div>
+        <div>
+          <label for="pay-401k" class="block text-sm font-medium text-slate-700 mb-1">401(k) Deferral</label>
+          <div class="relative">
+            <input id="pay-401k" type="number" min="0" max="100" step="0.5" value="6"
+                   class="w-full pr-7 pl-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label for="pay-pretax" class="block text-sm font-medium text-slate-700 mb-1">Other Pretax Deductions (HSA, health, dental — annual $)</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input id="pay-pretax" type="number" min="0" step="100" value="0"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+    </form>
+
+    <div slot="results" class="space-y-5">
+      <div>
+        <p class="text-sm uppercase tracking-wider text-slate-500">Take-home <span id="pay-r-period-label" class="lowercase">per pay period</span></p>
+        <p id="pay-r-net" class="text-4xl sm:text-5xl font-bold text-slate-900 tabular-nums">$0</p>
+      </div>
+
+      <div class="flex items-center gap-5">
+        <svg id="pay-chart" viewBox="0 0 100 100" class="w-32 h-32 shrink-0" aria-label="Paycheck breakdown"></svg>
+        <ul class="text-sm space-y-1 flex-1">
+          <li class="flex justify-between"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-emerald-500"></i>Net</span><span id="pay-r-net-line" class="tabular-nums font-medium">$0</span></li>
+          <li class="flex justify-between"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-blue-600"></i>Federal</span><span id="pay-r-fed" class="tabular-nums font-medium">$0</span></li>
+          <li class="flex justify-between"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-amber-500"></i>FICA</span><span id="pay-r-fica" class="tabular-nums font-medium">$0</span></li>
+          <li class="flex justify-between"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-rose-500"></i>State</span><span id="pay-r-state" class="tabular-nums font-medium">$0</span></li>
+          <li class="flex justify-between"><span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-violet-500"></i>Pretax (401k + other)</span><span id="pay-r-pretax" class="tabular-nums font-medium">$0</span></li>
+        </ul>
+      </div>
+
+      <p class="text-xs text-slate-500">Annual: gross <span id="pay-r-annual-gross" class="tabular-nums">$0</span> → net <span id="pay-r-annual-net" class="tabular-nums">$0</span></p>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="pay-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
+        Educational estimate for a W-2 employee in tax year 2026. This is not your employer’s payroll system, IRS Publication 15-T, or a 1099 self-employment worksheet.
+      </p>
+
+      <h2 class="text-2xl font-bold mb-3">Who this is for</h2>
+      <p class="mb-3">Use this page when you want a planning take-home number: “If this salary is my whole year, what is left after federal income tax, FICA, a flat state rate, and a traditional 401(k)?” That helps compare a job offer, a 401(k) deferral, or a housing payment against cash you might actually bank. It is for W-2 wages. It is not for 1099 contractors, partners, or household employees.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">How your paycheck breaks down</h2>
+      <p class="mb-3">Gross pay is reduced by several different systems that only look similar on a stub:</p>
+      <ul class="list-disc list-inside space-y-2 mb-3">
+        <li><strong>Federal income tax</strong> — an installment toward the annual ordinary-income bill. This tool uses 2026 brackets and the standard deduction (IRS Rev. Proc. 2025-32), then divides the annual tax by pay periods. That is not a line-by-line clone of Publication 15-T.</li>
+        <li><strong>FICA</strong> — Social Security 6.2% up to the 2026 wage base of <strong>$184,500</strong> (SSA contribution and benefit base), plus Medicare 1.45% on all wages, plus Additional Medicare Tax of 0.9% above the filing-status threshold.</li>
+        <li><strong>State income tax</strong> — modeled here as one flat percentage after pretax amounts. Real states use their own tables.</li>
+        <li><strong>Traditional 401(k)</strong> — reduces federal (and this page’s state) taxable wages; still in the FICA wage base.</li>
+      </ul>
+      <p>For the federal slice-by-slice walkthrough that sits under the federal line, use the <a href="/income-tax-calculator/" class="text-blue-600 hover:underline">income tax calculator</a>.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Worked example: FICA and the $184,500 wage base</h2>
+      <p class="mb-3">JavaScript is not required to audit these two static cases. They use the same functions as the live form.</p>
+      <h3 class="text-xl font-semibold mb-2 mt-4">Case A — $80,000, single, biweekly, 6% 401(k), 5% state (form defaults)</h3>
+      <ul class="list-disc list-inside space-y-1 mb-3">
+        <li>401(k) = 6% × $80,000 = <strong>$4,800</strong></li>
+        <li>Federal taxable = 80,000 − 4,800 − $16,100 standard deduction = $59,100 → federal tax <strong>$7,714</strong></li>
+        <li>Social Security = 80,000 × 6.2% = <strong>$4,960</strong> (under the $184,500 cap)</li>
+        <li>Medicare = 80,000 × 1.45% = <strong>$1,160</strong></li>
+        <li>State = (80,000 − 4,800) × 5% = <strong>$3,760</strong></li>
+        <li>Annual net = 80,000 − 4,800 − 7,714 − 4,960 − 1,160 − 3,760 = <strong>$57,606</strong> → <strong>$2,215.62</strong> biweekly</li>
+      </ul>
+      <div class="my-6 overflow-x-auto rounded-lg border border-slate-200">
+        <table class="w-full text-sm text-left">
+          <caption class="sr-only">Static default paycheck example</caption>
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 font-semibold">Line</th>
+              <th class="px-3 py-2 font-semibold">Annual</th>
+              <th class="px-3 py-2 font-semibold">Biweekly</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Gross</td><td class="px-3 py-2 tabular-nums">$80,000.00</td><td class="px-3 py-2 tabular-nums">$3,076.92</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Traditional 401(k)</td><td class="px-3 py-2 tabular-nums">$4,800.00</td><td class="px-3 py-2 tabular-nums">$184.62</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Federal income tax</td><td class="px-3 py-2 tabular-nums">$7,714.00</td><td class="px-3 py-2 tabular-nums">$296.69</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Social Security (6.2%)</td><td class="px-3 py-2 tabular-nums">$4,960.00</td><td class="px-3 py-2 tabular-nums">$190.77</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Medicare (1.45%)</td><td class="px-3 py-2 tabular-nums">$1,160.00</td><td class="px-3 py-2 tabular-nums">$44.62</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">State (flat 5%)</td><td class="px-3 py-2 tabular-nums">$3,760.00</td><td class="px-3 py-2 tabular-nums">$144.62</td></tr>
+            <tr class="border-t border-slate-200 font-semibold"><td class="px-3 py-2">Estimated take-home</td><td class="px-3 py-2 tabular-nums">$57,606.00</td><td class="px-3 py-2 tabular-nums">$2,215.62</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 class="text-xl font-semibold mb-2 mt-6">Case B — $200,000 wages, single, no 401(k), 0% state (wage-base boundary)</h3>
+      <p class="mb-3">Social Security stops at $184,500: 6.2% × $184,500 = <strong>$11,439</strong>. Medicare is 1.45% × $200,000 = <strong>$2,900</strong>. Additional Medicare Tax is <strong>$0</strong> at exactly $200,000 single. Federal tax on $200,000 − $16,100 = $183,900 taxable is <strong>$36,734</strong>. Estimated annual net is <strong>$148,927</strong> ($5,727.96 biweekly). If someone applied 6.2% to the full $200,000 they would overstate Social Security by $961.</p>
+
+      <details class="mt-6 group">
+        <summary class="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">Show the math</summary>
+        <div id="pay-show-math" class="mt-3 text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 font-mono">
+          Annual gross = $80,000<br />
+          − 401(k) 6% = $4800.00<br />
+          − Other pretax = $0.00<br />
+          − Standard deduction (SINGLE) = $16,100<br />
+          Federal taxable = $59100.00 → federal tax = <strong>$7714.00</strong><br />
+          <br />
+          SS = min($80,000, $184,500) × 6.2% = $4960.00<br />
+          Medicare = $80,000 × 1.45% = $1160.00<br />
+          Additional Medicare (over threshold) = $0.00 × 0.9% = $0.00<br />
+          State = (gross − pretax) × 5% = $3760.00<br />
+          <br />
+          <strong>Annual net = $57606.00 → biweekly = $2215.62</strong>
+        </div>
+      </details>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">W-2 versus 1099 (what this tool will not do)</h2>
+      <p class="mb-3">A W-2 employee sees only the employee FICA share on the stub (6.2% + 1.45%). The employer pays a matching amount. A 1099 worker typically pays both halves as self-employment tax (12.4% Social Security on net earnings up to the same wage base, plus 2.9% Medicare, with an additional 0.9% Medicare above the same thresholds) and is responsible for quarterly estimates. This calculator never doubles FICA and never computes the self-employment tax deduction. If your income is 1099, stop here and use a self-employment worksheet — not this net-pay figure.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Assumptions and limitations</h2>
+      <ul class="list-disc list-inside space-y-2 mb-3">
+        <li>W-2 wages only. No self-employment tax, statutory employees, or household-employee rules.</li>
+        <li>Federal income tax is an annual bracket estimate with the standard deduction, then split across periods — not Publication 15-T withholding.</li>
+        <li>No credits (Child Tax Credit, EITC, education credits), no itemized deductions, AMT, or NIIT.</li>
+        <li>State tax is a flat percentage. Local occupational or city income taxes are not modeled unless you fold them into that percentage.</li>
+        <li>“Other pretax” is a single annual total. It reduces the federal/state income-tax base in this model but is still included in FICA, which may not match every cafeteria-plan wage definition.</li>
+        <li>Roth 401(k), after-tax deductions, and garnishments are not modeled.</li>
+      </ul>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Sources and data vintage</h2>
+      <p class="mb-3">Federal brackets and 2026 standard deductions: IRS Revenue Procedure 2025-32 (<a href="https://www.irs.gov/pub/irs-drop/rp-25-32.pdf" class="text-blue-600 hover:underline">rp-25-32.pdf</a>). Employee FICA rates: 6.2% OASDI and 1.45% HI (long-standing FICA rates). 2026 Social Security wage base: <strong>$184,500</strong>, Social Security Administration contribution and benefit base (<a href="https://www.ssa.gov/oact/cola/cbb.html" class="text-blue-600 hover:underline">SSA.gov/oact/cola/cbb.html</a>). Additional Medicare Tax thresholds are the statutory amounts used on Form 8959 ($200,000 single, $250,000 MFJ, $125,000 MFS). Official withholding method: IRS Publication 15-T.</p>
+      <p>Page reviewed: <strong>2026-09-16</strong>.</p>
+
+      <FaqSection
+        faqs={faqs}
+        related={[
+          { href: '/income-tax-calculator/', label: 'Income Tax Calculator', note: 'the federal-only bracket walkthrough that sits under the federal line on this page.' },
+          { href: '/mortgage-calculator/', label: 'Mortgage Calculator', note: 'compare estimated take-home pay with a PITI housing draft.' },
+          { href: 'https://calc.kdp.cool/compound-interest-calculator/', label: 'Compound Interest Calculator', note: 'see what a paycheck deferral can grow into if you actually invest it.', external: true },
+          { href: '/guides/how-to-read-take-home-pay/', label: 'Guide: how to read take-home pay', note: 'a longer W-2 withholding walkthrough with a $72,000 example.' },
+          { href: '/guides/how-us-federal-income-tax-brackets-work/', label: 'Guide: how federal brackets work', note: 'why 22% marginal is not 22% of salary.' },
+        ]}
+      />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="pay-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { calcPaycheck } from '@shared/lib/paycheck.js';
+    import { TAX_DATA_2026 } from '@shared/lib/federal-tax.js';
+    import { renderPie } from '@shared/lib/charts.js';
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    const fmt = (n) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const FREQ_LABEL = { weekly: 'per week', biweekly: 'per pay period', semimonthly: 'per pay period', monthly: 'per month' };
+
+    const DEFAULTS = { gross: 80000, status: 'single', freq: 'biweekly', state: 5, k401: 6, pretax: 0 };
+    const init = decodeState(window.location.search, DEFAULTS);
+
+    const $g = document.getElementById('pay-gross');
+    const $s = document.getElementById('pay-status');
+    const $f = document.getElementById('pay-freq');
+    const $st = document.getElementById('pay-state');
+    const $k = document.getElementById('pay-401k');
+    const $px = document.getElementById('pay-pretax');
+
+    $g.value = String(init.gross);
+    $s.value = init.status;
+    $f.value = init.freq;
+    $st.value = String(init.state);
+    $k.value = String(init.k401);
+    $px.value = String(init.pretax);
+
+    let urlTimer;
+    function syncUrl() {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(() => pushUrlState({
+        gross: +$g.value || 0, status: $s.value, freq: $f.value,
+        state: +$st.value || 0, k401: +$k.value || 0, pretax: +$px.value || 0,
+      }), 250);
+    }
+
+    function update() {
+      const inputs = {
+        annualGross: +$g.value || 0,
+        filingStatus: $s.value,
+        payFrequency: $f.value,
+        statePct: +$st.value || 0,
+        deductions401kPct: +$k.value || 0,
+        deductionsPretaxAmt: +$px.value || 0,
+      };
+      const r = calcPaycheck(inputs);
+      const fica = r.perPeriod.ss + r.perPeriod.medicare + r.perPeriod.addlMedicare;
+      const pretax = r.perPeriod.pretax401k + r.perPeriod.pretaxOther;
+
+      document.getElementById('pay-r-period-label').textContent = FREQ_LABEL[$f.value] || 'per pay period';
+      document.getElementById('pay-r-net').textContent = fmt(r.perPeriod.net);
+      document.getElementById('pay-r-net-line').textContent = fmt(r.perPeriod.net);
+      document.getElementById('pay-r-fed').textContent = fmt(r.perPeriod.federal);
+      document.getElementById('pay-r-fica').textContent = fmt(fica);
+      document.getElementById('pay-r-state').textContent = fmt(r.perPeriod.state);
+      document.getElementById('pay-r-pretax').textContent = fmt(pretax);
+      document.getElementById('pay-r-annual-gross').textContent = fmt(r.annual.gross);
+      document.getElementById('pay-r-annual-net').textContent = fmt(r.annual.net);
+
+      renderPie(document.getElementById('pay-chart'), [
+        { value: r.perPeriod.net,      color: '#10b981', label: 'Net' },
+        { value: r.perPeriod.federal,  color: '#2563eb', label: 'Federal' },
+        { value: fica,                 color: '#f59e0b', label: 'FICA' },
+        { value: r.perPeriod.state,    color: '#f43f5e', label: 'State' },
+        { value: pretax,               color: '#8b5cf6', label: 'Pretax' },
+      ]);
+
+      const stdDed = TAX_DATA_2026.standardDeduction[$s.value] || 0;
+      const taxableForFederal = Math.max(0, inputs.annualGross - r.annual.pretax401k - r.annual.pretaxOther - stdDed);
+      const ssCapped = Math.min(inputs.annualGross, TAX_DATA_2026.ssWageBase);
+      const addlOver = Math.max(0, inputs.annualGross - (TAX_DATA_2026.additionalMedicareThreshold[$s.value] ?? 200000));
+      document.getElementById('pay-show-math').innerHTML = `
+Annual gross = $${inputs.annualGross.toLocaleString()}<br>
+− 401(k) ${inputs.deductions401kPct}% = $${r.annual.pretax401k.toFixed(2)}<br>
+− Other pretax = $${r.annual.pretaxOther.toFixed(2)}<br>
+− Standard deduction (${$s.value.toUpperCase()}) = $${stdDed.toLocaleString()}<br>
+Federal taxable = $${taxableForFederal.toFixed(2)} → federal tax = <strong>$${r.annual.federal.toFixed(2)}</strong><br>
+<br>
+SS = min($${inputs.annualGross.toLocaleString()}, $${TAX_DATA_2026.ssWageBase.toLocaleString()}) × 6.2% = $${(ssCapped * 0.062).toFixed(2)}<br>
+Medicare = $${inputs.annualGross.toLocaleString()} × 1.45% = $${r.annual.medicare.toFixed(2)}<br>
+Additional Medicare (over threshold) = $${addlOver.toFixed(2)} × 0.9% = $${r.annual.addlMedicare.toFixed(2)}<br>
+State = (gross − pretax) × ${inputs.statePct}% = $${r.annual.state.toFixed(2)}<br>
+<br>
+<strong>Annual net = $${r.annual.net.toFixed(2)} → ${$f.value} = $${r.perPeriod.net.toFixed(2)}</strong>
+      `.trim();
+      syncUrl();
+    }
+
+    document.getElementById('pay-form').addEventListener('input', update);
+    update();
+  </script>
+</BaseLayout>

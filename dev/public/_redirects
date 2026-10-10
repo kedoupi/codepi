@@ -1,3 +1,12 @@
 # Canonical privacy URL is /privacy/
 /privacy-policy /privacy/ 301
 /privacy-policy/ /privacy/ 301
+
+/zh/   /  301
+/es/   /  301
+/hi/   /  301
+/ar/   /  301
+/pt/   /  301
+/fr/   /  301
+/de/   /  301
+/ja/   /  301

@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Lorem Ipsum Generator - Free Filler Text';
 const description = 'Generate Lorem Ipsum placeholder text — paragraphs, words, sentences, list items. Free, fast, instant copy-to-clipboard.';
@@ -20,13 +19,11 @@ const faqs = [
   },
 ];
 ---
-<BaseLayout title={title} description={description} pathname="/lorem-ipsum-generator/">
+<BaseLayout title={title} description={description} pathname="/lorem-ipsum-generator/" robots="noindex, follow">
   <section class="space-y-2 mb-6">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Lorem Ipsum Generator</h1>
     <p class="text-slate-600 max-w-2xl">Generate filler text for mockups and designs. Pick paragraphs, words, sentences, or list items, hit generate, and copy.</p>
   </section>
-
-  <AdSense adSlot="lorem-top" style="min-height:90px" />
 
   <section class="bg-white border border-slate-200 rounded-lg p-5 mt-4">
     <form id="lorem-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end" autocomplete="off">
@@ -109,8 +106,6 @@ const faqs = [
       })),
     })} />
   </section>
-
-  <AdSense adSlot="lorem-bottom" style="min-height:90px" />
 
   <script>
     const POOL = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in reprehenderit voluptate velit esse cillum fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est laborum vero accusamus iusto odio dignissimos ducimus blanditiis praesentium voluptatum corrupti quos dolores quas molestias'.split(/\s+/);

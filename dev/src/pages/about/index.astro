@@ -2,7 +2,7 @@
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 
 const title = 'About DevKDP';
-const description = 'DevKDP builds fast, ad-supported developer utilities — JSON formatter, Base64 encoder, regex tester, JWT decoder, and more. No signup, no tracking beyond anonymous analytics.';
+const description = 'DevKDP builds fast, ad-supported developer utilities: a JSON formatter and a Base64 encoder. No signup. Inputs stay in your browser.';
 ---
 <BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
   <article class="prose-like max-w-3xl space-y-4">
@@ -14,27 +14,25 @@ const description = 'DevKDP builds fast, ad-supported developer utilities — JS
 
     <h2 class="text-xl font-semibold mt-6">The lineup</h2>
     <ul class="list-disc pl-6 space-y-1">
-      <li><strong>JSON Formatter</strong> (live) — Format, minify, and validate JSON in real time. Indent with 2 spaces, 4 spaces, or tabs. Line-level error reporting plus depth and key-count statistics.</li>
-      <li><strong>Base64 Encoder / Decoder</strong> (live) — UTF-8-safe text encode/decode plus binary file upload via FileReader. URL-safe variant supported for JWT-style tokens.</li>
-      <li><strong>Regex Tester</strong> (planned) — Live JavaScript regex matcher with capture-group highlighting and flag toggles.</li>
-      <li><strong>JWT Decoder</strong> (planned) — Decode and inspect JSON Web Tokens, with header / payload / signature breakdown.</li>
+      <li><strong>JSON Formatter</strong> — Format, minify, and validate JSON in real time. Indent with 2 spaces, 4 spaces, or tabs. Line-level error reporting plus depth and key-count statistics.</li>
+      <li><strong>Base64 Encoder / Decoder</strong> — UTF-8-safe text encode/decode plus binary file upload via FileReader. URL-safe variant supported.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
     <p>Most online developer tools are wrapped in autoplay videos, popups, and email-walls for "premium" features that should be free. We built DevKDP because we wanted the opposite: instant results, no signup, no tracking of inputs, no nonsense.</p>
 
     <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
-    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+    <p>Reserved layout slots stay empty during review. After approval they may show ads in fixed positions, without auto-playing video or popups. If you'd like to support us further, simply share a link.</p>
 
     <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
     <ul class="list-disc pl-6 space-y-1">
       <li><strong>Browser-side only</strong>: every tool runs in your browser. The JSON you paste, the file you upload, the Base64 you decode — none of it touches our servers.</li>
       <li><strong>Standards first</strong>: parsing uses the browser's native <code>JSON.parse</code>; Base64 uses <code>btoa</code> / <code>atob</code> with UTF-8 wrapping; URL-safe Base64 follows RFC 4648 §5.</li>
-      <li><strong>Open source</strong>: the site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-orange-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+      <li><strong>Corrections</strong>: Found a bug? Email <a href="mailto:hello@kdp.cool" class="text-orange-600 hover:underline">hello@kdp.cool</a> with the page URL and what you expected.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">What's next</h2>
-    <p>Active work is on expanding the tool set: a regex tester, JWT decoder, URL encoder, hash generator, and color picker. Suggestions welcome — see Contact.</p>
+    <p>Suggestions are welcome — see Contact.</p>
 
     <h2 class="text-xl font-semibold mt-6">Contact</h2>
     <p>See <a href="/contact/" class="text-orange-600 hover:underline">Contact</a>.</p>

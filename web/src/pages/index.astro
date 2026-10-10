@@ -4,44 +4,6 @@ import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'kdp.cool — Free, fast, no-signup web tools';
 const description = 'Kdp.Cool builds focused single-purpose web tools for everyday tasks: financial calculators, format converters, developer utilities, and writing helpers. Free, fast, ad-supported.';
-
-const families = [
-  {
-    name: 'Financial Calculators',
-    href: 'https://calc.kdp.cool/',
-    blurb: 'Mortgage, auto loan, paycheck, income tax, compound interest. 5 calculators with show-the-math on every result.',
-    status: 'Available now',
-    available: true,
-  },
-  {
-    name: 'Format Converters',
-    href: 'https://convert.kdp.cool/',
-    blurb: 'Time zone, unit, temperature converters. 80+ time zones with DST handling.',
-    status: 'Available now',
-    available: true,
-  },
-  {
-    name: 'Text Utilities',
-    href: 'https://text.kdp.cool/',
-    blurb: 'Word counter, Lorem Ipsum generator, with reading-time estimates.',
-    status: 'Available now',
-    available: true,
-  },
-  {
-    name: 'Developer Tools',
-    href: 'https://dev.kdp.cool/',
-    blurb: 'JSON formatter, Base64 encoder. Real-time validation, URL-safe variants.',
-    status: 'Available now',
-    available: true,
-  },
-  {
-    name: 'AI Utilities',
-    href: 'https://ai.kdp.cool/',
-    blurb: 'Token cost calculator, prompt builder, prompt cleaner, and privacy checker. Browser-only, no signup.',
-    status: 'Available now',
-    available: true,
-  },
-];
 ---
 <BaseLayout title={title} description={description} pathname="/" schemaType="WebSite">
   <section class="grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr]">
@@ -69,33 +31,28 @@ const families = [
   <section class="mt-10">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="kdp-section-label">Current collection</p>
-        <h2 class="mt-2 font-serif text-3xl font-semibold tracking-normal text-stone-950">Tool families</h2>
+        <p class="kdp-section-label">On this site</p>
+        <h2 class="mt-2 font-serif text-3xl font-semibold tracking-normal text-stone-950">Calculators you can use here</h2>
       </div>
-      <p class="max-w-md text-sm leading-6 text-stone-600">Each family is intentionally narrow: fewer pages, clearer purpose, and no public placeholder tools.</p>
+      <p class="max-w-md text-sm leading-6 text-stone-600">These three run on kdp.cool. Each page shows the formula, the sources, and what the result does not include.</p>
     </div>
-    <div class="grid grid-cols-1 gap-4 mt-6 sm:grid-cols-2">
-      {families.map((f) => (
-        f.available ? (
-          <a href={f.href} target="_blank" rel="noopener" class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
-            <div class="flex items-start justify-between gap-3">
-              <h3 class="font-serif text-2xl font-semibold tracking-normal">{f.name}</h3>
-              <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-100 whitespace-nowrap">{f.status}</span>
-            </div>
-            <p class="mt-3 text-sm leading-6 text-stone-600">{f.blurb}</p>
-            <p class="kdp-link mt-4 text-sm">Open -></p>
-          </a>
-        ) : (
-          <div class="block p-5 border border-slate-200 rounded-lg bg-slate-50 opacity-70 cursor-not-allowed">
-            <div class="flex items-start justify-between gap-3">
-              <h3 class="font-semibold text-lg text-slate-700">{f.name}</h3>
-              <span class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-600 whitespace-nowrap">{f.status}</span>
-            </div>
-            <p class="mt-2 text-sm text-slate-500">{f.blurb}</p>
-          </div>
-        )
-      ))}
+    <div class="grid grid-cols-1 gap-4 mt-6 sm:grid-cols-3">
+      <a href="/mortgage-calculator/" class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <h3 class="font-serif text-2xl font-semibold tracking-normal">Mortgage</h3>
+        <p class="mt-3 text-sm leading-6 text-stone-600">Monthly principal and interest, plus a simple tax and insurance draft. The $400,000 example is also written out below.</p>
+      </a>
+      <a href="/paycheck-calculator/" class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <h3 class="font-serif text-2xl font-semibold tracking-normal">Paycheck</h3>
+        <p class="mt-3 text-sm leading-6 text-stone-600">Federal brackets, FICA, an optional flat state rate, and pretax deductions, split across pay periods.</p>
+      </a>
+      <a href="/income-tax-calculator/" class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+        <h3 class="font-serif text-2xl font-semibold tracking-normal">Federal income tax</h3>
+        <p class="mt-3 text-sm leading-6 text-stone-600">2026 ordinary brackets from IRS Revenue Procedure 2025-32, stacked one band at a time.</p>
+      </a>
     </div>
+    <p class="mt-4 text-sm">
+      <a href="/guides/" class="kdp-link">Read the worked guides</a>
+    </p>
   </section>
 
   <section class="mt-14 border-t border-[#e6d9c8] pt-8">
@@ -159,7 +116,7 @@ const families = [
       <li><strong>Speed and clarity first.</strong> Tools render in under a second and recalculate as you type. No loading spinners on basic math.</li>
       <li><strong>No email walls.</strong> We don't gate features behind signups, "premium" tiers, or "free trial" funnels. Everything is free, forever.</li>
       <li><strong>Show the math.</strong> Our calculators include a "Show the math" toggle that reveals the formula and intermediate steps. You can verify the answer or learn the method.</li>
-      <li><strong>Open source.</strong> Code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Bug? Open an issue.</li>
+      <li><strong>Corrections in public.</strong> If a figure is wrong, email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL and the numbers you expected.</li>
     </ul>
   </section>
 
@@ -172,7 +129,7 @@ const families = [
       <a href="/privacy/" class="hover:text-stone-950">Privacy</a>
       <a href="/terms/" class="hover:text-stone-950">Terms</a>
       <a href="/contact/" class="hover:text-stone-950">Contact</a>
-      <a href="https://github.com/kedoupi/kdp-tools" class="hover:text-stone-950">GitHub</a>
+      <a href="mailto:hello@kdp.cool" class="hover:text-stone-950">Email</a>
     </p>
   </section>
 </BaseLayout>

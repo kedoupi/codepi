@@ -2,7 +2,7 @@
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 
 const title = 'About Kdp.Cool';
-const description = 'Kdp.Cool builds fast, ad-supported web tools — financial calculators, format converters, developer utilities, and text helpers. No signup, no tracking beyond anonymous analytics.';
+const description = 'Kdp.Cool builds fast, ad-supported web tools — financial calculators, format converters, developer utilities, and text helpers. No signup. Tool inputs stay in the browser.';
 ---
 <BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
   <article class="prose-like max-w-3xl space-y-4">
@@ -10,18 +10,18 @@ const description = 'Kdp.Cool builds fast, ad-supported web tools — financial 
     <p class="text-sm text-slate-500">A portal of fast, no-signup web tools.</p>
 
     <h2 class="text-xl font-semibold mt-6">Who maintains it</h2>
-    <p>Kdp.Cool is a small independent project. There is no parent company, no app-store listing, and no account database. The public source of truth is the open-source monorepo at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Bug reports, math corrections, and tool ideas can go to that repo or to <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>.</p>
-    <p>We publish review dates on educational pages so you can see when a tax year or a formula walkthrough was last checked. If a figure is wrong, the fix is a pull request or an email — not a gated “contact sales” form.</p>
+    <p>Kdp.Cool is a small independent project. There is no parent company, no app-store listing, and no account database. Bug reports, math corrections, and tool ideas go to <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>.</p>
+    <p>We publish review dates on educational pages so you can see when a tax year or a formula walkthrough was last checked. If a figure is wrong, email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL and the numbers you expected.</p>
 
     <h2 class="text-xl font-semibold mt-6">What this is</h2>
-    <p>Kdp.Cool is a portal that hosts focused, single-purpose web tools. Each "tool family" lives on its own subdomain so the homepage stays uncluttered. The goal is practical: open a page, use the tool immediately, understand how the result was produced, and leave without creating an account. The apex site also publishes <a href="/guides/" class="text-blue-600 hover:underline">original guides</a> that explain the mortgage formula, paycheck withholding, and US federal tax brackets with static worked examples.</p>
+    <p>Kdp.Cool publishes focused, single-purpose web tools. The mortgage, paycheck, and federal income-tax calculators run on this hostname, next to <a href="/guides/" class="text-blue-600 hover:underline">original guides</a> that fill in the same formulas with static examples. Other tool families live on their own subdomains. The goal is practical: open a page, use the tool immediately, understand how the result was produced, and leave without creating an account.</p>
 
     <h2 class="text-xl font-semibold mt-6">The family</h2>
     <ul class="list-disc pl-6 space-y-1">
-      <li><strong>calc.kdp.cool</strong> — Financial calculators. Mortgage, auto loan, paycheck, income tax, compound interest. Each calculator runs entirely in your browser, gives instant results as you type, and shows the underlying math.</li>
+      <li><strong>This site</strong> — Mortgage, paycheck, and federal income-tax calculators, with the guides that use the same numbers. Auto loan and compound interest remain on calc.kdp.cool.</li>
       <li><strong>convert.kdp.cool</strong> — Format converters. Time zone, unit, and temperature converters with formula or source-data explanations.</li>
       <li><strong>dev.kdp.cool</strong> — Developer tools. JSON formatter and Base64 encoder/decoder, with browser-only processing.</li>
-      <li><strong>text.kdp.cool</strong> — Text utilities. Word counter and Lorem Ipsum generator for drafting, layout, and editorial checks.</li>
+      <li><strong>text.kdp.cool</strong> — Text utilities. A word counter for drafting and editorial checks.</li>
       <li><strong>ai.kdp.cool</strong> — Practical AI utilities for prompts, token cost estimates, and safer AI workflows.</li>
     </ul>
 
@@ -29,7 +29,7 @@ const description = 'Kdp.Cool builds fast, ad-supported web tools — financial 
     <p>Most online tools are slow, require email signups for "premium features," hide the math, and hammer you with intrusive ads. We built Kdp.Cool because we wanted the opposite: instant, transparent, free.</p>
 
     <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
-    <p>There is no premium tier and no email wall. Hosting and maintenance are paid for by Google AdSense on reserved layout slots. During review those slots stay quiet; after approval they may show ads, still without popups, interstitials, or fake buttons. The calculators, converters, and guides remain usable if you ignore the ads. If you want to help without clicking anything, share a link or star the GitHub repo.</p>
+    <p>There is no premium tier and no email wall. Hosting and maintenance are paid for by Google AdSense on reserved layout slots. During review those slots stay quiet; after approval they may show ads, still without popups, interstitials, or fake buttons. The calculators, converters, and guides remain usable if you ignore the ads. If you want to help without clicking anything, share a link.</p>
     <p>We do not sell leads, do not rent an email list (we do not have one), and do not charge “unlock” fees for showing a formula.</p>
 
     <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
@@ -38,12 +38,12 @@ const description = 'Kdp.Cool builds fast, ad-supported web tools — financial 
       <li><strong>Math</strong>: Every calculator shows its formula in a "Show the math" section, so you can verify or learn. No black boxes.</li>
       <li><strong>Local-first tools</strong>: When a task can run in the browser, it should. Text, JSON, Base64, and similar inputs stay on your device.</li>
       <li><strong>Maintenance signals</strong>: Tool pages include review dates, limitations, and plain-English explanations so readers can judge whether the result fits their situation.</li>
-      <li><strong>Open source</strong>: The site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+      <li><strong>Corrections</strong>: Found a wrong figure? Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, and what you expected.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">What data is not collected</h2>
     <p>The tools run in your browser. We do not create accounts, so we do not collect names, email addresses, passwords, or payment methods. Numbers you type into a calculator are not uploaded to our servers as a saved profile. If a tool puts state in the URL, that is so you can bookmark or share a scenario; it is still just a request for a static page. We also do not ask for tax documents, bank statements, or customer lists, and you should not paste them into a text box.</p>
-    <p>The only regular telemetry is anonymous Cloudflare Web Analytics (no cookies from us). Advertising partners may use their own identifiers; that is described on the <a href="/privacy/" class="text-blue-600 hover:underline">Privacy</a> page. This About page is the human-language version of that boundary: if a task requires sending us your data, we probably should not have built it as a public static tool.</p>
+    <p>We do not run our own analytics snippet. The only third-party script on these pages is Google's AdSense loader, which may use cookies after ads are approved. That is described on the <a href="/privacy/" class="text-blue-600 hover:underline">Privacy</a> page. This About page is the human-language version of that boundary: if a task requires sending us your data, we probably should not have built it as a public static tool.</p>
 
     <h2 class="text-xl font-semibold mt-6">What we do not do</h2>
     <ul class="list-disc pl-6 space-y-1">
@@ -54,7 +54,7 @@ const description = 'Kdp.Cool builds fast, ad-supported web tools — financial 
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">What's next</h2>
-    <p>Active work is split between quality passes on the existing tool families and practical AI utilities on ai.kdp.cool. We prioritize tools that solve repeatable tasks, have transparent logic, and can cite official or stable references where accuracy depends on outside data. See the <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">repo roadmap</a>.</p>
+    <p>Active work is the mortgage, paycheck, and federal income-tax calculators on this site, plus the guides that walk through the same numbers. Other families stay on their own hostnames. We prioritize tools that solve a repeatable task, show the formula, and cite an official source where the number can go stale.</p>
 
     <h2 class="text-xl font-semibold mt-6">Contact</h2>
     <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
