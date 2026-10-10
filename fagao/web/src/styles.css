@@ -1,34 +1,36 @@
-/* Fagao Desk — flat Swiss internal CMS (mobile-first) */
-
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+/* Fagao Desk — WeChat-style editorial desk (mobile-first) */
 
 :root {
-  --ink: #0f172a;
-  --ink-2: #334155;
-  --muted: #64748b;
-  --line: #e2e8f0;
-  --line-strong: #cbd5e1;
-  --page: #f1f5f9;
+  --ink: #191919;
+  --ink-2: #3d3d3d;
+  --muted: #888888;
+  --line: #e5e5e5;
+  --line-strong: #d8d8d8;
+  --page: #f7f7f7;
   --card: #ffffff;
-  --primary: #0d9488;
-  --primary-soft: #ccfbf1;
-  --primary-ink: #115e59;
-  --accent: #ea580c;
-  --accent-soft: #ffedd5;
-  --ok: #059669;
-  --ok-soft: #d1fae5;
-  --warn: #d97706;
-  --warn-soft: #fef3c7;
-  --danger: #dc2626;
-  --danger-soft: #fee2e2;
-  --demo: #c2410c;
+  --primary: #07c160; /* WeChat green */
+  --primary-press: #06ad56;
+  --primary-soft: #e8f8ee;
+  --primary-ink: #059048;
+  --link: #576b95; /* WeChat link blue */
+  --accent: #f59e0b;
+  --accent-soft: #fef3e6;
+  --accent-line: #f5d9ac;
+  --ok: #07c160;
+  --ok-soft: #e8f8ee;
+  --warn: #fa9d3b;
+  --warn-soft: #fef3e6;
+  --danger: #fa5151; /* WeChat red */
+  --danger-soft: #feecec;
+  --danger-line: #f9c1c1;
+  --demo: #b25e09;
   --tap: 44px;
   --wb: 42rem;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-sm: 8px;
   --ease: 150ms ease;
-  --sans: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   color-scheme: light;
 }
 
@@ -56,15 +58,8 @@ body {
   max-width: var(--wb);
   margin: 0 auto;
   min-height: 100dvh;
-  background: var(--card);
-  border-inline: 1px solid var(--line);
+  background: var(--page);
   padding: 0 0 calc(24px + env(safe-area-inset-bottom));
-}
-
-@media (max-width: 42rem) {
-  #app {
-    border-inline: 0;
-  }
 }
 
 #app.is-review {
@@ -75,14 +70,14 @@ body {
   background: var(--page);
 }
 
-/* —— Header —— */
+/* —— Header (WeChat nav-bar: white, hairline, black title) —— */
 .masthead,
 .wb-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 16px 14px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--card);
   position: sticky;
@@ -97,20 +92,19 @@ body {
 .brand-kicker {
   margin: 0 0 2px;
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--primary);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--muted);
 }
 
 .brand,
 .wb-head h1 {
   margin: 0 0 2px;
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--ink);
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .sub,
@@ -125,8 +119,7 @@ body {
 }
 
 .eyebrow {
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
   margin-bottom: 4px;
 }
 
@@ -150,7 +143,7 @@ body {
 
 /* —— Day hero —— */
 .day-hero {
-  padding: 16px 16px 4px;
+  padding: 18px 16px 6px;
 }
 
 .day-hero-top {
@@ -162,10 +155,10 @@ body {
 
 .day-title {
   margin: 0;
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.25;
   color: var(--ink);
 }
 
@@ -174,27 +167,26 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 13px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--demo);
   font-size: 0.8125rem;
-  font-weight: 700;
-  border: 1px solid #fdba74;
+  font-weight: 500;
+  border: 0;
   text-decoration: none;
   transition: background var(--ease), color var(--ease);
 }
 
 .pending-pill:hover {
-  background: #fed7aa;
+  background: #fde8cd;
 }
 
 .pending-pill.is-quiet {
-  background: var(--page);
+  background: #ececec;
   color: var(--muted);
-  border-color: var(--line);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .flow-strip {
@@ -208,13 +200,12 @@ body {
 
 .flow-strip li {
   font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--ink-2);
-  background: var(--page);
-  border: 1px solid var(--line);
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--card);
+  border: 0;
   border-radius: 999px;
-  padding: 5px 10px;
-  letter-spacing: 0.01em;
+  padding: 5px 11px;
 }
 
 /* —— Date nav —— */
@@ -231,10 +222,10 @@ body {
 }
 
 .back-today a {
-  font-weight: 600;
+  font-weight: 500;
 }
 
-/* —— Controls —— */
+/* —— Controls (WeChat buttons: pill-less, 8px radius) —— */
 button,
 .btn,
 .ghost-link {
@@ -257,14 +248,14 @@ button,
   align-items: center;
   justify-content: center;
   text-align: center;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-weight: 500;
   transition: background var(--ease), border-color var(--ease), color var(--ease), opacity var(--ease);
 }
 
 button:hover:not(:disabled),
 .btn:hover {
-  background: var(--page);
+  background: #f0f0f0;
   border-color: var(--line-strong);
 }
 
@@ -276,7 +267,7 @@ button.secondary,
 
 button.danger {
   background: var(--danger-soft);
-  border-color: #fecaca;
+  border-color: var(--danger-line);
   color: var(--danger);
 }
 
@@ -287,24 +278,24 @@ button.btn-pass {
 }
 
 button.btn-pass:hover:not(:disabled) {
-  background: #047857;
-  border-color: #047857;
+  background: var(--primary-press);
+  border-color: var(--primary-press);
 }
 
 button.btn-change {
   background: var(--accent-soft);
-  border-color: #fdba74;
+  border-color: var(--accent-line);
   color: var(--demo);
 }
 
 button.btn-reject {
   background: var(--danger-soft);
-  border-color: #fecaca;
+  border-color: var(--danger-line);
   color: var(--danger);
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -333,17 +324,12 @@ summary:focus-visible {
 
 .ghost-link:hover {
   color: var(--ink);
-  background: var(--page);
+  background: #f0f0f0;
 }
 
 a {
-  color: var(--primary);
+  color: var(--link);
   text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .btn-primary-block {
@@ -353,12 +339,13 @@ a:hover {
   border-color: var(--primary) !important;
   color: #fff !important;
   border-radius: var(--radius-sm) !important;
-  font-weight: 700 !important;
+  font-weight: 500 !important;
+  font-size: 1rem !important;
 }
 
 .btn-primary-block:hover:not(:disabled) {
-  background: #0f766e !important;
-  border-color: #0f766e !important;
+  background: var(--primary-press) !important;
+  border-color: var(--primary-press) !important;
 }
 
 /* —— Forms —— */
@@ -367,6 +354,7 @@ a:hover {
   border: 1px solid var(--line);
   padding: 16px;
   margin: 12px 16px;
+  border-radius: var(--radius);
 }
 
 #app:not(.is-review) .sheet {
@@ -378,7 +366,7 @@ a:hover {
 
 label {
   display: block;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink-2);
   margin: 12px 0 6px;
@@ -389,17 +377,24 @@ textarea {
   width: 100%;
   font: inherit;
   color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line-strong);
+  background: #f7f7f7;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   min-height: var(--tap);
   padding: 10px 12px;
-  transition: border-color var(--ease);
+  transition: border-color var(--ease), background var(--ease);
 }
 
 input:hover,
 textarea:hover {
-  border-color: #94a3b8;
+  background: #f0f0f0;
+}
+
+input:focus,
+textarea:focus {
+  background: #fff;
+  border-color: var(--primary);
+  outline: none;
 }
 
 textarea {
@@ -419,23 +414,24 @@ textarea {
 
 /* —— Login —— */
 .login-hero {
-  padding: 32px 20px 12px;
+  padding: 44px 20px 16px;
   text-align: center;
 }
 
 .login-title {
   margin: 0 0 8px;
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0;
   color: var(--ink);
 }
 
 .login-card {
   margin: 8px 16px 28px !important;
-  border: 1px solid var(--line) !important;
+  border: 0 !important;
   border-radius: var(--radius) !important;
   background: var(--card) !important;
+  padding: 24px 20px !important;
 }
 
 .login-form label:first-of-type {
@@ -452,7 +448,8 @@ textarea {
 .code-row .btn-primary-block {
   margin-top: 0;
   width: auto;
-  min-width: 5.5rem;
+  min-width: 6rem;
+  height: var(--tap);
 }
 
 .msg-line {
@@ -468,7 +465,7 @@ textarea {
   }
 }
 
-/* —— Article list —— */
+/* —— Article list (WeChat cell groups) —— */
 .paper-list {
   display: block;
   margin: 0;
@@ -479,6 +476,7 @@ textarea {
 .slot-board {
   margin-top: 4px;
   border-top: 1px solid var(--line);
+  background: var(--card);
 }
 
 .article-row {
@@ -488,7 +486,7 @@ textarea {
 }
 
 .article-row.is-demo {
-  background: color-mix(in srgb, var(--card) 70%, var(--accent-soft));
+  background: color-mix(in srgb, var(--card) 72%, var(--accent-soft));
 }
 
 .article-row.is-empty .article-main {
@@ -510,12 +508,12 @@ textarea {
 }
 
 .article-main:hover {
-  background: #f8fafc;
+  background: #f7f7f7;
   text-decoration: none;
 }
 
 .article-main:active {
-  background: #f1f5f9;
+  background: #ececec;
 }
 
 @media (min-width: 480px) {
@@ -534,21 +532,23 @@ textarea {
   content: "";
   position: absolute;
   left: 0;
-  top: 14px;
-  bottom: 14px;
+  top: 16px;
+  bottom: 16px;
   width: 3px;
   border-radius: 0 2px 2px 0;
   background: var(--line-strong);
 }
 
 .slot-board .article-row:nth-child(1)::before {
-  background: #f97316;
+  background: #fa9d3b;
 }
+
 .slot-board .article-row:nth-child(2)::before {
-  background: #0ea5e9;
+  background: #10aeff; /* WeChat blue */
 }
+
 .slot-board .article-row:nth-child(3)::before {
-  background: #8b5cf6;
+  background: #a05ac2;
 }
 
 .slot-board .article-main {
@@ -561,7 +561,7 @@ textarea {
 
 .article-copy h2,
 .row-title {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9375rem;
   line-height: 1.4;
   margin: 0 0 4px;
@@ -573,12 +573,12 @@ textarea {
 }
 
 .article-main:hover h2 {
-  color: var(--primary-ink);
+  color: var(--ink);
 }
 
 .empty-title {
   color: var(--muted) !important;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
 }
 
 .digest,
@@ -612,7 +612,7 @@ textarea {
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--page);
-  border: 1px solid var(--line);
+  border: 0;
   flex-shrink: 0;
 }
 
@@ -634,10 +634,10 @@ textarea {
 .thumb.is-empty {
   background: repeating-linear-gradient(
     -45deg,
-    #f8fafc,
-    #f8fafc 6px,
-    #f1f5f9 6px,
-    #f1f5f9 12px
+    #fafafa,
+    #fafafa 6px,
+    #f1f1f1 6px,
+    #f1f1f1 12px
   );
 }
 
@@ -646,7 +646,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--accent);
   letter-spacing: 0.02em;
 }
@@ -655,12 +655,12 @@ textarea {
   display: inline-flex;
   align-items: center;
   font-size: 0.625rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.04em;
   color: var(--demo);
   background: var(--accent-soft);
-  border: 1px solid #fdba74;
-  padding: 1px 6px;
+  border: 0;
+  padding: 2px 7px;
   border-radius: 4px;
   text-transform: uppercase;
 }
@@ -670,19 +670,19 @@ textarea {
   display: inline-flex;
   align-items: center;
   font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 2px 7px;
+  font-weight: 500;
+  padding: 2px 8px;
   border-radius: 4px;
   white-space: nowrap;
   border: 0;
-  background: var(--page);
+  background: #ececec;
   color: var(--muted);
 }
 
 .stamp.s-待审,
 .st.st-待审 {
   background: var(--warn-soft);
-  color: #b45309;
+  color: #b25e09;
 }
 
 .stamp.s-需改,
@@ -696,13 +696,13 @@ textarea {
 .stamp.s-可推箱,
 .st.st-可推箱 {
   background: var(--ok-soft);
-  color: #047857;
+  color: var(--primary-ink);
 }
 
 .stamp.s-已进箱,
 .st.st-已进箱 {
-  background: #e2e8f0;
-  color: #475569;
+  background: #ececec;
+  color: var(--muted);
 }
 
 .article-actions {
@@ -716,12 +716,11 @@ textarea {
   appearance: none;
   border: 0;
   background: transparent;
-  color: var(--primary);
+  color: var(--link);
   min-height: var(--tap);
   padding: 8px 4px;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration: none;
   font-weight: 500;
   font-size: 0.8125rem;
 }
@@ -737,27 +736,27 @@ textarea {
 
 .section-head h2 {
   font-size: 0.9375rem;
-  font-weight: 700;
+  font-weight: 600;
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .count {
-  min-width: 1.375rem;
-  min-height: 1.375rem;
-  padding: 0 7px;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  padding: 0 6px;
   border-radius: 999px;
-  background: var(--ink);
+  background: #b2b2b2;
   color: #fff;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 500;
   text-align: center;
-  line-height: 1.375rem;
+  line-height: 1.25rem;
 }
 
 .count.is-zero {
-  background: var(--line-strong);
-  color: var(--muted);
+  background: #d8d8d8;
+  color: #fff;
 }
 
 .empty-hint,
@@ -774,7 +773,7 @@ textarea {
   margin: 0;
   padding: 0 16px 14px;
   border-bottom: 1px solid var(--line);
-  background: #fafbfc;
+  background: var(--card);
 }
 
 .compose summary {
@@ -782,9 +781,9 @@ textarea {
   display: flex;
   align-items: center;
   cursor: pointer;
-  color: var(--primary);
+  color: var(--link);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   list-style: none;
 }
 
@@ -814,16 +813,16 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   padding: calc(8px + env(safe-area-inset-top, 0px)) max(12px, calc((100% - 42rem) / 2)) 8px;
-  background: color-mix(in srgb, #fff 92%, transparent);
+  background: color-mix(in srgb, #fff 94%, transparent);
   backdrop-filter: saturate(1.2) blur(12px);
   -webkit-backdrop-filter: saturate(1.2) blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
 .back-link {
-  color: var(--primary);
-  font-size: 0.875rem;
-  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
   min-height: var(--tap);
   display: inline-flex;
   align-items: center;
@@ -832,12 +831,12 @@ textarea {
 }
 
 .back-link:hover {
-  color: var(--primary-ink);
+  color: var(--ink-2);
 }
 
 .slim-status {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .sr-only {
@@ -904,12 +903,11 @@ textarea {
   z-index: 20;
   margin: 0;
   padding: 12px max(16px, calc((100% - 42rem) / 2)) calc(12px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, var(--card) 94%, transparent);
+  background: color-mix(in srgb, var(--card) 95%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--line);
-  border-radius: 14px 14px 0 0;
-  box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
 }
 
 .dock-edit-actions {
@@ -938,7 +936,7 @@ textarea {
   margin: 0;
   text-align: center;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
   min-height: var(--tap);
   display: flex;
@@ -973,8 +971,8 @@ textarea {
 
 .flash {
   background: var(--accent-soft);
-  border: 1px solid #fdba74;
-  color: #9a3412;
+  border: 0;
+  color: var(--demo);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-size: 0.8125rem;
