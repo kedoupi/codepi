@@ -501,12 +501,22 @@ function bindLogout() {
   });
 }
 
+function postToolsHtml(post: BoardPost): string {
+  const tools = demoTools(post, post.publish_date);
+  if (!tools.trim()) return "";
+  return `
+    <section class="post-tools" aria-label="稿件操作">
+      <p class="eyebrow">稿件操作</p>
+      ${tools}
+    </section>
+  `;
+}
+
 function reviewDock(post: BoardPost): string {
   if (post.status === "待审") {
     return `
       <section class="${reviewDockLockClass({ locked: true, allowManualUnlock: false })}" aria-label="审核动作">
         ${pendingReviewActionsHtml(post.slug, true)}
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -524,7 +534,6 @@ function reviewDock(post: BoardPost): string {
           <button type="button" data-boxed="${post.slug}">已进箱</button>
           <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>
         </div>
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -538,7 +547,6 @@ function reviewDock(post: BoardPost): string {
         <div class="dock-actions dock-edit-actions">
           <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>
         </div>
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -555,7 +563,6 @@ function reviewDock(post: BoardPost): string {
             : ""
         }
         ${composeForm(post.publish_date, { slot, post }, post)}
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -591,6 +598,7 @@ async function renderPreview() {
       <main class="article-stage">
         <div class="preview-article" id="preview-article"></div>
         <div class="read-end" id="read-end" aria-hidden="true"></div>
+        ${postToolsHtml(data.post)}
       </main>
       ${reviewDock(data.post)}
     `;
