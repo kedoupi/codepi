@@ -81,17 +81,22 @@ async function renderLogin() {
 
   app.innerHTML = `
     ${masthead(null)}
-    <section class="sheet login-pad">
-      <p class="hint">邮箱验证码登录。仅白名单可收信。</p>
-      <form id="otp-form">
-        <label for="email">邮箱</label>
-        <input id="email" name="email" type="email" autocomplete="username" required value="kedoupi@gmail.com" />
-        <button type="submit" id="send">发送验证码</button>
+    <section class="login-hero">
+      <h2 class="login-title">登录后开始今日发稿</h2>
+      <p class="hint">内部工具 · 邮箱验证码 · 仅白名单</p>
+    </section>
+    <section class="sheet login-pad login-card">
+      <form id="otp-form" class="login-form">
+        <label for="email">工作邮箱</label>
+        <input id="email" name="email" type="email" autocomplete="username" required value="kedoupi@gmail.com" placeholder="name@example.com" />
+        <button type="submit" id="send" class="btn-primary-block">发送验证码</button>
         <label for="code">6 位验证码</label>
-        <input id="code" name="code" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="one-time-code" />
-        <button class="secondary" type="button" id="verify">登录</button>
+        <div class="code-row">
+          <input id="code" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" placeholder="••••••" />
+          <button class="btn-primary-block" type="button" id="verify">登录</button>
+        </div>
       </form>
-      <p class="hint" id="msg"></p>
+      <p class="hint msg-line" id="msg" role="status"></p>
     </section>
   `;
 
