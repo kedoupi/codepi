@@ -27,3 +27,15 @@ Do not commit. Use existing wrangler secrets / D1 bindings already attached to C
 ## AdSense
 
 These hostnames are outside the calculator review surface. Apex AdSense content strategy is unchanged (`docs/architecture/adsense-review-hardening-record.md`).
+
+
+## Git deploy path (Direct Upload projects)
+
+Cloudflare Pages projects created as **Direct Upload** cannot attach a Git `source` via API (`8000069`). Deleting/recreating them in-place is blocked without explicit infra approval (custom domains + D1 risk).
+
+Until the dashboard converts them to Git-connected projects, deploy from this monorepo via:
+
+- GitHub Actions: `.github/workflows/deploy-product-apps.yml` (path-filtered on `main`)
+- Secrets required on the GitHub repo: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+
+Optional later: in CF UI, delete+recreate each project as Git-connected to `kedoupi/kdp.cool` with the root/build table above, then re-add custom domains and D1 bindings.
