@@ -2,7 +2,8 @@ import type { ReviewAction, Role, Status } from "./types";
 
 export function reviewNextStatus(action: ReviewAction): Status {
   if (action === "过") return "可推箱";
-  if (action === "要改") return "需改";
+  // 要改 / 拒 都进「需改」，避免第三态 draft 与需改双轨
+  if (action === "要改" || action === "拒") return "需改";
   return "draft";
 }
 

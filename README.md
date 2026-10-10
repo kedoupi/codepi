@@ -18,15 +18,13 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 
 ## Product apps (same monorepo, own CF projects)
 
-Migrated into this monorepo from standalone repos. They share the `kdp.cool` DNS zone but are **not** part of the AdSense calculator review surface.
+Extra product apps in this monorepo share the `kdp.cool` DNS zone but are **not** part of the AdSense calculator review surface. WeChat 发稿/审稿 is **only** `fagao/` → `fagao.kdp.cool` (former `gzh-preview` is retired; hostname should 301 here).
 
 | Path | Domain | CF project | Stack / deploy |
 | --- | --- | --- | --- |
-| `gzh-preview/` | `gzh-preview.kdp.cool` | `gzh-preview` | Worker + assets. `cd gzh-preview && npm i && npx wrangler deploy` |
 | `fagao/` | `fagao.kdp.cool` | `fagao` | Pages + D1 (ex-`publish-desk`). Root `fagao`, `npm run build`, output `dist` |
 | `oura/` | `oura.kdp.cool` | `oura-kdp` + worker `oura-kdp-api` | pnpm workspace. Web: root `oura`, build `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build`, output `apps/web/dist`. API: `cd oura/workers/api && npx wrangler deploy` |
 
-Former GitHub repos: `kedoupi/gzh-preview`, `kedoupi/publish-desk`, `kedoupi/oura-kdp` (code now lives only here).
 
 ## AdSense
 
@@ -124,7 +122,6 @@ Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watc
 | `ai`              | CNAME | `kdp-ai.pages.dev`           | yes |
 | `fagao`           | CNAME | `fagao.pages.dev`            | yes |
 | `oura`            | CNAME | `oura-kdp.pages.dev`         | yes |
-| `gzh-preview`     | CNAME | `gzh-preview.pages.dev`      | yes |
 | `kdp.cool` (apex) | MX/TXT | Cloudflare Email Routing — handles `hello@kdp.cool` (separate from web traffic) |
 
 ## Add a new tool

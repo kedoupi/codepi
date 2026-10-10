@@ -1,22 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>公号预览工作台</title>
-<link rel="stylesheet" href="/styles.css"/>
+  <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="0;url=https://fagao.kdp.cool/" />
+  <link rel="canonical" href="https://fagao.kdp.cool/" />
+  <title>已迁移至发稿台</title>
+  <meta name="robots" content="noindex" />
 </head>
 <body>
-  <div id="app"><div class="wb"><p class="hint">正在加载待审队列…</p></div></div>
-  <script type="module">
-    import { bindHome, loadBoard } from "/app.js";
-    const app = document.getElementById("app");
-    try {
-      const board = await loadBoard();
-      bindHome(app, board);
-    } catch (err) {
-      app.innerHTML = `<div class="wb"><p class="toast err">加载失败：${err.message}</p></div>`;
-    }
-  </script>
+  <p>公号工作台已合并至 <a href="https://fagao.kdp.cool/">fagao.kdp.cool</a>（须登录）。</p>
 </body>
 </html>

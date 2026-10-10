@@ -200,7 +200,7 @@ function composeForm(date: string, row: SlotRow, post: BoardPost | null = null):
       <label>标题</label>
       <input name="title" required value="${escapeHtml(post?.title || "")}" />
       <label>预览地址</label>
-      <input name="preview_path" placeholder="/previews/zao/ 或 https://gzh-preview…" value="${escapeHtml(post?.preview_path || `/previews/${row.slot === "早" ? "zao" : row.slot === "中" ? "zhong" : "wan"}/`)}" />
+      <input name="preview_path" placeholder="/previews/zao/ 或同域预览路径" value="${escapeHtml(post?.preview_path || `/previews/${row.slot === "早" ? "zao" : row.slot === "中" ? "zhong" : "wan"}/`)}" />
       <label>备注</label>
       <textarea name="note" placeholder="给老板的一句话">${escapeHtml(post?.note || "")}</textarea>
       <button type="submit">${post?.status === "需改" ? "改完再交待审" : "标为待审"}</button>
@@ -264,7 +264,7 @@ async function renderDesk() {
     ${isToday ? "" : `<p class="flash"><a href="/">回到今天</a></p>`}
     <aside class="rules" aria-label="状态规则">
       <p>审稿路径</p>
-      <p class="hint">点图文进预览 → 通读全文后底栏「过 / 要改 / 拒」→ 过了才可推箱。演示稿带橙标，真稿无标。</p>
+      <p class="hint">今日早/中/晚一屏排期。点图文通读后底栏「过 / 要改 / 拒」（拒与要改都进需改）→ 过了才可推箱。唯一工作台：fagao.kdp.cool。</p>
     </aside>
     <section class="paper-list" aria-label="今日早中晚">
       ${data.slots.map((row) => slotCard(date, row)).join("")}
@@ -607,7 +607,7 @@ function bindReview() {
       if (button.closest(".dock-review")?.classList.contains("is-locked")) return;
       const action = button.dataset.review as "过" | "要改" | "拒";
       const note = app.querySelector<HTMLTextAreaElement>("[name=review_note]")?.value || "";
-      if (action === "拒" && !confirm("确认拒回草稿？")) return;
+      if (action === "拒" && !confirm("确认拒绝？稿件将标为需改，编辑改完可再交审。")) return;
       button.disabled = true;
       try {
         await review(button.dataset.slug!, action, note);

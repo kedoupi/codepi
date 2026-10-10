@@ -82,8 +82,7 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per site.
 
 In addition to the six static tool sites, this repo also hosts:
 
-- `gzh-preview/` — WeChat preview workbench (Wrangler Worker + assets) → `gzh-preview.kdp.cool`
-- `fagao/` — 发稿台 Pages+D1 (formerly `publish-desk`) → `fagao.kdp.cool`
+- `fagao/` — **唯一**微信公众号发稿/审稿台 → `https://fagao.kdp.cool`（须登录；拒/要改都进「需改」）。原 `gzh-preview` 已并入并下线。
 - `oura/` — Oura dashboard pnpm workspace → `oura.kdp.cool` + worker `oura-kdp-api`
 
-They are separate CF projects with their own root directories. Do not fold them into AdSense calculator page content. Secrets stay in wrangler secrets / `.dev.vars`, never commit.
+Do not fold them into AdSense calculator page content. Secrets stay in wrangler secrets / `.dev.vars`, never commit.
