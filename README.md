@@ -24,7 +24,7 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 | Publisher ID            | `pub-4790759596265225`             |
 | Client ID (script src)  | `ca-pub-4790759596265225`          |
 | Verified property       | `kdp.cool` (apex; covers all subdomains) |
-| Status                  | In review (submitted 2026-05-08; ads.txt authorized) |
+| Status                  | Low-value-content rejection; hardening apex focus (2026-10-10) |
 
 `ads.txt` lives at the root of every domain (`web/calc/convert/text/dev/ai/public/ads.txt`). The AdSense `<script>` + `<meta name="google-adsense-account">` tag are injected by `shared/layouts/BaseLayout.astro`, so every page across all 6 domains carries them.
 
@@ -35,6 +35,16 @@ Ad placeholders in `shared/components/AdSense.astro` reserve `min-height` for CL
 1. **No script change needed** — the AdSense loader is already injected by `BaseLayout`.
 2. **Replace the placeholder body in `shared/components/AdSense.astro`**: swap the `<div class="adsense-placeholder">` for a real `<ins class="adsbygoogle">` block plus a `<script is:inline>(adsbygoogle = window.adsbygoogle || []).push({});</script>`. Because `AdSense.astro` is in `shared/`, one change applies across all 5 domains.
 3. Per ad placement (e.g. `mortgage-top`, `home-top`, `wc-top`, `tz-top`, `json-top`, `portal-top`), create an ad unit in AdSense and map its generated numeric `data-ad-slot` ID to the semantic name we use in `adSlot` props — easiest is a small lookup table inside `AdSense.astro` (`SLOT_IDS = { 'mortgage-top': '1234567890', ... }`).
+
+
+### Review-hardening notes (2026-10-10)
+
+Google rejected the property for **low-value content** (ownership already verified). Until re-approval:
+
+1. **Review surface = `kdp.cool` (+ `calc.kdp.cool` finance remainder).** `convert` / `text` / `dev` / `ai` set `adsenseEnabled: false` and `defaultRobots: 'noindex, follow'` in each `site.config.js`.
+2. **No duplicate mortgage/paycheck/income-tax on calc.** Those URLs 301 to the apex copies; calc sitemap drops them.
+3. **Lorem Ipsum generator** 301s to the word counter (thin filler utility).
+4. After approval: flip satellite `adsenseEnabled` / `defaultRobots` back, swap `AdSense.astro` placeholder → real `<ins>`, map slot IDs.
 
 ## SEO + GEO
 
@@ -161,7 +171,7 @@ Tested recipe (used for `convert/`, `text/`, `dev/`):
 | Phase 4 — `kdp.cool` portal | ✅ | shipped early to satisfy AdSense apex requirement |
 | Sprint D — SEO + GEO | ✅ | llms.txt, AI-bot Allow, FAQ schema, internal links, Crawler Hints |
 | Sprint E — people-first quality pass + `ai.kdp.cool` | ✅ | evergreen title cleanup, review/limitations/source signals, 4 browser-only AI tools |
-| **Awaiting AdSense approval** | 🟡 | Once approved: swap `<div>` → `<ins>` in `AdSense.astro`, map slot IDs |
+| **AdSense re-review prep** | 🟡 | Apex-only review surface; satellite sites noindex; expand guides; then resubmit |
 | Future — currency converter | ⏳ | Needs live FX API |
 | Future — regex tester, JWT decoder, case converter, markdown↔HTML | ⏳ | Pure JS candidates; keep off public homepages until shipped |
 | Future — calc P1.5 (scenario compare, CSV export, OBBBA tax features) | ⏳ | Hold during AdSense review |

@@ -1,0 +1,94 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('piti-vs-loan-estimate');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-10-10"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    Online mortgage forms often print one big monthly number. Lenders hand you a Loan Estimate with several lines that do not match that number. Both can be honest. They are answering different questions. This guide separates principal and interest from the rest of a housing payment, then shows why private mortgage insurance, HOA dues, and closing costs sit outside a simple browser calculator.
+  </p>
+  <p>
+    We stay on the same default scenario as the <a href="/mortgage-calculator/" class="kdp-link">mortgage calculator</a>: $400,000 home, 20% down, 6.5% fixed rate, 30 years, $5,000 annual property tax, $1,500 annual homeowners insurance.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">P&amp;I is only one slice</h2>
+  <p>
+    Principal and interest (P&amp;I) is the amortizing loan payment. On a $320,000 balance at 6.5% for 30 years it is about <strong>$2,022.62</strong> per month. That figure comes from the standard loan formula. It does not know your county tax bill or your insurer.
+  </p>
+  <p>
+    Property tax and homeowners insurance are separate costs. Many borrowers escrow them: the lender collects 1/12 of the expected annual amounts each month and pays the bills when due. With $5,000 tax and $1,500 insurance, escrow adds $416.67 + $125.00 = <strong>$541.67</strong>. Stack that on P&amp;I and the housing draft is about <strong>$2,564.28</strong>. That four-part stack — principal, interest, taxes, insurance — is what people mean by <strong>PITI</strong>.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">PITI stack for the default kdp.cool mortgage example</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Component</th>
+          <th class="px-4 py-3 font-semibold">Monthly</th>
+          <th class="px-4 py-3 font-semibold">In the loan formula?</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Principal &amp; interest</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">Yes</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Property tax escrow</td><td class="px-4 py-2.5">$416.67</td><td class="px-4 py-2.5">No — pass-through</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Insurance escrow</td><td class="px-4 py-2.5">$125.00</td><td class="px-4 py-2.5">No — pass-through</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">PITI total</td><td class="px-4 py-2.5">$2,564.28</td><td class="px-4 py-2.5">Mixed</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">When PMI and HOA join the draft</h2>
+  <p>
+    Twenty percent down is a common cutoff below which conventional loans add private mortgage insurance (PMI). PMI protects the lender, not you. It is usually quoted as an annual rate times the loan amount, collected monthly, until you reach a required equity threshold and cancel it under the loan’s rules.
+  </p>
+  <p>
+    Illustrative case: same $400,000 home, only 10% down, so principal is $360,000. P&amp;I at 6.5% for 30 years rises to about <strong>$2,275.44</strong>. Keep the same tax and insurance escrow and the subtotal is about $2,817.11. If PMI were 0.70% of the $360,000 loan per year, that is $2,520 per year or <strong>$210</strong> per month. The draft becomes about <strong>$3,027</strong>. HOA dues, if any, stack on top of that and never reduce the loan balance.
+  </p>
+  <p>
+    Those add-ons are why two neighbors with “the same rate” can see very different ACH amounts. Rate talks about P&amp;I. The draft talks about everything the servicer collects.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What a Loan Estimate adds that a calculator often skips</h2>
+  <p>
+    A Loan Estimate is a standardized disclosure. It itemizes origination charges, services you shop for, taxes and government fees, prepaid interest, initial escrow deposits, and the cash needed to close. Monthly principal and interest appears there, but so do costs that are paid once at closing rather than every month.
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li><strong>Points and origination</strong> change cash to close and can change the note rate. They are not a line in a basic PITI form.</li>
+    <li><strong>Prepaid interest</strong> covers the days between funding and the first full payment.</li>
+    <li><strong>Initial escrow deposit</strong> seeds the tax and insurance account, often equal to several months of escrow.</li>
+    <li><strong>Owner’s title, transfer taxes, and recording</strong> are jurisdiction-specific cash at closing.</li>
+    <li><strong>Owner’s association transfers and flood insurance</strong> appear when the property requires them.</li>
+  </ul>
+  <p>
+    A browser calculator that asks for price, down payment, rate, term, tax, and insurance is doing a planning sketch of the monthly draft. A Loan Estimate is the lender’s itemized attempt at the real transaction. When they disagree, the disclosure wins for decision-making.
+  </p>
+
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">APR is not the monthly draft either</h2>
+  <p>
+    Annual percentage rate (APR) folds certain upfront lender fees into a rate-like figure so you can compare offers. It is useful. It is still not the ACH amount your bank sends on the first of the month. A loan with a lower APR can have a higher monthly draft if tax, insurance, PMI, or HOA differ, and a loan with a higher APR can be cheaper per month if those escrow items are smaller. Compare APR for the finance charge story. Compare PITI-plus-HOA-plus-PMI for the cash-flow story. Compare cash to close for the “can I fund this on closing day” story. One number cannot carry all three.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>PMI at 0.70% is an illustration, not a quote. Actual PMI depends on credit, LTV, loan type, and insurer.</li>
+    <li>Tax and insurance are flat annual totals divided by 12. Real escrow analyses true-up when bills change.</li>
+    <li>No flood insurance, HOA special assessments, or ground rents.</li>
+    <li>No discount points, lender credits, or buydowns.</li>
+    <li>Cancelation rules for PMI follow the loan documents and applicable law; this page does not adjudicate them.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    P&amp;I values use the same amortizing formula as our mortgage calculator. Escrow lines are annual inputs divided by 12. For the structure of Loan Estimates and Closing Disclosures, see the Consumer Financial Protection Bureau’s mortgage disclosure materials. PMI mechanics are discussed in CFPB consumer guides on mortgage insurance. This page is educational planning math, not a lender disclosure.
+  </p>
+</GuideArticle>

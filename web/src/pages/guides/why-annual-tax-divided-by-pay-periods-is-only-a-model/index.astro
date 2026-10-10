@@ -1,0 +1,105 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('why-annual-tax-divided-by-pay-periods-is-only-a-model');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-10-10"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    Many take-home calculators, including ours, estimate annual federal income tax first, then divide by the number of pay periods. On a biweekly schedule that divisor is 26. The method is easy to explain and easy to check. It is not how payroll software is required to withhold from each check.
+  </p>
+  <p>
+    Knowing the difference keeps you from treating a Friday stub as a tiny Form 1040. It also explains why a careful calculator and a careful payroll department can disagree without either one being “bad at math.”
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What the planning model does</h2>
+  <p>
+    Take the $72,000 single filer with no 401(k) and a $16,100 standard deduction. Annual federal ordinary tax is <strong>$7,010</strong>. Divide by 26:
+  </p>
+  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+    $7,010 ÷ 26 ≈ $269.62 federal income tax per biweekly check
+  </p>
+  <p>
+    Add FICA the same way ($5,508 ÷ 26 ≈ $211.85) and you land near the net figures on our <a href="/paycheck-calculator/" class="kdp-link">paycheck calculator</a>. The model assumes every check is an equal slice of a smooth annual life: same wages, same deductions, same filing status, no bonuses, no second job mid-year.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What payroll withholding actually uses</h2>
+  <p>
+    Employers withhold using IRS Publication 15-T methods and the information on Form W-4. The percentage method and wage-bracket method annualize the wages from <em>this</em> payroll period, adjust for W-4 step entries, apply a withholding-tax computation, then withhold that period’s amount. They are aiming at a year-end total that is roughly right for someone with steady pay, not at matching $7,010 ÷ 26 on every line.
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>A bonus paid in one check can be withheld at a supplemental rate or aggregated with regular wages.</li>
+    <li>A mid-year raise changes later checks without rewriting earlier ones.</li>
+    <li>Multiple jobs, a working spouse, or large side income need W-4 adjustments the simple model never sees.</li>
+    <li>Extra withholding requested on the W-4 is a flat add-on per check, not a re-derive of annual tax.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">When the shortcut is still useful</h2>
+  <p>
+    Use annual-tax-divided-by-periods when you want a transparent ballpark: “If my life looks like this all year, what is take-home roughly?” It is good for comparing a 401(k) percentage, a filing status change, or a move between monthly and biweekly pay in proportional terms. It is weak for reconciling one stub to the dollar or for predicting a refund after a messy year.
+  </p>
+  <p>
+    A concrete tell: if your biweekly gross is not simply annual salary ÷ 26 (because of overtime, commissions, or unpaid time), the model’s first input is already wrong. Fix the annual wage estimate before you trust any per-check column.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Planning model versus payroll withholding</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Question</th>
+          <th class="px-4 py-3 font-semibold">Annual ÷ periods model</th>
+          <th class="px-4 py-3 font-semibold">Payroll withholding</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Primary goal</td><td class="px-4 py-2.5">Explain a full-year estimate</td><td class="px-4 py-2.5">Withhold from this check under IRS rules</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Inputs</td><td class="px-4 py-2.5">Annual assumptions you type</td><td class="px-4 py-2.5">This period’s wages + W-4</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Bonus handling</td><td class="px-4 py-2.5">Usually none</td><td class="px-4 py-2.5">Supplemental or aggregate methods</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Best use</td><td class="px-4 py-2.5">Compare scenarios</td><td class="px-4 py-2.5">Run payroll / read a stub</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Three frequencies, same annual tax</h2>
+  <p>
+    Keep annual federal ordinary tax at $7,010 and change only the divisor:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>Weekly (52): $7,010 ÷ 52 ≈ <strong>$134.81</strong> per check</li>
+    <li>Biweekly (26): $7,010 ÷ 26 ≈ <strong>$269.62</strong> per check</li>
+    <li>Monthly (12): $7,010 ÷ 12 ≈ <strong>$584.17</strong> per check</li>
+  </ul>
+  <p>
+    Annual tax did not change. The per-check column did. That is obvious once stated, and it is still the mistake people make when they compare a friend’s monthly stub to their own biweekly stub without annualizing. Our calculator switches the divisor with the frequency control so the annual story stays stable while the per-period story rescales.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">A bonus breaks the smooth model</h2>
+  <p>
+    Imagine eleven months of steady biweekly pay, then a $10,000 December bonus. The annual-tax model can recompute a new full-year tax on $82,000 and divide by 26, but that pretends the bonus was smeared across every check. Payroll will instead withhold on the bonus when it is paid, often under supplemental-wage rules. Your December stub will not look like $7,010-class tax ÷ 26, and your January stub may return to the old pattern. Neither stub alone equals the true year-end ordinary tax.
+  </p>
+  <p>
+    If you are chasing a refund prediction after a bonus year, start from a full-year estimator (or tax software), not from multiplying one paycheck by 26.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>kdp.cool paycheck figures use the annual-then-divide model on purpose so the math stays inspectable.</li>
+    <li>We do not implement Publication 15-T percentage tables in the browser tool.</li>
+    <li>State withholding methods are often different again; a flat state % is another simplification.</li>
+    <li>Year-end refunds and balances due depend on the whole year’s facts, credits, and payments, not on one model check.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    Annual federal tax in the examples matches our ordinary-bracket calculator using IRS Rev. Proc. 2025-32. Per-period columns divide by 26, 24, 12, or 52 depending on frequency. For actual withholding procedures, see IRS Publication 15-T and the Instructions for Form W-4. This guide is educational and is not a payroll system.
+  </p>
+</GuideArticle>

@@ -4,6 +4,9 @@ import { defaultLocale, getLocale } from '@shared/i18n/config.js';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
 const extraFooterLinks = siteConfig.extraFooterLinks ?? [];
+// Per-site flags (AdSense review window): thin satellite sites set these in site.config.js
+const adsenseEnabled = siteConfig.adsenseEnabled !== false;
+const defaultRobots = siteConfig.defaultRobots ?? 'index, follow';
 
 interface Props {
   title: string;
@@ -15,7 +18,7 @@ interface Props {
   canonical?: string;
 }
 const SITE = import.meta.env.SITE;
-const { title, description, pathname, schemaType = 'WebApplication', locale = defaultLocale, robots = 'index, follow', canonical } = Astro.props;
+const { title, description, pathname, schemaType = 'WebApplication', locale = defaultLocale, robots = defaultRobots, canonical } = Astro.props;
 const localeInfo = getLocale(locale);
 const canonicalURL = canonical || new URL(pathname, SITE).toString();
 const fullTitle = `${title} | ${siteName}`;
@@ -52,8 +55,12 @@ const jsonLd = {
 
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4790759596265225" crossorigin="anonymous"></script>
-  <meta name="google-adsense-account" content="ca-pub-4790759596265225" />
+  {adsenseEnabled && (
+    <>
+      <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4790759596265225" crossorigin="anonymous"></script>
+      <meta name="google-adsense-account" content="ca-pub-4790759596265225" />
+    </>
+  )}
   <style>
     :global(:root) {
       --kdp-ink: #171412;

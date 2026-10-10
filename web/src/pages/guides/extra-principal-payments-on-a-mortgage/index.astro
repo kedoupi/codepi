@@ -1,0 +1,91 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('extra-principal-payments-on-a-mortgage');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-10-10"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    The scheduled mortgage payment is not a ceiling. If the loan allows it, any dollar above the required principal-and-interest amount can be applied to principal. That extra dollar never has to pay next month’s interest on itself, so the balance falls faster and the remaining schedule shortens. This guide shows the effect with a fixed extra payment every month on the same $320,000, 6.5%, 30-year loan used elsewhere on kdp.cool.
+  </p>
+  <p>
+    Important honesty up front: our live <a href="/mortgage-calculator/" class="kdp-link">mortgage calculator</a> prices the <em>scheduled</em> payment. It does not currently simulate extra principal. The numbers below are a hand schedule on top of that same base payment, so you can see the mechanism even though the interactive tool stops at the required P&amp;I.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Start from the required payment</h2>
+  <p>
+    On $320,000 at 6.5% for 360 months, required monthly P&amp;I is about <strong>$2,022.62</strong>. If you pay exactly that amount for 360 months and never prepay, total interest is about <strong>$408,142</strong>. Month 1 interest is 320,000 × 0.065 / 12 = <strong>$1,733.33</strong>, so only $289.28 of the first payment reduces principal.
+  </p>
+  <p>
+    Now keep the same required payment and add a fixed <strong>$200</strong> every month dedicated to principal. The cash leaving your account becomes about $2,222.62. The interest charge is still computed on the remaining balance. The extra $200 does not change the rate. It only changes how fast the balance falls.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What $200 extra each month does</h2>
+  <p>
+    Iterating the schedule month by month until the balance clears:
+  </p>
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Scheduled payment versus $200 monthly extra principal</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Path</th>
+          <th class="px-4 py-3 font-semibold">Monthly out the door</th>
+          <th class="px-4 py-3 font-semibold">Months to payoff</th>
+          <th class="px-4 py-3 font-semibold">Total interest</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Required P&amp;I only</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">360 (30.0 years)</td><td class="px-4 py-2.5">$408,142</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">P&amp;I + $200 extra</td><td class="px-4 py-2.5">$2,222.62</td><td class="px-4 py-2.5">281 (≈ 23.4 years)</td><td class="px-4 py-2.5">$302,714</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The loan finishes about <strong>79 months earlier</strong> — roughly six and a half years. Interest falls by about <strong>$105,400</strong>. You did not negotiate a new rate. You bought a shorter effective term with cash flow.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Why extras work immediately</h2>
+  <p>
+    Interest each month is remaining balance times the monthly rate. Reduce the balance on day one of the loan and every later interest charge shrinks. That is why a dollar of extra principal early in the schedule is worth more interest savings than the same dollar applied in year 28. The mechanism is identical to choosing a shorter term up front; the difference is flexibility. You can pause extras in a tight month. A true 15-year contract does not offer that pause.
+  </p>
+  <p>
+    Lenders and servicers differ on how to label the extra amount. Some want a letter or a checkbox that says “apply to principal.” Some split a larger ACH across escrow and principal in ways borrowers do not expect. Before you treat a round-up as principal reduction, confirm the servicer’s rule in writing.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">What this page is not deciding for you</h2>
+  <p>
+    Paying extra principal is one use of surplus cash. Investing the same $200, funding an emergency reserve, or buying down a higher-rate card can win on a pure return comparison depending on the rate, tax treatment, and your risk tolerance. This guide only prices the mortgage side of that trade. It does not claim prepaying is always best.
+  </p>
+
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Lump sums versus steady extras</h2>
+  <p>
+    A single $5,000 principal payment in month 1 on this loan removes $5,000 of balance before almost all of the interest schedule runs. The same $5,000 spread as roughly $200 per month for 25 months still helps, but later dollars miss the early-balance interest they would have avoided. Steady extras win on habit and automation. Early lump sums win on pure interest math per dollar. Many borrowers use both: automate a modest monthly extra, then throw tax refunds or bonuses at principal when cash appears.
+  </p>
+  <p>
+    Recasting is a different product feature. Some servicers, after a large principal payment, will re-amortize the required payment over the remaining term so the monthly bill falls while the end date stays put. That is not the default path in this guide. Here the required payment stays $2,022.62 and the end date moves in.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>Fixed $200 extra every month with no skips, no annual lump sums, and no biweekly tricks.</li>
+    <li>Extras apply entirely to principal immediately. Servicer misapplication is outside the model.</li>
+    <li>No prepayment penalty. Some older or specialized loans restrict prepayment; read the note.</li>
+    <li>No refinance, recast, or rate change mid-stream.</li>
+    <li>Escrow for tax and insurance is ignored so the principal effect is visible.</li>
+    <li>The on-site mortgage calculator does not yet accept an “extra principal” field. Use this guide for the prepayment illustration; use the calculator for the scheduled payment.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    The base payment is the standard amortizing P&amp;I from <code>calcAmortizedLoan</code>. The extra-principal path is a month-by-month loop: interest on the current balance, then principal equal to min(remaining balance, required payment + extra − interest). Totals are rounded to the nearest dollar in the table after the full run. For borrower-facing explanations of mortgage statements and payoff, start with Consumer Financial Protection Bureau resources. This page is educational, not a payoff quote from your servicer.
+  </p>
+</GuideArticle>

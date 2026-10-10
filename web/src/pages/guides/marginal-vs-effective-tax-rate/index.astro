@@ -1,0 +1,102 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('marginal-vs-effective-tax-rate');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-10-10"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    “What tax bracket are you in?” is the wrong question if you treat the answer as the share of your income that goes to the IRS. US ordinary income tax is progressive. The bracket you “are in” is the rate on your <em>last</em> dollars of taxable income. The share you actually pay is lower, because earlier dollars were taxed at lower rates. That lower share is the effective rate.
+  </p>
+  <p>
+    This guide uses tax year 2026 single brackets from IRS Revenue Procedure 2025-32 and the same $72,000 ordinary-income example used on our paycheck pages. You can reproduce the stack in the <a href="/income-tax-calculator/" class="kdp-link">income tax calculator</a>.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">From gross income to taxable income</h2>
+  <p>
+    Brackets apply to taxable income, not to the salary on an offer letter. Start with $72,000 of ordinary wages. Take the 2026 single standard deduction of <strong>$16,100</strong>. Taxable income is 72,000 − 16,100 = <strong>$55,900</strong>. No 401(k), no itemized deductions, no credits in this sketch.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Stack the 2026 single brackets</h2>
+  <p>
+    For single filers in 2026, the ordinary brackets begin 10% from $0, 12% from $12,400, 22% from $50,400, then 24% and higher. On $55,900 of taxable income:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>10% on the first $12,400 → <strong>$1,240</strong></li>
+    <li>12% on the next $38,000 ($12,400 to $50,400) → <strong>$4,560</strong></li>
+    <li>22% on the last $5,500 ($50,400 to $55,900) → <strong>$1,210</strong></li>
+  </ul>
+  <p>
+    Federal ordinary income tax = 1,240 + 4,560 + 1,210 = <strong>$7,010</strong>.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Marginal versus effective rate on $72,000 single 2026</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Measure</th>
+          <th class="px-4 py-3 font-semibold">Value</th>
+          <th class="px-4 py-3 font-semibold">How to read it</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Marginal rate</td><td class="px-4 py-2.5">22%</td><td class="px-4 py-2.5">Rate on the next dollar of taxable income</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Tax ÷ taxable income</td><td class="px-4 py-2.5">$7,010 / $55,900 ≈ 12.5%</td><td class="px-4 py-2.5">Effective rate on taxable income</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Tax ÷ gross wages</td><td class="px-4 py-2.5">$7,010 / $72,000 ≈ 9.7%</td><td class="px-4 py-2.5">Effective rate on gross (this sketch)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Why the gap exists</h2>
+  <p>
+    Only $5,500 of this filer’s taxable income sits in the 22% band. The first $50,400 was taxed at 10% or 12%. Calling the person a “22% taxpayer” as if the whole paycheck were taxed at 22% overstates the bill by thousands of dollars. Marginal rate is the right tool for “what happens if I earn $1 more?” Effective rate is the right tool for “what share of this income did federal ordinary tax take?”
+  </p>
+  <p>
+    Credits, preferential capital-gains rates, and alternative minimum tax can move either figure. This page isolates ordinary brackets so the vocabulary stays clean.
+  </p>
+
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">A second example: $120,000 single</h2>
+  <p>
+    Raise ordinary income to $120,000 and keep the $16,100 single standard deduction. Taxable income is $103,900. The stack reaches deeper into the 22% band:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>10% × $12,400 = $1,240</li>
+    <li>12% × $38,000 = $4,560</li>
+    <li>22% × $53,500 = $11,770</li>
+    <li>Federal ordinary tax = <strong>$17,570</strong></li>
+  </ul>
+  <p>
+    Marginal rate is still 22%. Effective rate on taxable income is 17,570 / 103,900 ≈ <strong>16.9%</strong>. Effective rate on gross is 17,570 / 120,000 ≈ <strong>14.6%</strong>. The headline bracket did not change from the $72,000 case, but the effective rates rose because more dollars sit in the top band you have reached. That is the progressive system doing what it is designed to do.
+  </p>
+  <p>
+    If someone tells you “everyone in the 22% bracket pays 22%,” both of these filers prove the claim false. One pays about 9.7% of gross in ordinary federal tax; the other pays about 14.6%. Same marginal label, different bills.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">How to use each number in a decision</h2>
+  <p>
+    Use marginal rate when the decision is local: overtime this month, a side gig, a traditional versus Roth contribution, or the tax on the next dollar of interest. The next dollar is taxed at the marginal rate (before credits and special rates). Use effective rate when the decision is global: roughly how heavy is the ordinary federal tax load on this year’s income shape? Budget conversations and “what share of my offer is tax” questions want effective rate, ideally with FICA listed separately rather than smuggled in.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>Tax year 2026 ordinary brackets and single standard deduction from IRS Rev. Proc. 2025-32.</li>
+    <li>Ordinary wage income only. No long-term capital gains, qualified dividends, or NIIT.</li>
+    <li>No credits (child tax credit, education credits, and so on).</li>
+    <li>No state income tax in the effective-rate rows above.</li>
+    <li>FICA is separate and is not inside these federal income-tax rates. See the FICA guide for that stack.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    Bracket thresholds and the standard deduction are taken from IRS Revenue Procedure 2025-32. Tax is computed by the same progressive stack as <code>calcFederalIncomeTax</code> in our open source. Effective rates are simple ratios after that stack. This is an educational estimate, not a filed return.
+  </p>
+</GuideArticle>
