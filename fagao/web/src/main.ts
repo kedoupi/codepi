@@ -603,6 +603,7 @@ async function renderPreview() {
       ${reviewDock(data.post)}
     `;
     const embed = await mountPreview(app.querySelector<HTMLElement>("#preview-article")!, src, slug);
+    bindDockClearance();
     bindUpsert(data.post.publish_date);
     bindReview();
     bindEditorActions();
@@ -689,6 +690,21 @@ function fitSameOriginIframe(iframe: HTMLIFrameElement | null) {
     }
   };
   iframe.addEventListener("load", apply);
+  apply();
+}
+
+/* 动态给正文底部留足空间，避免浮动 dock 遮挡结尾 */
+function bindDockClearance() {
+  const dock = app.querySelector<HTMLElement>(".dock");
+  const stage = app.querySelector<HTMLElement>(".article-stage");
+  if (!dock || !stage) return;
+  const apply = () => {
+    const bottomGap = 24; // dock 与正文末尾的呼吸距离
+    const offset = Number.parseFloat(getComputedStyle(dock).bottom) || 0;
+    stage.style.paddingBottom = `${dock.offsetHeight + offset + bottomGap}px`;
+  };
+  if ("ResizeObserver" in window) new ResizeObserver(apply).observe(dock);
+  window.addEventListener("resize", apply);
   apply();
 }
 
