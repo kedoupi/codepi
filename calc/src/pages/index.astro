@@ -6,11 +6,11 @@ const title = 'Free Financial Calculators for US Home Buyers & Investors';
 const description = 'Free, fast financial calculators for mortgage payments, auto loans, compound interest, paychecks, and 2026 US federal income tax.';
 
 const calculators = [
-  { href: '/mortgage-calculator/',         name: 'Mortgage Calculator',          blurb: 'Estimate your monthly mortgage payment including principal, interest, property tax, and home insurance.' },
-  { href: '/auto-loan-calculator/',        name: 'Auto Loan Calculator',         blurb: 'Compute your monthly car payment, total interest, and out-the-door cost. Sales tax included.' },
-  { href: '/compound-interest-calculator/',name: 'Compound Interest Calculator', blurb: 'Project your investment growth over time with regular contributions. Year-by-year chart.' },
-  { href: '/paycheck-calculator/',         name: 'Paycheck Calculator',          blurb: 'See your real take-home pay after federal tax, FICA, state tax, and 401(k).' },
-  { href: '/income-tax-calculator/',       name: 'Income Tax Calculator (2026)', blurb: 'Estimate your 2026 US federal income tax with full bracket breakdown.' },
+  { href: 'https://kdp.cool/mortgage-calculator/', name: 'Mortgage Calculator', blurb: 'Estimate your monthly mortgage payment including principal, interest, property tax, and home insurance. Hosted on kdp.cool.', external: true },
+  { href: '/auto-loan-calculator/', name: 'Auto Loan Calculator', blurb: 'Compute your monthly car payment, total interest, and out-the-door cost. Sales tax included.' },
+  { href: '/compound-interest-calculator/', name: 'Compound Interest Calculator', blurb: 'Project your investment growth over time with regular contributions. Year-by-year chart.' },
+  { href: 'https://kdp.cool/paycheck-calculator/', name: 'Paycheck Calculator', blurb: 'See your real take-home pay after federal tax, FICA, state tax, and 401(k). Hosted on kdp.cool.', external: true },
+  { href: 'https://kdp.cool/income-tax-calculator/', name: 'Income Tax Calculator (2026)', blurb: 'Estimate your 2026 US federal income tax with full bracket breakdown. Hosted on kdp.cool.', external: true },
 ];
 ---
 <BaseLayout title={title} description={description} pathname="/" schemaType="WebSite">
@@ -29,11 +29,11 @@ const calculators = [
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {calculators.map((c) => (
-      <a href={c.href} class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+      <a href={c.href} class="kdp-card block rounded-2xl p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2" target={c.external ? '_blank' : undefined} rel={c.external ? 'noopener' : undefined}>
         <article>
           <h2 class="font-serif text-2xl font-semibold tracking-normal mb-2">{c.name}</h2>
           <p class="text-sm leading-6 text-stone-600 mb-4">{c.blurb}</p>
-          <p class="kdp-link text-sm">Use Calculator -></p>
+          <p class="kdp-link text-sm">{c.external ? 'Open on kdp.cool ->' : 'Use Calculator ->'}</p>
         </article>
       </a>
     ))}
@@ -68,10 +68,10 @@ const calculators = [
     </p>
     <ol class="list-decimal pl-6 space-y-2">
       <li>
-        Estimate take-home pay on the <a href="/paycheck-calculator/">paycheck calculator</a> (W-2, tax year 2026). If you only need the federal income-tax slice, use the <a href="/income-tax-calculator/">income tax calculator</a> instead.
+        Estimate take-home pay on the <a href="https://kdp.cool/paycheck-calculator/">paycheck calculator</a> (W-2, tax year 2026). If you only need the federal income-tax slice, use the <a href="https://kdp.cool/income-tax-calculator/">income tax calculator</a> instead.
       </li>
       <li>
-        Price the housing or car draft on the <a href="/mortgage-calculator/">mortgage</a> or <a href="/auto-loan-calculator/">auto loan</a> calculator. Compare that payment with the take-home number — not with gross salary.
+        Price the housing or car draft on the <a href="https://kdp.cool/mortgage-calculator/">mortgage</a> or <a href="/auto-loan-calculator/">auto loan</a> calculator. Compare that payment with the take-home number — not with gross salary.
       </li>
       <li>
         If the question is “pay extra on the loan versus invest,” run the same leftover dollars through the <a href="/compound-interest-calculator/">compound interest calculator</a>. Treat the rate as a planning assumption, not a forecast.

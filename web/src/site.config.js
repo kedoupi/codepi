@@ -13,3 +13,7 @@ export const extraFooterLinks = [
   { href: '/guides/', label: 'Guides' },
 ];
 export const applicationCategory = 'WebApplication';
+
+// Primary AdSense review surface (apex + finance calculators)
+export const adsenseEnabled = true;
+export const defaultRobots = 'index, follow';

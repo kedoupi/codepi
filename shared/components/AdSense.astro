@@ -1,4 +1,6 @@
 ---
+import * as siteConfig from '@site/site.config.js';
+
 interface Props {
   slot?: string;       // legacy / direct prop name
   adSlot?: string;     // alias used when the element is also filling a named layout slot
@@ -8,6 +10,7 @@ interface Props {
 }
 const { slot, adSlot, format = 'auto', style = '', label = 'Advertisement' } = Astro.props;
 const slotId = adSlot ?? slot ?? '';
+const adsenseEnabled = siteConfig.adsenseEnabled !== false;
 const isMiddle = slot === 'middle-ad' || /(?:^|-)middle(?:-|$)/i.test(slotId);
 const hasMinHeight = /min-height\s*:/i.test(style);
 const fallbackHeight = format === 'rectangle' ? '250px' : '90px';
@@ -15,19 +18,16 @@ const reserveStyle = hasMinHeight
   ? style
   : `${style}${style && !style.trim().endsWith(';') ? ';' : ''}min-height:${fallbackHeight}`;
 ---
-<!--
-  AdSense review placeholder — do NOT swap to <ins class="adsbygoogle"> until approval.
-  Keep min-height so later real units do not shift layout (CLS).
-  During review, skip the bordered "Advertisement" chrome; middle slots stay an empty reserve.
--->
-<div
-  class:list={[
-    'adsense-placeholder w-full',
-    isMiddle ? 'my-2' : 'my-3',
-  ]}
-  data-slot={slotId}
-  data-format={format}
-  data-review="quiet"
-  style={reserveStyle}
-  aria-hidden="true"
-></div>
+{adsenseEnabled && (
+  <div
+    class:list={[
+      'adsense-placeholder w-full',
+      isMiddle ? 'my-2' : 'my-3',
+    ]}
+    data-slot={slotId}
+    data-format={format}
+    data-review="quiet"
+    style={reserveStyle}
+    aria-hidden="true"
+  ></div>
+)}

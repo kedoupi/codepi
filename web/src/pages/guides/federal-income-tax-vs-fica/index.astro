@@ -1,0 +1,103 @@
+---
+import GuideArticle from '../../../components/GuideArticle.astro';
+import { getGuide } from '../../../guides.js';
+
+const guide = getGuide('federal-income-tax-vs-fica');
+---
+<GuideArticle
+  title={guide.title}
+  description={guide.description}
+  pathname={guide.href}
+  reviewed="2026-10-10"
+  toolHref={guide.toolHref}
+  toolLabel={guide.toolLabel}
+>
+  <p>
+    A US paycheck usually loses money to more than one federal system. Ordinary income tax is progressive and depends on filing status, deductions, and taxable income. FICA — Social Security and Medicare — is mostly a flat employee rate on wages, with a wage base for Social Security and an extra Medicare tier at high incomes. Mixing them into one “tax rate” hides how each one moves when your inputs change.
+  </p>
+  <p>
+    Worked case: $72,000 annual wages, single, biweekly, no state income tax, no 401(k), tax year 2026. The same case appears in the <a href="/paycheck-calculator/" class="kdp-link">paycheck calculator</a> and the take-home guide.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Stack A — federal ordinary income tax</h2>
+  <p>
+    Standard deduction $16,100. Taxable income $55,900. Bracket stack:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>10% × $12,400 = $1,240</li>
+    <li>12% × $38,000 = $4,560</li>
+    <li>22% × $5,500 = $1,210</li>
+    <li>Annual federal income tax = <strong>$7,010</strong> (about $269.62 per biweekly check if you simply divide by 26)</li>
+  </ul>
+  <p>
+    This stack shrinks if you raise pretax 401(k) deferrals or if taxable income falls for other reasons. It does not use the Social Security wage base.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Stack B — FICA</h2>
+  <p>
+    Employee Social Security is 6.2% of wages up to the annual wage base ($184,500 for 2026 in our data table). Employee Medicare is 1.45% of all wages, plus 0.9% Additional Medicare Tax above a filing-status threshold ($200,000 single). On $72,000:
+  </p>
+  <ul class="list-disc space-y-2 pl-6">
+    <li>Social Security: 72,000 × 0.062 = <strong>$4,464</strong></li>
+    <li>Medicare: 72,000 × 0.0145 = <strong>$1,044</strong></li>
+    <li>Additional Medicare: $0 (under the threshold)</li>
+    <li>FICA total = <strong>$5,508</strong></li>
+  </ul>
+  <p>
+    FICA here is about 7.65% of gross. It does not care that the filer’s marginal ordinary rate is 22%. It also does not fall when you contribute to a traditional 401(k); Social Security and Medicare generally still see the wages.
+  </p>
+
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+    <table class="w-full text-left text-sm">
+      <caption class="sr-only">Federal income tax versus FICA on $72,000</caption>
+      <thead class="bg-[#f3eadc] text-stone-800">
+        <tr>
+          <th class="px-4 py-3 font-semibold">Item</th>
+          <th class="px-4 py-3 font-semibold">Annual</th>
+          <th class="px-4 py-3 font-semibold">Per biweekly check (÷ 26)</th>
+        </tr>
+      </thead>
+      <tbody class="text-stone-800">
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Gross wages</td><td class="px-4 py-2.5">$72,000</td><td class="px-4 py-2.5">$2,769.23</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Federal income tax</td><td class="px-4 py-2.5">$7,010</td><td class="px-4 py-2.5">$269.62</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Social Security</td><td class="px-4 py-2.5">$4,464</td><td class="px-4 py-2.5">$171.69</td></tr>
+        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Medicare</td><td class="px-4 py-2.5">$1,044</td><td class="px-4 py-2.5">$40.15</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Combined federal + FICA</td><td class="px-4 py-2.5">$12,518</td><td class="px-4 py-2.5">$481.46</td></tr>
+        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Estimated net</td><td class="px-4 py-2.5">$59,482</td><td class="px-4 py-2.5">$2,287.77</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Why you should not merge the rates</h2>
+  <p>
+    Combined federal income tax plus FICA is $12,518, about <strong>17.4% of gross</strong>. That is a useful headline for take-home planning. It is a bad substitute for either system’s rules. Raise wages toward the Social Security wage base and FICA’s average rate on total wages falls after the base is hit, while ordinary tax brackets may climb. Raise a traditional 401(k) deferral and ordinary tax falls while employee FICA usually does not. Self-employment income replaces employee FICA with self-employment tax and a different computation entirely.
+  </p>
+
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">A wage near the Social Security base looks different</h2>
+  <p>
+    Suppose wages are $184,500 — exactly the 2026 Social Security wage base in our table — and filing status is still single with only the standard deduction. Employee Social Security is 184,500 × 0.062 = <strong>$11,439</strong>. Medicare is 184,500 × 0.0145 = <strong>$2,675.25</strong>. Ordinary federal tax is much larger than in the $72,000 case because taxable income is 184,500 − 16,100 = $168,400 and climbs through the 24% bracket. FICA’s <em>average</em> rate on total wages is still about 7.65% until wages pass the SS base; above the base, additional wages pay Medicare but not employee Social Security, so the FICA average rate on total wages drifts down while ordinary marginal rates may still be climbing.
+  </p>
+  <p>
+    That cross-current is why a single blended “my tax rate” fails at high incomes. Ordinary tax and FICA respond to different thresholds.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Self-employment is not “FICA twice” in this UI</h2>
+  <p>
+    Self-employed people pay self-employment tax instead of employee FICA, with a different base and a deduction for one-half of SE tax when computing ordinary taxable income. Our paycheck calculator is built for W-2 style wages. If your income is 1099-heavy, treat the FICA column here as the wrong instrument and use IRS Schedule SE instructions or a tax professional. Collapsing SE tax into “double FICA” without the SE base rules will mis-price the bill.
+  </p>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Assumptions and limitations</h2>
+  <ul class="list-disc space-y-3 pl-6">
+    <li>Employee-side FICA only. Employer matches are not subtracted from the paycheck in this table.</li>
+    <li>W-2 wages. Self-employment tax is out of scope.</li>
+    <li>No Additional Medicare Tax on this income level.</li>
+    <li>No state disability, local taxes, or wage garnishments.</li>
+    <li>Biweekly amounts are annual totals divided by 26 — a planning model, not Publication 15-T withholding.</li>
+  </ul>
+
+  <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Sources and methodology</h2>
+  <p>
+    Ordinary tax uses IRS Rev. Proc. 2025-32 brackets and the 2026 single standard deduction via our <code>calcFederalIncomeTax</code> helper. FICA uses the employee SS rate, Medicare rate, Additional Medicare threshold, and SS wage base in <code>TAX_DATA_2026</code>. For payroll withholding mechanics, see IRS Publication 15-T. For Social Security wage-base updates, see Social Security Administration notices. Educational estimate only.
+  </p>
+</GuideArticle>

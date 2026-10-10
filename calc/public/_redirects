@@ -10,3 +10,11 @@
 /fr/   /  301
 /de/   /  301
 /ja/   /  301
+
+# Moved to apex for AdSense review focus (single canonical host)
+/mortgage-calculator    https://kdp.cool/mortgage-calculator/    301
+/mortgage-calculator/   https://kdp.cool/mortgage-calculator/    301
+/paycheck-calculator    https://kdp.cool/paycheck-calculator/    301
+/paycheck-calculator/   https://kdp.cool/paycheck-calculator/    301
+/income-tax-calculator  https://kdp.cool/income-tax-calculator/  301
+/income-tax-calculator/ https://kdp.cool/income-tax-calculator/  301
