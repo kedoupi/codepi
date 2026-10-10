@@ -18,7 +18,6 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 
 ## Product apps (same monorepo, own CF projects)
 
-Extra product apps in this monorepo share the `kdp.cool` DNS zone but are **not** part of the AdSense calculator review surface. WeChat 发稿/审稿 is **only** `fagao/` → `fagao.kdp.cool` (former `gzh-preview` is retired; hostname should 301 here).
 
 | Path | Domain | CF project | Stack / deploy |
 | --- | --- | --- | --- |

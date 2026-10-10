@@ -23,3 +23,10 @@
 编辑排今日早/中/晚 → 交待审 → 负责人通读后 过/要改/拒 → 可推箱 → 人工进微信草稿箱 → 已进箱。可撤回待审。
 
 不接微信草稿箱 API。不进入 AdSense 计算器审稿面。
+
+
+## 删除完成
+
+- Monorepo 不再包含 `gzh-preview/` 目录
+- Cloudflare Pages 项目 `gzh-preview` 已删除
+- 自定义域 `gzh-preview.kdp.cool` 已挂到 `fagao` 项目（与发稿台同站，须登录）

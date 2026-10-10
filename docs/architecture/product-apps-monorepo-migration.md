@@ -6,7 +6,7 @@
 
 | Former GitHub | Monorepo path | CF |
 | --- | --- | --- |
-| `kedoupi/gzh-preview` (branch workbench MVP) | `gzh-preview/ (redirect-only retire shell)` | Pages project `gzh-preview` (Worker+assets; deploy with wrangler) |
+| `kedoupi/gzh-preview` (branch workbench MVP) | ` (redirect-only retire shell)` | Pages project `gzh-preview` (Worker+assets; deploy with wrangler) |
 | `kedoupi/publish-desk` (branch `ui-detail-samepage-readgate`) | `fagao/` | Pages project `fagao` |
 | `kedoupi/oura-kdp` (`main`) | `oura/` | Pages `oura-kdp` + Worker `oura-kdp-api` |
 
@@ -18,7 +18,6 @@ All Pages projects: repo `kedoupi/kdp.cool`, branch `main`.
 | --- | --- | --- | --- |
 | fagao | `fagao` | `npm run build` | `dist` |
 | oura-kdp | `oura` | `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
-| gzh-preview | n/a (wrangler) | — | deploy via `wrangler deploy` from `gzh-preview/ (redirect-only retire shell)` |
 
 ## Secrets
 
