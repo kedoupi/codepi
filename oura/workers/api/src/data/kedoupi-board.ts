@@ -1,0 +1,1076 @@
+/** Live sample: GET https://api.xiaotaozi.cc/oura/daily?user_id=kedoupi&days=30 */
+export const KEDOUPI_BOARD_SAMPLE: {
+  ok: true;
+  user_id: string;
+  from: string;
+  to: string;
+  count: number;
+  days: Array<{
+    date: string;
+    sleep: {
+      score: number;
+      contributors: Record<string, number>;
+    } | null;
+    readiness: {
+      score: number;
+      temperature_deviation: number;
+      temperature_trend_deviation: number;
+      contributors: Record<string, number>;
+    } | null;
+    activity: {
+      score: number;
+      steps: number;
+      active_calories: number;
+    } | null;
+  }>;
+} = {
+  "ok": true,
+  "user_id": "kedoupi",
+  "from": "2026-08-17",
+  "to": "2026-09-15",
+  "count": 30,
+  "days": [
+    {
+      "date": "2026-08-17",
+      "sleep": {
+        "score": 76,
+        "contributors": {
+          "deep_sleep": 95,
+          "efficiency": 88,
+          "latency": 43,
+          "rem_sleep": 78,
+          "restfulness": 94,
+          "timing": 90,
+          "total_sleep": 65
+        }
+      },
+      "readiness": {
+        "score": 79,
+        "temperature_deviation": -0.08,
+        "temperature_trend_deviation": 0.06,
+        "contributors": {
+          "activity_balance": 79,
+          "body_temperature": 100,
+          "hrv_balance": 89,
+          "previous_day_activity": 91,
+          "previous_night": 77,
+          "recovery_index": 62,
+          "resting_heart_rate": 88,
+          "sleep_balance": 61
+        }
+      },
+      "activity": {
+        "score": 97,
+        "steps": 6861,
+        "active_calories": 486
+      }
+    },
+    {
+      "date": "2026-08-18",
+      "sleep": {
+        "score": 65,
+        "contributors": {
+          "deep_sleep": 90,
+          "efficiency": 88,
+          "latency": 89,
+          "rem_sleep": 78,
+          "restfulness": 53,
+          "timing": 64,
+          "total_sleep": 47
+        }
+      },
+      "readiness": {
+        "score": 67,
+        "temperature_deviation": 0.19,
+        "temperature_trend_deviation": 0.14,
+        "contributors": {
+          "activity_balance": 82,
+          "body_temperature": 89,
+          "hrv_balance": 88,
+          "previous_day_activity": 91,
+          "previous_night": 56,
+          "recovery_index": 47,
+          "resting_heart_rate": 52,
+          "sleep_balance": 49
+        }
+      },
+      "activity": {
+        "score": 94,
+        "steps": 8392,
+        "active_calories": 514
+      }
+    },
+    {
+      "date": "2026-08-19",
+      "sleep": {
+        "score": 55,
+        "contributors": {
+          "deep_sleep": 53,
+          "efficiency": 62,
+          "latency": 78,
+          "rem_sleep": 23,
+          "restfulness": 68,
+          "timing": 68,
+          "total_sleep": 48
+        }
+      },
+      "readiness": {
+        "score": 62,
+        "temperature_deviation": -0.08,
+        "temperature_trend_deviation": 0.07,
+        "contributors": {
+          "activity_balance": 82,
+          "body_temperature": 100,
+          "hrv_balance": 89,
+          "previous_day_activity": 82,
+          "previous_night": 37,
+          "recovery_index": 45,
+          "resting_heart_rate": 44,
+          "sleep_balance": 50
+        }
+      },
+      "activity": {
+        "score": 94,
+        "steps": 7383,
+        "active_calories": 487
+      }
+    },
+    {
+      "date": "2026-08-20",
+      "sleep": {
+        "score": 68,
+        "contributors": {
+          "deep_sleep": 95,
+          "efficiency": 98,
+          "latency": 70,
+          "rem_sleep": 49,
+          "restfulness": 91,
+          "timing": 85,
+          "total_sleep": 43
+        }
+      },
+      "readiness": {
+        "score": 69,
+        "temperature_deviation": 0.02,
+        "temperature_trend_deviation": 0.05,
+        "contributors": {
+          "activity_balance": 83,
+          "body_temperature": 100,
+          "hrv_balance": 87,
+          "previous_day_activity": 81,
+          "previous_night": 62,
+          "recovery_index": 36,
+          "resting_heart_rate": 81,
+          "sleep_balance": 44
+        }
+      },
+      "activity": {
+        "score": 96,
+        "steps": 7203,
+        "active_calories": 343
+      }
+    },
+    {
+      "date": "2026-08-21",
+      "sleep": {
+        "score": 84,
+        "contributors": {
+          "deep_sleep": 91,
+          "efficiency": 95,
+          "latency": 48,
+          "rem_sleep": 98,
+          "restfulness": 79,
+          "timing": 98,
+          "total_sleep": 83
+        }
+      },
+      "readiness": {
+        "score": 81,
+        "temperature_deviation": 0.16,
+        "temperature_trend_deviation": 0.1,
+        "contributors": {
+          "activity_balance": 86,
+          "body_temperature": 92,
+          "hrv_balance": 87,
+          "previous_day_activity": 91,
+          "previous_night": 93,
+          "recovery_index": 59,
+          "resting_heart_rate": 100,
+          "sleep_balance": 47
+        }
+      },
+      "activity": {
+        "score": 93,
+        "steps": 6410,
+        "active_calories": 412
+      }
+    },
+    {
+      "date": "2026-08-22",
+      "sleep": {
+        "score": 80,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 96,
+          "latency": 51,
+          "rem_sleep": 55,
+          "restfulness": 88,
+          "timing": 100,
+          "total_sleep": 77
+        }
+      },
+      "readiness": {
+        "score": 74,
+        "temperature_deviation": -0.11,
+        "temperature_trend_deviation": 0.07,
+        "contributors": {
+          "activity_balance": 85,
+          "body_temperature": 100,
+          "hrv_balance": 85,
+          "previous_day_activity": 79,
+          "previous_night": 85,
+          "recovery_index": 45,
+          "resting_heart_rate": 89,
+          "sleep_balance": 41
+        }
+      },
+      "activity": {
+        "score": 98,
+        "steps": 10392,
+        "active_calories": 678
+      }
+    },
+    {
+      "date": "2026-08-23",
+      "sleep": {
+        "score": 64,
+        "contributors": {
+          "deep_sleep": 95,
+          "efficiency": 95,
+          "latency": 81,
+          "rem_sleep": 46,
+          "restfulness": 91,
+          "timing": 32,
+          "total_sleep": 43
+        }
+      },
+      "readiness": {
+        "score": 66,
+        "temperature_deviation": -0.22,
+        "temperature_trend_deviation": -0.05,
+        "contributors": {
+          "activity_balance": 82,
+          "body_temperature": 97,
+          "hrv_balance": 75,
+          "previous_day_activity": 83,
+          "previous_night": 53,
+          "recovery_index": 40,
+          "resting_heart_rate": 80,
+          "sleep_balance": 38
+        }
+      },
+      "activity": {
+        "score": 94,
+        "steps": 8907,
+        "active_calories": 540
+      }
+    },
+    {
+      "date": "2026-08-24",
+      "sleep": {
+        "score": 91,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 96,
+          "latency": 83,
+          "rem_sleep": 97,
+          "restfulness": 92,
+          "timing": 82,
+          "total_sleep": 90
+        }
+      },
+      "readiness": {
+        "score": 82,
+        "temperature_deviation": -0.24,
+        "temperature_trend_deviation": -0.16,
+        "contributors": {
+          "activity_balance": 87,
+          "body_temperature": 97,
+          "hrv_balance": 87,
+          "previous_day_activity": 73,
+          "previous_night": 100,
+          "recovery_index": 76,
+          "resting_heart_rate": 89,
+          "sleep_balance": 61
+        }
+      },
+      "activity": {
+        "score": 95,
+        "steps": 6271,
+        "active_calories": 361
+      }
+    },
+    {
+      "date": "2026-08-25",
+      "sleep": {
+        "score": 83,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 96,
+          "latency": 97,
+          "rem_sleep": 82,
+          "restfulness": 84,
+          "timing": 72,
+          "total_sleep": 75
+        }
+      },
+      "readiness": {
+        "score": 80,
+        "temperature_deviation": 0.18,
+        "temperature_trend_deviation": -0.02,
+        "contributors": {
+          "activity_balance": 87,
+          "body_temperature": 90,
+          "hrv_balance": 85,
+          "previous_day_activity": 92,
+          "previous_night": 90,
+          "recovery_index": 75,
+          "resting_heart_rate": 80,
+          "sleep_balance": 51
+        }
+      },
+      "activity": {
+        "score": 94,
+        "steps": 12090,
+        "active_calories": 739
+      }
+    },
+    {
+      "date": "2026-08-26",
+      "sleep": {
+        "score": 75,
+        "contributors": {
+          "deep_sleep": 97,
+          "efficiency": 90,
+          "latency": 59,
+          "rem_sleep": 49,
+          "restfulness": 88,
+          "timing": 97,
+          "total_sleep": 64
+        }
+      },
+      "readiness": {
+        "score": 73,
+        "temperature_deviation": -0.28,
+        "temperature_trend_deviation": -0.04,
+        "contributors": {
+          "activity_balance": 78,
+          "body_temperature": 95,
+          "hrv_balance": 85,
+          "previous_day_activity": 55,
+          "previous_night": 74,
+          "recovery_index": 45,
+          "resting_heart_rate": 100,
+          "sleep_balance": 54
+        }
+      },
+      "activity": {
+        "score": 91,
+        "steps": 6443,
+        "active_calories": 379
+      }
+    },
+    {
+      "date": "2026-08-27",
+      "sleep": {
+        "score": 77,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 90,
+          "latency": 56,
+          "rem_sleep": 79,
+          "restfulness": 84,
+          "timing": 100,
+          "total_sleep": 63
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": -0.25,
+        "temperature_trend_deviation": -0.13,
+        "contributors": {
+          "activity_balance": 88,
+          "body_temperature": 96,
+          "hrv_balance": 83,
+          "previous_day_activity": 80,
+          "previous_night": 79,
+          "recovery_index": 66,
+          "resting_heart_rate": 79,
+          "sleep_balance": 59
+        }
+      },
+      "activity": {
+        "score": 86,
+        "steps": 4632,
+        "active_calories": 268
+      }
+    },
+    {
+      "date": "2026-08-28",
+      "sleep": {
+        "score": 83,
+        "contributors": {
+          "deep_sleep": 93,
+          "efficiency": 99,
+          "latency": 94,
+          "rem_sleep": 80,
+          "restfulness": 93,
+          "timing": 96,
+          "total_sleep": 64
+        }
+      },
+      "readiness": {
+        "score": 73,
+        "temperature_deviation": -0.22,
+        "temperature_trend_deviation": -0.2,
+        "contributors": {
+          "activity_balance": 85,
+          "body_temperature": 97,
+          "hrv_balance": 73,
+          "previous_day_activity": 83,
+          "previous_night": 91,
+          "recovery_index": 65,
+          "resting_heart_rate": 52,
+          "sleep_balance": 60
+        }
+      },
+      "activity": {
+        "score": 84,
+        "steps": 5731,
+        "active_calories": 259
+      }
+    },
+    {
+      "date": "2026-08-29",
+      "sleep": {
+        "score": 79,
+        "contributors": {
+          "deep_sleep": 88,
+          "efficiency": 100,
+          "latency": 72,
+          "rem_sleep": 81,
+          "restfulness": 93,
+          "timing": 100,
+          "total_sleep": 60
+        }
+      },
+      "readiness": {
+        "score": 79,
+        "temperature_deviation": -0.19,
+        "temperature_trend_deviation": -0.16,
+        "contributors": {
+          "activity_balance": 87,
+          "body_temperature": 99,
+          "hrv_balance": 86,
+          "previous_day_activity": 90,
+          "previous_night": 83,
+          "recovery_index": 59,
+          "resting_heart_rate": 89,
+          "sleep_balance": 59
+        }
+      },
+      "activity": {
+        "score": 82,
+        "steps": 4682,
+        "active_calories": 385
+      }
+    },
+    {
+      "date": "2026-08-30",
+      "sleep": {
+        "score": 83,
+        "contributors": {
+          "deep_sleep": 97,
+          "efficiency": 88,
+          "latency": 24,
+          "rem_sleep": 91,
+          "restfulness": 98,
+          "timing": 100,
+          "total_sleep": 80
+        }
+      },
+      "readiness": {
+        "score": 78,
+        "temperature_deviation": 0.09,
+        "temperature_trend_deviation": -0.05,
+        "contributors": {
+          "activity_balance": 86,
+          "body_temperature": 98,
+          "hrv_balance": 84,
+          "previous_day_activity": 81,
+          "previous_night": 91,
+          "recovery_index": 21,
+          "resting_heart_rate": 96,
+          "sleep_balance": 67
+        }
+      },
+      "activity": {
+        "score": 68,
+        "steps": 4496,
+        "active_calories": 273
+      }
+    },
+    {
+      "date": "2026-08-31",
+      "sleep": {
+        "score": 72,
+        "contributors": {
+          "deep_sleep": 65,
+          "efficiency": 98,
+          "latency": 97,
+          "rem_sleep": 58,
+          "restfulness": 87,
+          "timing": 93,
+          "total_sleep": 51
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": -0.14,
+        "temperature_trend_deviation": -0.01,
+        "contributors": {
+          "activity_balance": 95,
+          "body_temperature": 100,
+          "hrv_balance": 80,
+          "previous_day_activity": 81,
+          "previous_night": 68,
+          "recovery_index": 51,
+          "resting_heart_rate": 100,
+          "sleep_balance": 56
+        }
+      },
+      "activity": {
+        "score": 83,
+        "steps": 7768,
+        "active_calories": 502
+      }
+    },
+    {
+      "date": "2026-09-01",
+      "sleep": {
+        "score": 90,
+        "contributors": {
+          "deep_sleep": 98,
+          "efficiency": 86,
+          "latency": 59,
+          "rem_sleep": 96,
+          "restfulness": 82,
+          "timing": 92,
+          "total_sleep": 98
+        }
+      },
+      "readiness": {
+        "score": 88,
+        "temperature_deviation": 0.18,
+        "temperature_trend_deviation": 0.07,
+        "contributors": {
+          "activity_balance": 87,
+          "body_temperature": 90,
+          "hrv_balance": 86,
+          "previous_day_activity": 86,
+          "previous_night": 100,
+          "recovery_index": 100,
+          "resting_heart_rate": 86,
+          "sleep_balance": 77
+        }
+      },
+      "activity": {
+        "score": 70,
+        "steps": 5941,
+        "active_calories": 311
+      }
+    },
+    {
+      "date": "2026-09-02",
+      "sleep": {
+        "score": 69,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 79,
+          "latency": 29,
+          "rem_sleep": 61,
+          "restfulness": 84,
+          "timing": 100,
+          "total_sleep": 57
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": 0.13,
+        "temperature_trend_deviation": 0.12,
+        "contributors": {
+          "activity_balance": 96,
+          "body_temperature": 95,
+          "hrv_balance": 87,
+          "previous_day_activity": 87,
+          "previous_night": 63,
+          "recovery_index": 43,
+          "resting_heart_rate": 100,
+          "sleep_balance": 58
+        }
+      },
+      "activity": {
+        "score": 78,
+        "steps": 6045,
+        "active_calories": 401
+      }
+    },
+    {
+      "date": "2026-09-03",
+      "sleep": {
+        "score": 87,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 83,
+          "latency": 43,
+          "rem_sleep": 96,
+          "restfulness": 97,
+          "timing": 100,
+          "total_sleep": 87
+        }
+      },
+      "readiness": {
+        "score": 89,
+        "temperature_deviation": 0.33,
+        "temperature_trend_deviation": 0.25,
+        "contributors": {
+          "activity_balance": 90,
+          "body_temperature": 77,
+          "hrv_balance": 87,
+          "previous_day_activity": 82,
+          "previous_night": 99,
+          "recovery_index": 96,
+          "resting_heart_rate": 95,
+          "sleep_balance": 76
+        }
+      },
+      "activity": {
+        "score": 78,
+        "steps": 6551,
+        "active_calories": 413
+      }
+    },
+    {
+      "date": "2026-09-04",
+      "sleep": {
+        "score": 71,
+        "contributors": {
+          "deep_sleep": 73,
+          "efficiency": 95,
+          "latency": 51,
+          "rem_sleep": 63,
+          "restfulness": 97,
+          "timing": 70,
+          "total_sleep": 62
+        }
+      },
+      "readiness": {
+        "score": 74,
+        "temperature_deviation": 0.64,
+        "temperature_trend_deviation": 0.45,
+        "contributors": {
+          "activity_balance": 93,
+          "body_temperature": 52,
+          "hrv_balance": 88,
+          "previous_day_activity": 88,
+          "previous_night": 67,
+          "recovery_index": 48,
+          "resting_heart_rate": 100,
+          "sleep_balance": 63
+        }
+      },
+      "activity": {
+        "score": 87,
+        "steps": 14688,
+        "active_calories": 836
+      }
+    },
+    {
+      "date": "2026-09-05",
+      "sleep": {
+        "score": 77,
+        "contributors": {
+          "deep_sleep": 94,
+          "efficiency": 97,
+          "latency": 91,
+          "rem_sleep": 65,
+          "restfulness": 88,
+          "timing": 67,
+          "total_sleep": 65
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": -0.01,
+        "temperature_trend_deviation": 0.36,
+        "contributors": {
+          "activity_balance": 83,
+          "body_temperature": 100,
+          "hrv_balance": 89,
+          "previous_day_activity": 76,
+          "previous_night": 79,
+          "recovery_index": 30,
+          "resting_heart_rate": 95,
+          "sleep_balance": 70
+        }
+      },
+      "activity": {
+        "score": 91,
+        "steps": 10524,
+        "active_calories": 581
+      }
+    },
+    {
+      "date": "2026-09-06",
+      "sleep": {
+        "score": 70,
+        "contributors": {
+          "deep_sleep": 76,
+          "efficiency": 83,
+          "latency": 43,
+          "rem_sleep": 47,
+          "restfulness": 89,
+          "timing": 73,
+          "total_sleep": 71
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": 0.59,
+        "temperature_trend_deviation": 0.4,
+        "contributors": {
+          "activity_balance": 89,
+          "body_temperature": 56,
+          "hrv_balance": 89,
+          "previous_day_activity": 88,
+          "previous_night": 65,
+          "recovery_index": 71,
+          "resting_heart_rate": 100,
+          "sleep_balance": 71
+        }
+      },
+      "activity": {
+        "score": 93,
+        "steps": 8418,
+        "active_calories": 473
+      }
+    },
+    {
+      "date": "2026-09-07",
+      "sleep": {
+        "score": 77,
+        "contributors": {
+          "deep_sleep": 97,
+          "efficiency": 86,
+          "latency": 17,
+          "rem_sleep": 75,
+          "restfulness": 89,
+          "timing": 97,
+          "total_sleep": 75
+        }
+      },
+      "readiness": {
+        "score": 81,
+        "temperature_deviation": 0.45,
+        "temperature_trend_deviation": 0.46,
+        "contributors": {
+          "activity_balance": 84,
+          "body_temperature": 68,
+          "hrv_balance": 91,
+          "previous_day_activity": 81,
+          "previous_night": 79,
+          "recovery_index": 82,
+          "resting_heart_rate": 100,
+          "sleep_balance": 71
+        }
+      },
+      "activity": null
+    },
+    {
+      "date": "2026-09-08",
+      "sleep": {
+        "score": 67,
+        "contributors": {
+          "deep_sleep": 76,
+          "efficiency": 62,
+          "latency": 12,
+          "rem_sleep": 83,
+          "restfulness": 64,
+          "timing": 53,
+          "total_sleep": 81
+        }
+      },
+      "readiness": {
+        "score": 83,
+        "temperature_deviation": 0.15,
+        "temperature_trend_deviation": 0.41,
+        "contributors": {
+          "activity_balance": 78,
+          "body_temperature": 93,
+          "hrv_balance": 92,
+          "previous_day_activity": 86,
+          "previous_night": 59,
+          "recovery_index": 100,
+          "resting_heart_rate": 100,
+          "sleep_balance": 74
+        }
+      },
+      "activity": null
+    },
+    {
+      "date": "2026-09-09",
+      "sleep": {
+        "score": 68,
+        "contributors": {
+          "deep_sleep": 95,
+          "efficiency": 90,
+          "latency": 86,
+          "rem_sleep": 55,
+          "restfulness": 92,
+          "timing": 42,
+          "total_sleep": 50
+        }
+      },
+      "readiness": {
+        "score": 78,
+        "temperature_deviation": -0.14,
+        "temperature_trend_deviation": 0.15,
+        "contributors": {
+          "activity_balance": 80,
+          "body_temperature": 100,
+          "hrv_balance": 94,
+          "previous_day_activity": 82,
+          "previous_night": 61,
+          "recovery_index": 66,
+          "resting_heart_rate": 94,
+          "sleep_balance": 65
+        }
+      },
+      "activity": {
+        "score": 94,
+        "steps": 8961,
+        "active_calories": 550
+      }
+    },
+    {
+      "date": "2026-09-10",
+      "sleep": {
+        "score": 83,
+        "contributors": {
+          "deep_sleep": 95,
+          "efficiency": 93,
+          "latency": 59,
+          "rem_sleep": 83,
+          "restfulness": 92,
+          "timing": 96,
+          "total_sleep": 77
+        }
+      },
+      "readiness": {
+        "score": 86,
+        "temperature_deviation": -0.05,
+        "temperature_trend_deviation": 0.01,
+        "contributors": {
+          "activity_balance": 78,
+          "body_temperature": 100,
+          "hrv_balance": 97,
+          "previous_day_activity": 81,
+          "previous_night": 91,
+          "recovery_index": 100,
+          "resting_heart_rate": 93,
+          "sleep_balance": 70
+        }
+      },
+      "activity": {
+        "score": 98,
+        "steps": 8743,
+        "active_calories": 575
+      }
+    },
+    {
+      "date": "2026-09-11",
+      "sleep": {
+        "score": 84,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 93,
+          "latency": 59,
+          "rem_sleep": 96,
+          "restfulness": 90,
+          "timing": 100,
+          "total_sleep": 74
+        }
+      },
+      "readiness": {
+        "score": 84,
+        "temperature_deviation": -0.06,
+        "temperature_trend_deviation": -0.01,
+        "contributors": {
+          "activity_balance": 76,
+          "body_temperature": 100,
+          "hrv_balance": 95,
+          "previous_day_activity": 89,
+          "previous_night": 93,
+          "recovery_index": 86,
+          "resting_heart_rate": 94,
+          "sleep_balance": 60
+        }
+      },
+      "activity": {
+        "score": 93,
+        "steps": 9456,
+        "active_calories": 541
+      }
+    },
+    {
+      "date": "2026-09-12",
+      "sleep": {
+        "score": 78,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 90,
+          "latency": 59,
+          "rem_sleep": 66,
+          "restfulness": 96,
+          "timing": 100,
+          "total_sleep": 65
+        }
+      },
+      "readiness": {
+        "score": 81,
+        "temperature_deviation": 0.14,
+        "temperature_trend_deviation": 0.07,
+        "contributors": {
+          "activity_balance": 77,
+          "body_temperature": 94,
+          "hrv_balance": 96,
+          "previous_day_activity": 75,
+          "previous_night": 81,
+          "recovery_index": 73,
+          "resting_heart_rate": 100,
+          "sleep_balance": 58
+        }
+      },
+      "activity": {
+        "score": 90,
+        "steps": 7588,
+        "active_calories": 433
+      }
+    },
+    {
+      "date": "2026-09-13",
+      "sleep": {
+        "score": 85,
+        "contributors": {
+          "deep_sleep": 80,
+          "efficiency": 100,
+          "latency": 91,
+          "rem_sleep": 88,
+          "restfulness": 96,
+          "timing": 100,
+          "total_sleep": 70
+        }
+      },
+      "readiness": {
+        "score": 77,
+        "temperature_deviation": 0.02,
+        "temperature_trend_deviation": 0.1,
+        "contributors": {
+          "activity_balance": 78,
+          "body_temperature": 100,
+          "hrv_balance": 95,
+          "previous_day_activity": 82,
+          "previous_night": 95,
+          "recovery_index": 32,
+          "resting_heart_rate": 83,
+          "sleep_balance": 62
+        }
+      },
+      "activity": {
+        "score": 91,
+        "steps": 5492,
+        "active_calories": 323
+      }
+    },
+    {
+      "date": "2026-09-14",
+      "sleep": {
+        "score": 86,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 88,
+          "latency": 40,
+          "rem_sleep": 91,
+          "restfulness": 92,
+          "timing": 80,
+          "total_sleep": 93
+        }
+      },
+      "readiness": {
+        "score": 84,
+        "temperature_deviation": -0.01,
+        "temperature_trend_deviation": 0.08,
+        "contributors": {
+          "activity_balance": 80,
+          "body_temperature": 100,
+          "hrv_balance": 100,
+          "previous_day_activity": 89,
+          "previous_night": 97,
+          "recovery_index": 56,
+          "resting_heart_rate": 92,
+          "sleep_balance": 69
+        }
+      },
+      "activity": {
+        "score": 90,
+        "steps": 9386,
+        "active_calories": 502
+      }
+    },
+    {
+      "date": "2026-09-15",
+      "sleep": {
+        "score": 79,
+        "contributors": {
+          "deep_sleep": 96,
+          "efficiency": 98,
+          "latency": 86,
+          "rem_sleep": 95,
+          "restfulness": 84,
+          "timing": 89,
+          "total_sleep": 58
+        }
+      },
+      "readiness": {
+        "score": 76,
+        "temperature_deviation": 0.07,
+        "temperature_trend_deviation": 0.08,
+        "contributors": {
+          "activity_balance": 79,
+          "body_temperature": 99,
+          "hrv_balance": 94,
+          "previous_day_activity": 79,
+          "previous_night": 83,
+          "recovery_index": 66,
+          "resting_heart_rate": 65,
+          "sleep_balance": 60
+        }
+      },
+      "activity": {
+        "score": 96,
+        "steps": 10273,
+        "active_calories": 703
+      }
+    }
+  ]
+};
