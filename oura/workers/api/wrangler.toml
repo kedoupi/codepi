@@ -1,0 +1,24 @@
+name = "oura-kdp-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oura_kdp"
+# Production D1: oura_kdp
+database_id = "a1a08301-b4f9-4b9c-a1d1-2dd04f9038ab"
+migrations_dir = "../../migrations"
+
+# Secrets via `wrangler secret put` / `.dev.vars` — never commit real values:
+#   OURA_CLIENT_ID, OURA_CLIENT_SECRET, TOKEN_ENCRYPTION_KEY, SESSION_SECRET
+#   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID
+#   STRIPE_PUBLISHABLE_KEY (optional; hosted Checkout does not need it)
+# Optional payment-method gates (non-secret vars or .dev.vars):
+#   STRIPE_PAYMENT_METHOD_TYPES=card,alipay,wechat_pay
+#   STRIPE_ENABLE_ALIPAY=1
+#   STRIPE_ENABLE_WECHAT_PAY=1
+# Production URLs (vars or secret put):
+#   OURA_REDIRECT_URI=https://oura.kdp.cool/api/auth/oura/callback
+#   FRONTEND_ORIGIN=https://oura.kdp.cool
+# Webhook (must stay this path): https://oura.kdp.cool/api/stripe/webhook
+# ALLOW_DEV_LOGIN=1 on preview/test Workers; unset / 0 in production.

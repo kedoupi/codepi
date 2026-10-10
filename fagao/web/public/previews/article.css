@@ -1,0 +1,161 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #888;
+  --line: #efefef;
+  --accent: #576b95;
+  --quote: #fa9d3b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--ink);
+  font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  font-size: 17px;
+  line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+
+article {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 0 56px;
+}
+
+.cover {
+  height: 168px;
+  background:
+    linear-gradient(160deg, rgba(20, 16, 12, 0.08), rgba(20, 16, 12, 0.35)),
+    var(--cover, linear-gradient(135deg, #e8d5b5, #c4841d));
+}
+
+.cover.zao {
+  --cover: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+}
+
+.cover.zhong {
+  --cover: linear-gradient(135deg, #f5af19 0%, #f12711 100%);
+}
+
+.cover.wan {
+  --cover: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+}
+
+.body {
+  padding: 20px 18px 0;
+}
+
+.kicker {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2a2118;
+  color: #fff8ee;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.byline strong {
+  display: block;
+  font-size: 14px;
+}
+
+.byline span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+h2 {
+  margin: 28px 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+p {
+  margin: 0 0 14px;
+}
+
+ul {
+  margin: 0 0 16px;
+  padding-left: 1.2em;
+}
+
+li + li {
+  margin-top: 6px;
+}
+
+blockquote {
+  margin: 18px 0;
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--quote);
+  color: #444;
+  font-size: 16px;
+}
+
+figure {
+  margin: 18px 0;
+}
+
+.frame {
+  height: 120px;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(-45deg, #f6f1e8, #f6f1e8 10px, #efe6d6 10px, #efe6d6 20px);
+}
+
+figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.mark {
+  background: linear-gradient(transparent 60%, #ffe9a8 60%);
+}
+
+footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  color: var(--accent);
+  font-size: 14px;
+}

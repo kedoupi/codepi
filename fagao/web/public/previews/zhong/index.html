@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>午饭话题</title>
+    <link rel="stylesheet" href="/previews/article.css" />
+  </head>
+  <body>
+    <article>
+      <div class="cover zhong" role="img" aria-label="午间封面"></div>
+      <div class="body">
+        <p class="kicker">珂抖屁 · 中档</p>
+        <h1>午饭时最容易被问的一句话</h1>
+        <div class="byline">
+          <div class="avatar" aria-hidden="true">珂</div>
+          <div>
+            <strong>珂抖屁</strong>
+            <span class="when">今天 · 午间推送</span>
+          </div>
+        </div>
+        <p>「你们公众号今天发什么？」这句话通常出现在第二口饭之后。问的人并不真想听选题会纪要，他只是要一句能接着聊的话。</p>
+        <p>中档就干这个：把上午那件还热的事，收成<span class="mark">午饭桌上一句说得出口的话</span>。标题太长，这句话就会堵在喉咙里——所以这稿现在是「需改」。</p>
+        <h2>桌面上的三种问法</h2>
+        <ul>
+          <li>「今天发什么？」——要的是切口，不是目录。</li>
+          <li>「又是鸡汤吗？」——要的是一个具体物件或一句原话。</li>
+          <li>「我能转吗？」——要的是读完不尴尬。</li>
+        </ul>
+        <figure>
+          <div class="frame" role="img" aria-label="午饭托盘示意"></div>
+          <figcaption>示意：托盘、筷子，和一句还没改短的标题</figcaption>
+        </figure>
+        <h2>这稿要改什么</h2>
+        <p>不是主题错，是标题还在解释。午饭话题一旦开始解释，读者就会低头看手机。改短以后，让那句话能被原样转述。</p>
+        <blockquote>能被转述的标题，才是中档；需要你补充背景的，还是草稿。</blockquote>
+        <p>编辑改完标题和备注，再交待审。老板如果仍觉得堵，继续点「要改」，并写一句能落地的原因——「再短」比「不好」有用。</p>
+        <h2>过审后怎么走</h2>
+        <p>过了才出现「可推箱」。黄薇去微信后台人工进箱，再回发稿台点「已进箱」。中档不走接口，也不在这页假装已经推送。</p>
+        <footer>
+          <p>珂抖屁 · 中档演示稿（需改）。改标题后再交待审。</p>
+          <div class="actions"><span>阅读原文</span><span>喜欢作者</span></div>
+        </footer>
+      </div>
+    </article>
+    <script>
+      const el = document.querySelector(".when");
+      if (el) {
+        const text = new Intl.DateTimeFormat("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          month: "long",
+          day: "numeric",
+        }).format(new Date());
+        el.textContent = `${text} · 午间推送`;
+      }
+    </script>
+  </body>
+</html>
