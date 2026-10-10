@@ -52,13 +52,22 @@ function previewSlug(): string {
 }
 
 function masthead(account: Account | null, extra = "") {
+  const brand = escapeHtml(account?.brand || "珂抖屁");
   return `
     <header class="masthead wb-head">
-      <div>
+      <div class="brand-block">
+        <p class="brand-kicker">${brand}</p>
         <h1 class="brand">发稿台</h1>
-        <p class="sub">${escapeHtml(account?.brand || "珂抖屁")} · 左文右封面 · 公众号审稿${extra}</p>
+        <p class="sub">今日三档 · 通读后审 · 过了才进箱${extra}</p>
       </div>
-      ${account ? `<button class="ghost-link" type="button" data-action="logout">退出</button>` : ""}
+      ${
+        account
+          ? `<div class="mast-actions">
+              <span class="who" title="${escapeHtml(account.email)}">${escapeHtml((account.email.split("@")[0] || account.email))}</span>
+              <button class="ghost-link" type="button" data-action="logout">退出</button>
+            </div>`
+          : ""
+      }
     </header>
   `;
 }
@@ -161,8 +170,8 @@ function slotCard(date: string, row: SlotRow): string {
         <div class="article-main">
           <div class="article-copy">
             <p class="article-meta"><span class="slot-chip">${row.slot}</span><span>${slotHint(row.slot)}</span></p>
-            <h2>${row.slot}档空着</h2>
-            <p class="digest">没有稿。今天只在三档都空时才补演示；演示会标出来，可撤回或撤掉。</p>
+            <h2 class="empty-title">${row.slot}档空着</h2>
+            <p class="digest">还没有稿。点下方交本档，或等「今天三档都空」时自动补演示。</p>
           </div>
           ${thumbHtml(null)}
         </div>
@@ -252,32 +261,43 @@ async function renderDesk() {
   app.innerHTML = `
     ${masthead(account)}
     <section class="day-hero">
-      <p class="eyebrow">${isToday ? "今天" : "日历"} · ${escapeHtml(account.brand)}</p>
-      <h2 class="day-title">${formatZhDate(date)}</h2>
-      <p class="hint">${pendingHere ? `${pendingHere} 篇待审` : "早 / 中 / 晚"} · 点标题先看预览</p>
+      <div class="day-hero-top">
+        <div>
+          <p class="eyebrow">${isToday ? "今天" : "日历"} · ${escapeHtml(account.brand)}</p>
+          <h2 class="day-title">${formatZhDate(date)}</h2>
+        </div>
+        ${
+          pendingHere
+            ? `<a class="pending-pill" href="#queue">${pendingHere} 待审</a>`
+            : `<span class="pending-pill is-quiet">排期中</span>`
+        }
+      </div>
+      <ol class="flow-strip" aria-label="状态路径">
+        <li>交待审</li>
+        <li>通读</li>
+        <li>过 / 要改 / 拒</li>
+        <li>可推箱</li>
+        <li>已进箱</li>
+      </ol>
     </section>
     <nav class="date-nav" aria-label="换一天">
       <button class="secondary" type="button" data-shift="-1">前一天</button>
       <input id="date" type="date" value="${date}" aria-label="选择日期" />
       <button class="secondary" type="button" data-shift="1">后一天</button>
     </nav>
-    ${isToday ? "" : `<p class="flash"><a href="/">回到今天</a></p>`}
-    <aside class="rules" aria-label="状态规则">
-      <p>审稿路径</p>
-      <p class="hint">今日早/中/晚一屏排期。点图文通读后底栏「过 / 要改 / 拒」（拒与要改都进需改）→ 过了才可推箱。唯一工作台：fagao.kdp.cool。</p>
-    </aside>
-    <section class="paper-list" aria-label="今日早中晚">
+    ${isToday ? "" : `<p class="flash back-today"><a href="/">← 回到今天</a></p>`}
+    <section class="paper-list slot-board" aria-label="今日早中晚">
       ${data.slots.map((row) => slotCard(date, row)).join("")}
     </section>
-    <section class="queue" aria-label="待审队列">
+    <section class="queue" id="queue" aria-label="待审队列">
       <div class="section-head">
-        <h2>待审</h2>
-        <span class="count">${data.queue.length}</span>
+        <h2>待审队列</h2>
+        <span class="count${data.queue.length ? "" : " is-zero"}">${data.queue.length}</span>
       </div>
       ${
         data.queue.length
           ? `<div class="paper-list">${data.queue.map(queueRow).join("")}</div>`
-          : `<p class="hint">没有待审。过了才可推箱；撤回待审后会回到这里。</p>`
+          : `<p class="empty-hint">队列是空的。交待审后会出现在这里；过了才可推箱。</p>`
       }
     </section>
   `;
@@ -352,8 +372,8 @@ function reviewDock(post: BoardPost): string {
         <div class="pass-banner">
           <span class="stamp st s-可推箱 st-可推箱">可推箱</span>
           ${demoChip(post)}
-          <p>已过审。黄薇去微信后台推进草稿箱，再点「已进箱」。未过审不会出现这一步。</p>
-          <p class="hint">要再走一遍过：编辑点「撤回待审」。演示稿还可撤掉腾档。</p>
+          <p class="pass-lead">已过审。去微信后台推进草稿箱，回来点「已进箱」。</p>
+          <p class="hint">要重审：撤回待审。演示稿可撤掉腾档。</p>
         </div>
         <div class="dock-actions dock-edit-actions">
           <button type="button" data-boxed="${post.slug}">已进箱</button>
@@ -419,7 +439,8 @@ async function renderPreview() {
     app.className = "is-review";
     app.innerHTML = `
       <header class="slim-bar">
-        <a class="back-link" href="${back}">← 返回</a>
+        <a class="back-link" href="${back}">← 看板</a>
+        <span class="slim-status ${statusChipClass(data.post.status)}">${statusLabel(data.post.status)}</span>
       </header>
       <main class="article-stage">
         <div class="preview-article" id="preview-article"></div>
