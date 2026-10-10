@@ -1,0 +1,8 @@
+# 复制为 .dev.vars（已 gitignore）。本地缺 RESEND_API_KEY 时验证码打在 wrangler 日志。
+ENVIRONMENT=development
+SESSION_SECRET=dev-only-session-secret-change-me
+OTP_PEPPER=dev-only-otp-pepper-change-me
+# RESEND_API_KEY=
+ALLOWLIST=kedoupi@gmail.com
+OTP_FROM=otp@kdp.cool
+ACCOUNT_BRAND=珂抖屁

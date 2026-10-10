@@ -77,3 +77,13 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per site.
 
 - Design docs and implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` — generated via the brainstorm → plan → execute workflow. Reading the most recent files gives the most up-to-date picture of intended scope.
 - Memory in `~/.claude/projects/-Users-echorenyuan-Coding-kedoupi-kdp-tools/memory/` records project goals (AdSense revenue, beat-NerdWallet UX), apex-domain AdSense lesson, and decisive-design preference. Read at session start when context matters.
+
+## Other product apps in this monorepo
+
+In addition to the six static tool sites, this repo also hosts:
+
+- `gzh-preview/` — WeChat preview workbench (Wrangler Worker + assets) → `gzh-preview.kdp.cool`
+- `fagao/` — 发稿台 Pages+D1 (formerly `publish-desk`) → `fagao.kdp.cool`
+- `oura/` — Oura dashboard pnpm workspace → `oura.kdp.cool` + worker `oura-kdp-api`
+
+They are separate CF projects with their own root directories. Do not fold them into AdSense calculator page content. Secrets stay in wrangler secrets / `.dev.vars`, never commit.

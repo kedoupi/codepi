@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.dev.vars
+.wrangler/
+.mf/
+coverage/
+*.log
+.DS_Store
+.vite/
+web/public/.DS_Store
