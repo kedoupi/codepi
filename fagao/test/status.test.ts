@@ -5,7 +5,7 @@ describe("status machine", () => {
   it("maps review actions", () => {
     expect(reviewNextStatus("过")).toBe("可推箱");
     expect(reviewNextStatus("要改")).toBe("需改");
-    expect(reviewNextStatus("拒")).toBe("draft");
+    expect(reviewNextStatus("拒")).toBe("需改");
   });
 
   it("only allows review from 待审", () => {

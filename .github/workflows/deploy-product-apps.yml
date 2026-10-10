@@ -1,4 +1,4 @@
-name: Deploy product apps (fagao / oura / gzh-preview)
+name: Deploy product apps (fagao / oura)
 
 on:
   push:
@@ -6,7 +6,6 @@ on:
     paths:
       - 'fagao/**'
       - 'oura/**'
-      - 'gzh-preview/**'
       - '.github/workflows/deploy-product-apps.yml'
   workflow_dispatch:
     inputs:
@@ -15,7 +14,7 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, fagao, oura, gzh-preview]
+        options: [all, fagao, oura]
 
 jobs:
   fagao:
@@ -61,22 +60,3 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  gzh-preview:
-    if: ${{ github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'gzh-preview' }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: gzh-preview
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: gzh-preview/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npx wrangler@4 pages deploy public --project-name=gzh-preview --branch=main
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

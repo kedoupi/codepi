@@ -39,6 +39,79 @@ function requireApp(): HTMLDivElement {
 }
 const app = requireApp();
 
+/* —— Toast + cross-reload flash —— */
+function showToast(text: string, kind: "ok" | "err" | "info" = "info") {
+  let host = document.querySelector<HTMLElement>(".toast-host");
+  if (!host) {
+    host = document.createElement("div");
+    host.className = "toast-host";
+    document.body.append(host);
+  }
+  const el = document.createElement("div");
+  el.className = `toast toast-${kind}`;
+  el.setAttribute("role", "status");
+  el.textContent = text;
+  host.append(el);
+  window.setTimeout(() => el.classList.add("is-out"), 2400);
+  window.setTimeout(() => el.remove(), 2800);
+}
+
+function flashToast(text: string, kind: "ok" | "err" | "info" = "ok") {
+  try {
+    sessionStorage.setItem("fagao-flash", JSON.stringify({ text, kind }));
+  } catch {
+    /* private mode */
+  }
+}
+
+function drainFlash() {
+  try {
+    const raw = sessionStorage.getItem("fagao-flash");
+    if (!raw) return;
+    sessionStorage.removeItem("fagao-flash");
+    const { text, kind } = JSON.parse(raw) as { text: string; kind: "ok" | "err" | "info" };
+    showToast(text, kind);
+  } catch {
+    /* ignore */
+  }
+}
+
+function errText(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+/* —— Two-tap confirm (replaces window.confirm) —— */
+function bindTwoTap(button: HTMLButtonElement, confirmLabel: string, onConfirm: () => Promise<void>) {
+  const original = button.textContent || "";
+  let timer = 0;
+  button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (button.dataset.armed !== "1") {
+      button.dataset.armed = "1";
+      button.classList.add("is-armed");
+      button.textContent = confirmLabel;
+      timer = window.setTimeout(() => {
+        button.dataset.armed = "";
+        button.classList.remove("is-armed");
+        button.textContent = original;
+      }, 3000);
+      return;
+    }
+    window.clearTimeout(timer);
+    button.dataset.armed = "";
+    button.classList.remove("is-armed");
+    button.textContent = original;
+    button.disabled = true;
+    try {
+      await onConfirm();
+    } catch (error) {
+      button.disabled = false;
+      showToast(errText(error, "操作失败"), "err");
+    }
+  });
+}
+
 function route(): "login" | "desk" | "preview" {
   const path = location.pathname;
   if (path.startsWith("/login")) return "login";
@@ -52,13 +125,22 @@ function previewSlug(): string {
 }
 
 function masthead(account: Account | null, extra = "") {
+  const brand = escapeHtml(account?.brand || "珂抖屁");
   return `
     <header class="masthead wb-head">
-      <div>
+      <div class="brand-block">
+        <p class="brand-kicker">${brand}</p>
         <h1 class="brand">发稿台</h1>
-        <p class="sub">${escapeHtml(account?.brand || "珂抖屁")} · 左文右封面 · 公众号审稿${extra}</p>
+        <p class="sub">今日三档 · 通读后审 · 过了才进箱${extra}</p>
       </div>
-      ${account ? `<button class="ghost-link" type="button" data-action="logout">退出</button>` : ""}
+      ${
+        account
+          ? `<div class="mast-actions">
+              <span class="who" title="${escapeHtml(account.email)}">${escapeHtml((account.email.split("@")[0] || account.email))}</span>
+              <button class="ghost-link" type="button" data-action="logout">退出</button>
+            </div>`
+          : ""
+      }
     </header>
   `;
 }
@@ -72,46 +154,96 @@ async function renderLogin() {
 
   app.innerHTML = `
     ${masthead(null)}
-    <section class="sheet login-pad">
-      <p class="hint">邮箱验证码登录。仅白名单可收信。</p>
-      <form id="otp-form">
-        <label for="email">邮箱</label>
-        <input id="email" name="email" type="email" autocomplete="username" required value="codepi@example.invalid" />
-        <button type="submit" id="send">发送验证码</button>
+    <section class="login-hero">
+      <h2 class="login-title">登录后开始今日发稿</h2>
+      <p class="hint">内部工具 · 邮箱验证码 · 仅白名单</p>
+    </section>
+    <section class="sheet login-pad login-card">
+      <form id="otp-form" class="login-form">
+        <label for="email">工作邮箱</label>
+        <input id="email" name="email" type="email" autocomplete="username" required value="codepi@example.invalid" placeholder="name@example.com" />
+        <button type="button" id="send" class="btn-primary-block">发送验证码</button>
         <label for="code">6 位验证码</label>
-        <input id="code" name="code" inputmode="numeric" pattern="\\d{6}" maxlength="6" autocomplete="one-time-code" />
-        <button class="secondary" type="button" id="verify">登录</button>
+        <div class="code-row">
+          <input id="code" name="code" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="one-time-code" placeholder="••••••" />
+          <button class="btn-primary-block" type="submit" id="verify">登录</button>
+        </div>
       </form>
-      <p class="hint" id="msg"></p>
+      <p class="hint msg-line" id="msg" role="status"></p>
     </section>
   `;
 
   const msg = app.querySelector<HTMLParagraphElement>("#msg")!;
   const email = app.querySelector<HTMLInputElement>("#email")!;
   const code = app.querySelector<HTMLInputElement>("#code")!;
+  const send = app.querySelector<HTMLButtonElement>("#send")!;
+  let resendTimer = 0;
 
-  app.querySelector<HTMLFormElement>("#otp-form")!.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    msg.textContent = "发送中…";
+  const setMsg = (text: string, kind: "" | "is-ok" | "is-err" = "") => {
+    msg.textContent = text;
+    msg.className = `hint msg-line${kind ? ` ${kind}` : ""}`;
+  };
+
+  const startResendCooldown = (seconds = 60) => {
+    send.disabled = true;
+    let left = seconds;
+    send.textContent = `重发 (${left})`;
+    resendTimer = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        window.clearInterval(resendTimer);
+        send.disabled = false;
+        send.textContent = "重新发送";
+        return;
+      }
+      send.textContent = `重发 (${left})`;
+    }, 1000);
+  };
+
+  const sendCode = async () => {
+    setMsg("发送中…");
+    send.disabled = true;
     try {
       const res = await requestOtp(email.value);
-      msg.textContent = res.dev_otp
-        ? `本地开发码：${res.dev_otp}（无 Resend 时写入日志）`
-        : res.message;
+      setMsg(res.dev_otp ? `本地开发码：${res.dev_otp}（无 Resend 时写入日志）` : res.message, "is-ok");
+      startResendCooldown();
+      code.focus();
     } catch (error) {
-      msg.textContent = error instanceof Error ? error.message : "发送失败";
+      send.disabled = false;
+      setMsg(errText(error, "发送失败"), "is-err");
     }
-  });
+  };
 
-  app.querySelector<HTMLButtonElement>("#verify")!.addEventListener("click", async () => {
-    msg.textContent = "校验中…";
+  let verifying = false;
+  const verify = async () => {
+    if (verifying || code.value.replace(/\D/g, "").length !== 6) return;
+    verifying = true;
+    setMsg("校验中…");
     try {
       await verifyOtp(email.value, code.value);
+      setMsg("登录成功，进入看板…", "is-ok");
       const next = new URLSearchParams(location.search).get("next") || "/";
       location.replace(next.startsWith("/") ? next : "/");
     } catch (error) {
-      msg.textContent = error instanceof Error ? error.message : "登录失败";
+      verifying = false;
+      setMsg(errText(error, "登录失败"), "is-err");
+      code.select();
     }
+  };
+
+  send.addEventListener("click", sendCode);
+
+  // Enter anywhere in the form = 登录（不再是重发验证码）
+  app.querySelector<HTMLFormElement>("#otp-form")!.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void verify();
+  });
+
+  // 输满 6 位自动登录；粘贴整段验证码也直接登
+  code.addEventListener("input", () => {
+    const digits = code.value.replace(/\D/g, "").slice(0, 6);
+    if (code.value !== digits) code.value = digits;
+    if (digits.length === 6) void verify();
   });
 }
 
@@ -161,8 +293,8 @@ function slotCard(date: string, row: SlotRow): string {
         <div class="article-main">
           <div class="article-copy">
             <p class="article-meta"><span class="slot-chip">${row.slot}</span><span>${slotHint(row.slot)}</span></p>
-            <h2>${row.slot}档空着</h2>
-            <p class="digest">没有稿。今天只在三档都空时才补演示；演示会标出来，可撤回或撤掉。</p>
+            <h2 class="empty-title">${row.slot}档空着</h2>
+            <p class="digest">还没有稿。点下方交本档，或等「今天三档都空」时自动补演示。</p>
           </div>
           ${thumbHtml(null)}
         </div>
@@ -200,7 +332,7 @@ function composeForm(date: string, row: SlotRow, post: BoardPost | null = null):
       <label>标题</label>
       <input name="title" required value="${escapeHtml(post?.title || "")}" />
       <label>预览地址</label>
-      <input name="preview_path" placeholder="/previews/zao/ 或 https://gzh-preview…" value="${escapeHtml(post?.preview_path || `/previews/${row.slot === "早" ? "zao" : row.slot === "中" ? "zhong" : "wan"}/`)}" />
+      <input name="preview_path" placeholder="/previews/zao/ 或同域预览路径" value="${escapeHtml(post?.preview_path || `/previews/${row.slot === "早" ? "zao" : row.slot === "中" ? "zhong" : "wan"}/`)}" />
       <label>备注</label>
       <textarea name="note" placeholder="给老板的一句话">${escapeHtml(post?.note || "")}</textarea>
       <button type="submit">${post?.status === "需改" ? "改完再交待审" : "标为待审"}</button>
@@ -235,12 +367,24 @@ async function renderDesk() {
     ? params.get("date")!
     : todayShanghai();
 
+  // 先上骨架屏，避免白板等待
+  app.className = "";
+  app.innerHTML = `
+    ${masthead(account)}
+    <div class="skel-block" aria-hidden="true">
+      <div class="skel skel-title"></div>
+      <div class="skel skel-row"></div>
+      <div class="skel skel-row"></div>
+      <div class="skel skel-row"></div>
+    </div>
+  `;
+
   let data;
   try {
     data = await board(date);
   } catch (error) {
     app.className = "";
-    app.innerHTML = `${masthead(account)}<p class="error">${escapeHtml(error instanceof Error ? error.message : "看板加载失败")}</p>`;
+    app.innerHTML = `${masthead(account)}<p class="error">${escapeHtml(errText(error, "看板加载失败"))}</p>`;
     bindLogout();
     return;
   }
@@ -252,32 +396,43 @@ async function renderDesk() {
   app.innerHTML = `
     ${masthead(account)}
     <section class="day-hero">
-      <p class="eyebrow">${isToday ? "今天" : "日历"} · ${escapeHtml(account.brand)}</p>
-      <h2 class="day-title">${formatZhDate(date)}</h2>
-      <p class="hint">${pendingHere ? `${pendingHere} 篇待审` : "早 / 中 / 晚"} · 点标题先看预览</p>
+      <div class="day-hero-top">
+        <div>
+          <p class="eyebrow">${isToday ? "今天" : "日历"} · ${escapeHtml(account.brand)}</p>
+          <h2 class="day-title">${formatZhDate(date)}</h2>
+        </div>
+        ${
+          pendingHere
+            ? `<a class="pending-pill" href="#queue">${pendingHere} 待审</a>`
+            : `<span class="pending-pill is-quiet">排期中</span>`
+        }
+      </div>
+      <ol class="flow-strip" aria-label="状态路径">
+        <li>交待审</li>
+        <li>通读</li>
+        <li>过 / 要改 / 拒</li>
+        <li>可推箱</li>
+        <li>已进箱</li>
+      </ol>
     </section>
     <nav class="date-nav" aria-label="换一天">
       <button class="secondary" type="button" data-shift="-1">前一天</button>
       <input id="date" type="date" value="${date}" aria-label="选择日期" />
       <button class="secondary" type="button" data-shift="1">后一天</button>
     </nav>
-    ${isToday ? "" : `<p class="flash"><a href="/">回到今天</a></p>`}
-    <aside class="rules" aria-label="状态规则">
-      <p>审稿路径</p>
-      <p class="hint">点图文进预览 → 通读全文后底栏「过 / 要改 / 拒」→ 过了才可推箱。演示稿带橙标，真稿无标。</p>
-    </aside>
-    <section class="paper-list" aria-label="今日早中晚">
+    ${isToday ? "" : `<p class="flash back-today"><a href="/">← 回到今天</a></p>`}
+    <section class="paper-list slot-board" aria-label="今日早中晚">
       ${data.slots.map((row) => slotCard(date, row)).join("")}
     </section>
-    <section class="queue" aria-label="待审队列">
+    <section class="queue" id="queue" aria-label="待审队列">
       <div class="section-head">
-        <h2>待审</h2>
-        <span class="count">${data.queue.length}</span>
+        <h2>待审队列</h2>
+        <span class="count${data.queue.length ? "" : " is-zero"}">${data.queue.length}</span>
       </div>
       ${
         data.queue.length
           ? `<div class="paper-list">${data.queue.map(queueRow).join("")}</div>`
-          : `<p class="hint">没有待审。过了才可推箱；撤回待审后会回到这里。</p>`
+          : `<p class="empty-hint">队列是空的。交待审后会出现在这里；过了才可推箱。</p>`
       }
     </section>
   `;
@@ -287,6 +442,7 @@ async function renderDesk() {
   bindUpsert(date);
   bindEditorActions();
   bindBrokenCovers(app);
+  drainFlash();
 }
 
 function bindDeskNav(date: string) {
@@ -300,6 +456,14 @@ function bindDeskNav(date: string) {
       location.search = `?date=${shiftDate(date, Number(button.dataset.shift))}`;
     });
   }
+
+  // 桌面键盘：←/→ 换一天（输入框聚焦时不抢）
+  window.addEventListener("keydown", (event) => {
+    const tag = (event.target as HTMLElement | null)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "ArrowLeft") location.search = `?date=${shiftDate(date, -1)}`;
+    if (event.key === "ArrowRight") location.search = `?date=${shiftDate(date, 1)}`;
+  });
 }
 
 function bindUpsert(date: string) {
@@ -321,9 +485,10 @@ function bindUpsert(date: string) {
           note: String(box.get("note") || ""),
           submit: true,
         });
+        flashToast("已交待审", "ok");
         location.reload();
       } catch (error) {
-        alert(error instanceof Error ? error.message : "保存失败");
+        showToast(errText(error, "保存失败"), "err");
       }
     });
   }
@@ -336,12 +501,22 @@ function bindLogout() {
   });
 }
 
+function postToolsHtml(post: BoardPost): string {
+  const tools = demoTools(post, post.publish_date);
+  if (!tools.trim()) return "";
+  return `
+    <section class="post-tools" aria-label="稿件操作">
+      <p class="eyebrow">稿件操作</p>
+      ${tools}
+    </section>
+  `;
+}
+
 function reviewDock(post: BoardPost): string {
   if (post.status === "待审") {
     return `
       <section class="${reviewDockLockClass({ locked: true, allowManualUnlock: false })}" aria-label="审核动作">
         ${pendingReviewActionsHtml(post.slug, true)}
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -352,14 +527,13 @@ function reviewDock(post: BoardPost): string {
         <div class="pass-banner">
           <span class="stamp st s-可推箱 st-可推箱">可推箱</span>
           ${demoChip(post)}
-          <p>已过审。示例编辑去微信后台推进草稿箱，再点「已进箱」。未过审不会出现这一步。</p>
-          <p class="hint">要再走一遍过：编辑点「撤回待审」。演示稿还可撤掉腾档。</p>
+          <p class="pass-lead">已过审。去微信后台推进草稿箱，回来点「已进箱」。</p>
+          <p class="hint">要重审：撤回待审。演示稿可撤掉腾档。</p>
         </div>
         <div class="dock-actions dock-edit-actions">
           <button type="button" data-boxed="${post.slug}">已进箱</button>
           <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>
         </div>
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -373,7 +547,6 @@ function reviewDock(post: BoardPost): string {
         <div class="dock-actions dock-edit-actions">
           <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>
         </div>
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -390,7 +563,6 @@ function reviewDock(post: BoardPost): string {
             : ""
         }
         ${composeForm(post.publish_date, { slot, post }, post)}
-        ${demoTools(post, post.publish_date)}
       </section>
     `;
   }
@@ -419,20 +591,25 @@ async function renderPreview() {
     app.className = "is-review";
     app.innerHTML = `
       <header class="slim-bar">
-        <a class="back-link" href="${back}">← 返回</a>
+        <a class="back-link" href="${back}">← 看板</a>
+        <span class="slim-status ${statusChipClass(data.post.status)}">${statusLabel(data.post.status)}</span>
+        <div class="read-progress" aria-hidden="true"><span id="read-progress-bar"></span></div>
       </header>
       <main class="article-stage">
         <div class="preview-article" id="preview-article"></div>
         <div class="read-end" id="read-end" aria-hidden="true"></div>
+        ${postToolsHtml(data.post)}
       </main>
       ${reviewDock(data.post)}
     `;
     const embed = await mountPreview(app.querySelector<HTMLElement>("#preview-article")!, src, slug);
+    bindDockClearance();
     bindUpsert(data.post.publish_date);
     bindReview();
     bindEditorActions();
     bindBrokenCovers(app);
     bindReadGate(embed);
+    drainFlash();
   } catch (error) {
     app.className = "";
     app.innerHTML = `${masthead(account)}<p class="error">${escapeHtml(error instanceof Error ? error.message : "预览失败")}</p>`;
@@ -516,6 +693,21 @@ function fitSameOriginIframe(iframe: HTMLIFrameElement | null) {
   apply();
 }
 
+/* 动态给正文底部留足空间，避免浮动 dock 遮挡结尾 */
+function bindDockClearance() {
+  const dock = app.querySelector<HTMLElement>(".dock");
+  const stage = app.querySelector<HTMLElement>(".article-stage");
+  if (!dock || !stage) return;
+  const apply = () => {
+    const bottomGap = 24; // dock 与正文末尾的呼吸距离
+    const offset = Number.parseFloat(getComputedStyle(dock).bottom) || 0;
+    stage.style.paddingBottom = `${dock.offsetHeight + offset + bottomGap}px`;
+  };
+  if ("ResizeObserver" in window) new ResizeObserver(apply).observe(dock);
+  window.addEventListener("resize", apply);
+  apply();
+}
+
 function unlockReviewDock() {
   const dock = app.querySelector<HTMLElement>(".dock-review");
   if (!dock) return;
@@ -552,6 +744,12 @@ function bindReadGate(embed: EmbedMode) {
     }
 
     const checkWindow = () => {
+      const bar = app.querySelector<HTMLElement>("#read-progress-bar");
+      if (bar) {
+        const total = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = total > 0 ? Math.min(100, Math.max(0, (window.scrollY / total) * 100)) : 100;
+        bar.style.width = `${pct}%`;
+      }
       if (
         isReadComplete({
           scrollTop: window.scrollY,
@@ -603,20 +801,28 @@ function bindReadGate(embed: EmbedMode) {
 
 function bindReview() {
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-review]")) {
-    button.addEventListener("click", async () => {
+    const action = button.dataset.review as "过" | "要改" | "拒";
+    const run = async () => {
       if (button.closest(".dock-review")?.classList.contains("is-locked")) return;
-      const action = button.dataset.review as "过" | "要改" | "拒";
       const note = app.querySelector<HTMLTextAreaElement>("[name=review_note]")?.value || "";
-      if (action === "拒" && !confirm("确认拒回草稿？")) return;
       button.disabled = true;
       try {
         await review(button.dataset.slug!, action, note);
+        flashToast(
+          action === "过" ? "已过审，进可推箱" : "已标为需改，编辑改完可再交",
+          "ok",
+        );
         location.reload();
       } catch (error) {
         button.disabled = false;
-        alert(error instanceof Error ? error.message : "审核失败");
+        showToast(errText(error, "审核失败"), "err");
       }
-    });
+    };
+    if (action === "拒") {
+      bindTwoTap(button, "确认拒绝？再点一次", run);
+    } else {
+      button.addEventListener("click", () => void run());
+    }
   }
 
   const boxed = app.querySelector<HTMLButtonElement>("[data-boxed]");
@@ -624,60 +830,37 @@ function bindReview() {
     boxed.disabled = true;
     try {
       await markBoxed(boxed.dataset.boxed!);
+      flashToast("已回执：进箱完成", "ok");
       location.reload();
     } catch (error) {
       boxed.disabled = false;
-      alert(error instanceof Error ? error.message : "更新失败");
+      showToast(errText(error, "更新失败"), "err");
     }
   });
 }
 
 function bindEditorActions() {
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-withdraw]")) {
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!confirm("撤回待审后，老板可以再过 / 要改 / 拒。继续？")) return;
-      button.disabled = true;
-      try {
-        await withdrawPost(button.dataset.withdraw!);
-        location.reload();
-      } catch (error) {
-        button.disabled = false;
-        alert(error instanceof Error ? error.message : "撤回失败");
-      }
+    bindTwoTap(button, "确认撤回？再点一次", async () => {
+      await withdrawPost(button.dataset.withdraw!);
+      flashToast("已撤回待审", "ok");
+      location.reload();
     });
   }
 
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-official]")) {
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!confirm("去掉「演示」标，按正式稿处理？slug 可随后在表单里改掉 kdp-MMDD-*。")) return;
-      button.disabled = true;
-      try {
-        await patchPost(button.dataset.official!, { mark_official: true });
-        location.reload();
-      } catch (error) {
-        button.disabled = false;
-        alert(error instanceof Error ? error.message : "更新失败");
-      }
+    bindTwoTap(button, "确认转正式？再点一次", async () => {
+      await patchPost(button.dataset.official!, { mark_official: true });
+      flashToast("已标为正式稿", "ok");
+      location.reload();
     });
   }
 
   for (const button of app.querySelectorAll<HTMLButtonElement>("[data-release]")) {
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (!confirm("撤掉这条演示稿并腾出档位？当天不会再自动补演示。")) return;
-      button.disabled = true;
-      try {
-        await releaseDemo(button.dataset.release!);
-        location.href = "/";
-      } catch (error) {
-        button.disabled = false;
-        alert(error instanceof Error ? error.message : "撤档失败");
-      }
+    bindTwoTap(button, "确认撤档？再点一次", async () => {
+      await releaseDemo(button.dataset.release!);
+      flashToast("演示稿已撤档", "ok");
+      location.href = "/";
     });
   }
 }

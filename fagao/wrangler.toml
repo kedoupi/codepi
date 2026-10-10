@@ -21,9 +21,7 @@ OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"
 ENVIRONMENT = "production"
 
-[observability]
-enabled = true
-head_sampling_rate = 1
+# Pages 项目不支持 [observability]，已从本文件移除（否则 wrangler pages deploy 校验失败）
 
 # Pages preview 部署共用同一套库名；上线前换成独立 preview D1 也可以
 [env.preview]
