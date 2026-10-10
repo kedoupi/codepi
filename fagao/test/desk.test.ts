@@ -65,7 +65,7 @@ describe("board + review", () => {
     expect(boxedBody.post.status).toBe("已进箱");
   });
 
-  it("maps 要改 to 需改 and 拒 to draft, then allows resubmit", async () => {
+  it("maps 要改 and 拒 to 需改, then allows resubmit", async () => {
     const cookie = await loginAsAllowlisted();
     await authed(cookie, "/api/posts", {
       method: "POST",
@@ -124,7 +124,7 @@ describe("board + review", () => {
       body: JSON.stringify({ slug: "flow-reject", action: "拒", note: "不做了" }),
     });
     const rejectedBody = (await rejected.json()) as { post: { status: string } };
-    expect(rejectedBody.post.status).toBe("draft");
+    expect(rejectedBody.post.status).toBe("需改");
   });
 
   it("rejects a second post on the same date+slot", async () => {
