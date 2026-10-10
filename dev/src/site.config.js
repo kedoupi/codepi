@@ -1,5 +1,5 @@
 export const siteName = 'DevKDP';
-export const tagline = 'Free developer utilities — JSON formatter, Base64, regex, JWT, and more.';
+export const tagline = 'Free developer utilities — JSON formatter and Base64.';
 export const footerNote = 'Free, fast, no-signup developer tools.';
 export const navLinks = [
   { href: '/', label: 'Tools' },

@@ -2,19 +2,18 @@
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import AdSense from '@shared/components/AdSense.astro';
 
-const title = 'Free Text Utilities for Word Counts and Placeholder Copy';
-const description = 'Free text utilities for word counts, character counts, reading time, and Lorem Ipsum placeholder copy. Instant browser results, no signup.';
+const title = 'Free Text Utilities for Word Counts';
+const description = 'Free word counter for words, characters, sentences, and reading time. Instant browser results, no signup.';
 
 const tools = [
-  { href: '/word-counter/',           name: 'Word Counter',          blurb: 'Real-time word, character, sentence, paragraph counts plus reading time.' },
-  { href: '/lorem-ipsum-generator/',  name: 'Lorem Ipsum Generator', blurb: 'Generate paragraphs, words, sentences, and list items for layout testing.' },
+  { href: '/word-counter/', name: 'Word Counter', blurb: 'Real-time word, character, sentence, paragraph counts plus reading time.' },
 ];
 ---
 <BaseLayout title={title} description={description} pathname="/" schemaType="WebSite">
   <section class="mb-10 max-w-4xl space-y-4">
     <p class="kdp-section-label">Writing checks without a login wall</p>
     <h1 class="text-5xl font-semibold leading-[1.02] sm:text-6xl">Free Text Utilities</h1>
-    <p class="max-w-3xl text-xl leading-8 text-stone-700">Fast, no-signup text tools for writers, editors, designers, students, and developers. Count words and characters, estimate reading time, or generate neutral placeholder copy for layouts.</p>
+    <p class="max-w-3xl text-xl leading-8 text-stone-700">Fast, no-signup text tools for writers, editors, students, and developers. Count words and characters, and estimate reading time before you publish or send a draft.</p>
     <p class="max-w-3xl text-stone-600 leading-7">TextKDP is intentionally small: each page solves one text task, explains when to use it, and runs locally in your browser so drafts and pasted notes are not uploaded to a server.</p>
   </section>
 
@@ -37,9 +36,6 @@ const tools = [
       <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950">Text checks that fit real workflows</h2>
       <p>
         Word and character limits appear everywhere: essays, article briefs, meta descriptions, social posts, newsletter subject lines, product copy, and speech drafts. The word counter gives a quick read on length, structure, and estimated reading time before you publish or send a draft.
-      </p>
-      <p>
-        The Lorem Ipsum generator is for layout and typography checks. It helps designers and developers test spacing, line length, cards, tables, and CMS fields before final copy is ready. The page also explains when filler text can hide real content problems.
       </p>
     </div>
 

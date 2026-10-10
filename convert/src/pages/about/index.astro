@@ -2,7 +2,7 @@
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 
 const title = 'About ConvertKDP';
-const description = 'ConvertKDP builds fast, ad-supported format converters — time zones, units, temperatures, currencies, and more. No signup, no tracking beyond anonymous analytics.';
+const description = 'ConvertKDP builds fast, ad-supported converters for time zones, units, and temperature. No signup. Inputs stay in your browser.';
 ---
 <BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
   <article class="prose-like max-w-3xl space-y-4">
@@ -14,27 +14,26 @@ const description = 'ConvertKDP builds fast, ad-supported format converters — 
 
     <h2 class="text-xl font-semibold mt-6">The lineup</h2>
     <ul class="list-disc pl-6 space-y-1">
-      <li><strong>Time Zone Converter</strong> (live) — Convert any date and time between 80+ IANA time zones. Daylight-saving handled automatically by the browser's <code>Intl.DateTimeFormat</code> API.</li>
-      <li><strong>Unit Converter</strong> (planned) — Length, weight, volume, area, speed, and pressure with all common unit systems.</li>
-      <li><strong>Temperature Converter</strong> (planned) — Celsius, Fahrenheit, Kelvin, Rankine.</li>
-      <li><strong>Currency Converter</strong> (planned) — Live exchange rates for major currencies, refreshed daily.</li>
+      <li><strong>Time Zone Converter</strong> — Convert any date and time between 80+ IANA time zones. Daylight-saving is handled by the browser's <code>Intl.DateTimeFormat</code> API.</li>
+      <li><strong>Unit Converter</strong> — Length, weight, volume, and area conversions between metric and imperial units.</li>
+      <li><strong>Temperature Converter</strong> — Celsius, Fahrenheit, and Kelvin, with the formula shown on the page.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
     <p>Most online converters are bloated with autoplay videos, popups, and email-walls for "premium" features that should be free. We built ConvertKDP because we wanted the opposite: instant results, transparent math, no signup.</p>
 
     <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
-    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+    <p>Reserved layout slots stay empty during review. After approval they may show ads in fixed positions, without auto-playing video or popups. If you'd like to support us further, simply share a link.</p>
 
     <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
     <ul class="list-disc pl-6 space-y-1">
       <li><strong>Source data</strong>: Where applicable, we cite the authoritative source (e.g., the IANA time zone database for time zones).</li>
       <li><strong>Math</strong>: Every converter shows its formula in a "Show the math" section, so you can verify or learn. No black boxes.</li>
-      <li><strong>Open source</strong>: The site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-blue-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+      <li><strong>Corrections</strong>: Found a wrong figure? Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL and the numbers you expected.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">What's next</h2>
-    <p>Active work is on expanding the converter set: a unit converter (length, weight, volume, area), temperature, and a currency converter with daily-refreshed rates. Suggestions welcome — see Contact.</p>
+    <p>Suggestions are welcome — see Contact.</p>
 
     <h2 class="text-xl font-semibold mt-6">Contact</h2>
     <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>

@@ -1,5 +1,5 @@
 export const siteName = 'TextKDP';
-export const tagline = 'Free word counter, Lorem Ipsum generator, and writing utilities.';
+export const tagline = 'Free word counter and writing utilities.';
 export const footerNote = 'Free, fast, no-signup text utilities.';
 export const navLinks = [
   { href: '/', label: 'Tools' },

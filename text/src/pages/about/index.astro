@@ -2,7 +2,7 @@
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 
 const title = 'About TextKDP';
-const description = 'TextKDP builds fast, ad-supported text utilities — word counter, Lorem Ipsum generator, case converter, and more. No signup, no tracking beyond anonymous analytics.';
+const description = 'TextKDP builds a fast, ad-supported word counter. No signup. Text stays in your browser.';
 ---
 <BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
   <article class="prose-like max-w-3xl space-y-4">
@@ -14,27 +14,24 @@ const description = 'TextKDP builds fast, ad-supported text utilities — word c
 
     <h2 class="text-xl font-semibold mt-6">The lineup</h2>
     <ul class="list-disc pl-6 space-y-1">
-      <li><strong>Word Counter</strong> (live) — Real-time word, character, sentence, and paragraph counts plus reading- and speaking-time estimates and the most-used word.</li>
-      <li><strong>Lorem Ipsum Generator</strong> (live) — Configurable paragraphs, words, sentences, or list items with the classic "Lorem ipsum dolor sit amet…" opener and one-click copy.</li>
-      <li><strong>Case Converter</strong> (planned) — UPPER, lower, Title Case, Sentence case, snake_case, kebab-case, camelCase, and PascalCase.</li>
-      <li><strong>Markdown ↔ HTML</strong> (planned) — Convert Markdown to clean HTML and back, with side-by-side preview.</li>
+      <li><strong>Word Counter</strong> — Real-time word, character, sentence, and paragraph counts plus reading- and speaking-time estimates and the most-used word.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
     <p>Most online text tools are wrapped in autoplay videos, popups, and email-walls for "premium" features that should be free. We built TextKDP because we wanted the opposite: instant results, no signup, no nonsense.</p>
 
     <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
-    <p>The site is supported by Google AdSense. We aim to keep ads non-intrusive — fixed layout positions, no auto-playing video, no popups. If you'd like to support us further, simply share a link.</p>
+    <p>Reserved layout slots stay empty during review. After approval they may show ads in fixed positions, without auto-playing video or popups. If you'd like to support us further, simply share a link.</p>
 
     <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
     <ul class="list-disc pl-6 space-y-1">
       <li><strong>Counting rules</strong>: Words are whitespace-separated tokens; sentences split on terminal punctuation; paragraphs split on blank lines. The same conventions used by LinkedIn, Twitter, and most editors.</li>
       <li><strong>Reading speeds</strong>: 200 wpm for reading, 130 wpm for speaking — typical adult averages cited in writing-pace research.</li>
-      <li><strong>Open source</strong>: The site's code is on GitHub at <a href="https://github.com/kedoupi/kdp-tools" class="text-violet-600 hover:underline">github.com/kedoupi/kdp-tools</a>. Found a bug? Open an issue.</li>
+      <li><strong>Corrections</strong>: Found a bug? Email <a href="mailto:hello@kdp.cool" class="text-violet-600 hover:underline">hello@kdp.cool</a> with the page URL and what you expected.</li>
     </ul>
 
     <h2 class="text-xl font-semibold mt-6">What's next</h2>
-    <p>Active work is on expanding the tool set: a case converter, Markdown ↔ HTML, text diff, and string-utility helpers. Suggestions welcome — see Contact.</p>
+    <p>Suggestions are welcome — see Contact.</p>
 
     <h2 class="text-xl font-semibold mt-6">Contact</h2>
     <p>See <a href="/contact/" class="text-violet-600 hover:underline">Contact</a>.</p>

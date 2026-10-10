@@ -1,0 +1,424 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+import FaqSection from '../../components/FaqSection.astro';
+
+const title = 'Mortgage Calculator - Free Monthly Payment Calculator';
+const description = 'Calculate your monthly mortgage payment instantly. Enter home price, down payment, interest rate and loan term. Free mortgage calculator for US home buyers.';
+
+const faqs = [
+  {
+    q: 'What is the formula for monthly mortgage payments?',
+    a: 'The standard fully amortizing formula is M = P · [r(1+r)^n] / [(1+r)^n − 1], where P is the loan principal (home price minus down payment), r is the monthly interest rate (annual rate ÷ 12), and n is the number of monthly payments (years × 12). If the rate is 0%, M is simply P / n. This is ordinary installment-loan math, not a mortgage-only statute. The Consumer Financial Protection Bureau describes the same level principal-and-interest payment for a fixed-rate, fully amortizing loan.',
+  },
+  {
+    q: 'How much should I put down on a house?',
+    a: 'Conventional loans often allow 5–20% down. Many lenders require private mortgage insurance (PMI) below 20% down. FHA loans can allow 3.5% down for eligible borrowers, but FHA mortgage insurance is a different product and is not computed here. This calculator’s default is 20% on a $400,000 home — $80,000 — which leaves a $320,000 principal and typically avoids PMI on a conventional loan.',
+  },
+  {
+    q: 'What is included in PITI?',
+    a: 'PITI is Principal, Interest, Taxes, and Insurance. On the default scenario, monthly P&I is $2,022.62, property tax is $5,000 / 12 = $416.67, and homeowners insurance is $1,500 / 12 = $125.00, for a $2,564.28 housing draft. PMI, if any, is a fifth line. This tool adds tax and insurance as simple annual totals ÷ 12; it does not escrow, true-up, or compute PMI.',
+  },
+  {
+    q: 'Does this calculator include PMI?',
+    a: 'No. PMI is not an input and is not in the monthly total. Lenders set PMI from credit score, loan-to-value, and product type; a common planning range is roughly 0.3%–1.5% of the original loan per year, but that is not a statutory rate. On a $400,000 home with 10% down ($360,000 loan), an illustrative 0.50% PMI is $1,800 / year or $150 / month. Add that to the $2,817.11 PITI from this tool and the planning total is about $2,967.11.',
+  },
+  {
+    q: 'How does a 15-year term compare with 30 years?',
+    a: 'On the $320,000 default loan at 6.5%, 30-year P&I is $2,022.62 and lifetime interest is about $408,142. The same principal and rate over 15 years raises P&I to $2,787.54 and cuts lifetime interest to about $181,758. The monthly payment rises by about $765; the interest column falls by roughly $226,000 if you never refinance or pay extra.',
+  },
+  {
+    q: "What's the difference between the mortgage rate and APR?",
+    a: 'The note rate is what the amortization formula uses. APR folds in certain lender fees (origination, points, some prepaid finance charges) and is usually higher. This calculator uses the interest rate you type, not a Regulation Z APR disclosure. Discount points are not modeled: paying 1 point is typically 1% of the loan at closing in exchange for a lower note rate, and that cash is outside the monthly formula.',
+  },
+  {
+    q: 'Are HOA dues, flood insurance, or closing costs included?',
+    a: 'No. HOA or condo dues, flood insurance, earthquake insurance, title insurance, origination fees, discount points, prepaid interest, and cash-to-close are out of scope. Those items can be large and they do not amortize with the loan. A lender’s Loan Estimate is the document that itemizes them.',
+  },
+  {
+    q: 'How much of the first payment is interest?',
+    a: 'Interest for a month is remaining balance × monthly rate. On the $320,000 / 6.5% default, month 1 interest is $320,000 × 0.065 / 12 = $1,733.33. The rest of the $2,022.62 P&I is principal: $289.28. After that payment the balance is $319,710.72. Early payments are interest-heavy because the unpaid balance is largest at the start.',
+  },
+  {
+    q: 'What happens if I pay extra principal?',
+    a: 'An extra principal payment reduces the balance immediately, so every later interest charge is computed on a smaller number. This page assumes a level schedule with no extra payments, no recast, and no refinance. If you pay extra, the remaining term shrinks or the last payment shrinks; the advertised monthly P&I does not automatically drop unless the loan is recast.',
+  },
+  {
+    q: 'Can I treat this monthly total as a lender quote?',
+    a: 'No. This is an educational estimate for comparing price, down payment, rate, and term. A real payment can also include PMI, HOA, flood coverage, lender-required escrow cushions, and fees that never enter this form. Use the formula to understand the shape of P&I; use the official Loan Estimate and Closing Disclosure to decide whether to sign.',
+  },
+];
+---
+<BaseLayout title={title} description={description} pathname="/mortgage-calculator/">
+  <CalculatorShell
+    title="Mortgage Calculator"
+    intro="Estimate your monthly mortgage payment, including principal & interest, property tax, and homeowners insurance."
+  >
+    <AdSense slot="top-ad" adSlot="mortgage-top" style="min-height:90px" />
+
+    <form id="mortgage-form" class="space-y-5" slot="inputs" autocomplete="off">
+      <div>
+        <label for="home-price" class="block text-sm font-medium text-slate-700 mb-1">Home Price</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input id="home-price" name="homePrice" type="number" min="0" step="1000" value="400000"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label for="down-payment" class="block text-sm font-medium text-slate-700">Down Payment</label>
+          <div class="text-xs flex gap-1">
+            <button type="button" data-down-mode="percent" class="down-toggle px-2 py-0.5 rounded bg-blue-600 text-white">%</button>
+            <button type="button" data-down-mode="amount" class="down-toggle px-2 py-0.5 rounded bg-slate-200 text-slate-700">$</button>
+          </div>
+        </div>
+        <div class="relative">
+          <span id="down-prefix" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+          <input id="down-payment" name="downPayment" type="number" min="0" step="0.5" value="20"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+
+      <div>
+        <span class="block text-sm font-medium text-slate-700 mb-1">Loan Term</span>
+        <div class="grid grid-cols-4 gap-2">
+          <button type="button" data-term="10" class="term-btn py-2 rounded border border-slate-300 bg-white">10 yr</button>
+          <button type="button" data-term="15" class="term-btn py-2 rounded border border-slate-300 bg-white">15 yr</button>
+          <button type="button" data-term="20" class="term-btn py-2 rounded border border-slate-300 bg-white">20 yr</button>
+          <button type="button" data-term="30" class="term-btn py-2 rounded border border-blue-600 bg-blue-600 text-white">30 yr</button>
+        </div>
+        <input type="hidden" id="term-years" name="termYears" value="30" />
+      </div>
+
+      <div>
+        <label for="rate" class="block text-sm font-medium text-slate-700 mb-1">Interest Rate</label>
+        <div class="relative">
+          <input id="rate" name="annualRatePct" type="number" min="0" step="0.01" value="6.5"
+                 class="w-full pr-7 pl-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="tax" class="block text-sm font-medium text-slate-700 mb-1">Property Tax / yr</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+            <input id="tax" name="annualPropertyTax" type="number" min="0" step="100" value="5000"
+                   class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div>
+          <label for="ins" class="block text-sm font-medium text-slate-700 mb-1">Home Insurance / yr</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+            <input id="ins" name="annualInsurance" type="number" min="0" step="100" value="1500"
+                   class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+      </div>
+    </form>
+
+    <div slot="results" class="space-y-5">
+      <div>
+        <p class="text-sm uppercase tracking-wider text-slate-500">Monthly Payment</p>
+        <p id="r-total" class="text-4xl sm:text-5xl font-bold text-slate-900 tabular-nums">$0</p>
+      </div>
+
+      <div class="flex items-center gap-5">
+        <svg id="r-chart" viewBox="0 0 100 100" class="w-32 h-32 shrink-0" aria-label="Monthly cost breakdown">
+        </svg>
+        <ul class="text-sm space-y-1.5 flex-1">
+          <li class="flex items-center justify-between gap-3">
+            <span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-blue-600 inline-block"></i>Principal &amp; Interest</span>
+            <span id="r-pi" class="tabular-nums font-medium">$0</span>
+          </li>
+          <li class="flex items-center justify-between gap-3">
+            <span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-emerald-500 inline-block"></i>Property Tax</span>
+            <span id="r-tax" class="tabular-nums font-medium">$0</span>
+          </li>
+          <li class="flex items-center justify-between gap-3">
+            <span class="flex items-center gap-2"><i class="w-3 h-3 rounded-sm bg-amber-500 inline-block"></i>Insurance</span>
+            <span id="r-ins" class="tabular-nums font-medium">$0</span>
+          </li>
+          <li class="flex items-center justify-between gap-3 border-t border-slate-200 pt-2 mt-2">
+            <span class="font-semibold">Total Monthly Cost</span>
+            <span id="r-total-line" class="tabular-nums font-semibold">$0</span>
+          </li>
+        </ul>
+      </div>
+
+      <p class="text-xs text-slate-500">Loan amount: <span id="r-principal" class="tabular-nums">$0</span></p>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="mortgage-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
+        Educational estimate only. The live result above is a planning number, not a pre-approval, Loan Estimate, or offer. Tax and insurance in the form are annual amounts you type; they are not an assessment from any county.
+      </p>
+
+      <h2 class="text-2xl font-bold mb-3">Who this is for</h2>
+      <p class="mb-3">Use this page when you are comparing a purchase price, down payment, rate, or term and want a transparent monthly housing draft. The decision it helps is “what does this loan cost each month, and how much of that is interest versus tax and insurance?” It is for US-style fixed-rate, fully amortizing home loans. It is not a cash-offer worksheet, an ARM payment-shock model, or a refinance cash-out engine.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">How this mortgage calculator works</h2>
+      <p class="mb-2">Principal and interest use the standard amortizing installment formula:</p>
+      <p class="mb-3 font-mono text-sm bg-slate-100 inline-block px-3 py-1.5 rounded">M = P · [r(1+r)<sup>n</sup>] / [(1+r)<sup>n</sup> − 1]</p>
+      <ul class="list-disc list-inside space-y-1 mb-3">
+        <li><strong>P</strong> — loan principal (home price minus down payment)</li>
+        <li><strong>r</strong> — monthly interest rate (annual rate ÷ 12)</li>
+        <li><strong>n</strong> — total number of monthly payments (years × 12)</li>
+      </ul>
+      <p class="mb-3">If the annual rate is 0%, the formula is unnecessary: <em>M</em> is <em>P / n</em>. Property tax and homeowners insurance are divided by 12 and added to P&amp;I to estimate PITI (principal, interest, taxes, insurance). Those extras do not reduce the loan balance.</p>
+      <p>The formula assumes a fixed rate, monthly payments that match monthly compounding, and no extra principal. It is the same relation used for many installment loans and the same helper (`calcAmortizedLoan`) that powers the auto-loan page. For a consumer-facing explanation of how lenders build a level P&amp;I payment, see the CFPB’s Ask CFPB note <a href="https://www.consumerfinance.gov/ask-cfpb/how-do-mortgage-lenders-calculate-monthly-payments-en-1965/" class="text-blue-600 hover:underline">How do mortgage lenders calculate monthly payments?</a>.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Worked example (visible without JavaScript)</h2>
+      <p class="mb-3">These figures match the form defaults: a $400,000 home, 20% down, 6.5% annual rate, 30 years, $5,000 property tax, and $1,500 insurance. You can check them with a basic calculator. JavaScript is only needed if you want to change the inputs.</p>
+      <p class="mb-3">Principal <em>P</em> = $400,000 − $80,000 = <strong>$320,000</strong>. Monthly rate <em>r</em> = 0.065 / 12 ≈ 0.00541667. Term <em>n</em> = 360. Then (1 + r)<sup>360</sup> ≈ 6.97347, so:</p>
+      <ul class="list-disc list-inside space-y-1 mb-3">
+        <li>Numerator: 320,000 × 0.00541667 × 6.97347 ≈ 12,088.68</li>
+        <li>Denominator: 6.97347 − 1 ≈ 5.97347</li>
+        <li>Monthly P&amp;I: 12,088.68 / 5.97347 = <strong>$2,022.62</strong></li>
+      </ul>
+      <div class="my-6 overflow-x-auto rounded-lg border border-slate-200">
+        <table class="w-full text-sm text-left">
+          <caption class="sr-only">Static 20% down PITI example matching the calculator defaults</caption>
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 font-semibold">Item</th>
+              <th class="px-3 py-2 font-semibold">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Home price</td><td class="px-3 py-2 tabular-nums">$400,000</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Down payment (20%)</td><td class="px-3 py-2 tabular-nums">$80,000</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Loan principal</td><td class="px-3 py-2 tabular-nums">$320,000</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Monthly P&amp;I</td><td class="px-3 py-2 tabular-nums">$2,022.62</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Property tax ($5,000 / 12)</td><td class="px-3 py-2 tabular-nums">$416.67</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Homeowners insurance ($1,500 / 12)</td><td class="px-3 py-2 tabular-nums">$125.00</td></tr>
+            <tr class="border-t border-slate-200 font-semibold"><td class="px-3 py-2">Estimated PITI</td><td class="px-3 py-2 tabular-nums">$2,564.28</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-3">Month 1 interest is $320,000 × 0.065 / 12 = <strong>$1,733.33</strong>. Principal in that payment is $2,022.62 − $1,733.33 = <strong>$289.28</strong>. Over 360 payments, P&amp;I totals about <strong>$728,142</strong>, of which about <strong>$408,142</strong> is interest if you never pay extra and never refinance.</p>
+
+      <h3 class="text-xl font-semibold mb-2 mt-6">Same house, 10% down, plus illustrative PMI</h3>
+      <p class="mb-3">If the down payment is $40,000, principal becomes $360,000. The same 6.5% / 30-year formula produces P&amp;I of <strong>$2,275.44</strong>. Tax and insurance are unchanged ($541.67 combined), so PITI is <strong>$2,817.11</strong>. Many conventional loans at 90% loan-to-value also add PMI. This tool does not compute PMI. An illustrative 0.50% of $360,000 is $1,800 / year, or <strong>$150 / month</strong> — a planning add-on, not a quoted premium.</p>
+      <div class="my-6 overflow-x-auto rounded-lg border border-slate-200">
+        <table class="w-full text-sm text-left">
+          <caption class="sr-only">Static 10% down example with illustrative PMI</caption>
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 font-semibold">Item</th>
+              <th class="px-3 py-2 font-semibold">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Loan principal</td><td class="px-3 py-2 tabular-nums">$360,000</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Monthly P&amp;I</td><td class="px-3 py-2 tabular-nums">$2,275.44</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Tax + insurance</td><td class="px-3 py-2 tabular-nums">$541.67</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">PITI (what this tool reports)</td><td class="px-3 py-2 tabular-nums">$2,817.11</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">Illustrative PMI (0.50% / yr)</td><td class="px-3 py-2 tabular-nums">$150.00</td></tr>
+            <tr class="border-t border-slate-200 font-semibold"><td class="px-3 py-2">Planning total with PMI</td><td class="px-3 py-2 tabular-nums">$2,967.11</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Lifetime interest on that $360,000 loan is about $459,160 — roughly $51,000 more than the 20% down case — before counting PMI premiums. PMI rates are set by the insurer and the loan file; 0.50% is only a worked example so the fifth line is visible.</p>
+
+      <details class="mt-6 group">
+        <summary class="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">Show the math</summary>
+        <div id="show-math" class="mt-3 text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 font-mono">
+          P (loan principal) = $400,000 − $80,000 = $320,000<br />
+          r (monthly rate) = 6.5% ÷ 12 = 0.5417%<br />
+          n (months) = 30 × 12 = 360<br />
+          M = P · [r(1+r)<sup>n</sup>] / [(1+r)<sup>n</sup> − 1] = <strong>$2022.62</strong><br />
+          + tax/12 = $416.67 + insurance/12 = $125.00<br />
+          <strong>Total monthly = $2564.28</strong>
+        </div>
+      </details>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Assumptions and limitations</h2>
+      <ul class="list-disc list-inside space-y-2 mb-3">
+        <li>Fixed rate, fully amortizing, monthly payments. Adjustable-rate mortgages, interest-only periods, balloons, and biweekly products need a different schedule.</li>
+        <li>No PMI, mortgage insurance premium, or FHA/VA funding fee in the live total.</li>
+        <li>No HOA dues, flood insurance, earthquake insurance, or homeowners-association special assessments.</li>
+        <li>No discount points, origination fees, prepaid interest, or other closing costs. Those change cash-to-close, not the amortizing P&amp;I formula.</li>
+        <li>Property tax and insurance are annual totals ÷ 12. Real escrow accounts true-up when the tax bill or premium changes.</li>
+        <li>No extra principal payments, recasts, or refinances.</li>
+        <li>The rate you type is the note rate used for amortization, not a complete APR.</li>
+      </ul>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Sources and data vintage</h2>
+      <p class="mb-3">Payment equation: standard fully amortizing installment formula <em>M = P r (1 + r)<sup>n</sup> / ((1 + r)<sup>n</sup> − 1)</em>, with <em>r</em> as the monthly periodic rate. Consumer-facing discussion: CFPB, “How do mortgage lenders calculate monthly payments?” and “How does paying down a mortgage work?” (Ask CFPB). We do not treat the formula as a statute.</p>
+      <p>The numeric example uses the calculator’s shipped defaults so a hand check and the live form can match. Tax and insurance amounts are illustrative annual inputs, not a 2026 county levy. Example reviewed for this page: <strong>2026-09-16</strong>.</p>
+
+      <FaqSection
+        faqs={faqs}
+        related={[
+          { href: 'https://calc.kdp.cool/auto-loan-calculator/', label: 'Auto Loan Calculator', note: 'the same amortizing formula on a shorter term and a sales-tax principal.', external: true },
+          { href: '/paycheck-calculator/', label: 'Paycheck Calculator', note: 'compare the housing draft with estimated take-home pay.' },
+          { href: '/income-tax-calculator/', label: 'Income Tax Calculator', note: 'your federal bracket affects the value of a mortgage-interest deduction if you itemize.' },
+          { href: 'https://calc.kdp.cool/compound-interest-calculator/', label: 'Compound Interest Calculator', note: 'the opportunity cost of a larger down payment left invested.', external: true },
+          { href: '/guides/how-monthly-mortgage-payments-are-calculated/', label: 'Guide: how monthly mortgage payments are calculated', note: 'a longer walkthrough of the same $400,000 example.' },
+        ]}
+      />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="mortgage-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { calcMortgage } from '@shared/lib/mortgage.js';
+    import { renderPie } from '@shared/lib/charts.js';
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    const fmt = (n) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+    const form = document.getElementById('mortgage-form');
+    const termInput = document.getElementById('term-years');
+    const downInput = document.getElementById('down-payment');
+    const downPrefix = document.getElementById('down-prefix');
+    const homePriceInput = document.getElementById('home-price');
+
+    const DEFAULTS = {
+      homePrice: 400000,
+      downValue: 20,         // value in current downMode
+      downMode: 'percent',   // 'percent' | 'amount'
+      termYears: 30,
+      rate: 6.5,
+      tax: 5000,
+      ins: 1500,
+    };
+
+    const initial = decodeState(window.location.search, DEFAULTS);
+    let downMode = initial.downMode;
+    homePriceInput.value = String(initial.homePrice);
+    downInput.value = String(initial.downValue);
+    document.getElementById('rate').value = String(initial.rate);
+    document.getElementById('tax').value = String(initial.tax);
+    document.getElementById('ins').value = String(initial.ins);
+    termInput.value = String(initial.termYears);
+    downPrefix.textContent = downMode === 'percent' ? '%' : '$';
+    // Sync term-button visual state to initial.termYears
+    document.querySelectorAll('.term-btn').forEach((b) => {
+      const active = String(b.dataset.term) === String(initial.termYears);
+      b.classList.toggle('bg-blue-600', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('border-blue-600', active);
+      b.classList.toggle('bg-white', !active);
+      b.classList.toggle('border-slate-300', !active);
+    });
+    // Sync down-toggle visual state
+    document.querySelectorAll('.down-toggle').forEach((b) => {
+      const active = b.dataset.downMode === downMode;
+      b.classList.toggle('bg-blue-600', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('bg-slate-200', !active);
+      b.classList.toggle('text-slate-700', !active);
+    });
+
+    let urlTimer;
+    function syncUrl() {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(() => {
+        pushUrlState({
+          homePrice: +homePriceInput.value || 0,
+          downValue: +downInput.value || 0,
+          downMode,
+          termYears: +termInput.value || 30,
+          rate: +document.getElementById('rate').value || 0,
+          tax: +document.getElementById('tax').value || 0,
+          ins: +document.getElementById('ins').value || 0,
+        });
+      }, 250);
+    }
+
+    function read() {
+      const homePrice = +homePriceInput.value || 0;
+      const downRaw = +downInput.value || 0;
+      const downPayment = downMode === 'percent' ? (homePrice * downRaw) / 100 : downRaw;
+      return {
+        homePrice,
+        downPayment,
+        annualRatePct: +document.getElementById('rate').value || 0,
+        termYears: +termInput.value || 30,
+        annualPropertyTax: +document.getElementById('tax').value || 0,
+        annualInsurance: +document.getElementById('ins').value || 0,
+      };
+    }
+
+    function update() {
+      const inputs = read();
+      const out = calcMortgage(inputs);
+      document.getElementById('r-total').textContent = fmt(out.monthlyTotal);
+      document.getElementById('r-total-line').textContent = fmt(out.monthlyTotal);
+      document.getElementById('r-pi').textContent = fmt(out.monthlyPI);
+      document.getElementById('r-tax').textContent = fmt(out.monthlyTax);
+      document.getElementById('r-ins').textContent = fmt(out.monthlyInsurance);
+      document.getElementById('r-principal').textContent = fmt(out.loanPrincipal);
+      renderPie(document.getElementById('r-chart'), [
+        { value: out.monthlyPI,        color: '#2563eb', label: 'P&I' },
+        { value: out.monthlyTax,       color: '#10b981', label: 'Tax' },
+        { value: out.monthlyInsurance, color: '#f59e0b', label: 'Insurance' },
+      ]);
+      const months = inputs.termYears * 12;
+      const r = inputs.annualRatePct / 100 / 12;
+      const showMath = document.getElementById('show-math');
+      showMath.innerHTML = `
+P (loan principal) = $${inputs.homePrice.toLocaleString()} − $${inputs.downPayment.toLocaleString()} = $${out.loanPrincipal.toLocaleString()}<br>
+r (monthly rate) = ${inputs.annualRatePct}% ÷ 12 = ${(r * 100).toFixed(4)}%<br>
+n (months) = ${inputs.termYears} × 12 = ${months}<br>
+M = P · [r(1+r)<sup>n</sup>] / [(1+r)<sup>n</sup> − 1] = <strong>$${out.monthlyPI.toFixed(2)}</strong><br>
++ tax/12 = $${(inputs.annualPropertyTax/12).toFixed(2)} + insurance/12 = $${(inputs.annualInsurance/12).toFixed(2)}<br>
+<strong>Total monthly = $${out.monthlyTotal.toFixed(2)}</strong>
+`.trim();
+      syncUrl();
+    }
+
+    form.addEventListener('input', update);
+
+    document.querySelectorAll('.term-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.term-btn').forEach((b) => {
+          b.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+          b.classList.add('bg-white', 'border-slate-300');
+        });
+        btn.classList.remove('bg-white', 'border-slate-300');
+        btn.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+        termInput.value = btn.dataset.term;
+        update();
+      });
+    });
+
+    document.querySelectorAll('.down-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const newMode = btn.dataset.downMode;
+        if (newMode === downMode) return;
+        const homePrice = +homePriceInput.value || 0;
+        const cur = +downInput.value || 0;
+        if (newMode === 'amount') {
+          downInput.value = String(Math.round((homePrice * cur) / 100));
+          downInput.step = '1000';
+        } else {
+          downInput.value = homePrice ? String(Math.round((cur / homePrice) * 1000) / 10) : '0';
+          downInput.step = '0.5';
+        }
+        downMode = newMode;
+        downPrefix.textContent = newMode === 'percent' ? '%' : '$';
+        document.querySelectorAll('.down-toggle').forEach((b) => {
+          const active = b.dataset.downMode === newMode;
+          b.classList.toggle('bg-blue-600', active);
+          b.classList.toggle('text-white', active);
+          b.classList.toggle('bg-slate-200', !active);
+          b.classList.toggle('text-slate-700', !active);
+        });
+        update();
+      });
+    });
+
+    update();
+  </script>
+</BaseLayout>

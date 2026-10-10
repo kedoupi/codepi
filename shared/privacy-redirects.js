@@ -1,8 +1,14 @@
+import { translatedLocaleCodes } from './i18n/config.js';
+
 /**
  * Canonical privacy URL is /privacy/.
- * /privacy-policy/ is an alias so AdSense / crawler checks that hit the
- * longer slug land on one page instead of a 404 or a second indexable URL.
+ * Locale homepages only translated the directory, so they 301 to the real home.
  */
+const localeHomeRedirects = Object.fromEntries(
+  translatedLocaleCodes.map((code) => [`/${code}/`, { status: 301, destination: '/' }]),
+);
+
 export const privacyRedirects = {
   '/privacy-policy/': '/privacy/',
+  ...localeHomeRedirects,
 };

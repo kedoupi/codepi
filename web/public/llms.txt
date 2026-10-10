@@ -2,11 +2,17 @@
 
 > Free, fast, no-signup web tools for everyday tasks: financial calculators, format converters, developer utilities, and writing helpers. Each tool runs entirely in the browser and shows its math.
 
-## Tool families
+## Calculators on this site
 
-- [Financial Calculators](https://calc.kdp.cool/): mortgage, auto loan, paycheck, income tax, compound interest. 5 calculators with show-the-math on every result.
+- [Mortgage calculator](/mortgage-calculator/): monthly principal and interest, plus a simple tax and insurance draft.
+- [Paycheck calculator](/paycheck-calculator/): federal brackets, FICA, optional flat state tax, and pretax deductions.
+- [Income tax calculator](/income-tax-calculator/): 2026 US federal ordinary brackets from IRS Revenue Procedure 2025-32.
+
+## Other tool families
+
+- [Financial Calculators](https://calc.kdp.cool/): auto loan and compound interest.
 - [Format Converters](https://convert.kdp.cool/): time zone (80+ zones with DST), unit (metric ↔ imperial), temperature.
-- [Text Utilities](https://text.kdp.cool/): word counter, Lorem Ipsum generator.
+- [Text Utilities](https://text.kdp.cool/): word counter.
 - [Developer Tools](https://dev.kdp.cool/): JSON formatter, Base64 encoder.
 
 ## Guides

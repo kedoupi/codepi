@@ -1,0 +1,324 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import CalculatorShell from '@shared/components/CalculatorShell.astro';
+import AdSense from '@shared/components/AdSense.astro';
+import FaqSection from '../../components/FaqSection.astro';
+
+const title = 'Income Tax Calculator - 2026 US Federal Tax Estimator';
+const description = 'Estimate your 2026 US federal income tax. Enter income, filing status and deductions. See your marginal rate, effective rate and full bracket breakdown.';
+
+const faqs = [
+  {
+    q: 'What are the 2026 US federal income tax brackets?',
+    a: 'For tax year 2026, ordinary rates stay 10, 12, 22, 24, 32, 35, and 37 percent. For a single filer the taxable-income thresholds (lower bound of each rate, matching IRS Rev. Proc. 2025-32 and this tool’s table) are $0, $12,400, $50,400, $105,700, $201,775, $256,225, and $640,600. Married filing jointly uses $0, $24,800, $100,800, $211,400, $403,550, $512,450, and $768,700. Crossing a threshold raises the rate only on dollars above it.',
+  },
+  {
+    q: "What's the standard deduction for tax year 2026?",
+    a: 'From IRS Revenue Procedure 2025-32, section 4.14: $16,100 if you file single; $32,200 if you file married filing jointly (or as a surviving spouse); $16,100 if you file married filing separately; $24,150 if you file as head of household. Those amounts apply to taxable years beginning in 2026 (returns generally filed in 2027). Do not use them on a 2024 or 2025 return.',
+  },
+  {
+    q: 'What is the difference between effective and marginal tax rate?',
+    a: 'Marginal rate is the rate on the last dollar of taxable income. Effective rate is tax ÷ income. On this page’s default — $90,000 ordinary income, single, standard deduction — taxable income is $73,900, federal tax is $10,970, the marginal rate is 22%, the effective rate on taxable income is 14.84%, and the effective rate on the $90,000 of stated income is 12.19%. Applying 22% to all $73,900 would overstate the bill by $5,288.',
+  },
+  {
+    q: 'Should I take the standard deduction or itemize?',
+    a: 'Use the larger number. For a 2026 single filer the standard deduction is $16,100. Itemizing only helps if qualified itemized deductions exceed that. This tool lets you type an itemized total; it does not compute Schedule A lines. If you itemize $20,000 on $90,000 single income, taxable income falls to $70,000 and federal tax falls from $10,970 to $10,112.',
+  },
+  {
+    q: 'Does this include state income tax?',
+    a: 'No. State and local income tax are out of scope. This page estimates US federal ordinary income tax only. Some states have no income tax; others use their own brackets, credits, and local add-ons. For a rough take-home sketch that includes a flat state percentage plus FICA, use the paycheck calculator. That flat rate is still not a state return.',
+  },
+  {
+    q: 'Are tax credits, AMT, or capital-gains rates included?',
+    a: 'No. Child Tax Credit, Earned Income Tax Credit, education credits, the alternative minimum tax, the 3.8% net investment income tax, and the long-term capital-gains / qualified-dividend schedule are not modeled. Credits subtract from tax after brackets; a $2,000 credit is not a $2,000 deduction. Capital gains use a different rate table in the same revenue procedure.',
+  },
+  {
+    q: 'Does a raise that crosses a bracket tax all of my income at the new rate?',
+    a: 'No. Ordinary federal brackets are progressive, not a cliff. If taxable income moves from $50,399 to $50,401, only two dollars are taxed at 22% instead of 12%. The extra tax is 20 cents, not a 10-point levy on the whole return. Some credits phase out sharply; the ordinary-rate table is not that kind of cliff.',
+  },
+  {
+    q: 'Which tax year do these numbers apply to?',
+    a: 'Tax year 2026. IRS Rev. Proc. 2025-32, released October 2025, is the inflation-adjustment document for taxable years beginning in 2026. A 2026 return is generally filed in 2027. Using these thresholds on a 2025 return will be wrong.',
+  },
+  {
+    q: 'Where is the official source?',
+    a: 'IRS Revenue Procedure 2025-32, available as https://www.irs.gov/pub/irs-drop/rp-25-32.pdf. The IRS newsroom summary of the same release lists the 2026 standard deductions and ordinary-rate thresholds. This site stores each bracket as a rate plus a lower bound and taxes the slice up to the next bound — ordinary progressive-rate math, not a private formula.',
+  },
+];
+---
+<BaseLayout title={title} description={description} pathname="/income-tax-calculator/">
+  <CalculatorShell
+    title="Income Tax Calculator (2026)"
+    intro="Estimate your 2026 US federal income tax. See exactly how each bracket contributes to your total — no email required."
+  >
+    <AdSense slot="top-ad" adSlot="tax-top" style="min-height:90px" />
+
+    <form id="tax-form" class="space-y-5" slot="inputs" autocomplete="off">
+      <div>
+        <label for="tax-income" class="block text-sm font-medium text-slate-700 mb-1">Annual Income</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input id="tax-income" type="number" min="0" step="1000" value="90000"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+
+      <div>
+        <label for="tax-status" class="block text-sm font-medium text-slate-700 mb-1">Filing Status</label>
+        <select id="tax-status" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="single">Single</option>
+          <option value="mfj">Married Filing Jointly</option>
+          <option value="mfs">Married Filing Separately</option>
+          <option value="hoh">Head of Household</option>
+        </select>
+      </div>
+
+      <div>
+        <span class="block text-sm font-medium text-slate-700 mb-1">Deduction</span>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" data-deduction="standard" class="ded-btn py-2 rounded border border-blue-600 bg-blue-600 text-white text-sm">Standard</button>
+          <button type="button" data-deduction="itemized" class="ded-btn py-2 rounded border border-slate-300 bg-white text-sm">Itemized</button>
+        </div>
+        <input type="hidden" id="tax-deduction" value="standard" />
+      </div>
+
+      <div id="tax-itemized-row" class="hidden">
+        <label for="tax-itemized" class="block text-sm font-medium text-slate-700 mb-1">Itemized Amount</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+          <input id="tax-itemized" type="number" min="0" step="500" value="20000"
+                 class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+      </div>
+    </form>
+
+    <div slot="results" class="space-y-5">
+      <div>
+        <p class="text-sm uppercase tracking-wider text-slate-500">Federal Tax Owed</p>
+        <p id="tax-r-total" class="text-4xl sm:text-5xl font-bold text-slate-900 tabular-nums">$0</p>
+      </div>
+
+      <ul class="text-sm space-y-1.5">
+        <li class="flex justify-between"><span>Taxable Income</span><span id="tax-r-taxable" class="tabular-nums font-medium">$0</span></li>
+        <li class="flex justify-between"><span>Effective Rate</span><span id="tax-r-eff" class="tabular-nums font-medium">0%</span></li>
+        <li class="flex justify-between"><span>Marginal Rate</span><span id="tax-r-marg" class="tabular-nums font-medium">0%</span></li>
+      </ul>
+
+      <div>
+        <p class="text-xs uppercase tracking-wider text-slate-500 mb-2">Your bracket position</p>
+        <svg id="tax-stair" viewBox="0 0 200 28" preserveAspectRatio="none" class="w-full h-7 rounded overflow-hidden"></svg>
+        <p class="text-xs text-slate-500 mt-1" id="tax-stair-caption"></p>
+      </div>
+    </div>
+
+    <AdSense slot="middle-ad" adSlot="tax-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
+
+    <div slot="content">
+      <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
+        Educational estimate for tax year 2026. This is not a filed Form 1040, tax advice, or a state-tax engine. Brackets and standard deductions come from IRS Revenue Procedure 2025-32.
+      </p>
+
+      <h2 class="text-2xl font-bold mb-3">Who this is for</h2>
+      <p class="mb-3">Use this page when you want a federal ordinary-income estimate: “If this is my 2026 income and I take the standard (or a typed itemized) deduction, which brackets actually collect tax?” It helps compare filing status, a raise, or a larger deduction. It does not decide whether you should itemize, claim a credit, or file in a particular state.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">How US federal income tax brackets work</h2>
+      <p class="mb-3">The US uses a progressive (marginal) system. Each slice of <em>taxable</em> income is taxed at that slice’s rate. Your last dollar sits in the highest (marginal) bracket you reach; earlier dollars keep the lower rates. Effective rate is total federal income tax divided by income — always lower than the marginal rate for ordinary income in this table.</p>
+      <p class="mb-3">Taxable income is not salary. This tool subtracts either the 2026 standard deduction or the itemized amount you type, then applies the ordinary-rate table. It does not apply above-the-line adjustments, credits, AMT, or the capital-gains schedule.</p>
+      <p class="mb-3">For tax year 2026, IRS <strong>Revenue Procedure 2025-32</strong> (October 2025; file <a href="https://www.irs.gov/pub/irs-drop/rp-25-32.pdf" class="text-blue-600 hover:underline">rp-25-32.pdf</a>) publishes the inflation-adjusted ordinary-rate thresholds and the standard deduction amounts under § 63(c)(2):</p>
+      <ul class="list-disc list-inside space-y-1 mb-3">
+        <li>Single: $16,100</li>
+        <li>Married filing jointly / surviving spouse: $32,200</li>
+        <li>Married filing separately: $16,100</li>
+        <li>Head of household: $24,150</li>
+      </ul>
+      <p class="mb-3">Single-filer ordinary taxable-income rungs in this implementation (lower bound inclusive, next bound exclusive): 10% from $0, 12% from $12,400, 22% from $50,400, 24% from $105,700, 32% from $201,775, 35% from $256,225, 37% from $640,600.</p>
+      <p>State income tax is out of scope. For FICA plus an optional flat state percentage, use the paycheck calculator.</p>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Worked example: $90,000, single, standard deduction</h2>
+      <p class="mb-3">These figures match the form defaults and do not require JavaScript. Income $90,000 minus the 2026 single standard deduction $16,100 leaves taxable income of <strong>$73,900</strong>, which lands in the 22% bracket.</p>
+      <ul class="list-disc list-inside space-y-1 mb-3">
+        <li>10% × $12,400 = <strong>$1,240</strong></li>
+        <li>12% × ($50,400 − $12,400) = 12% × $38,000 = <strong>$4,560</strong></li>
+        <li>22% × ($73,900 − $50,400) = 22% × $23,500 = <strong>$5,170</strong></li>
+        <li>Federal income tax = 1,240 + 4,560 + 5,170 = <strong>$10,970</strong></li>
+      </ul>
+      <div class="my-6 overflow-x-auto rounded-lg border border-slate-200">
+        <table class="w-full text-sm text-left">
+          <caption class="sr-only">Static 2026 single-filer example for $90,000 of income</caption>
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 font-semibold">Slice</th>
+              <th class="px-3 py-2 font-semibold">Income in slice</th>
+              <th class="px-3 py-2 font-semibold">Tax from slice</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">10% on $0–$12,400</td><td class="px-3 py-2 tabular-nums">$12,400</td><td class="px-3 py-2 tabular-nums">$1,240</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">12% on $12,400–$50,400</td><td class="px-3 py-2 tabular-nums">$38,000</td><td class="px-3 py-2 tabular-nums">$4,560</td></tr>
+            <tr class="border-t border-slate-200"><td class="px-3 py-2">22% on $50,400–$73,900</td><td class="px-3 py-2 tabular-nums">$23,500</td><td class="px-3 py-2 tabular-nums">$5,170</td></tr>
+            <tr class="border-t border-slate-200 font-semibold"><td class="px-3 py-2">Total</td><td class="px-3 py-2 tabular-nums">$73,900</td><td class="px-3 py-2 tabular-nums">$10,970</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mb-3">Marginal rate: <strong>22%</strong>. Effective rate on taxable income: 10,970 / 73,900 ≈ <strong>14.84%</strong>. Effective rate on the $90,000 you typed: 10,970 / 90,000 ≈ <strong>12.19%</strong>. The same $90,000 filed married jointly, standard deduction $32,200, has taxable income $57,800 and federal tax <strong>$6,440</strong> (12% marginal) — filing status is not a rounding detail.</p>
+      <p>FICA is separate. Employee Social Security and Medicare on $90,000 of wages would be 90,000 × 6.2% + 90,000 × 1.45% = $6,885 if the wage is under the 2026 Social Security wage base. This page does not subtract FICA.</p>
+
+      <details class="mt-6 group" open>
+        <summary class="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-800">Show the math (full bracket breakdown)</summary>
+        <div id="tax-show-math" class="mt-3 text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-200 rounded p-4 font-mono">
+          Income = $90,000<br />
+          − Deduction (SINGLE Standard) = $16,100<br />
+          Taxable income = $73,900<br />
+          <br />
+          10% × $12,400 = <strong>$1240.00</strong><br />
+          12% × $38,000 = <strong>$4560.00</strong><br />
+          22% × $23,500 = <strong>$5170.00</strong><br />
+          <br />
+          Total federal tax = <strong>$10970.00</strong><br />
+          Effective rate = 14.84% · Marginal rate = 22.00%
+        </div>
+      </details>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Assumptions and limitations</h2>
+      <ul class="list-disc list-inside space-y-2 mb-3">
+        <li>Ordinary federal income only. Long-term capital gains and qualified dividends use a different schedule in Rev. Proc. 2025-32.</li>
+        <li>No tax credits, AMT, net investment income tax, or Additional Medicare Tax.</li>
+        <li>No state or local income tax. Those systems are out of scope on this page.</li>
+        <li>Standard or typed itemized deduction only. No qualified business income deduction, student-loan interest, or other adjustments.</li>
+        <li>Figures are for tax year 2026. They are the wrong table for a 2025 return.</li>
+        <li>The result is an estimate. It does not file a return or replace Form 1040 instructions.</li>
+      </ul>
+
+      <h2 class="text-2xl font-bold mb-3 mt-8">Sources and data vintage</h2>
+      <p class="mb-3">Primary source: <strong>IRS Revenue Procedure 2025-32</strong>, tax year 2026 inflation adjustments, <a href="https://www.irs.gov/pub/irs-drop/rp-25-32.pdf" class="text-blue-600 hover:underline">https://www.irs.gov/pub/irs-drop/rp-25-32.pdf</a> (IRS drop folder; also summarized in the IRS newsroom release on 2026 inflation adjustments). Standard deduction table: Rev. Proc. 2025-32 § 4.14. Ordinary rate schedules: § 4.01.</p>
+      <p>Implementation: each bracket is a rate plus a lower bound; income between that bound and the next is taxed at that rate. Cross-check: Tax Foundation’s 2026 bracket table, which cites the same procedure. Page reviewed: <strong>2026-09-16</strong>.</p>
+
+      <FaqSection
+        faqs={faqs}
+        related={[
+          { href: '/paycheck-calculator/', label: 'Paycheck Calculator', note: 'federal tax plus FICA and an optional flat state rate, split across pay periods.' },
+          { href: '/mortgage-calculator/', label: 'Mortgage Calculator', note: 'the federal value of a mortgage-interest deduction depends on your bracket — and only if you itemize.' },
+          { href: 'https://calc.kdp.cool/compound-interest-calculator/', label: 'Compound Interest Calculator', note: 'tax drag on a taxable account is not in the growth formula; your bracket is the starting point.', external: true },
+          { href: '/guides/how-us-federal-income-tax-brackets-work/', label: 'Guide: how US federal income tax brackets work', note: 'a longer walkthrough of the same $90,000 single example.' },
+        ]}
+      />
+    </div>
+
+    <AdSense slot="bottom-ad" adSlot="tax-bottom" style="min-height:90px" />
+  </CalculatorShell>
+
+  <script>
+    import { calcIncomeTax } from '@shared/lib/income-tax.js';
+    import { TAX_DATA_2026 } from '@shared/lib/federal-tax.js';
+    import { decodeState, pushUrlState } from '@shared/lib/url-state.js';
+
+    const fmt = (n) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const pct = (n) => `${(n * 100).toFixed(2)}%`;
+
+    const DEFAULTS = { income: 90000, status: 'single', deduction: 'standard', itemized: 20000 };
+    const init = decodeState(window.location.search, DEFAULTS);
+
+    const $income    = document.getElementById('tax-income');
+    const $status    = document.getElementById('tax-status');
+    const $deduction = document.getElementById('tax-deduction');
+    const $itemized  = document.getElementById('tax-itemized');
+    const $itemizedRow = document.getElementById('tax-itemized-row');
+
+    $income.value = String(init.income);
+    $status.value = init.status;
+    $deduction.value = init.deduction;
+    $itemized.value = String(init.itemized);
+    $itemizedRow.classList.toggle('hidden', init.deduction !== 'itemized');
+
+    document.querySelectorAll('.ded-btn').forEach((b) => {
+      const active = b.dataset.deduction === init.deduction;
+      b.classList.toggle('bg-blue-600', active);
+      b.classList.toggle('text-white', active);
+      b.classList.toggle('border-blue-600', active);
+      b.classList.toggle('bg-white', !active);
+      b.classList.toggle('border-slate-300', !active);
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.ded-btn').forEach((x) => {
+          x.classList.remove('bg-blue-600', 'text-white', 'border-blue-600');
+          x.classList.add('bg-white', 'border-slate-300');
+        });
+        b.classList.remove('bg-white', 'border-slate-300');
+        b.classList.add('bg-blue-600', 'text-white', 'border-blue-600');
+        $deduction.value = b.dataset.deduction;
+        $itemizedRow.classList.toggle('hidden', $deduction.value !== 'itemized');
+        update();
+      });
+    });
+
+    let urlTimer;
+    function syncUrl() {
+      clearTimeout(urlTimer);
+      urlTimer = setTimeout(() => pushUrlState({
+        income: +$income.value || 0, status: $status.value,
+        deduction: $deduction.value, itemized: +$itemized.value || 0,
+      }), 250);
+    }
+
+    const STAIR_COLORS = ['#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8'];
+
+    function renderStair(svgEl, brackets, taxableIncome) {
+      // Build a 0..maxStair segment showing brackets with widths proportional to bracket span.
+      // Cap maxStair so the user's marker isn't lost; use 1.25 × max(taxableIncome, top of penultimate bracket).
+      const top = brackets.at(-1)[1];
+      const maxStair = Math.max(top * 1.25, taxableIncome * 1.1, top + 1);
+      const W = 200, H = 28;
+      const sx = (v) => (v / maxStair) * W;
+      let segs = '';
+      for (let i = 0; i < brackets.length; i++) {
+        const [rate, lower] = brackets[i];
+        const upper = i + 1 < brackets.length ? brackets[i + 1][1] : maxStair;
+        const x = sx(lower);
+        const w = Math.max(0.5, sx(upper) - x);
+        segs += `<rect x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="${H}" fill="${STAIR_COLORS[i]}"></rect>`;
+        segs += `<text x="${(x + 1).toFixed(2)}" y="9" font-size="6" fill="#0f172a">${(rate * 100).toFixed(0)}%</text>`;
+      }
+      const markerX = sx(Math.min(taxableIncome, maxStair));
+      segs += `<line x1="${markerX.toFixed(2)}" y1="0" x2="${markerX.toFixed(2)}" y2="${H}" stroke="#0f172a" stroke-width="1.2"></line>`;
+      segs += `<circle cx="${markerX.toFixed(2)}" cy="${H - 4}" r="2.4" fill="#0f172a"></circle>`;
+      svgEl.innerHTML = segs;
+    }
+
+    function update() {
+      const inputs = {
+        income: +$income.value || 0,
+        filingStatus: $status.value,
+        deductionType: $deduction.value,
+        itemizedDeduction: +$itemized.value || 0,
+      };
+      const r = calcIncomeTax(inputs);
+      document.getElementById('tax-r-total').textContent = fmt(r.federalTax);
+      document.getElementById('tax-r-taxable').textContent = fmt(r.taxableIncome);
+      document.getElementById('tax-r-eff').textContent = pct(r.effectiveRate);
+      document.getElementById('tax-r-marg').textContent = pct(r.marginalRate);
+
+      const brackets = TAX_DATA_2026.brackets[inputs.filingStatus];
+      renderStair(document.getElementById('tax-stair'), brackets, r.taxableIncome);
+      document.getElementById('tax-stair-caption').textContent =
+        `Taxable income $${r.taxableIncome.toLocaleString()} → marginal ${pct(r.marginalRate)}, effective ${pct(r.effectiveRate)}`;
+
+      const lines = r.bracketBreakdown
+        .filter((b) => b.taxableInBracket > 0)
+        .map((b) => `${(b.rate * 100).toFixed(0)}% × $${b.taxableInBracket.toLocaleString(undefined,{maximumFractionDigits:0})} = <strong>$${b.taxFromBracket.toFixed(2)}</strong>`)
+        .join('<br>');
+      document.getElementById('tax-show-math').innerHTML = `
+Income = $${inputs.income.toLocaleString()}<br>
+− Deduction (${inputs.deductionType === 'itemized' ? 'Itemized' : `${inputs.filingStatus.toUpperCase()} Standard`}) = $${r.deductionAmount.toLocaleString()}<br>
+Taxable income = $${r.taxableIncome.toLocaleString()}<br>
+<br>
+${lines}<br>
+<br>
+Total federal tax = <strong>$${r.federalTax.toFixed(2)}</strong><br>
+Effective rate = ${pct(r.effectiveRate)} · Marginal rate = ${pct(r.marginalRate)}
+      `.trim();
+      syncUrl();
+    }
+
+    document.getElementById('tax-form').addEventListener('input', update);
+    update();
+  </script>
+</BaseLayout>
