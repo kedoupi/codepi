@@ -1,7 +1,6 @@
 ---
 import * as siteConfig from '@site/site.config.js';
-import { defaultLocale, getLocale, localizedPath, locales, stripLocale } from '@shared/i18n/config.js';
-import { zhToolTranslations } from '@shared/i18n/zh-tool-translations.js';
+import { defaultLocale, getLocale } from '@shared/i18n/config.js';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
 const extraFooterLinks = siteConfig.extraFooterLinks ?? [];
@@ -17,34 +16,9 @@ interface Props {
 }
 const SITE = import.meta.env.SITE;
 const { title, description, pathname, schemaType = 'WebApplication', locale = defaultLocale, robots = 'index, follow', canonical } = Astro.props;
-const queryLocale = Astro.url.searchParams.get('lang') === 'zh' ? 'zh' : null;
-const effectiveLocale = locale === defaultLocale && queryLocale ? queryLocale : locale;
-const localeInfo = getLocale(effectiveLocale);
+const localeInfo = getLocale(locale);
 const canonicalURL = canonical || new URL(pathname, SITE).toString();
 const fullTitle = `${title} | ${siteName}`;
-const hasLocalizedPage = stripLocale(pathname) === '/';
-const supportedLocales = hasLocalizedPage
-  ? locales
-  : locales.filter((entry) => entry.code === defaultLocale || entry.code === 'zh');
-const buildLanguageHref = (code) => {
-  if (hasLocalizedPage) return localizedPath(pathname, code);
-  if (code === defaultLocale) return stripLocale(pathname);
-  if (code === 'zh') return `${stripLocale(pathname)}?lang=zh`;
-  return localizedPath('/', code);
-};
-const languageLinks = supportedLocales.map((entry) => ({
-  ...entry,
-  href: new URL(buildLanguageHref(entry.code), SITE).toString(),
-}));
-const alternateLinks = [];
-const localePayload = JSON.stringify({
-  current: effectiveLocale,
-  defaultLocale,
-  alternates: Object.fromEntries(languageLinks.map((entry) => [entry.code, entry.href])),
-  supported: supportedLocales.map((entry) => entry.code),
-  pathname: stripLocale(pathname),
-});
-const zhToolTranslationPayload = JSON.stringify(zhToolTranslations);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -64,9 +38,6 @@ const jsonLd = {
   <meta name="description" content={description} />
   <meta name="robots" content={robots} />
   <link rel="canonical" href={canonicalURL} />
-  {alternateLinks.map((link) => (
-    <link rel="alternate" hreflang={link.htmlLang} href={link.href} />
-  ))}
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
   <meta property="og:title" content={title} />
@@ -202,84 +173,5 @@ const jsonLd = {
       </p>
     </div>
   </footer>
-  <script is:inline set:html={`
-    (() => {
-      const data = ${localePayload};
-      const zhTranslations = ${zhToolTranslationPayload};
-      let stored = null;
-      try { stored = localStorage.getItem('kdpLocale'); } catch (_) {}
-
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('lang') === 'zh') {
-        stored = 'zh';
-        try { localStorage.setItem('kdpLocale', 'zh'); } catch (_) {}
-      }
-      const wantsZh = params.get('lang') === 'zh' || data.current === 'zh' || stored === 'zh';
-
-      const translateZh = () => {
-        if (!wantsZh || !zhTranslations) return;
-        const exact = zhTranslations.text || {};
-        const attrs = zhTranslations.attributes || {};
-        const phrasePairs = zhTranslations.phrases || [];
-        const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'INPUT', 'CODE', 'PRE', 'SVG']);
-        const translateValue = (value) => {
-          if (!value) return value;
-          const trimmed = value.trim();
-          if (!trimmed) return value;
-          if (exact[trimmed]) return value.replace(trimmed, exact[trimmed]);
-          let output = value;
-          phrasePairs.forEach(([from, to]) => {
-            output = output.split(from).join(to);
-          });
-          return output;
-        };
-
-        document.documentElement.lang = 'zh-CN';
-        document.documentElement.dir = 'ltr';
-        document.querySelectorAll('input[placeholder], textarea[placeholder]').forEach((node) => {
-          const current = node.getAttribute('placeholder');
-          if (attrs[current]) node.setAttribute('placeholder', attrs[current]);
-        });
-        document.querySelectorAll('[aria-label], [title], input[type="button"], input[type="submit"]').forEach((node) => {
-          ['aria-label', 'title', 'value'].forEach((name) => {
-            const current = node.getAttribute(name);
-            if (attrs[current]) node.setAttribute(name, attrs[current]);
-            else if (exact[current]) node.setAttribute(name, exact[current]);
-          });
-        });
-
-        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-          acceptNode(node) {
-            const parent = node.parentElement;
-            if (!parent || skipTags.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
-            if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-            return NodeFilter.FILTER_ACCEPT;
-          },
-        });
-        const nodes = [];
-        while (walker.nextNode()) nodes.push(walker.currentNode);
-        nodes.forEach((node) => {
-          const next = translateValue(node.nodeValue);
-          if (next !== node.nodeValue) node.nodeValue = next;
-        });
-      };
-
-      let translating = false;
-      const scheduleTranslateZh = () => {
-        if (!wantsZh || translating) return;
-        translating = true;
-        window.requestAnimationFrame(() => {
-          translateZh();
-          translating = false;
-        });
-      };
-      translateZh();
-      window.addEventListener('DOMContentLoaded', translateZh, { once: true });
-      if (wantsZh && document.body) {
-        const observer = new MutationObserver(scheduleTranslateZh);
-        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-      }
-    })();
-  `} />
 </body>
 </html>
