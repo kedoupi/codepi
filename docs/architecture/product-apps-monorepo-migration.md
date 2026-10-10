@@ -39,3 +39,19 @@ Until the dashboard converts them to Git-connected projects, deploy from this mo
 - Secrets required on the GitHub repo: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
 Optional later: in CF UI, delete+recreate each project as Git-connected to `kedoupi/kdp.cool` with the root/build table above, then re-add custom domains and D1 bindings.
+
+## Local deploy (preferred default)
+
+GitHub Actions secrets are optional. Day-to-day deploy from a machine that has `~/.config/env/cloudflare/kdp.env`:
+
+```bash
+./scripts/deploy-product-apps.sh           # fagao + oura web + gzh-preview
+./scripts/deploy-product-apps.sh fagao     # one app
+```
+
+Worker API (oura) when needed:
+
+```bash
+cd oura/workers/api && npx wrangler deploy
+```
+

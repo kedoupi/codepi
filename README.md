@@ -28,6 +28,8 @@ Migrated into this monorepo from standalone repos. They share the `kdp.cool` DNS
 
 Former GitHub repos: `kedoupi/gzh-preview`, `kedoupi/publish-desk`, `kedoupi/oura-kdp` (code now lives only here).
 
+**Deploy (local):** `./scripts/deploy-product-apps.sh` (loads `~/.config/env/cloudflare/kdp.env`). GitHub Actions workflow exists but is optional.
+
 ## AdSense
 
 | Item                    | Value                              |
