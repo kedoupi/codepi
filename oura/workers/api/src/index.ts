@@ -14,6 +14,16 @@ import { handleDevSubscription } from "./routes/dev-sub";
 import { handleCompareInsights, handleWeeklyInsights } from "./routes/insights";
 import { handleMe } from "./routes/me";
 import { handleMePrefs } from "./routes/prefs";
+import { handleMcp } from "./routes/mcp";
+import {
+  handleAuthorize,
+  handleAuthorizationServerMetadata,
+  handleConnections,
+  handleProtectedResourceMetadata,
+  handleRegister,
+  handleRevoke,
+  handleToken,
+} from "./routes/mcp-oauth";
 import {
   handleStripeCheckout,
   handleStripePortal,
@@ -38,11 +48,17 @@ export default {
     const url = new URL(request.url);
     const requestId = crypto.randomUUID();
     const origin = request.headers.get("Origin");
-    if (origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
+    const isMcpPath = url.pathname === "/mcp" || url.pathname.startsWith("/.well-known/")
+      || url.pathname.startsWith("/oauth/");
+    // /mcp and the OAuth endpoints authenticate with bearer tokens (not
+    // cookies), so any web origin may call them; everything else stays
+    // restricted to the dashboard's own origin.
+    if (!isMcpPath && origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
       return Response.json({ error: "origin_not_allowed", requestId }, { status: 403 });
     }
 
     if (request.method === "OPTIONS") {
+      if (isMcpPath) return handleMcp(request, env);
       return new Response(null, { status: 204, headers: cors(request, env) });
     }
 
@@ -66,6 +82,32 @@ export default {
           break;
         case "/api/me/prefs":
           res = await handleMePrefs(request, env);
+          break;
+        case "/api/me/connections":
+          res = await handleConnections(request, env);
+          break;
+        case "/mcp":
+          res = await handleMcp(request, env);
+          break;
+        case "/.well-known/oauth-protected-resource":
+        case "/.well-known/oauth-protected-resource/mcp":
+          res = handleProtectedResourceMetadata(request);
+          break;
+        case "/.well-known/oauth-authorization-server":
+        case "/.well-known/oauth-authorization-server/mcp":
+          res = handleAuthorizationServerMetadata(request);
+          break;
+        case "/oauth/register":
+          res = await handleRegister(request, env);
+          break;
+        case "/oauth/authorize":
+          res = await handleAuthorize(request, env);
+          break;
+        case "/oauth/token":
+          res = await handleToken(request, env);
+          break;
+        case "/oauth/revoke":
+          res = await handleRevoke(request, env);
           break;
         case "/api/me/daily":
         case "/api/me/sync":
@@ -110,6 +152,11 @@ export default {
       const headers = new Headers(res.headers);
       headers.set("Cache-Control", "no-store");
       headers.set("X-Request-ID", requestId);
+      // Bearer-authenticated connector endpoints are safe to expose to any
+      // origin (no cookies involved), so browser-based MCP clients work.
+      if (isMcpPath && origin && !headers.has("Access-Control-Allow-Origin")) {
+        headers.set("Access-Control-Allow-Origin", "*");
+      }
       for (const [k, v] of Object.entries(cors(request, env))) {
         if (!headers.has(k)) headers.set(k, v);
       }

@@ -29,8 +29,8 @@ import {
   DEV_USER_ID,
 } from "../lib/session";
 import {
-  consumeOauthState,
   saveOauthState,
+  takeOauthState,
   tokensFromOura,
   upsertEncryptedTokens,
   upsertUser,
@@ -70,7 +70,12 @@ export async function handleOuraStart(
   }
 
   const state = crypto.randomUUID();
-  await saveOauthState(env, state);
+  // `return` lets an MCP authorization request survive a fresh login: the
+  // browser is sent to Oura and, on success, back to the consent screen.
+  const rawReturn = new URL(request.url).searchParams.get("return");
+  const returnTo =
+    rawReturn && rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : null;
+  await saveOauthState(env, state, returnTo);
 
   const headers = new Headers();
   await attachStateCookie(headers, request, secret, state);
@@ -113,8 +118,11 @@ export async function handleOuraCallback(
     return redirectToApp(request, env, { error: "invalid_state" });
   }
   let dbOk = false;
+  let returnTo: string | null = null;
   try {
-    dbOk = await consumeOauthState(env, state);
+    const taken = await takeOauthState(env, state);
+    dbOk = taken.ok;
+    returnTo = taken.returnTo;
   } catch {
     dbOk = false;
   }
@@ -157,6 +165,10 @@ export async function handleOuraCallback(
       "Set-Cookie",
       `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
     );
+    if (returnTo) {
+      headers.set("Location", new URL(returnTo, new URL(request.url).origin).toString());
+      return new Response(null, { status: 302, headers });
+    }
     return redirectToApp(request, env, { login: "ok" }, headers);
   } catch {
     return redirectToApp(request, env, {
