@@ -15,7 +15,7 @@ const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 const SERVER_INFO = {
   name: "oura-personal-health",
   title: "Oura personal health",
-  version: "1.0.0",
+  version: "1.0.1",
 };
 
 const INSTRUCTIONS =
@@ -124,7 +124,15 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
       return jsonRpcResult(id, {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: SERVER_INFO,
+        serverInfo: {
+          ...SERVER_INFO,
+          websiteUrl: new URL("/", request.url).href,
+          // Optional MCP icon metadata; keep existing protocol negotiation intact.
+          icons: [
+            { src: new URL("/icon.png", request.url).href, mimeType: "image/png", sizes: ["512x512"] },
+            { src: new URL("/icon.svg", request.url).href, mimeType: "image/svg+xml", sizes: ["any"] },
+          ],
+        },
         instructions: INSTRUCTIONS,
       });
     }

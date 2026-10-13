@@ -10,6 +10,7 @@
     "dev:api": "pnpm --filter @oura-kdp/api db:migrate:local && pnpm --filter @oura-kdp/api dev",
     "build": "pnpm --filter @oura-kdp/web build && pnpm --filter @oura-kdp/api build",
     "check:api": "node scripts/check-api.mjs",
+    "check:branding": "node scripts/check-branding.mjs",
     "deploy:web": "pnpm --filter @oura-kdp/api exec wrangler pages deploy ../../apps/web/dist --project-name=oura-kdp --branch=main",
     "deploy:api": "node scripts/deploy-api.mjs",
     "test:browser": "pnpm build && node scripts/run-browser-smoke.mjs",
