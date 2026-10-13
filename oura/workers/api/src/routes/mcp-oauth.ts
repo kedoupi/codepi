@@ -129,6 +129,8 @@ const CONSENT_CSS = `
   .card { width:min(560px,92vw); background:#fff; border:1px solid #f0e2d4;
     border-radius:20px; padding:28px; box-shadow:0 14px 40px rgba(120,72,30,.10); }
   .kicker { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#a16207; }
+  .brand { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .brand img { width:48px; height:48px; flex-shrink:0; }
   h1 { margin:.35rem 0 .5rem; font-size:1.5rem; }
   p { margin:.5rem 0; color:#4b5563; }
   ul { margin:.75rem 0; padding-left:1.1rem; color:#4b5563; }
@@ -147,9 +149,13 @@ function consentPage(request: Request, env: Env, fields: Record<string, string>,
     .join("");
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/icon.svg" type="image/svg+xml" sizes="any">
 <title>授权连接 · Oura 健康看板</title><style>${CONSENT_CSS}</style></head><body>
 <div class="card">
-  <div class="kicker">Oura 健康看板 · ${escapeHtml(RELEASE)}</div>
+  <div class="brand"><img src="/icon.svg" width="48" height="48" alt="">
+    <div class="kicker">Oura 健康看板 · ${escapeHtml(RELEASE)}</div>
+  </div>
   <h1>允许这个应用读取你的 Oura 数据？</h1>
   ${message ? `<p style="color:#b45309">${escapeHtml(message)}</p>` : ""}
   <p>请求方：</p>

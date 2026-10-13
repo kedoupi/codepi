@@ -268,6 +268,22 @@ https://oura.kdp.cool/mcp
 `oura-kdp-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
 OAuth 登录回调固定在 `oura.kdp.cool`，跨域名浏览器会话无法完成授权。
 
+连接器图标沿用看板的原创橙色仪表圆环：
+
+- `https://oura.kdp.cool/icon.png`：512 × 512 PNG，可用于平台手动上传。
+- `https://oura.kdp.cool/icon.svg`：矢量图；网站和授权页也使用此图标。
+- `https://oura.kdp.cool/favicon.ico`：32 × 32 浏览器兼容图标。
+
+MCP `initialize` 的 `serverInfo.icons` 返回同源 PNG 和 SVG 地址，并提供
+`websiteUrl`；保留现有协议版本协商，不为图标改动升级整个协议。
+字段格式参照 [MCP Implementation / Icon](https://modelcontextprotocol.io/specification/2025-11-25/schema)。
+客户端是否显示图标由其实现决定，服务端返回元数据不等于平台 UI 已验收。
+ChatGPT 可在连接管理中 Refresh 后开启新对话
+（[官方测试说明](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)）。
+Claude 自定义连接器的自动图标读取尚未经过真实客户端验证。
+`pnpm check:branding` 检查公开图片状态、MIME、PNG 尺寸和首页图标链接；
+发布流水线在前端部署后自动执行，避免缺失图片被 SPA HTML 回退掩盖。
+
 授权由本 Worker 自带的 OAuth 2.1 授权服务器签发：
 
 | 端点 | 作用 |
