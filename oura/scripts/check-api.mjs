@@ -1,4 +1,6 @@
 const origin = new URL(process.argv[2] || 'https://oura.kdp.cool').origin;
+const allowCfAccess = process.env.OURA_CHECK_ALLOW_CF_ACCESS === '1';
+let protectedByCfAccess = false;
 
 async function check(path, expectedStatus = 200) {
   try {
@@ -8,6 +10,12 @@ async function check(path, expectedStatus = 200) {
       signal: AbortSignal.timeout(15_000),
     });
     const contentType = response.headers.get('content-type') || '';
+    // Cloudflare Access challenges CI clients with 403 HTML. Treat it as a
+    // blocked deployment check, not as an application contract failure.
+    if (allowCfAccess && response.status === 403 && contentType.includes('text/html')) {
+      protectedByCfAccess = true;
+      return { path, ok: true, detail: 'HTTP 403; CI client is protected by Cloudflare Access' };
+    }
 
     if (path === '/api/auth/oura/start') {
       const location = response.headers.get('location');
@@ -60,4 +68,5 @@ const results = await Promise.all(
 for (const result of results) {
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.path}: ${result.detail}`);
 }
-process.exitCode = results.every((result) => result.ok) ? 0 : 1;
+// 403 HTML responses never prove that the deployed application is healthy.
+process.exitCode = results.every((result) => result.ok) && !protectedByCfAccess ? 0 : 1;
