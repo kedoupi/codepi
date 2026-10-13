@@ -106,12 +106,10 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
       - name: Check live API contract
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        # GitHub runner IPs are challenged by the zone's WAF/Bot rules; the
-        # Worker version deployed above is immutable, so warn instead of
-        # blocking the pipeline. Local strict runs (no warn flag) still fail.
+        # Connector discovery and auth must really reach the deployed Worker.
+        # A challenged 403 is a deployment failure, not a warning.
         run: >-
           OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}"
-          OURA_CHECK_EDGE_BLOCK=warn
           OURA_CHECK_ALT_ORIGIN="https://oura-kdp-api.kedoupi.workers.dev"
           pnpm check:api
       - name: Publish frontend
@@ -122,5 +120,5 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check deployment
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        run: OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" OURA_CHECK_EDGE_BLOCK=warn pnpm check:api
+        run: OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
 

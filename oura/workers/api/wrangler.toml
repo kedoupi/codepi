@@ -2,7 +2,10 @@ name = "oura-kdp-api"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 routes = [
-  { pattern = "oura.kdp.cool/api/*", zone_name = "kdp.cool" }
+  { pattern = "oura.kdp.cool/api/*", zone_name = "kdp.cool" },
+  { pattern = "oura.kdp.cool/mcp", zone_name = "kdp.cool" },
+  { pattern = "oura.kdp.cool/oauth*", zone_name = "kdp.cool" },
+  { pattern = "oura.kdp.cool/.well-known*", zone_name = "kdp.cool" }
 ]
 
 [vars]
