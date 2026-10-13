@@ -8,12 +8,15 @@ import { clampDays, dateWindow, loadDevDaily, mapOuraToDaily, type DailyResponse
 import { fetchDailySummaries, refreshAccessToken } from "./oura";
 import type { SessionRow } from "./session";
 import { loadEncryptedTokens, tokensFromOura, upsertEncryptedTokens } from "./tokens";
+import { cachedDaily } from "./sync-cache.ts";
+import { ApiError } from "./errors.ts";
 
 export async function loadDailyForSession(
   request: Request,
   env: Env,
   session: SessionRow,
   days: number,
+  force = false,
 ): Promise<DailyResponse | Response> {
   const windowDays = clampDays(days);
 
@@ -31,11 +34,11 @@ export async function loadDailyForSession(
     });
   }
 
+  const selected = dateWindow(windowDays);
+  return cachedDaily(env, session.user_id, windowDays, selected.startDate, selected.endDate, force, async () => {
   let stored = await loadEncryptedTokens(env, session.user_id, encKey);
   if (!stored) {
-    return jsonError("no_stored_refresh_token", 401, {
-      hint: "Reconnect Oura",
-    });
+    throw new ApiError("reconnect_required", 401);
   }
 
   if (!stored.access_token || stored.expires_at <= Date.now()) {
@@ -48,7 +51,7 @@ export async function loadDailyForSession(
     await upsertEncryptedTokens(env, session.user_id, encKey, stored);
   }
 
-  const { startDate, endDate, dates } = dateWindow(windowDays);
+  const { startDate, endDate, dates } = dateWindow(90);
   const raw = await fetchDailySummaries({
     accessToken: stored.access_token,
     startDate,
@@ -63,6 +66,7 @@ export async function loadDailyForSession(
     }),
     user_id: session.user_id,
   };
+  });
 }
 
 export function isDailyResponse(value: DailyResponse | Response): value is DailyResponse {

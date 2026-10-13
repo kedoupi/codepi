@@ -82,11 +82,10 @@ export async function consumeOauthState(
   state: string,
 ): Promise<boolean> {
   const row = await env.DB.prepare(
-    `SELECT state, expires_at FROM oauth_states WHERE state = ?`,
+    `DELETE FROM oauth_states WHERE state = ? RETURNING state, expires_at`,
   )
     .bind(state)
     .first<{ state: string; expires_at: string }>();
   if (!row) return false;
-  await env.DB.prepare(`DELETE FROM oauth_states WHERE state = ?`).bind(state).run();
   return Date.parse(row.expires_at) >= Date.now();
 }

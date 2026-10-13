@@ -34,7 +34,8 @@ async function navigate(path) {
 }
 
 try {
-  await page.goto(`${origin}/__test/login`);
+  // Journey 1: free account (no owner match, no subscription) sees paywalls.
+  await page.goto(`${origin}/__test/login?free=1`);
   await page.waitForFunction(() => document.querySelector('.status')?.textContent?.includes('90'));
   // Snapshot establishes page state and actionable controls before the journey.
   console.log(await page.snapshot());
@@ -47,21 +48,32 @@ try {
   await navigate('/insights');
   await page.waitForSelector('.insight-lines li');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.insight-lines li').length), 3);
-  await page.waitForSelector('.paywall-card');
-  await healthy('free weekly report');
+  // Billing is disabled in the fixture, so free users see a notice, not a checkout card.
+  await page.waitForFunction(() => {
+    const text = document.body.textContent;
+    return text.includes('完整建议需要个人账号权限') || text.includes('Full advice requires personal access');
+  });
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
+  await healthy('free weekly locked notice');
   await navigate('/compare');
-  await page.waitForSelector('.paywall-card');
-  await healthy('free compare paywall');
+  await page.waitForFunction(() => {
+    const text = document.body.textContent;
+    return text.includes('尚未开放完整对比') || text.includes('Full comparison is not enabled');
+  });
+  await healthy('free compare locked notice');
   await navigate('/settings');
   await page.waitForSelector('button[role="radio"]');
   console.log(await page.snapshot());
   await page.click('loc=css:button[role="radio"]:text-is("English")');
   await page.waitForFunction(async () => (await (await fetch('/api/me')).json()).localePref === 'en');
+  await page.waitForSelector('button[role="radio"]:not([disabled])');
   await page.reload();
   await page.waitForFunction(() => document.documentElement.lang === 'en' && document.querySelector('h1')?.textContent === 'Settings');
   await healthy('language persisted across reload');
   await page.click('loc=css:button[role="radio"]:text-is("中文")');
   await page.waitForFunction(async () => (await (await fetch('/api/me')).json()).localePref === 'zh');
+  await page.reload();
+  await page.waitForFunction(() => document.documentElement.lang.startsWith('zh'));
   await healthy('language restored');
   await page.goto(`${origin}/__test/login?subscribed=1`);
   await page.waitForSelector('.range');
@@ -83,6 +95,25 @@ try {
   await page.waitForSelector('#landing-view');
   assert.equal(await page.evaluate(async () => (await (await fetch('/api/me')).json()).authenticated), false);
   await healthy('logout returns to landing and invalidates session');
+
+  // Journey 2: personal owner has full reports without billing UI.
+  await page.goto(`${origin}/__test/login`);
+  await page.waitForSelector('.range');
+  await navigate('/insights');
+  await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
+  await healthy('owner weekly full without paywall');
+  await navigate('/compare');
+  await page.waitForSelector('.compare-grid');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
+  await healthy('owner compare without paywall');
+  await navigate('/settings');
+  await page.waitForFunction(() => document.body.textContent.includes('个人工作区'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);
+  await healthy('owner settings shows personal workspace, no billing');
+  await page.click('loc=css:nav button:text-is("退出")');
+  await page.waitForSelector('#landing-view');
+  await healthy('owner logout');
   console.log('PASS browser journey');
 } finally {
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: instrumentation.identifier });

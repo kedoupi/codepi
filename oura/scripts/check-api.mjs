@@ -1,6 +1,8 @@
 const origin = new URL(process.argv[2] || 'https://oura.kdp.cool').origin;
-const allowCfAccess = process.env.OURA_CHECK_ALLOW_CF_ACCESS === '1';
-let protectedByCfAccess = false;
+// Expected build SHA for the just-deployed Worker. When provided, /api/health
+// must report it; this turns the smoke check into a real deploy gate.
+const expectedBuild = process.env.OURA_EXPECT_BUILD || '';
+let blockedBeforeWorker = false;
 
 async function check(path, expectedStatus = 200) {
   try {
@@ -10,11 +12,12 @@ async function check(path, expectedStatus = 200) {
       signal: AbortSignal.timeout(15_000),
     });
     const contentType = response.headers.get('content-type') || '';
-    // Cloudflare Access challenges CI clients with 403 HTML. Treat it as a
-    // blocked deployment check, not as an application contract failure.
-    if (allowCfAccess && response.status === 403 && contentType.includes('text/html')) {
-      protectedByCfAccess = true;
-      return { path, ok: true, detail: 'HTTP 403; CI client is protected by Cloudflare Access' };
+    // A 403 HTML page is served by the edge BEFORE our Worker runs (WAF,
+    // Access, or bot rules). That is a failed check: callers cannot reach the
+    // API, so the deployment is not verified. Never count it as success.
+    if (response.status === 403 && contentType.includes('text/html')) {
+      blockedBeforeWorker = true;
+      return { path, ok: false, detail: 'HTTP 403 HTML from edge (request never reached the Worker)' };
     }
 
     if (path === '/api/auth/oura/start') {
@@ -43,10 +46,13 @@ async function check(path, expectedStatus = 200) {
     }
     const ok = response.status === 200 && (path === '/api/health'
       ? payload?.ok === true && payload?.oauthConfigured === true && payload?.allowDevLogin === false
+        && typeof payload?.release === 'string'
+        && (!expectedBuild || payload?.build === expectedBuild)
       : payload?.authenticated === false && payload?.oauthConfigured === true && payload?.allowDevLogin === false
         && typeof payload?.subscribed === 'boolean' && typeof payload?.stripeConfigured === 'boolean'
         && Object.hasOwn(payload, 'localePref'));
-    return { path, ok, detail: `HTTP ${response.status}; content-type=${contentType}` };
+    const buildNote = path === '/api/health' ? `; build=${payload?.build ?? 'missing'}` : '';
+    return { path, ok, detail: `HTTP ${response.status}; content-type=${contentType}${buildNote}` };
   } catch (error) {
     return { path, ok: false, detail: error instanceof Error ? error.message : 'Request failed' };
   }
@@ -69,7 +75,7 @@ for (const result of results) {
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.path}: ${result.detail}`);
 }
 const allOk = results.every((result) => result.ok);
-if (protectedByCfAccess) {
-  console.warn('WARN deployment check blocked by Cloudflare Access; verify with the logged-in browser');
+if (blockedBeforeWorker) {
+  console.error('FAIL: edge returned 403 HTML before the Worker; check Cloudflare WAF/Access rules for this client, or run the check from a network that can reach the origin.');
 }
 process.exitCode = allOk ? 0 : 1;

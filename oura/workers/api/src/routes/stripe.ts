@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { capabilities } from "../lib/capabilities.ts";
 import { isResponse, requireSession } from "../lib/authz";
 import { frontendOrigin, jsonError } from "../lib/config";
 import {
@@ -26,6 +27,7 @@ export async function handleStripeCheckout(
   }
   const auth = await requireSession(request, env);
   if (isResponse(auth)) return auth;
+  if (capabilities(env, auth.session.user_id).personal) return jsonError("billing_disabled", 403);
   if (!stripeConfigured(env)) {
     return jsonError("stripe_not_configured", 503, {
       hint: "Set STRIPE_SECRET_KEY and STRIPE_PRICE_ID via wrangler secret put",
@@ -81,6 +83,7 @@ export async function handleStripePortal(
   }
   const auth = await requireSession(request, env);
   if (isResponse(auth)) return auth;
+  if (capabilities(env, auth.session.user_id).personal) return jsonError("billing_disabled", 403);
   if (!env.STRIPE_SECRET_KEY) {
     return jsonError("stripe_not_configured", 503);
   }

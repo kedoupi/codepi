@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { createRuntime, login } from './runtime.mjs';
+import { createRuntime, login, migrate } from './runtime.mjs';
 
 let runtime;
 before(async () => {
   runtime = createRuntime();
   await runtime.ready;
+  await migrate(runtime);
 });
 after(async () => { await runtime?.dispose(); });
 
@@ -59,6 +60,8 @@ test('OAuth rejects an unknown state without creating a session', async () => {
 test('OAuth callback, daily windows, weekly report, compare, preferences and logout', async () => {
   const cookie = await login(runtime);
   assert.equal((await json('/api/me', { cookie })).authenticated, true);
+  const state = new URL((await request('/api/auth/oura/start')).headers.get('location')).searchParams.get('state');
+  assert.equal(new URL((await request(`/api/auth/oura/callback?code=x&state=${state}`)).headers.get('location')).searchParams.get('error'), 'invalid_state');
   for (const days of [7, 30, 90]) {
     const daily = await json(`/api/me/daily?days=${days}`, { cookie });
     assert.equal(daily.source, 'oura');
@@ -66,18 +69,24 @@ test('OAuth callback, daily windows, weekly report, compare, preferences and log
     assert.equal(daily.days.length, days);
     assert.equal(daily.days.at(-1).sleep.score, 80);
     assert.equal(daily.days.at(-1).activity.steps, 8000);
+    assert.equal(typeof daily.sync.syncedAt, 'string');
   }
   const weekly = await json('/api/me/insights/weekly', { cookie });
   assert.equal(weekly.ok, true);
   assert.equal(weekly.summaries.length, 3);
-  assert.equal(weekly.locked, true);
-  assert.deepEqual(weekly.tips, []);
+  assert.equal(weekly.locked, false);
+  assert.ok(weekly.tips.length > 0);
   for (const mode of ['week', 'range']) {
     const compare = await json(`/api/me/insights/compare?mode=${mode}`, { cookie });
     assert.equal(compare.mode, mode);
-    assert.equal(compare.locked, true);
-    assert.equal(compare.left, null);
+    assert.equal(compare.locked, false);
+    assert.equal(compare.left.sleep, 80);
   }
+  const me = await json('/api/me', { cookie });
+  assert.equal(me.capabilities.personal, true);
+  assert.equal(me.capabilities.billing, false);
+  const billing = await request('/api/stripe/checkout', { cookie, method: 'POST' });
+  assert.equal(billing.status, 403);
   for (const locale of ['en', 'zh', 'system']) {
     await json('/api/me/prefs', {
       cookie, method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -95,27 +104,64 @@ test('OAuth callback, daily windows, weekly report, compare, preferences and log
   assert.equal((await request('/api/me/insights/weekly', { cookie })).status, 401);
 });
 
-test('subscribed reports contain computed data; unavailable services return explicit errors', async () => {
+test('personal owner gets template analysis without billing; AI is grounded and cached', async () => {
   const cookie = await login(runtime);
-  const db = await runtime.getD1Database('DB');
-  await db.prepare("INSERT OR REPLACE INTO subscriptions (user_id, status) VALUES (?, 'active')")
-    .bind('test-user').run();
-  assert.equal((await json('/api/me', { cookie })).subscribed, true);
-  const weekly = await json('/api/me/insights/weekly', { cookie });
-  assert.equal(weekly.locked, false);
-  assert.ok(weekly.tips.length > 0);
-  for (const mode of ['week', 'range']) {
-    const compare = await json(`/api/me/insights/compare?mode=${mode}`, { cookie });
-    assert.equal(compare.locked, false);
-    assert.equal(compare.left.sleep, 80);
-    assert.equal(compare.right.days, mode === 'range' ? 30 : 7);
-  }
   const checkout = await request('/api/stripe/checkout', { cookie, method: 'POST' });
-  assert.equal(checkout.status, 503);
-  assert.equal((await checkout.json()).error, 'stripe_not_configured');
-  const ai = await request('/api/me/ai', { cookie });
-  assert.equal(ai.status, 501);
-  assert.equal((await ai.json()).error, 'ai_not_ready');
+  assert.equal(checkout.status, 403);
+  assert.equal((await checkout.json()).error, 'billing_disabled');
+  const portal = await request('/api/stripe/portal', { cookie, method: 'POST' });
+  assert.equal(portal.status, 403);
+
+  const first = await json('/api/me/ai?days=7', { cookie });
+  assert.equal(first.source, 'template');
+  assert.equal(first.ok, true);
+  assert.ok(Array.isArray(first.evidence));
+  const second = await json('/api/me/ai?days=7', { cookie });
+  assert.deepEqual(second.evidence, first.evidence);
+  assert.equal(second.generatedAt, first.generatedAt);
+});
+
+test('non-owner without subscription sees locked reports and explicit unavailable errors', async () => {
+  const other = createRuntime({
+    bindings: {
+      ALLOW_DEV_LOGIN: '0',
+      FRONTEND_ORIGIN: 'https://oura.example',
+      OURA_REDIRECT_URI: 'https://oura.example/api/auth/oura/callback',
+      OURA_CLIENT_ID: 'integration-client',
+      OURA_CLIENT_SECRET: 'integration-client-secret',
+      SESSION_SECRET: 'integration-session-secret',
+      TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
+      PERSONAL_OWNER_ID: 'someone-else',
+    },
+  });
+  try {
+    await other.ready;
+    await migrate(other);
+    const start = await other.dispatchFetch('https://oura.example/api/auth/oura/start', { redirect: 'manual' });
+    const state = new URL(start.headers.get('location')).searchParams.get('state');
+    const oauthCookie = start.headers.get('set-cookie').split(';')[0];
+    const callback = await other.dispatchFetch(
+      `https://oura.example/api/auth/oura/callback?code=test-code&state=${encodeURIComponent(state)}`,
+      { headers: { Cookie: oauthCookie }, redirect: 'manual' },
+    );
+    const cookie = callback.headers.get('set-cookie').split(';')[0];
+    const meRes = await other.dispatchFetch('https://oura.example/api/me', { headers: { Cookie: cookie } });
+    const me = await meRes.json();
+    assert.equal(me.capabilities.personal, false);
+    assert.equal(me.capabilities.weeklyFull, false);
+    assert.equal(me.capabilities.compare, false);
+    const weekly = await other.dispatchFetch('https://oura.example/api/me/insights/weekly', { headers: { Cookie: cookie } });
+    const weeklyBody = await weekly.json();
+    assert.equal(weeklyBody.locked, true);
+    const checkout = await other.dispatchFetch('https://oura.example/api/stripe/checkout', { method: 'POST', headers: { Cookie: cookie } });
+    assert.equal(checkout.status, 503);
+    assert.equal((await checkout.json()).error, 'stripe_not_configured');
+    const ai = await other.dispatchFetch('https://oura.example/api/me/ai?days=7', { headers: { Cookie: cookie } });
+    assert.equal(ai.status, 200);
+    assert.equal((await ai.json()).source, 'template');
+  } finally {
+    await other.dispose();
+  }
 });
 
 test('tampered session cannot access reports', async () => {

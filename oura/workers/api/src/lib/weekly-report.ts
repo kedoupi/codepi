@@ -73,7 +73,7 @@ const READY_LABELS: Record<string, string> = {
 };
 
 export function avg(nums: unknown[]): number | null {
-  const v = nums.filter((n): n is number => typeof n === "number" && !Number.isNaN(n));
+  const v = nums.filter((n): n is number => typeof n === "number" && Number.isFinite(n));
   if (!v.length) return null;
   return v.reduce((a, b) => a + b, 0) / v.length;
 }
@@ -94,9 +94,12 @@ export function splitRollingWeeks<T extends { date: string }>(
   days: T[],
 ): { thisWeek: T[]; lastWeek: T[] } {
   const sorted = sortDays(days);
+  const end = Date.parse(sorted.at(-1)?.date ?? "");
+  const recent = sorted.filter(day => Date.parse(day.date) > end - 7 * 86400000);
+  const previous = sorted.filter(day => Date.parse(day.date) > end - 14 * 86400000 && Date.parse(day.date) <= end - 7 * 86400000);
   return {
-    thisWeek: sorted.slice(-7),
-    lastWeek: sorted.slice(-14, -7),
+    thisWeek: recent,
+    lastWeek: previous,
   };
 }
 
@@ -190,6 +193,9 @@ export function buildTips(
   prev: PeriodAvgs,
 ): string[] {
   const tips: string[] = [];
+  if (cur.sleep == null && cur.readiness == null && cur.activity == null && cur.steps == null) {
+    return ["当前区间没有足够的官方数据，请先同步 Oura，再查看变化。"];
+  }
   const sleepDrop = cur.sleep != null && prev.sleep != null ? cur.sleep - prev.sleep : 0;
   const readyDrop =
     cur.readiness != null && prev.readiness != null ? cur.readiness - prev.readiness : 0;

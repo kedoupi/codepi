@@ -1,5 +1,4 @@
 import {
-  BUILD,
   READY_LABELS,
   SLEEP_LABELS,
   WDAY,
@@ -183,7 +182,7 @@ export function computeViewModel(allDays: Day[], rangeDays: number): ViewModel {
   const days = sliceDays(allDays, rangeDays);
   const days30 = sliceDays(allDays, 30);
   const days90 = sliceDays(allDays, 90);
-  const latest = days[days.length - 1];
+  const latest = [...days].reverse().find((d) => d.sleep || d.readiness || d.activity);
 
   const sAvg = avg(days.map((d) => d.sleep && d.sleep.score));
   const rAvg = avg(days.map((d) => d.readiness && d.readiness.score));
@@ -456,9 +455,7 @@ export function computeViewModel(allDays: Day[], rangeDays: number): ViewModel {
       " 天 · " +
       (days[0] ? days[0].date : "") +
       " → " +
-      (latest ? latest.date : "") +
-      " · " +
-      BUILD,
+      (latest ? latest.date : ""),
     rangeLabel: rangeLabelText(rangeDays),
     cards,
     takeSRA: sraMsg,

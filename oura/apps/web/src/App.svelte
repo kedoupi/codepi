@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api, errorText } from "./lib/api";
   import ComparePage from "./components/ComparePage.svelte";
   import Dashboard from "./components/Dashboard.svelte";
   import LandingView from "./components/LandingView.svelte";
@@ -18,6 +19,8 @@
   let me = $state<MeResponse | null>(null);
   let loginError = $state("");
   let booted = $state(false);
+  let prefSaving = $state(false);
+  let prefError = $state("");
   let localePref = $state<LocalePref>("system");
   const locale = $derived(resolveLocale(localePref));
 
@@ -70,6 +73,10 @@
       localePref: localeFromApi,
       stripeConfigured: rec.stripeConfigured === true,
       priceLabel: typeof rec.priceLabel === "string" ? rec.priceLabel : undefined,
+      capabilities: rec.capabilities as MeResponse["capabilities"],
+      release: typeof rec.release === "string" ? rec.release : undefined,
+      build: typeof rec.build === "string" ? rec.build : undefined,
+      apiContract: typeof rec.apiContract === "number" ? rec.apiContract : undefined,
     });
   }
 
@@ -89,17 +96,23 @@
     if (router.path !== "/") goto("/", true);
   }
 
-  function applyLocalePref(pref: LocalePref, persistRemote: boolean) {
-    localePref = pref;
-    writeStoredLocalePref(pref);
+  async function applyLocalePref(pref: LocalePref, persistRemote: boolean) {
+    if (prefSaving) return;
+    prefError = "";
     if (persistRemote && me?.authenticated) {
-      void fetch("/api/me/prefs", {
+      prefSaving = true;
+      try { await api("/api/me/prefs", {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ locale: pref }),
-      });
+      }); } catch (error) {
+        prefError = errorText(error, locale);
+        return;
+      } finally { prefSaving = false; }
     }
+    localePref = pref;
+    writeStoredLocalePref(pref);
   }
 
   async function boot() {
@@ -108,8 +121,7 @@
       const res = await fetch("/api/me", { credentials: "include" });
       const data = await readMeResponse(res);
       if (!data || !data.authenticated) {
-        // Missing Worker / non-JSON / 404: public landing, no first-paint banner.
-        showLogin(data ?? loggedOutMe());
+        showLogin(data ?? loggedOutMe(), !res.ok || !data ? t(locale, "apiUnreachable") : "");
         return;
       }
       me = data;
@@ -120,17 +132,11 @@
         const stored = readStoredLocalePref();
         if (stored) {
           localePref = stored;
-          void fetch("/api/me/prefs", {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ locale: stored }),
-          });
         }
       }
       loginError = "";
     } catch {
-      showLogin(loggedOutMe());
+      showLogin(loggedOutMe(), t(locale, "apiUnreachable"));
     } finally {
       booted = true;
     }
@@ -156,6 +162,7 @@
   });
 </script>
 
+{#if prefError}<div class="global-feedback" role="alert">{prefError}</div>{/if}
 {#if !booted}
   <div class="status" style="padding:24px">{t(locale, "loading")}</div>
 {:else if me?.authenticated}
@@ -168,6 +175,7 @@
       {me}
       {locale}
       {localePref}
+      {prefSaving}
       onLocalePref={(pref) => applyLocalePref(pref, true)}
       onMeChange={(next) => (me = next)}
       onLogout={() => (window.location.href = "/api/auth/logout")}

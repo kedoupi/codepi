@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api, RequestError, errorText } from "../lib/api";
   import { fetchAi, stripMarkdown, type AiResponse } from "../lib/ai";
   import {
     createDonutChart,
@@ -18,6 +19,7 @@
   import ChromeHeader from "./ChromeHeader.svelte";
   import ContribBars from "./ContribBars.svelte";
   import HeatmapPanel from "./HeatmapPanel.svelte";
+  import SyncStatus from "./SyncStatus.svelte";
   import SummaryCards from "./SummaryCards.svelte";
 
   let {
@@ -45,6 +47,8 @@
   let aiStatusErr = $state(false);
   let aiReport = $state<AiResponse | null>(null);
   let aiFallback = $state("");
+  let syncState = $state<import("../lib/types").SyncInfo | undefined>(undefined);
+  let syncBusy = $state(false);
 
   const vm = $derived(allDays.length ? computeViewModel(allDays, rangeDays) : null);
 
@@ -137,20 +141,31 @@
     try {
       status = t(locale, "loadingOura");
       statusErr = false;
-      const res = await fetch(API, { cache: "no-store", credentials: "include" });
-      if (res.status === 401) {
-        onUnauthorized();
-        return;
-      }
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = (await res.json()) as DailyResponse;
+      const data = await api<DailyResponse>(API);
       if (!data || !data.ok || !Array.isArray(data.days)) throw new Error("响应格式异常");
       allDays = sortDays(data.days);
+      syncState = data.sync;
     } catch (err) {
-      console.error(err);
+      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
       statusErr = true;
-      status = "加载失败：" + (err instanceof Error ? err.message : String(err));
+      status = errorText(err, locale);
     }
+  }
+
+  async function syncNow() {
+    if (syncBusy) return;
+    syncBusy = true;
+    try {
+      const data = await api<DailyResponse>("/api/me/sync?days=90", { method: "POST" });
+      if (data.ok && Array.isArray(data.days)) {
+        allDays = sortDays(data.days);
+        syncState = data.sync;
+        statusErr = false;
+      }
+    } catch (err) {
+      statusErr = true;
+      status = errorText(err, locale);
+    } finally { syncBusy = false; }
   }
 
   onMount(() => {
@@ -176,7 +191,6 @@
     aiThinking = true;
     try {
       const data = await fetchAi(rangeDays);
-      const nowLabel = data.now && data.now.label ? data.now.label : "";
       aiStatus =
         "近 " +
         (data.days || rangeDays) +
@@ -184,9 +198,8 @@
         (data.from || "") +
         " → " +
         (data.to || "") +
-        (nowLabel ? " · 现在 " + nowLabel : "") +
         " · " +
-        (data.model || "MiniMax-M3");
+        (data.model || "规则解读");
       if (data.report && typeof data.report === "object") {
         aiReport = data;
         aiFallback = "";
@@ -196,7 +209,7 @@
     } catch (err) {
       console.error(err);
       aiStatusErr = true;
-      aiStatus = "分析失败：" + (err instanceof Error ? err.message : String(err));
+      aiStatus = errorText(err, locale);
       aiReport = null;
       aiFallback = "";
     } finally {
@@ -224,14 +237,14 @@
     isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"}
     {locale}
     active="/"
-    showAi
+    showAi={me.capabilities?.analysis === true}
     {aiBusy}
     onAi={openAi}
     onLogout={logout}
   />
 
   <main class="wrap page" style="max-width:var(--page-max);margin-left:auto;margin-right:auto">
-    <div class="kicker">OURA · HEALTH <span class="ver-chip">版 1735</span></div>
+    <div class="kicker">OURA · HEALTH {#if me.release}<span class="ver-chip">{me.release}</span>{/if}</div>
     <div class="hero-row">
       <div>
         <h1>{t(locale, "dashTitle")}</h1>
@@ -245,6 +258,13 @@
       </div>
     </div>
     <div class="status" class:err={statusErr}>{status}</div>
+    {#if statusErr}
+      <div class="settings-actions" style="margin-bottom:12px">
+        {#if status.includes("重新连接")}<a class="landing-btn primary" href="/api/auth/oura/start">{locale === "zh" ? "重新连接 Oura" : "Reconnect Oura"}</a>{/if}
+        <button class="ai-btn" onclick={load}>{locale === "zh" ? "重试" : "Retry"}</button>
+      </div>
+    {/if}
+    <SyncStatus sync={syncState} {locale} busy={syncBusy} onSync={syncNow} />
 
     <section class="cards insight-entry-row">
       <a
@@ -382,10 +402,7 @@
       </div>
     </section>
 
-    <footer class="foot">
-      <span>{t(locale, "footData")}</span>
-      <span class="ver-chip">build 20260914-1728-weekend</span>
-    </footer>
+    <footer class="foot"><span>{t(locale, "footData")}</span></footer>
   </main>
 
   <AiDrawer

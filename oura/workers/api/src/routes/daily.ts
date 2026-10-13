@@ -9,11 +9,14 @@ export async function handleMeDaily(
   env: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
+  if (request.method !== "GET" && !(url.pathname === "/api/me/sync" && request.method === "POST")) {
+    return Response.json({ error: "method_not_allowed" }, { status: 405 });
+  }
   const days = clampDays(Number(url.searchParams.get("days") ?? "30"));
   const auth = await requireSession(request, env);
   if (isResponse(auth)) return auth;
 
-  const daily = await loadDailyForSession(request, env, auth.session, days);
+  const daily = await loadDailyForSession(request, env, auth.session, days, request.method === "POST");
   if (!isDailyResponse(daily)) return daily;
   return Response.json(daily, { headers: { "Cache-Control": "no-store" } });
 }
