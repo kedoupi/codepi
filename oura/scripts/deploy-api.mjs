@@ -16,7 +16,8 @@ function wrangler(args, extraEnv = {}) {
 // 1. Apply D1 migrations BEFORE uploading code that depends on new tables.
 //    wrangler exits non-zero if any migration fails, so a bad schema stops
 //    the deploy instead of shipping a Worker against missing tables.
-wrangler(['d1', 'migrations', 'apply', 'oura_kdp', '--remote', '--yes']);
+//    CI=true makes the confirmation prompt non-interactive.
+wrangler(['d1', 'migrations', 'apply', 'oura_kdp', '--remote']);
 
 // 2. Stamp the build so /api/health and the smoke check can prove the new
 //    version is live. BUILD_SHA is read as a plain var on the Worker.
