@@ -106,9 +106,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
       - name: Check live API contract
         if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
-        run: pnpm check:api
-        env:
-          OURA_EXPECT_BUILD: ${{ substr(github.sha, 0, 12) }}
+        run: OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
       - name: Publish frontend
         if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
         run: pnpm --filter @oura-kdp/api exec wrangler pages deploy ../../apps/web/dist --project-name=oura-kdp --branch=main
@@ -117,7 +115,5 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check deployment
         if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
-        run: pnpm check:api
-        env:
-          OURA_EXPECT_BUILD: ${{ substr(github.sha, 0, 12) }}
+        run: OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
 
