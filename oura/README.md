@@ -181,7 +181,8 @@ D1 迁移：`migrations/0002_subscriptions.sql`。本地 `pnpm dev:api` 会 `d1 
 5. 「管理 / 取消订阅」打开 Customer Portal。
 6. **没有 Stripe 密钥的 Preview**：设置页 DEV「模拟已订阅 / 恢复未订阅」只点验付费墙，生产必须关 `ALLOW_DEV_LOGIN`。
 
-**不要部署、不要合并到 main。** 生产 oura.kdp.cool 冻结，等人工 review。
+以上是当时的订阅功能评审记录。2026-10-13 按用户故障修复要求恢复 API 路由并同步
+已上线前端所需的 Worker；Stripe 实际支付仍未完成生产验收。
 
 ## Cloudflare Pages（`apps/web`）
 
@@ -192,6 +193,64 @@ pnpm --filter @oura-kdp/web build
 ```
 
 输出目录：`apps/web/dist`。部署后打开站点应看到营销落地页（H1「Oura 健康看板」+「用 Oura 登录」），不是旧的 login-card HTML。
+
+### API 路由与登录检查
+
+Pages 只托管前端。`oura.kdp.cool/api/*` 必须通过同一 Cloudflare zone 的
+Worker Route 指向 `oura-kdp-api`；API 路由、生产回调地址和关闭 DEV 登录的变量
+已声明在 `workers/api/wrangler.toml`。前端与 API Worker 分别发布；
+`.github/workflows/deploy-product-apps.yml` 现在先测试、检查类型并构建，
+再发布 API，通过线上契约检查后才发布前端，最后再检查一次。
+PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitHub 生效。
+
+已有路由下发布 API：`pnpm deploy:api`。脚本上传新版本并将该版本切到 100% 流量，
+保留现有 Worker secrets 和 zone 路由，不需要每次发布都具备 zone 路由写权限。
+首次配置或变更路由仍需 Cloudflare 控制台，或具备相应权限的 `wrangler triggers deploy`。
+
+发布后在 `oura/` 执行：
+
+```bash
+pnpm check:api
+```
+
+这个检查要求 `/api/health` 和未登录的 `/api/me` 返回正确的 JSON（含订阅、语言等
+前端所需字段）、生产 OAuth 配置已启用且 DEV 登录关闭，并要求 `/api/auth/oura/start` 跳转到 Oura 授权页，
+回调指向当前域名的 `/api/auth/oura/callback`。它不会完成用户授权，也不会打印
+OAuth state 或密钥。可传入另一个部署域名：`pnpm check:api https://<domain>`。
+
+如果 `/api/*` 返回 `200 text/html`，请求落到了 Pages 的 SPA 首页回退，而非
+API Worker。先核对 Worker Route，不能只重新发布前端或修改错误文案。
+检查同时要求日报、AI、周报和两种对比模式在匿名请求下返回 401，
+设置接口 GET 返回 405；返回 404 会使检查失败，避免旧 Worker 漏掉新路由。
+这些检查不读取健康数据、不创建订阅；OAuth start 会生成短期授权 state。
+
+### 自动化测试与覆盖边界
+
+在 `oura/` 使用 Node 24、仓库锁定的 pnpm 和依赖：
+
+| 命令 | 覆盖 |
+| --- | --- |
+| `pnpm test` | 原有 28 项单元测试 + 6 项 Worker 集成测试 |
+| `pnpm typecheck` | API TypeScript 与前端 Svelte 类型检查 |
+| `pnpm build` | 前端生产构建 + Worker 打包 |
+| `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
+| `pnpm test:browser` | 本机浏览器自动完成看板、周报、对比、语言、刷新、退出流程 |
+
+集成测试使用 Wrangler 已锁定的 Miniflare，无新增依赖。执行真实构建后的 Worker、
+内存 D1、OAuth 回调、会话、加密令牌读写和报表逻辑，仅模拟外部 Oura 响应。
+覆盖 7/30/90 天数据、未登录拒绝访问、免费/订阅报表、设置持久化、退出及伪造会话。
+没有真实支付请求，也不使用生产密钥或真实健康数据。
+
+浏览器测试需本机已安装并连接 `ego-browser`，会自动启动仅监听
+`127.0.0.1:4178` 的隔离服务，加载真实前端构建与 Worker，结束后关闭服务。
+测试账号和订阅状态仅存在于临时 D1；`/__test/login` 只属于测试服务，不进入生产 Worker。
+脚本验证页面内容、错误横幅、API 失败和浏览器运行异常，不需要人工逐个点击。
+GitHub CI 目前自动运行单元、集成、类型、构建和发布契约检查；
+浏览器脚本依赖本机 Ego 环境，尚未接入 GitHub runner。
+
+真实 Oura 登录/授权、账户会员资格及真实 Stripe Checkout 不属于模拟测试保证范围。
+OAuth 用户 AI 接口当前明确返回 `501 ai_not_ready`，未配置 Stripe 时返回
+`503 stripe_not_configured`；集成测试锁定这些已知边界，不能据此声称功能已完成。
 
 ## Phase 0 — `/api/me/daily` 契约（2026-09-15）
 

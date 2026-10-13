@@ -7,6 +7,10 @@ on:
       - 'fagao/**'
       - 'oura/**'
       - '.github/workflows/deploy-product-apps.yml'
+  pull_request:
+    paths:
+      - 'oura/**'
+      - '.github/workflows/deploy-product-apps.yml'
   workflow_dispatch:
     inputs:
       app:
@@ -37,9 +41,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-  oura-web:
-    if: ${{ github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'oura' }}
+  oura:
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'oura' }}
     runs-on: ubuntu-latest
+    concurrency:
+      group: oura-${{ github.ref }}
+      cancel-in-progress: false
     defaults:
       run:
         working-directory: oura
@@ -50,13 +57,29 @@ jobs:
           version: 9
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           cache-dependency-path: oura/pnpm-lock.yaml
-      - run: pnpm i
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
       - run: pnpm --filter @oura-kdp/web build
-      - run: npx wrangler@4 pages deploy apps/web/dist --project-name=oura-kdp --branch=main
+      - name: Deploy API before publishing its frontend
+        if: github.event_name != 'pull_request'
+        run: pnpm deploy:api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check live API contract
+        if: github.event_name != 'pull_request'
+        run: pnpm check:api
+      - name: Publish frontend
+        if: github.event_name != 'pull_request'
+        run: pnpm --filter @oura-kdp/api exec wrangler pages deploy ../../apps/web/dist --project-name=oura-kdp --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check deployment
+        if: github.event_name != 'pull_request'
+        run: pnpm check:api
 
