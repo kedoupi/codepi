@@ -1,6 +1,14 @@
 name = "oura-kdp-api"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+routes = [
+  { pattern = "oura.kdp.cool/api/*", zone_name = "kdp.cool" }
+]
+
+[vars]
+ALLOW_DEV_LOGIN = "0"
+FRONTEND_ORIGIN = "https://oura.kdp.cool"
+OURA_REDIRECT_URI = "https://oura.kdp.cool/api/auth/oura/callback"
 
 [[d1_databases]]
 binding = "DB"
@@ -17,8 +25,6 @@ migrations_dir = "../../migrations"
 #   STRIPE_PAYMENT_METHOD_TYPES=card,alipay,wechat_pay
 #   STRIPE_ENABLE_ALIPAY=1
 #   STRIPE_ENABLE_WECHAT_PAY=1
-# Production URLs (vars or secret put):
-#   OURA_REDIRECT_URI=https://oura.kdp.cool/api/auth/oura/callback
-#   FRONTEND_ORIGIN=https://oura.kdp.cool
+# Production URLs and the API route are declared above.
 # Webhook (must stay this path): https://oura.kdp.cool/api/stripe/webhook
 # ALLOW_DEV_LOGIN=1 on preview/test Workers; unset / 0 in production.

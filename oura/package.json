@@ -9,8 +9,11 @@
     "dev:web": "pnpm --filter @oura-kdp/web dev",
     "dev:api": "pnpm --filter @oura-kdp/api db:migrate:local && pnpm --filter @oura-kdp/api dev",
     "build": "pnpm --filter @oura-kdp/web build && pnpm --filter @oura-kdp/api build",
+    "check:api": "node scripts/check-api.mjs",
+    "deploy:api": "node scripts/deploy-api.mjs",
+    "test:browser": "pnpm build && node scripts/run-browser-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @oura-kdp/api test"
+    "test": "pnpm --filter @oura-kdp/api test && pnpm --filter @oura-kdp/api test:integration"
   },
   "engines": {
     "node": ">=20"
