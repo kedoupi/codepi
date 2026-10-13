@@ -117,7 +117,6 @@ async function checkMcp() {
 
 const results = await Promise.all(
   [
-    ['/api/health'],
     ['/api/me'],
     ['/api/auth/oura/start'],
     ['/api/me/daily?days=30', 401],
@@ -131,6 +130,21 @@ const results = await Promise.all(
   ].map(([path, status]) => check(path, status)),
 );
 results.push(await checkMcp());
+
+/**
+ * A worker version switch is not instantaneous worldwide, so asserting the
+ * exact build can race the deploy by a few seconds. Retry before failing.
+ */
+async function checkHealth() {
+  const deadline = Date.now() + 60_000;
+  let last = await check('/api/health');
+  while (!last.ok && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 5_000));
+    last = await check('/api/health');
+  }
+  return last;
+}
+results.push(await checkHealth());
 
 if (altOrigin) {
   const probe = async (path, init) => {
