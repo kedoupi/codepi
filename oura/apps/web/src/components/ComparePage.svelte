@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api, RequestError, errorText } from "../lib/api";
+  import SyncStatus from "./SyncStatus.svelte";
   import { startCheckout, type ComparePayload } from "../lib/billing";
   import { t, type Locale } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
@@ -29,21 +31,15 @@
     statusErr = false;
     status = t(locale, "loading");
     try {
-      const res = await fetch(`/api/me/insights/compare?mode=${next}`, {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (res.status === 401) {
-        onUnauthorized();
-        return;
-      }
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      payload = (await res.json()) as ComparePayload;
+      const data = await api<ComparePayload>(`/api/me/insights/compare?mode=${next}`);
+      if (next !== mode) return;
+      payload = data;
       status = "";
     } catch (err) {
+      if (next !== mode) return;
+      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
       statusErr = true;
-      status = t(locale, "apiUnreachable");
-      console.error(err);
+      status = errorText(err, locale);
     }
   }
 
@@ -99,10 +95,12 @@
       <button type="button" class="ai-btn" class:on={mode === "range"} onclick={() => setMode("range")}>{t(locale, "compareRange")}</button>
     </div>
     <div class="status" class:err={statusErr}>{status}</div>
+    {#if statusErr}<button class="ai-btn" onclick={() => load()}>{locale === "zh" ? "重试" : "Retry"}</button>{/if}
+    {#if payload?.sync}<SyncStatus sync={payload.sync} {locale} />{/if}
 
     {#if payload?.locked}
-      <PaywallCard {locale} priceLabel={me.priceLabel ?? t(locale, "settingsPrice")} {busy} onSubscribe={subscribe} />
-      <p class="hint">{t(locale, "compareLocked")}</p>
+      {#if me.capabilities?.billing}<PaywallCard {locale} priceLabel={me.priceLabel ?? t(locale, "settingsPrice")} {busy} onSubscribe={subscribe} />{/if}
+      <p class="hint">{locale === "zh" ? "此账号尚未开放完整对比。" : "Full comparison is not enabled for this account."}</p>
     {:else if payload?.left && payload?.right}
       <section class="compare-grid" aria-label={t(locale, "compareTitle")}>
         {#each [payload.left, payload.right] as col, i (`col-${i}`)}

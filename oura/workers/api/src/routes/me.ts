@@ -1,4 +1,7 @@
 import type { Env } from "../env";
+import { capabilities } from "../lib/capabilities.ts";
+import { readSyncState } from "../lib/sync-cache.ts";
+import { API_CONTRACT, RELEASE } from "../lib/version.ts";
 import {
   allowDevLogin,
   jsonError,
@@ -36,5 +39,10 @@ export async function handleMe(request: Request, env: Env): Promise<Response> {
     localePref,
     stripeConfigured: stripeConfigured(env),
     priceLabel: PLACEHOLDER_PRICE_LABEL,
+    capabilities: capabilities(env, session?.user_id ?? null, sub?.status),
+    sync: session ? await readSyncState(env, session.user_id) : null,
+    apiContract: API_CONTRACT,
+    release: RELEASE,
+    build: env.BUILD_SHA ?? "local",
   });
 }

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api, RequestError, errorText } from "../lib/api";
+  import SyncStatus from "./SyncStatus.svelte";
   import { startCheckout, type WeeklyPayload } from "../lib/billing";
   import { t, type Locale } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
@@ -29,20 +31,14 @@
     statusErr = false;
     status = t(locale, "loading");
     try {
-      const res = await fetch("/api/me/insights/weekly", { credentials: "include", cache: "no-store" });
-      if (res.status === 401) {
-        onUnauthorized();
-        return;
-      }
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      payload = (await res.json()) as WeeklyPayload;
+      payload = await api<WeeklyPayload>("/api/me/insights/weekly");
       status = payload.thisPeriod
         ? `${payload.thisPeriod.from} → ${payload.thisPeriod.to}`
         : "";
     } catch (err) {
+      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
       statusErr = true;
-      status = t(locale, "apiUnreachable");
-      console.error(err);
+      status = errorText(err, locale);
     }
   }
 
@@ -95,6 +91,8 @@
       <p class="status">{banner}</p>
     {/if}
     <div class="status" class:err={statusErr}>{status}</div>
+    {#if statusErr}<button class="ai-btn" onclick={load}>{locale === "zh" ? "重试" : "Retry"}</button>{/if}
+    {#if payload?.sync}<SyncStatus sync={payload.sync} {locale} />{/if}
 
     {#if payload?.summaries?.length}
       <section class="panel">
@@ -112,7 +110,8 @@
       </section>
 
       {#if payload.locked}
-        <PaywallCard {locale} priceLabel={me.priceLabel ?? t(locale, "settingsPrice")} {busy} onSubscribe={subscribe} />
+        {#if me.capabilities?.billing}<PaywallCard {locale} priceLabel={me.priceLabel ?? t(locale, "settingsPrice")} {busy} onSubscribe={subscribe} />
+        {:else}<p class="hint">{locale === "zh" ? "当前账号可查看摘要；完整建议需要个人账号权限。" : "Summaries are available. Full advice requires personal access."}</p>{/if}
       {:else if payload.tips?.length}
         <section class="panel">
           <h2>{t(locale, "weeklyTipsTitle")}</h2>

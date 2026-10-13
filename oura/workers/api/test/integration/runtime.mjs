@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readFile, readdir } from 'node:fs/promises';
 
 // Use Wrangler's locked runtime; no second emulator or new dependency.
 const require = createRequire(import.meta.url);
@@ -20,6 +21,7 @@ export function createRuntime(options = {}) {
       OURA_CLIENT_SECRET: 'integration-client-secret',
       SESSION_SECRET: 'integration-session-secret',
       TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
+      PERSONAL_OWNER_ID: 'test-user',
     },
     // Only the upstream provider is stubbed. Routing, crypto, sessions, D1,
     // token storage, daily mapping and reports execute the built Worker.
@@ -54,6 +56,15 @@ export function createRuntime(options = {}) {
     },
     ...options,
   });
+}
+
+export async function migrate(runtime) {
+  const db = await runtime.getD1Database('DB');
+  const directory = new URL('../../../../migrations/', import.meta.url);
+  for (const name of (await readdir(directory)).filter(n => n.endsWith('.sql')).sort()) {
+    const sql = (await readFile(new URL(name, directory), 'utf8')).replace(/--[^\n]*/g, '');
+    await db.batch(sql.split(';').filter(s => s.trim()).map(s => db.prepare(s)));
+  }
 }
 
 export async function login(runtime, origin = 'https://oura.example') {
