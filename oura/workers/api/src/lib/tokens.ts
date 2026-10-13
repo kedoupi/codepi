@@ -68,24 +68,39 @@ export async function upsertUser(env: Env, args: {
     .run();
 }
 
-export async function saveOauthState(env: Env, state: string): Promise<void> {
+export async function saveOauthState(
+  env: Env,
+  state: string,
+  returnTo?: string | null,
+): Promise<void> {
   const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await env.DB.prepare(
-    `INSERT OR REPLACE INTO oauth_states (state, expires_at) VALUES (?, ?)`,
+    `INSERT OR REPLACE INTO oauth_states (state, expires_at, return_to) VALUES (?, ?, ?)`,
   )
-    .bind(state, expires)
+    .bind(state, expires, returnTo ?? null)
     .run();
+}
+
+/** Single-use: a replayed state returns null. Expired states are also rejected. */
+export async function takeOauthState(
+  env: Env,
+  state: string,
+): Promise<{ ok: boolean; returnTo: string | null }> {
+  const row = await env.DB.prepare(
+    `DELETE FROM oauth_states WHERE state = ? RETURNING state, expires_at, return_to`,
+  )
+    .bind(state)
+    .first<{ state: string; expires_at: string; return_to: string | null }>();
+  if (!row) return { ok: false, returnTo: null };
+  return {
+    ok: Date.parse(row.expires_at) >= Date.now(),
+    returnTo: row.return_to ?? null,
+  };
 }
 
 export async function consumeOauthState(
   env: Env,
   state: string,
 ): Promise<boolean> {
-  const row = await env.DB.prepare(
-    `DELETE FROM oauth_states WHERE state = ? RETURNING state, expires_at`,
-  )
-    .bind(state)
-    .first<{ state: string; expires_at: string }>();
-  if (!row) return false;
-  return Date.parse(row.expires_at) >= Date.now();
+  return (await takeOauthState(env, state)).ok;
 }

@@ -44,6 +44,14 @@ async function check(path, expectedStatus = 200) {
     const payload = contentType.includes('application/json')
       ? await response.json().catch(() => null)
       : null;
+    if (path.endsWith('/.well-known/oauth-protected-resource')) {
+      return { path, ok: response.status === 200 && payload?.resource === `${origin}/mcp`, detail: `HTTP ${response.status}; resource=${payload?.resource ?? 'missing'}` };
+    }
+    if (path.endsWith('/.well-known/oauth-authorization-server')) {
+      const ok = response.status === 200 && payload?.authorization_endpoint === `${origin}/oauth/authorize`
+        && payload?.registration_endpoint === `${origin}/oauth/register`;
+      return { path, ok, detail: `HTTP ${response.status}; issuer=${payload?.issuer ?? 'missing'}` };
+    }
     if (expectedStatus !== 200) {
       return {
         path,
@@ -65,6 +73,34 @@ async function check(path, expectedStatus = 200) {
   }
 }
 
+/**
+ * The MCP endpoint must answer an unauthenticated POST with 401 + a
+ * resource_metadata challenge; that is what lets Claude/ChatGPT start OAuth.
+ * GET is a 405 by design, so this probe cannot reuse the generic checker.
+ */
+async function checkMcp() {
+  try {
+    const response = await fetch(new URL('/mcp', origin), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (response.status === 403 && contentType.includes('text/html')) {
+      blockedBeforeWorker = true;
+      const ok = edgeBlockMode === 'warn';
+      return { path: '/mcp', ok, detail: `HTTP 403 HTML from edge (request never reached the Worker)${ok ? ' [warn mode]' : ''}` };
+    }
+    const challenge = response.headers.get('www-authenticate') || '';
+    const ok = response.status === 401 && /resource_metadata=/.test(challenge);
+    return { path: '/mcp', ok, detail: `HTTP ${response.status}; WWW-Authenticate=${challenge ? 'present' : 'missing'}` };
+  } catch (error) {
+    return { path: '/mcp', ok: false, detail: error instanceof Error ? error.message : 'Request failed' };
+  }
+}
+
 const results = await Promise.all(
   [
     ['/api/health'],
@@ -76,8 +112,11 @@ const results = await Promise.all(
     ['/api/me/insights/compare?mode=week', 401],
     ['/api/me/insights/compare?mode=range', 401],
     ['/api/me/prefs', 405],
+    ['/.well-known/oauth-protected-resource'],
+    ['/.well-known/oauth-authorization-server'],
   ].map(([path, status]) => check(path, status)),
 );
+results.push(await checkMcp());
 for (const result of results) {
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.path}: ${result.detail}`);
 }

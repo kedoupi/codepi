@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { api, errorText } from "../lib/api";
   import { setDevSubscription, startCheckout, startPortal } from "../lib/billing";
   import { t, type Locale, type LocalePref } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
@@ -78,6 +80,42 @@
 
   const personal = $derived(me.capabilities?.personal === true);
   const canBill = $derived(me.capabilities?.billing === true);
+
+  type Connection = { client_id: string; client_name: string | null; created_at: string };
+  let connections = $state<Connection[]>([]);
+  let connectionsError = $state("");
+  let revoking = $state("");
+
+  const mcpUrl = typeof window === "undefined" ? "" : `${window.location.origin}/mcp`;
+
+  async function loadConnections() {
+    try {
+      const data = await api<{ connections: Connection[] }>("/api/me/connections");
+      connections = data.connections ?? [];
+      connectionsError = "";
+    } catch (err) {
+      connectionsError = errorText(err, locale);
+    }
+  }
+
+  async function revoke(clientId: string) {
+    if (revoking) return;
+    revoking = clientId;
+    try {
+      await api("/api/me/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      connections = connections.filter(row => row.client_id !== clientId);
+    } catch (err) {
+      connectionsError = errorText(err, locale);
+    } finally {
+      revoking = "";
+    }
+  }
+
+  onMount(() => { if (personal) void loadConnections(); });
 </script>
 
 <div id="dash-view">
@@ -132,6 +170,34 @@
         </p>
         {#if me.release}
           <p class="hint">{locale === "en" ? "API" : "接口版本"}：{me.release}{me.build ? ` · ${me.build.slice(0, 7)}` : ""}</p>
+        {/if}
+      </section>
+
+      <section class="panel">
+        <h2>{locale === "en" ? "AI apps" : "AI 应用连接"}</h2>
+        <p class="hint">
+          {locale === "en"
+            ? "Add this MCP server in Claude or ChatGPT, then approve the connection. Access is read-only and revocable here."
+            : "在 Claude 或 ChatGPT 里添加下面的 MCP 地址并授权。权限为只读，可在此处撤销。"}
+        </p>
+        <p class="hint"><code>{mcpUrl}</code></p>
+        {#if connections.length === 0}
+          <p class="hint">{locale === "en" ? "No apps connected yet." : "暂无已连接应用。"}</p>
+        {:else}
+          {#each connections as connection (connection.client_id)}
+            <div class="settings-actions" style="justify-content:space-between;gap:12px">
+              <span>{connection.client_name || connection.client_id}</span>
+              <button
+                class="ai-btn"
+                type="button"
+                disabled={revoking === connection.client_id}
+                onclick={() => revoke(connection.client_id)}
+              >{locale === "en" ? "Revoke" : "撤销授权"}</button>
+            </div>
+          {/each}
+        {/if}
+        {#if connectionsError}
+          <p class="status err" role="alert">{connectionsError}</p>
         {/if}
       </section>
     {:else}
