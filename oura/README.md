@@ -230,7 +230,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 | 命令 | 覆盖 |
 | --- | --- |
-| `pnpm test` | 原有 28 项单元测试 + 6 项 Worker 集成测试 |
+| `pnpm test` | 28 项单元测试 + 20 项 Worker 集成测试（含 MCP 连接器全流程） |
 | `pnpm typecheck` | API TypeScript 与前端 Svelte 类型检查 |
 | `pnpm build` | 前端生产构建 + Worker 打包 |
 | `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
@@ -249,8 +249,54 @@ GitHub CI 目前自动运行单元、集成、类型、构建和发布契约检�
 浏览器脚本依赖本机 Ego 环境，尚未接入 GitHub runner。
 
 真实 Oura 登录/授权、账户会员资格及真实 Stripe Checkout 不属于模拟测试保证范围。
-OAuth 用户 AI 接口当前明确返回 `501 ai_not_ready`，未配置 Stripe 时返回
-`503 stripe_not_configured`；集成测试锁定这些已知边界，不能据此声称功能已完成。
+`/api/me/ai` 始终返回可用的规则解读（`source: "template"`）；只有配置了
+AI provider 才可能返回 `source: "ai-ranked"`，且该模式仅对已验证结论排序，
+不生成文字或数字。`PERSONAL_OWNER_ID` 对应的账号解锁完整报表、关闭付费入口；
+未配置 Stripe 的其它账号在结算接口上得到 `503 stripe_not_configured`。
+
+## MCP 连接器（Claude / ChatGPT）
+
+看板数据以只读远端 MCP 服务暴露给 Claude 与 ChatGPT：
+
+```
+https://oura.kdp.cool/mcp
+```
+
+接入步骤（两个平台相同）：添加自定义连接器 → 填上面的 URL → 平台自动完成
+注册与授权 → 浏览器打开同意页 → 先登录 Oura，再点「允许连接」。
+
+`oura-kdp-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
+OAuth 登录回调固定在 `oura.kdp.cool`，跨域名浏览器会话无法完成授权。
+
+授权由本 Worker 自带的 OAuth 2.1 授权服务器签发：
+
+| 端点 | 作用 |
+| --- | --- |
+| `/.well-known/oauth-protected-resource` | RFC 9728 资源元数据 |
+| `/.well-known/oauth-authorization-server` | RFC 8414 授权服务器元数据 |
+| `/oauth/register` | RFC 7591 动态客户端注册（仅 https 或回环地址） |
+| `/oauth/authorize` | PKCE S256 授权码；同意页需已登录且仅限 `PERSONAL_OWNER_ID` |
+| `/oauth/token` | 授权码与刷新令牌（刷新令牌一次性轮换） |
+| `/oauth/revoke` | RFC 7009 撤销 |
+
+令牌只存 SHA-256 哈希，Oura 令牌始终留在服务端。工具全部只读且由服务端计算：
+
+| 工具 | 返回 |
+| --- | --- |
+| `get_connection_status` | 同步时间、最近有数据的日期、是否过期 |
+| `get_daily_metrics` | 每日官方分数、contributors、数据覆盖 |
+| `get_period_summary` | 7/30/90 天均值与覆盖 |
+| `compare_periods` | 近 7 天 vs 前 7 天，或近 30 天 vs 前 30 天 |
+
+每个响应都带日期范围、覆盖天数、同步状态与非医疗建议声明；缺失指标保持 `null`。
+在设置页的「AI 应用连接」可查看并随时撤销已授权应用。
+
+### 区域边缘说明
+
+`oura.kdp.cool` 曾对部分数据中心来源间歇返回 `cf-mitigated: challenge` 的 403。
+当前已针对 `oura.kdp.cool` 的 `/mcp`、`/oauth/*`、`/.well-known/*` 添加
+浏览器完整性检查豁免；`pnpm check:api` 严格验证这些路径已真实到达 Worker，
+不再把边缘 403 记为警告通过。
 
 ## Phase 0 — `/api/me/daily` 契约（2026-09-15）
 

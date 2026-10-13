@@ -9,12 +9,15 @@
 import type { Env } from "../env";
 import { jsonError, resolveSessionSecret } from "../lib/config";
 import { readSessionFromRequest } from "../lib/session";
+import { hmacSign, hmacVerify } from "../lib/crypto.ts";
 import {
   ACCESS_TTL_SECONDS,
   clientRedirects,
   consumeAuthCode,
+  consentCsrfMatches,
   createAuthCode,
   createClient,
+  createConsentRequest,
   getClient,
   issueTokens,
   listConnections,
@@ -22,6 +25,7 @@ import {
   redirectAllowed,
   revokeClient,
   rotateRefreshToken,
+  takeConsentRequest,
   sha256Base64Url,
 } from "../lib/mcp-store.ts";
 import { RELEASE } from "../lib/version.ts";
@@ -213,11 +217,34 @@ function redirectToClient(redirectUri: string, params: Record<string, string>): 
   return new Response(null, { status: 302, headers: { Location: target.toString(), "Cache-Control": "no-store" } });
 }
 
+type StoredConsentRequest = NonNullable<Awaited<ReturnType<typeof takeConsentRequest>>>;
+type ApprovedConsent = StoredConsentRequest & { state: string };
+
+async function signConsentId(secret: string, consentId: string, state: string): Promise<string> {
+  return `${consentId}.${await hmacSign(secret, `${consentId}:${state}`)}`;
+}
+
+async function approvedConsent(
+  request: StoredConsentRequest | null,
+  expected: { clientId: string; userId: string; consentId: string; state: string; secret: string },
+): Promise<ApprovedConsent | null> {
+  if (!request || request.client_id !== expected.clientId || request.user_id !== expected.userId) return null;
+  return { ...request, state: expected.state };
+}
+
 export async function handleAuthorize(request: Request, env: Env): Promise<Response> {
   if (request.method !== "GET" && request.method !== "POST") return jsonError("method not allowed", 405);
-  const params = request.method === "POST"
-    ? readAuthorizeParams(await request.formData())
-    : readAuthorizeParams(new URL(request.url).searchParams);
+  const origin = request.headers.get("Origin");
+  const requestOrigin = new URL(request.url).origin;
+  if (request.method === "POST" && origin && origin !== requestOrigin) {
+    return oauthError("invalid_request", "Authorization consent must be submitted from this site", 403);
+  }
+
+  if (request.method === "POST") {
+    return handleConsentDecision(request, env, requestOrigin);
+  }
+
+  const params = readAuthorizeParams(new URL(request.url).searchParams);
 
   if (params.response_type !== "code") {
     return oauthError("unsupported_response_type", "Only response_type=code is supported");
@@ -257,32 +284,104 @@ export async function handleAuthorize(request: Request, env: Env): Promise<Respo
     return denyAndReturn("access_denied", "This connector is restricted to the account owner");
   }
 
-  const fields = {
-    client_id: params.client_id,
-    client_name: client.client_name ?? "",
-    redirect_uri: params.redirect_uri,
-    response_type: params.response_type,
-    code_challenge: params.code_challenge,
-    code_challenge_method: params.code_challenge_method,
-    state,
-    scope: GRANTED_SCOPE,
-  };
-
-  if (params.decision === "deny") {
-    return redirectToClient(params.redirect_uri, { error: "access_denied", ...(state ? { state } : {}) });
-  }
-  if (params.decision !== "approve") {
-    return consentPage(request, env, fields);
-  }
-
-  const code = await createAuthCode(env, {
+  // A login round-trip survives through D1 OAuth state. Once signed in, render
+  // a one-time consent request instead of trusting any action/query params.
+  const storedConsent = await createConsentRequest(env, {
     clientId: client.client_id,
     userId: session.user_id,
     redirectUri: params.redirect_uri,
     codeChallenge: params.code_challenge,
     scope: GRANTED_SCOPE,
   });
-  return redirectToClient(params.redirect_uri, { code, ...(state ? { state } : {}) });
+  const consent = storedConsent;
+  const fields = {
+    client_id: params.client_id,
+    client_name: client.client_name ?? "",
+    redirect_uri: params.redirect_uri,
+    state,
+    consent_id: await signConsentId(secret, consent.consentId, state),
+    csrf_token: consent.csrfToken,
+  };
+  return consentPage(request, env, fields);
+}
+
+async function handleConsentDecision(
+  request: Request,
+  env: Env,
+  requestOrigin: string,
+): Promise<Response> {
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return oauthError("invalid_request", "Body must be application/x-www-form-urlencoded");
+  }
+  const field = (key: string) => {
+    const value = form.get(key);
+    return typeof value === "string" ? value : "";
+  };
+  const signedConsentId = field("consent_id");
+  const csrfToken = field("csrf_token");
+  const clientId = field("client_id");
+  const decision = field("decision");
+  const state = field("state");
+  const separator = signedConsentId.lastIndexOf(".");
+  const consentId = separator > 0 ? signedConsentId.slice(0, separator) : "";
+  const consentSig = separator > 0 ? signedConsentId.slice(separator + 1) : "";
+
+  if (!consentId || !consentSig || !csrfToken || !clientId || (decision !== "approve" && decision !== "deny")) {
+    return oauthError("invalid_request", "Complete the authorization screen and choose Allow or Deny");
+  }
+  const client = await getClient(env, clientId);
+  if (!client) return oauthError("invalid_client", "Unknown client_id", 401);
+
+  const secret = resolveSessionSecret(request, env);
+  if (!secret) return jsonError("SESSION_SECRET not configured", 503);
+  const session = await readSessionFromRequest(request, env, secret);
+  if (!session) {
+    return oauthError("invalid_request", "Your login expired; open the authorization URL again", 401);
+  }
+  if (!env.PERSONAL_OWNER_ID || session.user_id !== env.PERSONAL_OWNER_ID) {
+    return oauthError("access_denied", "This connector is restricted to the account owner", 403);
+  }
+
+  // A forged POST can reuse a consent id from another tab only by also knowing
+  // its random token; the GET screen is the only place that token is disclosed.
+  if (!(await consentCsrfMatches(env, consentId, csrfToken))) {
+    return oauthError("invalid_request", "Authorization request is invalid, reused or expired", 403);
+  }
+  const expectedSignature = await hmacSign(secret, `${consentId}:${state}`);
+  if (!(await hmacVerify(secret, `${consentId}:${state}`, consentSig)) || consentSig !== expectedSignature) {
+    return oauthError("invalid_request", "Authorization request is invalid, reused or expired", 403);
+  }
+  const consent = await approvedConsent(await takeConsentRequest(env, consentId), {
+    clientId, userId: session.user_id, consentId, state, secret,
+  });
+  if (!consent) {
+    return oauthError("invalid_request", "Authorization request is invalid, reused or expired", 403);
+  }
+
+  if (decision === "deny") {
+    return redirectToClient(consent.redirect_uri, {
+      error: "access_denied",
+      ...(consent.state ? { state: consent.state } : {}),
+    });
+  }
+
+  const code = await createAuthCode(env, {
+    clientId: consent.client_id,
+    userId: consent.user_id,
+    redirectUri: consent.redirect_uri,
+    codeChallenge: consent.code_challenge,
+    scope: consent.scope,
+  });
+  // `requestOrigin` keeps TypeScript honest that the server never takes a
+  // browser-provided absolute target here; the URI came from D1 registration.
+  void requestOrigin;
+  return redirectToClient(consent.redirect_uri, {
+    code,
+    ...(consent.state ? { state: consent.state } : {}),
+  });
 }
 
 function verifyPkce(verifier: string | null, challenge: string): Promise<boolean> {

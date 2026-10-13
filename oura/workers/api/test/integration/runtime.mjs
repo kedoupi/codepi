@@ -44,8 +44,14 @@ export function createRuntime(options = {}) {
         const data = [];
         const end = url.searchParams.get('end_date');
         for (let day = url.searchParams.get('start_date'); day <= end;) {
+          const varied = typeof options.variedDailyData === 'function'
+            ? options.variedDailyData(day)
+            : null;
           data.push({
-            day, score: 80, steps: 8000, active_calories: 400,
+            day,
+            score: varied?.score ?? 80,
+            steps: varied?.steps ?? 8000,
+            active_calories: 400,
             contributors: { deep_sleep: 80, hrv_balance: 80 },
           });
           day = new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10);

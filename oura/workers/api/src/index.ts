@@ -50,9 +50,9 @@ export default {
     const origin = request.headers.get("Origin");
     const isMcpPath = url.pathname === "/mcp" || url.pathname.startsWith("/.well-known/")
       || url.pathname.startsWith("/oauth/");
-    // /mcp and the OAuth endpoints authenticate with bearer tokens (not
-    // cookies), so any web origin may call them; everything else stays
-    // restricted to the dashboard's own origin.
+    // Bearer-token OAuth endpoints accept cross-origin API clients. The
+    // authorization screen itself is cookie-backed, so consent POSTs are
+    // checked again in mcp-oauth.ts before a code can be issued.
     if (!isMcpPath && origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
       return Response.json({ error: "origin_not_allowed", requestId }, { status: 403 });
     }

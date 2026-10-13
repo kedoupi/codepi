@@ -57,8 +57,7 @@ function unauthorized(request: Request, detail: string): Response {
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("Authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  if (match) return match[1].trim();
-  return new URL(request.url).searchParams.get("access_token");
+  return match ? match[1].trim() : null;
 }
 
 /** POST /mcp — the single JSON-RPC entry point. */
