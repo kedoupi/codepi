@@ -2,6 +2,13 @@ const origin = new URL(process.argv[2] || 'https://oura.kdp.cool').origin;
 // Expected build SHA for the just-deployed Worker. When provided, /api/health
 // must report it; this turns the smoke check into a real deploy gate.
 const expectedBuild = process.env.OURA_EXPECT_BUILD || '';
+// The zone's edge challenges datacenter IPs on this hostname (cf-mitigated:
+// challenge) and the free-plan rules cannot exempt a path. The Worker is also
+// reachable on its workers.dev hostname, which has no zone bot rules, so this
+// probe verifies that fallback from the same blocked vantage point.
+const altOrigin = process.env.OURA_CHECK_ALT_ORIGIN
+  ? new URL(process.env.OURA_CHECK_ALT_ORIGIN).origin
+  : '';
 // OURA_CHECK_EDGE_BLOCK=warn downgrades "edge 403 HTML" (WAF/Bot Fight
 // challenging datacenter IPs such as GitHub runners) to a warning. The Worker
 // version is already pinned by the deploy step, so the gate's remaining job —
@@ -124,6 +131,30 @@ const results = await Promise.all(
   ].map(([path, status]) => check(path, status)),
 );
 results.push(await checkMcp());
+
+if (altOrigin) {
+  const probe = async (path, init) => {
+    try {
+      const res = await fetch(new URL(path, altOrigin), { redirect: 'manual', signal: AbortSignal.timeout(15_000), ...init });
+      return { status: res.status, type: res.headers.get('content-type') || '' };
+    } catch (error) {
+      return { status: 0, type: error instanceof Error ? error.message : 'failed' };
+    }
+  };
+  const health = await probe('/api/health');
+  const meta = await probe('/.well-known/oauth-protected-resource');
+  const mcp = await probe('/mcp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  });
+  const ok = health.status === 200 && meta.status === 200 && mcp.status === 401;
+  results.push({
+    path: `${altOrigin} (fallback host)`,
+    ok,
+    detail: `health=${health.status} metadata=${meta.status} mcp=${mcp.status}`,
+  });
+}
 for (const result of results) {
   console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.path}: ${result.detail}`);
 }
