@@ -4,22 +4,10 @@ export type AiFinding = {
   level?: string;
 };
 
-export type AiPrescription = {
-  workout?: string;
-  sleep?: string;
-  move?: string;
-};
-
 export type AiReport = {
-  train?: string;
-  trainReason?: string;
   verdict?: string;
   findings?: AiFinding[];
   actions?: string[];
-  prescription?: AiPrescription;
-  sleep?: string;
-  readiness?: string;
-  activity?: string;
 };
 
 export type AiResponse = {
@@ -31,11 +19,8 @@ export type AiResponse = {
   from?: string;
   to?: string;
   model?: string;
-  now?: {
-    timeStr?: string;
-    hoursToSleep?: number | null;
-    label?: string;
-  };
+  source?: string;
+  fallbackReason?: string | null;
 };
 
 export function stripMarkdown(text: string): string {
@@ -58,16 +43,11 @@ export const AI_THINK_LINES = [
   "正在读睡眠与准备度…",
   "对照这几天的波动…",
   "在写主要发现…",
-  "生成今日处方…",
+  "核对官方分数…",
 ];
 
 export async function fetchAi(rangeDays: number): Promise<AiResponse> {
-  const nowIso = new Date().toISOString();
-  const url =
-    "/api/me/ai?days=" +
-    encodeURIComponent(String(rangeDays)) +
-    "&now=" +
-    encodeURIComponent(nowIso);
+  const url = "/api/me/ai?days=" + encodeURIComponent(String(rangeDays));
   const res = await fetch(url, { cache: "no-store", credentials: "include" });
   const data = (await res.json().catch(() => ({}))) as AiResponse;
   const hasReport = data && data.report && typeof data.report === "object";

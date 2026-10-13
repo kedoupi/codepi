@@ -1,4 +1,6 @@
+import type { SyncInfo } from "./types";
 export type WeeklyPayload = {
+  sync?: SyncInfo;
   ok?: boolean;
   subscribed?: boolean;
   locked?: boolean;
@@ -23,6 +25,7 @@ export type CompareColumn = {
 };
 
 export type ComparePayload = {
+  sync?: SyncInfo;
   ok?: boolean;
   subscribed?: boolean;
   locked?: boolean;

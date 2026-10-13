@@ -1,4 +1,5 @@
 import { KEDOUPI_BOARD_SAMPLE as kedoupiBoardJson } from "../data/kedoupi-board.ts";
+import type { SyncInfo } from "./sync-cache.ts";
 import type { OuraDailyDoc } from "./oura.ts";
 import {
   indexByDay,
@@ -40,6 +41,7 @@ export type DailyResponse = {
   dev?: boolean;
   label?: string;
   dataset?: string;
+  sync?: SyncInfo;
 };
 
 export type BoardDailyPayload = {

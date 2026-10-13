@@ -9,6 +9,7 @@
     me,
     locale,
     localePref,
+    prefSaving = false,
     onLocalePref,
     onMeChange,
     onLogout,
@@ -16,6 +17,7 @@
     me: MeResponse;
     locale: Locale;
     localePref: LocalePref;
+    prefSaving?: boolean;
     onLocalePref: (pref: LocalePref) => void;
     onMeChange: (next: MeResponse) => void;
     onLogout: () => void;
@@ -73,6 +75,9 @@
       busy = false;
     }
   }
+
+  const personal = $derived(me.capabilities?.personal === true);
+  const canBill = $derived(me.capabilities?.billing === true);
 </script>
 
 <div id="dash-view">
@@ -103,45 +108,70 @@
             class:on={localePref === pref}
             role="radio"
             aria-checked={localePref === pref}
+            disabled={prefSaving}
             onclick={() => onLocalePref(pref)}
           >{prefLabel(pref)}</button>
         {/each}
       </div>
+      {#if prefSaving}
+        <p class="hint">{locale === "en" ? "Saving…" : "保存中…"}</p>
+      {/if}
     </section>
 
-    <section class="panel">
-      <h2>{t(locale, "settingsBilling")}</h2>
-      <p class="takeaway">{me.priceLabel ?? t(locale, "settingsPrice")}</p>
-      <p class="hint">{t(locale, "settingsPriceHint")}</p>
-      <p class="hint">
-        {t(locale, "settingsStatus")}：
-        {me.subscribed ? t(locale, "settingsPaid") : t(locale, "settingsUnpaid")}
-        {#if me.subscriptionStatus}
-          · {me.subscriptionStatus}
+    {#if personal}
+      <section class="panel">
+        <h2>{locale === "en" ? "Personal workspace" : "个人工作区"}</h2>
+        <p class="hint">
+          {locale === "en"
+            ? "This account is the designated personal owner: full reports unlocked, billing disabled."
+            : "当前账号被指定为个人专属：完整解读已解锁，不涉及付费订阅。"}
+        </p>
+        <p class="hint">
+          {locale === "en" ? "Connection" : "连接状态"}：Oura OAuth
+          · {locale === "en" ? "Account" : "账号"}：{me.userId ?? "—"}
+        </p>
+        {#if me.release}
+          <p class="hint">{locale === "en" ? "API" : "接口版本"}：{me.release}{me.build ? ` · ${me.build.slice(0, 7)}` : ""}</p>
         {/if}
-      </p>
-      <div class="settings-actions">
-        <button class="landing-btn primary" type="button" disabled={busy} onclick={subscribe}>
-          {t(locale, "settingsSubscribe")}
-        </button>
-        <button class="ai-btn" type="button" disabled={busy} onclick={portal}>
-          {t(locale, "settingsManage")}
-        </button>
-      </div>
-      {#if me.allowDevLogin === true}
+      </section>
+    {:else}
+      <section class="panel">
+        <h2>{t(locale, "settingsBilling")}</h2>
+        <p class="takeaway">{me.priceLabel ?? t(locale, "settingsPrice")}</p>
+        <p class="hint">{t(locale, "settingsPriceHint")}</p>
+        <p class="hint">
+          {t(locale, "settingsStatus")}：
+          {me.subscribed ? t(locale, "settingsPaid") : t(locale, "settingsUnpaid")}
+          {#if me.subscriptionStatus}
+            · {me.subscriptionStatus}
+          {/if}
+        </p>
         <div class="settings-actions">
-          <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(true)}>
-            {t(locale, "devGrantOn")}
+          <button class="landing-btn primary" type="button" disabled={busy || !canBill} onclick={subscribe}>
+            {t(locale, "settingsSubscribe")}
           </button>
-          <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(false)}>
-            {t(locale, "devGrantOff")}
+          <button class="ai-btn" type="button" disabled={busy || !canBill} onclick={portal}>
+            {t(locale, "settingsManage")}
           </button>
         </div>
-      {/if}
-      {#if error}
-        <p class="status err" role="alert">{error}</p>
-      {/if}
-    </section>
+        {#if !canBill}
+          <p class="hint">{locale === "en" ? "Billing is not configured on this deployment." : "当前部署未开启付费功能。"}</p>
+        {/if}
+        {#if me.allowDevLogin === true}
+          <div class="settings-actions">
+            <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(true)}>
+              {t(locale, "devGrantOn")}
+            </button>
+            <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(false)}>
+              {t(locale, "devGrantOff")}
+            </button>
+          </div>
+        {/if}
+        {#if error}
+          <p class="status err" role="alert">{error}</p>
+        {/if}
+      </section>
+    {/if}
 
     <p class="disclaimer-banner" role="note">
       <strong>{t(locale, "notMedical")}</strong>

@@ -81,27 +81,26 @@
 
   const findings = $derived(report?.report?.findings ?? []);
   const actions = $derived(report?.report?.actions ?? []);
-  const rx = $derived(report?.report?.prescription ?? {});
-  const train = $derived(report?.report?.train === "宜歇" ? "宜歇" : "宜练");
-  const trainCls = $derived(train === "宜练" ? "go" : "rest");
   const rangeLabel = $derived.by(() => {
     if (!report) return "";
-    const nowBit =
-      report.now && report.now.timeStr
-        ? " · 现在 " +
-          report.now.timeStr +
-          (report.now.hoursToSleep != null ? " · 距睡觉约 " + report.now.hoursToSleep + "h" : "")
-        : "";
     return (
       "近 " +
       (report.days || rangeDays) +
       " 天 · " +
       (report.from || "") +
       " → " +
-      (report.to || "") +
-      nowBit
+      (report.to || "")
     );
   });
+  const FALLBACK_LABELS: Record<string, string> = {
+    not_configured: "未配置模型服务",
+    insufficient_data: "近期数据不足",
+    daily_limit: "已达今日解读上限",
+    provider_unavailable: "模型服务暂不可用",
+  };
+  const fallbackLabel = $derived(
+    report?.fallbackReason ? (FALLBACK_LABELS[report.fallbackReason] ?? null) : null,
+  );
 </script>
 
 <div
@@ -121,7 +120,7 @@
   aria-labelledby="aiTitle"
 >
   <div class="ai-drawer-head">
-    <div class="ai-drawer-title" id="aiTitle">健康诊断报告</div>
+    <div class="ai-drawer-title" id="aiTitle">数据解读</div>
     <button type="button" class="ai-close" aria-label="关闭" onclick={onClose}>×</button>
   </div>
   <div class="ai-status" class:err={statusErr}>{status}</div>
@@ -129,21 +128,19 @@
     {#if thinking}
       <div class="ai-loading">
         <div class="ai-loading-ring" aria-hidden="true"></div>
-        <div class="ai-loading-title">正在诊断</div>
+        <div class="ai-loading-title">正在整理数据解读</div>
         <div class="ai-loading-sub">{thinkLine}</div>
         <div class="ai-loading-dots" aria-hidden="true"><i></i><i></i><i></i></div>
       </div>
     {:else if report?.report}
       <div class="rpt-meta rpt-block">
         <div class="rpt-range">{rangeLabel}</div>
-        <span class="rpt-train {trainCls}">{train}</span>
       </div>
       <div class="rpt-verdict rpt-block">
+        <div class="rpt-source">{report.source === "ai-ranked" ? `已验证模型辅助排序 · ${report.model}` : "规则解读 · 未调用外部模型"}</div>
+        {#if fallbackLabel}<div class="rpt-source">{fallbackLabel}</div>{/if}
         <div class="rpt-verdict-label">结论</div>
         <div class="rpt-verdict-text">{report.report.verdict || ""}</div>
-        {#if report.report.trainReason}
-          <div class="rpt-verdict-reason">{train} · {report.report.trainReason}</div>
-        {/if}
       </div>
       <div class="rpt-sec">
         <div class="rpt-sec-title rpt-block">主要发现</div>
@@ -159,47 +156,19 @@
           {/each}
         </div>
       </div>
-      <div class="rpt-sec">
-        <div class="rpt-sec-title rpt-block">分项解读</div>
-        <div class="rpt-rows">
-          <div class="rpt-row rpt-block">
-            <div class="rpt-row-k">睡眠</div>
-            <div class="rpt-row-v">{report.report.sleep || ""}</div>
-          </div>
-          <div class="rpt-row rpt-block">
-            <div class="rpt-row-k">准备度</div>
-            <div class="rpt-row-v">{report.report.readiness || ""}</div>
-          </div>
-          <div class="rpt-row rpt-block">
-            <div class="rpt-row-k">活动</div>
-            <div class="rpt-row-v">{report.report.activity || ""}</div>
-          </div>
+      {#if actions.length}
+        <div class="rpt-sec">
+          <div class="rpt-sec-title rpt-block">可以关注</div>
+          <ol class="rpt-actions">
+            {#each actions as a, idx (`a-${idx}`)}
+              <li class="rpt-block"><span class="num">{idx + 1}</span><span>{a}</span></li>
+            {/each}
+          </ol>
         </div>
-      </div>
+      {/if}
       <div class="rpt-sec">
-        <div class="rpt-sec-title rpt-block">今日处方</div>
-        <div class="rpt-rx">
-          <div class="rpt-rx-card rpt-block">
-            <div class="rpt-rx-k">运动</div>
-            <div class="rpt-rx-v">{rx.workout || ""}</div>
-          </div>
-          <div class="rpt-rx-card rpt-block">
-            <div class="rpt-rx-k">睡眠</div>
-            <div class="rpt-rx-v">{rx.sleep || ""}</div>
-          </div>
-          <div class="rpt-rx-card rpt-block">
-            <div class="rpt-rx-k">补活动</div>
-            <div class="rpt-rx-v">{rx.move || ""}</div>
-          </div>
-        </div>
-      </div>
-      <div class="rpt-sec">
-        <div class="rpt-sec-title rpt-block">接下来</div>
-        <ol class="rpt-actions">
-          {#each actions as a, idx (`a-${idx}`)}
-            <li class="rpt-block"><span class="num">{idx + 1}</span><span>{a}</span></li>
-          {/each}
-        </ol>
+        <div class="rpt-sec-title rpt-block">数据说明</div>
+        <div class="rpt-verdict-reason rpt-block">以上分数与变化均由 Oura 官方日汇总计算，非医疗建议；数据不足的项目不做推断。</div>
       </div>
     {:else if fallbackText}
       {fallbackText}

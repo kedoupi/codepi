@@ -9,6 +9,14 @@ export type MeResponse = {
   localePref?: "system" | "zh" | "en" | null;
   stripeConfigured?: boolean;
   priceLabel?: string;
+  capabilities?: { personal: boolean; weeklyFull: boolean; compare: boolean; analysis: boolean; ai: boolean; billing: boolean };
+  release?: string;
+  build?: string;
+  apiContract?: number;
+};
+export type SyncInfo = {
+  syncedAt: string | null; latestDataDate: string | null; stale: boolean;
+  error: string | null; populatedDays: number; windowDays: number;
 };
 
 /** DEV UI only when `/api/me` explicitly returned `allowDevLogin: true`. */
@@ -40,6 +48,7 @@ export type Day = {
 export type DailyResponse = {
   ok?: boolean;
   days?: Day[];
+  sync?: SyncInfo;
 };
 
 export type SummaryCard = {

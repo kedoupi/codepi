@@ -22,6 +22,7 @@ on:
 
 jobs:
   fagao:
+    # Push: runs but skips internally unless fagao/ changed. Dispatch: explicit selector.
     if: ${{ github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'fagao' }}
     runs-on: ubuntu-latest
     defaults:
@@ -29,20 +30,35 @@ jobs:
         working-directory: fagao
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Skip when this push did not touch fagao
+        if: github.event_name == 'push'
+        id: changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^fagao/'; then
+            echo "touched=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=no" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: fagao/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npx wrangler@4 pages deploy dist --project-name=fagao --branch=main
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: npm ci
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: npm run build
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: npx wrangler@4 pages deploy dist --project-name=fagao --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   oura:
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'oura' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.app == 'all' || inputs.app == 'oura' }}
     runs-on: ubuntu-latest
     concurrency:
       group: oura-${{ github.ref }}
@@ -52,34 +68,56 @@ jobs:
         working-directory: oura
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Skip when this push did not touch oura
+        if: github.event_name == 'push'
+        id: changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^oura/'; then
+            echo "touched=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=no" >> "$GITHUB_OUTPUT"
+          fi
       - uses: pnpm/action-setup@v4
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         with:
           version: 9
       - uses: actions/setup-node@v4
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
-      - run: pnpm test
-      - run: pnpm typecheck
-      - run: pnpm --filter @oura-kdp/web build
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: pnpm i --frozen-lockfile
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: pnpm test
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: pnpm typecheck
+      - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: pnpm --filter @oura-kdp/web build
       - name: Deploy API before publishing its frontend
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
         run: pnpm deploy:api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_SHA: ${{ github.sha }}
       - name: Check live API contract
-        if: github.event_name != 'pull_request'
-        run: OURA_CHECK_ALLOW_CF_ACCESS=1 pnpm check:api
+        if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
+        run: pnpm check:api
+        env:
+          OURA_EXPECT_BUILD: ${{ substr(github.sha, 0, 12) }}
       - name: Publish frontend
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
         run: pnpm --filter @oura-kdp/api exec wrangler pages deploy ../../apps/web/dist --project-name=oura-kdp --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check deployment
-        if: github.event_name != 'pull_request'
-        run: OURA_CHECK_ALLOW_CF_ACCESS=1 pnpm check:api
+        if: github.event_name == 'push' && steps.changed.outputs.touched == 'yes'
+        run: pnpm check:api
+        env:
+          OURA_EXPECT_BUILD: ${{ substr(github.sha, 0, 12) }}
 

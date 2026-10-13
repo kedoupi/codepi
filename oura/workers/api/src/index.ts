@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { allowDevLogin, oauthConfigured } from "./lib/config";
-import { ensureSchema } from "./lib/schema";
+import { ApiError } from "./lib/errors.ts";
+import { API_CONTRACT, RELEASE } from "./lib/version.ts";
 import {
   handleDevSession,
   handleLogout,
@@ -19,28 +20,33 @@ import {
   handleStripeWebhook,
 } from "./routes/stripe";
 
-function cors(req: Request): HeadersInit {
-  const origin = req.headers.get("Origin") ?? "*";
+function cors(req: Request, env: Env): HeadersInit {
+  const origin = req.headers.get("Origin");
+  const allowed = origin === new URL(req.url).origin || origin === env.FRONTEND_ORIGIN;
+  if (!origin || !allowed) return { Vary: "Origin" };
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature",
     "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
   };
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const requestId = crypto.randomUUID();
+    const origin = request.headers.get("Origin");
+    if (origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
+      return Response.json({ error: "origin_not_allowed", requestId }, { status: 403 });
+    }
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: cors(request) });
+      return new Response(null, { status: 204, headers: cors(request, env) });
     }
 
     try {
-      if (url.pathname.startsWith("/api/")) {
-        await ensureSchema(env);
-      }
       let res: Response;
       switch (url.pathname) {
         case "/api/auth/oura/start":
@@ -62,6 +68,7 @@ export default {
           res = await handleMePrefs(request, env);
           break;
         case "/api/me/daily":
+        case "/api/me/sync":
           res = await handleMeDaily(request, env);
           break;
         case "/api/me/ai":
@@ -91,6 +98,9 @@ export default {
             service: "oura-kdp-api",
             allowDevLogin: allowDevLogin(request, env),
             oauthConfigured: oauthConfigured(env),
+            apiContract: API_CONTRACT,
+            release: RELEASE,
+            build: env.BUILD_SHA ?? "local",
           });
           break;
         default:
@@ -98,14 +108,16 @@ export default {
       }
 
       const headers = new Headers(res.headers);
-      for (const [k, v] of Object.entries(cors(request))) {
+      headers.set("Cache-Control", "no-store");
+      headers.set("X-Request-ID", requestId);
+      for (const [k, v] of Object.entries(cors(request, env))) {
         if (!headers.has(k)) headers.set(k, v);
       }
       return new Response(res.body, { status: res.status, headers });
     } catch (err) {
       return Response.json(
-        { error: err instanceof Error ? err.message : "internal error" },
-        { status: 500, headers: cors(request) },
+        { error: err instanceof ApiError ? err.code : "internal_error", requestId },
+        { status: err instanceof ApiError ? err.status : 500, headers: { ...cors(request, env), "Cache-Control": "no-store", "X-Request-ID": requestId } },
       );
     }
   },

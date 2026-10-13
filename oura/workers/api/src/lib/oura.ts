@@ -4,6 +4,7 @@
  *       https://cloud.ouraring.com/v2/docs
  */
 
+import { upstreamFetch } from "./errors.ts";
 export const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 export const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 export const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
@@ -66,14 +67,14 @@ export function buildAuthorizeUrl(opts: {
 }
 
 async function postToken(body: URLSearchParams): Promise<OuraTokens> {
-  const res = await fetch(OURA_TOKEN_URL, {
+  const res = await upstreamFetch(OURA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Oura token HTTP ${res.status}: ${text.slice(0, 240)}`);
+    throw new Error("token_exchange_failed");
   }
   const json = JSON.parse(text) as Partial<OuraTokens> & { error?: string };
   if (!json.access_token || !json.refresh_token) {
@@ -117,12 +118,12 @@ export async function refreshAccessToken(args: {
 }
 
 async function ouraGet<T>(accessToken: string, path: string): Promise<T> {
-  const res = await fetch(`${OURA_API_BASE}${path}`, {
+  const res = await upstreamFetch(`${OURA_API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`Oura ${path} HTTP ${res.status}: ${text.slice(0, 240)}`);
+    throw new Error("upstream_unavailable");
   }
   return JSON.parse(text) as T;
 }

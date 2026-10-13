@@ -28,7 +28,6 @@ import {
   readStateCookie,
   DEV_USER_ID,
 } from "../lib/session";
-import { ensureSchema } from "../lib/schema";
 import {
   consumeOauthState,
   saveOauthState,
@@ -71,12 +70,7 @@ export async function handleOuraStart(
   }
 
   const state = crypto.randomUUID();
-  try {
-    await ensureSchema(env);
-    await saveOauthState(env, state);
-  } catch {
-    // D1 optional for tonight check 1 — signed cookie still binds CSRF state.
-  }
+  await saveOauthState(env, state);
 
   const headers = new Headers();
   await attachStateCookie(headers, request, secret, state);
@@ -115,13 +109,16 @@ export async function handleOuraCallback(
   }
 
   const cookieState = await readStateCookie(request, secret);
+  if (cookieState !== state) {
+    return redirectToApp(request, env, { error: "invalid_state" });
+  }
   let dbOk = false;
   try {
     dbOk = await consumeOauthState(env, state);
   } catch {
     dbOk = false;
   }
-  if (cookieState !== state && !dbOk) {
+  if (!dbOk) {
     return redirectToApp(request, env, { error: "invalid_state" });
   }
 
@@ -140,7 +137,6 @@ export async function handleOuraCallback(
   }
 
   try {
-    await ensureSchema(env);
     const tokens = await exchangeCodeForTokens({
       code,
       clientId: env.OURA_CLIENT_ID!,
@@ -162,11 +158,9 @@ export async function handleOuraCallback(
       `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
     );
     return redirectToApp(request, env, { login: "ok" }, headers);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "token_exchange_failed";
+  } catch {
     return redirectToApp(request, env, {
       error: "token_exchange_failed",
-      detail: message.slice(0, 180),
     });
   }
 }
@@ -186,7 +180,6 @@ export async function handleDevSession(
     return jsonError("SESSION_SECRET not configured", 503);
   }
   try {
-    await ensureSchema(env);
     await ensureDevUser(env);
     const sessionId = await createSession(env, DEV_USER_ID, "dev");
     const headers = new Headers();

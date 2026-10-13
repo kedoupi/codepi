@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { capabilities } from "../lib/capabilities.ts";
 import { isResponse, requireSession } from "../lib/authz";
 import { jsonError } from "../lib/config";
 import {
@@ -21,7 +22,7 @@ async function sessionDaily(request: Request, env: Env) {
   const daily = await loadDailyForSession(request, env, auth.session, 30);
   if (!isDailyResponse(daily)) return daily;
   const sub = await loadSubscription(env, auth.session.user_id);
-  return { days: daily.days, subscribed: isEntitled(sub?.status) };
+  return { days: daily.days, subscribed: isEntitled(sub?.status), full: capabilities(env, auth.session.user_id, sub?.status).weeklyFull, sync: daily.sync };
 }
 
 /** GET /api/me/insights/weekly — 3 teaser lines free; tips require subscription. */
@@ -33,7 +34,7 @@ export async function handleWeeklyInsights(
   const loaded = await sessionDaily(request, env);
   if (isResponse(loaded)) return loaded;
   const report = buildWeeklyReport(loaded.days);
-  return Response.json(paywallWeekly(report, loaded.subscribed), { headers: noStore });
+  return Response.json({ ...paywallWeekly(report, loaded.full), subscribed: loaded.subscribed, sync: loaded.sync }, { headers: noStore });
 }
 
 /** GET /api/me/insights/compare?mode=week|range — full page requires subscription. */
@@ -47,5 +48,5 @@ export async function handleCompareInsights(
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") === "range" ? "range" : "week";
   const report = buildCompareReport(loaded.days, mode);
-  return Response.json(paywallCompare(report, loaded.subscribed), { headers: noStore });
+  return Response.json({ ...paywallCompare(report, loaded.full), subscribed: loaded.subscribed, sync: loaded.sync }, { headers: noStore });
 }
