@@ -47,7 +47,12 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    if (url.pathname.startsWith('/api/')) {
+    // Connector + auth paths ride the same Worker as the dashboard APIs.
+    const isWorkerPath = url.pathname.startsWith('/api/')
+      || url.pathname === '/mcp'
+      || url.pathname.startsWith('/oauth/')
+      || url.pathname.startsWith('/.well-known/');
+    if (isWorkerPath) {
       const jar = /oura_fixture_jar=free/.test(req.headers.cookie || '') ? freeRuntime : ownerRuntime;
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
