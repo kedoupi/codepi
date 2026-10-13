@@ -24,7 +24,14 @@ async function check(path, expectedStatus = 200) {
     if (response.status === 403 && contentType.includes('text/html')) {
       blockedBeforeWorker = true;
       const ok = edgeBlockMode === 'warn';
-      return { path, ok, detail: `HTTP 403 HTML from edge (request never reached the Worker)${ok ? ' [warn mode]' : ''}` };
+      // Record why the edge refused, so a future block can be diagnosed
+      // instead of assumed: cf-mitigated identifies a challenge/block rule.
+      const mitigated = response.headers.get('cf-mitigated') || 'none';
+      const ray = response.headers.get('cf-ray') || 'none';
+      return {
+        path, ok,
+        detail: `HTTP 403 HTML from edge (request never reached the Worker); cf-mitigated=${mitigated}; cf-ray=${ray}${ok ? ' [warn mode]' : ''}`,
+      };
     }
 
     if (path === '/api/auth/oura/start') {
