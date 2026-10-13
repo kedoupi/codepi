@@ -402,6 +402,11 @@ test('tools are listed with schemas and return grounded Oura data', async () => 
   assert.equal(init.status, 200);
   assert.equal(init.body.result.protocolVersion, '2025-06-18');
   assert.equal(init.body.result.serverInfo.name, 'oura-personal-health');
+  assert.equal(init.body.result.serverInfo.websiteUrl, `${ORIGIN}/`);
+  assert.deepEqual(init.body.result.serverInfo.icons, [
+    { src: `${ORIGIN}/icon.png`, mimeType: 'image/png', sizes: ['512x512'] },
+    { src: `${ORIGIN}/icon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+  ]);
   assert.match(init.body.result.instructions, /read-only/i);
 
   const list = await rpc(access_token, 'tools/list', {});

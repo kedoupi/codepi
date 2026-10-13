@@ -120,5 +120,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check deployment
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        run: OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
+        run: |
+          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
+          pnpm check:branding
 
