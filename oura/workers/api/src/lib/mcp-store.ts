@@ -11,6 +11,7 @@ export const MCP_SCOPE = "oura.read";
 export const ACCESS_TTL_SECONDS = 60 * 60;
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CODE_TTL_MS = 5 * 60 * 1000;
+const CONSENT_TTL_MS = 10 * 60 * 1000;
 
 function base64Url(bytes: Uint8Array): string {
   let bin = "";
@@ -92,6 +93,65 @@ export type AuthCodeRow = {
   code_challenge: string;
   scope: string;
 };
+
+/** Consent screen GET is transactional: approval must carry this one-time id. */
+export async function createConsentRequest(
+  env: Env,
+  args: {
+    clientId: string;
+    userId: string;
+    redirectUri: string;
+    codeChallenge: string;
+    scope: string;
+  },
+): Promise<{ consentId: string; csrfToken: string }> {
+  const consentId = `mcp_consent_${randomToken(16)}`;
+  const csrfToken = randomToken(24);
+  await env.DB.prepare(
+    `INSERT INTO oauth_consent_requests
+       (consent_id, client_id, user_id, redirect_uri, code_challenge, scope, csrf_hash, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    consentId, args.clientId, args.userId, args.redirectUri,
+    args.codeChallenge, args.scope, await sha256Base64Url(csrfToken),
+    Date.now() + CONSENT_TTL_MS,
+  ).run();
+  return { consentId, csrfToken };
+}
+
+export type ConsentRequestRow = {
+  client_id: string;
+  user_id: string;
+  redirect_uri: string;
+  code_challenge: string;
+  scope: string;
+};
+
+/** Atomic consume: a reused consent id returns null even under a race. */
+export async function takeConsentRequest(
+  env: Env,
+  consentId: string,
+): Promise<ConsentRequestRow | null> {
+  const row = await env.DB.prepare(
+    `UPDATE oauth_consent_requests SET consumed_at = ?
+     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ?
+     RETURNING client_id, user_id, redirect_uri, code_challenge, scope`,
+  ).bind(Date.now(), consentId, Date.now()).first<ConsentRequestRow>();
+  return row ?? null;
+}
+
+/** Constant-shape lookup: a wrong CSRF token never consumes the consent. */
+export async function consentCsrfMatches(
+  env: Env,
+  consentId: string,
+  csrfToken: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT csrf_hash FROM oauth_consent_requests
+     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ?`,
+  ).bind(consentId, Date.now()).first<{ csrf_hash: string }>();
+  return row !== null && row.csrf_hash === await sha256Base64Url(csrfToken);
+}
 
 /** Atomic single-use consume: a replayed code returns null even under a race. */
 export async function consumeAuthCode(env: Env, code: string): Promise<AuthCodeRow | null> {

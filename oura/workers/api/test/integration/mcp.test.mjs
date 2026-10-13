@@ -16,6 +16,10 @@ function fetchAt(path, options = {}) {
   return runtime.dispatchFetch(`${ORIGIN}${path}`, { redirect: 'manual', ...options });
 }
 
+function fetchAtRuntime(instance, path, options = {}) {
+  return instance.dispatchFetch(`${ORIGIN}${path}`, { redirect: 'manual', ...options });
+}
+
 function base64url(bytes) {
   return Buffer.from(bytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -27,7 +31,11 @@ async function pkce() {
 }
 
 async function registerClient(redirectUri = 'http://127.0.0.1:9999/callback') {
-  const res = await fetchAt('/oauth/register', {
+  return registerClientAt(runtime, redirectUri);
+}
+
+async function registerClientAt(instance, redirectUri = 'http://127.0.0.1:9999/callback') {
+  const res = await fetchAtRuntime(instance, '/oauth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_name: 'Test MCP client', redirect_uris: [redirectUri] }),
@@ -38,6 +46,10 @@ async function registerClient(redirectUri = 'http://127.0.0.1:9999/callback') {
 
 /** Full authorize → code → token exchange, returning the token response. */
 async function authorizeAndExchange({ cookie, client, verifier, challenge, redirectUri = 'http://127.0.0.1:9999/callback', state = 'xyz' }) {
+  return authorizeAndExchangeAt(runtime, { cookie, client, verifier, challenge, redirectUri, state });
+}
+
+async function authorizeAndExchangeAt(instance, { cookie, client, verifier, challenge, redirectUri = 'http://127.0.0.1:9999/callback', state = 'xyz' }) {
   const query = new URLSearchParams({
     client_id: client.client_id,
     redirect_uri: redirectUri,
@@ -47,20 +59,26 @@ async function authorizeAndExchange({ cookie, client, verifier, challenge, redir
     state,
     scope: 'oura.read',
   });
-  const approve = await fetchAt('/oauth/authorize', {
+  const consent = await fetchAtRuntime(instance, `/oauth/authorize?${query}`, { headers: { Cookie: cookie } });
+  assert.equal(consent.status, 200, 'authorization GET should show consent');
+  const html = await consent.text();
+  const consentId = html.match(/name="consent_id" value="([^"]+)"/)?.[1];
+  const csrfToken = html.match(/name="csrf_token" value="([^"]+)"/)?.[1];
+  assert.ok(consentId && csrfToken, 'consent page should issue one-time credentials');
+  const approve = await fetchAtRuntime(instance, '/oauth/authorize', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       ...(cookie ? { Cookie: cookie } : {}),
     },
-    body: new URLSearchParams({ ...Object.fromEntries(query), decision: 'approve' }).toString(),
+    body: new URLSearchParams({ consent_id: consentId, csrf_token: csrfToken, client_id: client.client_id, decision: 'approve', state }).toString(),
   });
   assert.equal(approve.status, 302, 'approve should redirect');
   const location = new URL(approve.headers.get('location'));
   const code = location.searchParams.get('code');
   assert.ok(code, 'authorization code expected');
   assert.equal(location.searchParams.get('state'), state);
-  const token = await fetchAt('/oauth/token', {
+  const token = await fetchAtRuntime(instance, '/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -71,8 +89,29 @@ async function authorizeAndExchange({ cookie, client, verifier, challenge, redir
   return { token, code, status: token.status };
 }
 
+async function getConsentCredentials(cookie, client, options = {}) {
+  const { challenge } = options;
+  const query = new URLSearchParams({
+    client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
+    response_type: 'code', code_challenge: challenge, code_challenge_method: 'S256',
+    state: 'st', scope: 'oura.read',
+  });
+  const consent = await fetchAt(`/oauth/authorize?${query}`, { headers: { Cookie: cookie } });
+  assert.equal(consent.status, 200);
+  const html = await consent.text();
+  return {
+    consentId: html.match(/name="consent_id" value="([^"]+)"/)?.[1],
+    csrfToken: html.match(/name="csrf_token" value="([^"]+)"/)?.[1],
+    html,
+  };
+}
+
 async function rpc(token, method, params) {
-  const res = await fetchAt('/mcp', {
+  return rpcAt(runtime, token, method, params);
+}
+
+async function rpcAt(instance, token, method, params) {
+  const res = await fetchAtRuntime(instance, '/mcp', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }),
@@ -150,50 +189,114 @@ test('authorize sends an anonymous browser through Oura login and back to consen
 
 test('PKCE is mandatory and the redirect URI must be registered', async () => {
   const client = await registerClient();
-  const noPkce = await fetchAt('/oauth/authorize', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
+  const noPkce = await fetchAt(
+    `/oauth/authorize?${new URLSearchParams({
       client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
       response_type: 'code', state: 's',
-    }).toString(),
-  });
+    })}`,
+  );
   assert.equal(noPkce.status, 302);
   assert.equal(new URL(noPkce.headers.get('location')).searchParams.get('error'), 'invalid_request');
 
-  const badRedirect = await fetchAt('/oauth/authorize', {
+  const badRedirect = await fetchAt(
+    `/oauth/authorize?${new URLSearchParams({
+      client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/other',
+      response_type: 'code', code_challenge: 'x', code_challenge_method: 'S256',
+    })}`,
+  );
+  assert.equal(badRedirect.status, 400);
+  assert.equal((await badRedirect.json()).error, 'invalid_redirect_uri');
+});
+
+test('a GET cannot approve consent without the one-time form token', async () => {
+  const cookie = await login(runtime);
+  const client = await registerClient();
+  const { challenge } = await pkce();
+  const query = new URLSearchParams({
+    client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
+    response_type: 'code', code_challenge: challenge, code_challenge_method: 'S256',
+    state: 'st', scope: 'oura.read', decision: 'approve',
+  });
+  const res = await fetchAt(`/oauth/authorize?${query}`, { headers: { Cookie: cookie } });
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /允许连接/);
+});
+
+test('consent approval requires a matching CSRF token and is single-use', async () => {
+  const cookie = await login(runtime);
+  const client = await registerClient();
+  const { verifier, challenge } = await pkce();
+  const consent = await getConsentCredentials(cookie, client, { challenge });
+  assert.ok(consent.consentId && consent.csrfToken);
+  const approveBody = () => new URLSearchParams({
+    consent_id: consent.consentId, csrf_token: consent.csrfToken,
+    client_id: client.client_id, decision: 'approve', state: 'st',
+  }).toString();
+
+  const wrongCsrf = await fetchAt('/oauth/authorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+    body: new URLSearchParams({
+      consent_id: consent.consentId, csrf_token: 'wrong', client_id: client.client_id, decision: 'approve', state: 'st',
+    }).toString(),
+  });
+  assert.equal(wrongCsrf.status, 403);
+
+  const foreignOrigin = await fetchAt('/oauth/authorize', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie, Origin: 'https://evil.example',
+    },
+    body: approveBody(),
+  });
+  assert.equal(foreignOrigin.status, 403);
+
+  const approve = await fetchAt('/oauth/authorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+    body: approveBody(),
+  });
+  assert.equal(approve.status, 302);
+  assert.ok(new URL(approve.headers.get('location')).searchParams.get('code'));
+
+  const reused = await fetchAt('/oauth/authorize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
+    body: approveBody(),
+  });
+  assert.equal(reused.status, 403);
+
+  const exchange = await fetchAt('/oauth/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/other',
-      response_type: 'code', code_challenge: 'x', code_challenge_method: 'S256',
+      grant_type: 'authorization_code',
+      code: new URL(approve.headers.get('location')).searchParams.get('code'),
+      client_id: client.client_id,
+      redirect_uri: 'http://127.0.0.1:9999/callback',
+      code_verifier: verifier,
     }).toString(),
   });
-  assert.equal(badRedirect.status, 400);
-  assert.equal((await badRedirect.json()).error, 'invalid_redirect_uri');
+  assert.equal(exchange.status, 200);
 });
 
 test('consent screen renders and denial returns access_denied', async () => {
   const cookie = await login(runtime);
   const client = await registerClient();
   const { challenge } = await pkce();
-  const base = new URLSearchParams({
-    client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
-    response_type: 'code', code_challenge: challenge, code_challenge_method: 'S256',
-    state: 'st', scope: 'oura.read',
-  });
 
-  const consent = await fetchAt(`/oauth/authorize?${base}`, { headers: { Cookie: cookie } });
-  assert.equal(consent.status, 200);
-  const html = await consent.text();
-  assert.match(consent.headers.get('content-type'), /text\/html/);
+  const consent = await getConsentCredentials(cookie, client, { challenge });
+  const html = consent.html;
   assert.match(html, /允许连接/);
   assert.ok(!html.includes(cookie), 'consent page must not echo the session cookie');
 
   const denied = await fetchAt('/oauth/authorize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
-    body: new URLSearchParams({ ...Object.fromEntries(base), decision: 'deny' }).toString(),
+    body: new URLSearchParams({
+      consent_id: consent.consentId, csrf_token: consent.csrfToken,
+      client_id: client.client_id, decision: 'deny', state: 'st',
+    }).toString(),
   });
   assert.equal(denied.status, 302);
   const target = new URL(denied.headers.get('location'));
@@ -221,18 +324,16 @@ test('a non-owner session cannot authorize the connector', async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_name: 'outsider', redirect_uris: ['http://127.0.0.1:9999/callback'] }),
     }).then(res => res.json());
-    const { challenge } = await pkce();
     const res = await other.dispatchFetch(`${ORIGIN}/oauth/authorize`, {
       method: 'POST', redirect: 'manual',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
       body: new URLSearchParams({
-        client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
-        response_type: 'code', code_challenge: challenge, code_challenge_method: 'S256',
-        decision: 'approve',
+        consent_id: 'mcp_consent_unknown.sig', csrf_token: 'wrong',
+        client_id: client.client_id, decision: 'approve',
       }).toString(),
     });
-    assert.equal(res.status, 302);
-    assert.equal(new URL(res.headers.get('location')).searchParams.get('error'), 'access_denied');
+    assert.equal(res.status, 403);
+    assert.equal((await res.json()).error, 'access_denied');
   } finally {
     await other.dispose();
   }
@@ -345,6 +446,45 @@ test('tools are listed with schemas and return grounded Oura data', async () => 
   assert.equal(badParams.body.error.code, -32602);
 });
 
+test('period tools compute the actual 30-day window and prior 30-day comparison', async () => {
+  const varied = createRuntime({
+    variedDailyData: day => {
+      const date = new Date(`${day}T00:00:00Z`);
+      const age = Math.floor((Date.now() - date.getTime()) / 86400000);
+      if (age <= 29) return { score: 90, steps: 9000 };
+      return { score: 60, steps: 6000 };
+    },
+  });
+  try {
+    await varied.ready;
+    await migrate(varied);
+    const cookie = await login(varied);
+    const client = await registerClientAt(varied);
+    const pair = await pkce();
+    const issued = await authorizeAndExchangeAt(varied, { cookie, client, verifier: pair.verifier, challenge: pair.challenge });
+    const { access_token } = await issued.token.json();
+
+    const summary = await rpcAt(varied, access_token, 'tools/call', { name: 'get_period_summary', arguments: { days: 30 } });
+    const summaryPayload = summary.body.result.structuredContent;
+    assert.equal(summaryPayload.days, 30);
+    assert.equal(summaryPayload.averages.sleep, 90);
+    assert.equal(summaryPayload.averages.steps, 9000);
+    assert.equal(summaryPayload.coverage.metric_counts.sleep_score, 30);
+
+    const compare = await rpcAt(varied, access_token, 'tools/call', { name: 'compare_periods', arguments: { mode: 'range' } });
+    const payload = compare.body.result.structuredContent;
+    assert.equal(payload.mode, 'range');
+    assert.equal(payload.left.label, '近 30 天');
+    assert.equal(payload.right.label, '前 30 天');
+    assert.equal(payload.left.sleep, 90);
+    assert.equal(payload.right.sleep, 60);
+    assert.equal(payload.left.steps, 9000);
+    assert.equal(payload.right.steps, 6000);
+  } finally {
+    await varied.dispose();
+  }
+});
+
 test('every tool refuses to serve a non-owner token', async () => {
   const other = createRuntime({ bindings: {
     ALLOW_DEV_LOGIN: '0',
@@ -367,17 +507,16 @@ test('every tool refuses to serve a non-owner token', async () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ redirect_uris: ['http://127.0.0.1:9999/callback'] }),
     }).then(r => r.json());
-    const pair = await pkce();
     const authorize = await other.dispatchFetch(`${ORIGIN}/oauth/authorize`, {
       method: 'POST', redirect: 'manual',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookie },
       body: new URLSearchParams({
-        client_id: client.client_id, redirect_uri: 'http://127.0.0.1:9999/callback',
-        response_type: 'code', code_challenge: pair.challenge, code_challenge_method: 'S256',
-        decision: 'approve',
+        consent_id: 'mcp_consent_unknown.sig', csrf_token: 'wrong',
+        client_id: client.client_id, decision: 'approve',
       }).toString(),
     });
-    assert.equal(new URL(authorize.headers.get('location')).searchParams.get('error'), 'access_denied');
+    assert.equal(authorize.status, 403);
+    assert.equal((await authorize.json()).error, 'access_denied');
   } finally {
     await other.dispose();
   }

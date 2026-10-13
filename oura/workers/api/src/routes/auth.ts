@@ -70,11 +70,15 @@ export async function handleOuraStart(
   }
 
   const state = crypto.randomUUID();
-  // `return` lets an MCP authorization request survive a fresh login: the
-  // browser is sent to Oura and, on success, back to the consent screen.
+  // `return` lets an MCP authorization request survive a fresh login. Accept
+  // only that exact local consent URL; a loose prefix check would permit
+  // backslash-normalized external redirects in some browsers.
   const rawReturn = new URL(request.url).searchParams.get("return");
-  const returnTo =
-    rawReturn && rawReturn.startsWith("/") && !rawReturn.startsWith("//") ? rawReturn : null;
+  const parsedReturn = rawReturn ? new URL(rawReturn, new URL(request.url).origin) : null;
+  const returnTo = parsedReturn?.origin === new URL(request.url).origin
+      && parsedReturn?.pathname === "/oauth/authorize"
+    ? parsedReturn.pathname + parsedReturn.search
+    : null;
   await saveOauthState(env, state, returnTo);
 
   const headers = new Headers();
@@ -166,7 +170,7 @@ export async function handleOuraCallback(
       `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
     );
     if (returnTo) {
-      headers.set("Location", new URL(returnTo, new URL(request.url).origin).toString());
+      headers.set("Location", returnTo);
       return new Response(null, { status: 302, headers });
     }
     return redirectToApp(request, env, { login: "ok" }, headers);

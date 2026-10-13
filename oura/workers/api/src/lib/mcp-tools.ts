@@ -11,7 +11,13 @@ import { clampDays, type DailyResponse, type NestedDay } from "./daily.ts";
 import type { SessionRow } from "./session.ts";
 import { loadSubscription } from "./subscription.ts";
 import { isDailyResponse, loadDailyForSession } from "./user-daily.ts";
-import { buildCompareReport, buildWeeklyReport, type InsightDay } from "./weekly-report.ts";
+import {
+  buildCompareReport,
+  rangeOf,
+  sortDays,
+  windowAverages,
+  type InsightDay,
+} from "./weekly-report.ts";
 
 export const DISCLAIMER = "非医疗建议 / Not medical advice.";
 
@@ -28,6 +34,8 @@ const DAYS_SCHEMA = {
   default: 30,
   description: "Window size in days ending today.",
 } as const;
+
+const ONE_DAY_MS = 86400000;
 
 export const TOOLS: ToolDefinition[] = [
   {
@@ -52,7 +60,7 @@ export const TOOLS: ToolDefinition[] = [
     name: "get_period_summary",
     title: "Averages for a period",
     description:
-      "Average sleep, readiness and activity scores with average steps for a window, plus how many days actually had data. Use this for 'how am I doing lately' questions.",
+      "Average sleep, readiness and activity scores with average steps for a window, plus how many days actually had each metric. Use this for 'how am I doing lately' questions.",
     inputSchema: {
       type: "object",
       properties: { days: DAYS_SCHEMA },
@@ -63,7 +71,7 @@ export const TOOLS: ToolDefinition[] = [
     name: "compare_periods",
     title: "Compare two periods",
     description:
-      "Compare the most recent 7 days against the 7 days before them (mode=week), or the last 30 days against the previous 30 (mode=range). Returns both sides and the exact dates compared.",
+      "Compare the most recent 7 days against the 7 days before them (mode=week), or the last 30 days against the previous 30 days (mode=range). Returns both sides and the exact dates compared.",
     inputSchema: {
       type: "object",
       properties: {
@@ -104,11 +112,22 @@ function dailyForTool(res: DailyResponse) {
 
 function coverage(days: NestedDay[]) {
   const populated = days.filter(day => day.sleep || day.readiness || day.activity);
+  const count = (pick: (day: NestedDay) => unknown) =>
+    days.filter(day => {
+      const value = pick(day);
+      return typeof value === "number" && Number.isFinite(value);
+    }).length;
   return {
     days_requested: days.length,
     days_with_data: populated.length,
     days_without_data: days.length - populated.length,
     latest_day_with_data: populated.at(-1)?.date ?? null,
+    metric_counts: {
+      sleep_score: count(day => day.sleep?.score),
+      readiness_score: count(day => day.readiness?.score),
+      activity_score: count(day => day.activity?.score),
+      steps: count(day => day.activity?.steps),
+    },
   };
 }
 
@@ -122,6 +141,29 @@ function ok(payload: Record<string, unknown>): ToolResult {
   return {
     content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
     structuredContent: payload,
+  };
+}
+
+function roundAverages(days: InsightDay[]) {
+  const averages = windowAverages(days);
+  return {
+    sleep: round1(averages.sleep),
+    readiness: round1(averages.readiness),
+    activity: round1(averages.activity),
+    steps: round1(averages.steps),
+  };
+}
+
+function periodComparison(days: InsightDay[]) {
+  const sorted = sortDays(days);
+  const end = Date.parse(sorted.at(-1)?.date ?? "");
+  const current = sorted.filter(day => Date.parse(day.date) > end - 30 * ONE_DAY_MS);
+  const previous = sorted.filter(day =>
+    Date.parse(day.date) > end - 60 * ONE_DAY_MS && Date.parse(day.date) <= end - 30 * ONE_DAY_MS
+  );
+  return {
+    left: { label: "近 30 天", ...rangeOf(current), days: current.length, ...roundAverages(current) },
+    right: { label: "前 30 天", ...rangeOf(previous), days: previous.length, ...roundAverages(previous) },
   };
 }
 
@@ -177,15 +219,13 @@ export async function runTool(
   if (name === "get_period_summary") {
     const daily = await loadDailyForSession(request, env, session, daysArg);
     if (!isDailyResponse(daily)) return await errorFrom(daily);
-    const report = buildWeeklyReport(daily.days as InsightDay[]);
     return ok({
-      period: report.thisPeriod,
+      period: { from: daily.from, to: daily.to },
       days: daily.count,
-      averages: report.avgs.thisWeek,
+      averages: roundAverages(daily.days as InsightDay[]),
       coverage: coverage(daily.days),
       synced_at: daily.sync?.syncedAt ?? null,
       stale: daily.sync?.stale ?? false,
-      notes: report.summaries,
       disclaimer: DISCLAIMER,
     });
   }
@@ -195,11 +235,19 @@ export async function runTool(
     const window = mode === "range" ? 90 : 30;
     const daily = await loadDailyForSession(request, env, session, window);
     if (!isDailyResponse(daily)) return await errorFrom(daily);
-    const report = buildCompareReport(daily.days as InsightDay[], mode);
+    const report = mode === "range"
+      ? periodComparison(daily.days as InsightDay[])
+      : (() => {
+          const week = buildCompareReport(daily.days as InsightDay[], "week");
+          return {
+            left: { ...week.left, sleep: round1(week.left.sleep) },
+            right: { ...week.right, sleep: round1(week.right.sleep) },
+          };
+        })();
     return ok({
-      mode: report.mode,
-      left: { ...report.left, sleep: round1(report.left.sleep) },
-      right: { ...report.right, sleep: round1(report.right.sleep) },
+      mode,
+      left: report.left,
+      right: report.right,
       coverage: coverage(daily.days),
       synced_at: daily.sync?.syncedAt ?? null,
       stale: daily.sync?.stale ?? false,
