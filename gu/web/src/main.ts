@@ -1,4 +1,5 @@
 import "./style.css";
+import { marketChange } from "./format";
 import { escapeHtml as e, markdown } from "./markdown";
 import type { Dashboard, Row } from "../../worker/dashboard-types";
 
@@ -134,7 +135,7 @@ function overview() {
       <div class="allocation-list">${d.positions.map((p, i) => `<div><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="${colors[i % colors.length]}"/></svg><span>${e(p.ticker)}</span><b>${pct(p.weight)}</b><small>目标 ${pct(p.target)}</small></div>`).join("")}</div></section>
     <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant.slice(0, 4)) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section></div>
     <section class="surface market"><div class="section-title"><h2>市场一览</h2><span class="muted">按各标的最近行情展示</span></div>
-    <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${signed(m.change_pct)}</b><small>${m.error ? e(m.error) : e(m.date)}</small></div>`).join("")}</div></section>`;
+    <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? e(m.error) : e(m.date)}</small></div>`).join("")}</div></section>`;
 }
 
 function positions() {

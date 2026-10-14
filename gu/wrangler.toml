@@ -10,8 +10,7 @@ OTP_FROM = "otp@kdp.cool"
 [[d1_databases]]
 binding = "DB"
 database_name = "gu-production"
-# Local development placeholder. Replace only after provisioning a dedicated D1.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "8fc889ca-b3e6-493e-90ba-01aa0e1c82da"
 migrations_dir = "migrations"
 
 [env.preview.vars]
@@ -21,5 +20,5 @@ OTP_FROM = "otp@kdp.cool"
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "gu-preview"
-database_id = "00000000-0000-0000-0000-000000000001"
+database_id = "4c62889c-b7d1-4cd9-bd75-f959276cee61"
 migrations_dir = "migrations"

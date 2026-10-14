@@ -4,6 +4,7 @@ import worker from "../worker/index";
 import { hash, OWNER_EMAIL } from "../worker/lib";
 import type { Dashboard, Env } from "../worker/types";
 import { markdown } from "../web/src/markdown";
+import { marketChange } from "../web/src/format";
 
 function request(path: string, options: { method?: string; body?: unknown; cookie?: string; bearer?: string; origin?: string; host?: string } = {}) {
   const host = options.host || "http://localhost";
@@ -130,6 +131,12 @@ describe("fixed owner authentication", () => {
 });
 
 describe("complete dashboard batches", () => {
+  it("preserves quote percentage-point units instead of multiplying by 100", () => {
+    expect(marketChange(-1.35)).toBe("-1.35%");
+    expect(marketChange(0.2)).toBe("+0.20%");
+    expect(marketChange(0)).toBe("0.00%");
+    expect(marketChange(null)).toBe("—");
+  });
   it("separates upload credentials from browser sessions", async () => {
     const cookie = await login();
     expect((await call(request("/api/sync", { method: "PUT", body: await pack(), cookie }))).status).toBe(401);
