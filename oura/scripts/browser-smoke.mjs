@@ -6,6 +6,7 @@ const task = await taskSpace(existingSpace || 'Oura browser regression');
 console.log({ spaceId: task.spaceId });
 const page = task.page(options.page || 'p1');
 const origin = 'http://127.0.0.1:4178';
+await page.cdp('Emulation.clearDeviceMetricsOverride');
 const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__smokeFailures = [];
     window.addEventListener('error', e => { if(e.message) window.__smokeFailures.push(e.message); });
@@ -220,10 +221,46 @@ try {
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('.health-data *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sync controls and messages fit mobile');
   await page.screenshot({ path: '/tmp/oura-backfill-mobile.png' });
   await page.screenshot({ path: '/tmp/oura-automatic-mobile.png' });
+  await page.evaluate(async () => { await fetch('/__test/storage-quota?enabled=1', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
+  console.log(await page.snapshot());
+  await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
+  await page.waitForFunction(() => document.querySelector('.sync-issue')?.textContent.includes('数据库写入额度')
+    && !document.querySelector('.health-data button[disabled]'));
+  const quota = await page.evaluate(async () => ({
+    attempts: (await (await fetch('/__test/storage-quota')).json()).attempts,
+    groups: document.querySelectorAll('.sync-issue').length,
+    text: document.querySelector('.sync-issues').textContent,
+    failures: window.__smokeFailures,
+    fits: document.documentElement.scrollWidth <= innerWidth,
+  }));
+  assert.equal(quota.attempts, 1, 'quota stops all other collections');
+  assert.equal(quota.groups, 1, 'one storage failure must not become eighteen collection failures');
+  assert.match(quota.text, /08:00.*历史数据保留.*本次预计恢复/s);
+  assert.deepEqual(quota.failures, ['/api/me/health-records: HTTP 503']);
+  assert.equal(quota.fits, true, 'quota recovery message fits mobile');
+  await page.screenshot({ path: '/tmp/oura-quota-mobile.png' });
+  await page.evaluate(async () => {
+    await fetch('/__test/storage-quota?enabled=0', { method: 'POST' });
+    window.__smokeFailures = [];
+  });
+  console.log('PASS quota stops after one request and shows reset while history remains readable');
   await page.cdp('Emulation.clearDeviceMetricsOverride');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');
   await healthy('owner logout');
+  await page.evaluate(async () => { await fetch('/__test/storage-quota?enabled=1', { method: 'POST' }); });
+  console.log(await page.snapshot());
+  await page.click('loc=css:#landing-view button.landing-btn.primary');
+  await page.waitForFunction(() => document.querySelector('#landing-view')?.textContent.includes('数据库写入额度'));
+  assert.match(await page.evaluate(() => document.querySelector('#landing-view').textContent), /本次预计恢复/);
+  console.log('PASS login reports storage quota instead of an unreachable API');
+  const reset = new Date(Date.parse(new Date().toISOString().slice(0, 10)) + 86400000).toISOString();
+  await page.goto(`${origin}/?error=storage_write_quota_exceeded&retry_at=${encodeURIComponent(reset)}`);
+  await page.waitForFunction(() => document.querySelector('#landing-view')?.textContent.includes('数据库写入额度'));
+  console.log('PASS OAuth callback displays reset instead of a raw error code');
+  await page.evaluate(async () => { await fetch('/__test/storage-quota?enabled=0', { method: 'POST' }); });
   console.log('PASS browser journey');
 } finally {
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: instrumentation.identifier });

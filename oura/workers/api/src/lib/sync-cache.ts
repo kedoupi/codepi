@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import { decorateDaily, type DailyResponse, type NestedDay } from "./daily";
-import { ApiError } from "./errors";
+import { ApiError, normalizeApiError } from "./errors";
 
 export type SyncState = {
   synced_at: string | null;
@@ -50,7 +50,7 @@ export async function cachedDaily(
             .bind(syncedAt, to, userId, lease),
         ]);
       } catch (error) {
-        const code = error instanceof ApiError ? error.code : "upstream_unavailable";
+        const code = normalizeApiError(error, "upstream_unavailable", 502).code;
         await env.DB.prepare("UPDATE sync_state SET last_error=?, lease_until=0 WHERE user_id=? AND lease_id=?")
           .bind(code, userId, lease).run();
         if (!state?.synced_at) throw error;
