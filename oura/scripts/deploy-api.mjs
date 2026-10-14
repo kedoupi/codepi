@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const cwd = fileURLToPath(new URL('../workers/api', import.meta.url));
 function wrangler(args, extraEnv = {}) {
@@ -30,4 +31,32 @@ const output = wrangler(['versions', 'upload', '--var', `BUILD_SHA:${buildSha}`]
 const version = output.match(/Worker Version ID:\s*([a-f0-9-]{36})/i)?.[1];
 if (!version) throw new Error('Upload did not return a Worker version ID; refusing to deploy');
 wrangler(['versions', 'deploy', `${version}@100%`, '--yes']);
+// Version deployments do not deploy schedules. Update only this Worker's
+// schedules: deploying all triggers would also rewrite the existing zone routes.
+const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+const token = process.env.CLOUDFLARE_API_TOKEN;
+if (!account || !token) throw new Error('Schedule deployment requires Cloudflare account ID and API token');
+const config = readFileSync(`${cwd}/wrangler.toml`, 'utf8');
+const name = config.match(/^name\s*=\s*"([^"]+)"/m)?.[1];
+const cronLine = config.match(/^\[triggers\]\s*\ncrons\s*=\s*(\[[^\n]+\])/m)?.[1];
+if (!name || !cronLine) throw new Error('Worker name or Cron configuration missing');
+const crons = JSON.parse(cronLine);
+const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/workers/scripts/${encodeURIComponent(name)}/schedules`;
+async function schedules(method) {
+  const response = await fetch(endpoint, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    ...(method === 'PUT' ? { body: JSON.stringify(crons.map(cron => ({ cron }))) } : {}),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const body = await response.json();
+  if (!response.ok || !body.success) throw new Error(`Cron ${method} failed (HTTP ${response.status})`);
+  return body.result;
+}
+await schedules('PUT');
+const installed = await schedules('GET');
+if (JSON.stringify(installed.schedules.map(row => row.cron).sort()) !== JSON.stringify([...crons].sort())) {
+  throw new Error('Installed Cron triggers do not match wrangler.toml');
+}
+console.log(`Verified Cron schedule: ${crons.join(', ')}`);
 console.log(`Deployed ${version} build=${buildSha}`);

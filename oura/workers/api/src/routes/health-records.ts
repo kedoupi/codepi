@@ -2,6 +2,7 @@ import type { Env } from "../env";
 import { requireSession, isResponse } from "../lib/authz";
 import { ApiError } from "../lib/errors.ts";
 import { healthStatus, healthWindow, readHealthRecords, syncHealthWindow } from "../lib/health-records.ts";
+import { automaticSyncStatus } from "../lib/auto-sync.ts";
 
 export async function handleHealthRecords(request: Request, env: Env): Promise<Response> {
   const auth = await requireSession(request, env);
@@ -12,7 +13,10 @@ export async function handleHealthRecords(request: Request, env: Env): Promise<R
   const url = new URL(request.url);
   if (url.pathname.endsWith("/status")) {
     if (request.method !== "GET") throw new ApiError("method_not_allowed", 405);
-    return Response.json({ collections: await healthStatus(env, auth.session.user_id) });
+    const [collections, automatic] = await Promise.all([
+      healthStatus(env, auth.session.user_id), automaticSyncStatus(env, auth.session.user_id),
+    ]);
+    return Response.json({ collections, automatic });
   }
   if (!["GET", "POST"].includes(request.method)) throw new ApiError("method_not_allowed", 405);
   const w = healthWindow(url.searchParams.get("collection"), url.searchParams.get("from") ?? undefined, url.searchParams.get("to") ?? undefined);

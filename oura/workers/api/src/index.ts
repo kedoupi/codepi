@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { allowDevLogin, oauthConfigured } from "./lib/config";
 import { ApiError } from "./lib/errors.ts";
 import { API_CONTRACT, RELEASE } from "./lib/version.ts";
@@ -45,6 +46,9 @@ function cors(req: Request, env: Env): HeadersInit {
 }
 
 export default {
+  async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    await runAutomaticSync(env, controller.scheduledTime, controller.cron);
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const requestId = crypto.randomUUID();

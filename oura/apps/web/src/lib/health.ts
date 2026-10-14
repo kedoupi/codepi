@@ -71,3 +71,18 @@ export async function readSleep(from: string, to: string): Promise<SleepResponse
   }
   throw new RequestError("sync_window_too_large", 422);
 }
+export type AutomaticSyncStatus = {
+  enabled: boolean;
+  status: "idle" | "running" | "completed" | "partial" | "blocked";
+  run_day: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  last_success_at: string | null;
+  error: string | null;
+  total: number;
+  completed: number;
+  failed: number;
+  remaining: number;
+  next_run_at: string;
+  next_batch_at: string | null;
+};

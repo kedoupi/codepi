@@ -9,6 +9,7 @@ const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports, no billing).
 let adaptiveBackfill = false;
 const ownerRuntime = createRuntime({
+  autoSync: true,
   providerResponse(url) {
     if (!adaptiveBackfill || !url.pathname.endsWith('/heartrate')) return undefined;
     const from = url.searchParams.get('start_datetime');
@@ -41,6 +42,13 @@ let sleepFailure = false;
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (url.pathname === '/__test/automatic-sync' && req.method === 'POST') {
+      const worker = await ownerRuntime.getWorker();
+      const today = new Date().toISOString().slice(0, 10);
+      const result = await worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
+      res.writeHead(result.outcome === 'ok' ? 200 : 500, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
+      return;
+    }
     if (url.pathname === '/__test/backfill-scenario' && req.method === 'POST') {
       adaptiveBackfill = true;
       const db = await ownerRuntime.getD1Database('DB');
