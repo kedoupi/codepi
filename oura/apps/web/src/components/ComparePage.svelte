@@ -82,7 +82,7 @@
     <div class="hero-row">
       <div>
         <h1>{t(locale, "compareTitle")}</h1>
-        <p class="sub">{t(locale, "membershipNote")}</p>
+        <p class="sub">{locale === "zh" ? "把两个时间段放在一起，看清变化。" : "Two periods side by side, with room to see what changed."}</p>
       </div>
       <button class="ai-btn" type="button" onclick={() => goto("/")}>{t(locale, "backDash")}</button>
     </div>

@@ -131,12 +131,16 @@
     <div class="hero-row">
       <div>
         <h1>{t(locale, "settingsTitle")}</h1>
-        <p class="sub">{t(locale, "membershipNote")}</p>
+        <p class="sub">{locale === "zh" ? "管理你的数据、应用连接与使用偏好。" : "Manage your data, app connections and preferences."}</p>
       </div>
       <button class="ai-btn" type="button" onclick={() => goto("/")}>{t(locale, "backDash")}</button>
     </div>
 
-    <section class="panel">
+    <nav class="workspace-sections" aria-label={locale === "zh" ? "设置分组" : "Settings sections"}>
+      <a href="#preferences">{locale === "zh" ? "偏好" : "Preferences"}</a>
+      {#if personal}<a href="#data">{locale === "zh" ? "数据同步" : "Data sync"}</a><a href="#account">{locale === "zh" ? "账号" : "Account"}</a><a href="#connections">{locale === "zh" ? "应用连接" : "Connections"}</a>{/if}
+    </nav>
+    <section class="panel" id="preferences">
       <h2>{t(locale, "settingsLang")}</h2>
       <p class="hint">{t(locale, "settingsLangHint")}</p>
       <div class="lang-pills" role="radiogroup" aria-label={t(locale, "settingsLang")}>
@@ -159,7 +163,7 @@
 
     {#if personal}
       <HealthDataPanel {locale} />
-      <section class="panel">
+      <section class="panel" id="account">
         <h2>{locale === "en" ? "Personal workspace" : "个人工作区"}</h2>
         <p class="hint">
           {locale === "en"
@@ -175,7 +179,7 @@
         {/if}
       </section>
 
-      <section class="panel">
+      <section class="panel" id="connections">
         <h2>{locale === "en" ? "AI apps" : "AI 应用连接"}</h2>
         <p class="hint">
           {locale === "en"

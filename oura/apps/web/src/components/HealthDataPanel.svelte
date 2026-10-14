@@ -104,7 +104,7 @@
   }
 </script>
 
-<section class="panel health-data">
+<section class="panel health-data" id="data">
   <div class="data-heading"><div><h2>{text("数据采集与历史记录", "Health data and history")}</h2><p class="hint">{text("已保存的数据会保留。心率、电量逐日同步；遇到数据量上限会自动拆分日期。", "Saved history is retained. Heart rate and battery sync daily; oversized ranges split automatically.")}</p></div><span class="data-count">{savedTypes}/{collections.length || 18} {text("类已有数据", "collections saved")}</span></div>
   {#if automatic}<AutomaticSync value={automatic} {locale} />{/if}
   <div class="actions">
