@@ -14,7 +14,7 @@ import {
 import { REVIEW_ACTIONS, SLOTS, type AuthedAccount, type PostRow, type ReviewAction, type Slot } from "./types";
 
 const POST_COLUMNS =
-  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, cover, (html IS NOT NULL) AS has_html, created_at, updated_at";
+  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, cover, (html IS NOT NULL) AS has_html, current_version, created_at, updated_at";
 
 function demoFlag(row: { is_demo: number }): boolean {
   return Number(row.is_demo) === 1;
@@ -39,6 +39,7 @@ interface BoardPost {
   has_html: boolean;
   has_cover: boolean;
   review_path: string;
+  version: number;
 }
 
 async function lastReview(env: Env, postId: string) {
@@ -65,8 +66,50 @@ async function toBoardPost(env: Env, row: PostRow): Promise<BoardPost> {
     has_html: Number(row.has_html) === 1,
     has_cover: !!row.cover,
     review_path: reviewPath(row.id),
+    version: Number(row.current_version ?? 0),
   };
 }
+
+async function versionHistory(env: Env, postId: string) {
+  const versions = (
+    await env.DB.prepare(
+      `SELECT version, title, created_at FROM post_versions WHERE post_id = ? ORDER BY version DESC`,
+    )
+      .bind(postId)
+      .all<{ version: number; title: string; created_at: string }>()
+  ).results;
+  const reviews = (
+    await env.DB.prepare(
+      `SELECT version, action, note, created_at FROM reviews WHERE post_id = ? ORDER BY created_at ASC`,
+    )
+      .bind(postId)
+      .all<{ version: number | null; action: ReviewAction; note: string | null; created_at: string }>()
+  ).results;
+  return versions.map((v) => ({
+    ...v,
+    reviews: reviews
+      .filter((r) => r.version === v.version)
+      .map(({ action, note, created_at }) => ({ action, note, created_at })),
+  }));
+}
+
+/** 交审时给当前内容拍快照，版本号 +1。 */
+async function snapshotVersion(env: Env, postId: string, accountId: string): Promise<number> {
+  const row = await env.DB.prepare(`SELECT current_version FROM posts WHERE id = ?`)
+    .bind(postId)
+    .first<{ current_version: number }>();
+  const next = Number(row?.current_version ?? 0) + 1;
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO post_versions (id, post_id, version, title, digest, preview_path, html, cover, account_id, created_at)
+       SELECT ?, id, ?, title, digest, preview_path, html, cover, ?, ? FROM posts WHERE id = ?`,
+    ).bind(crypto.randomUUID(), next, accountId, nowIso(), postId),
+    env.DB.prepare(`UPDATE posts SET current_version = ? WHERE id = ?`).bind(next, postId),
+  ]);
+  return next;
+}
+
+const IN_REVIEW_LOCKED = "在审版本不能覆盖：等老板审完（要改后再交即生成新版本），或先撤回";
 
 export async function handleBoard(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -130,7 +173,12 @@ export async function handleGetPost(env: Env, slug: string): Promise<Response> {
     .bind(slug)
     .first<PostRow>();
   if (!row) return json({ ok: false, error: "稿件不存在" }, 404);
-  return json({ ok: true, post: await toBoardPost(env, row), brand: brandName(env) });
+  return json({
+    ok: true,
+    post: await toBoardPost(env, row),
+    versions: await versionHistory(env, row.id),
+    brand: brandName(env),
+  });
 }
 
 interface UpsertBody {
@@ -225,6 +273,9 @@ export async function handleUpsertPost(
   if (existing && !canEditCopy(existing.status)) {
     return json({ ok: false, error: "已进箱的稿不能改" }, 409);
   }
+  if (existing && existing.status === "待审" && !demoFlag(existing)) {
+    return json({ ok: false, error: IN_REVIEW_LOCKED, version: Number(existing.current_version ?? 0) }, 409);
+  }
 
   const nextStatus = submit
     ? "待审"
@@ -304,6 +355,10 @@ export async function handleUpsertPost(
       .run();
   }
 
+  if (submit) {
+    await snapshotVersion(env, persistSlug, account.id);
+  }
+
   const row = await loadPost(env, persistSlug);
   return json({
     ok: true,
@@ -354,6 +409,9 @@ export async function handlePatchPost(
 
   if (changingCopy && !canEditCopy(post.status)) {
     return json({ ok: false, error: "已进箱的稿不能改" }, 409);
+  }
+  if (changingCopy && post.status === "待审" && !demoFlag(post)) {
+    return json({ ok: false, error: IN_REVIEW_LOCKED, version: Number(post.current_version ?? 0) }, 409);
   }
   if (newSlug && !isSlug(newSlug)) {
     return json({ ok: false, error: "slug 无效" }, 400);
@@ -445,9 +503,19 @@ export async function handleReview(
       `UPDATE posts SET status = ?, note = ?, updated_at = ? WHERE id = ?`,
     ).bind(toStatus, reviewNote ?? post.note, stamp, slug),
     env.DB.prepare(
-      `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(crypto.randomUUID(), slug, account.id, typedAction, post.status, toStatus, reviewNote, stamp),
+      `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at, version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      slug,
+      account.id,
+      typedAction,
+      post.status,
+      toStatus,
+      reviewNote,
+      stamp,
+      Number(post.current_version ?? 0),
+    ),
   ]);
 
   const updated = await loadPost(env, slug);
@@ -504,13 +572,14 @@ async function renamePostId(
   await env.DB.batch([
     env.DB.prepare(`UPDATE posts SET slot = NULL WHERE id = ?`).bind(from),
     env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, created_at, updated_at)
+      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, current_version, created_at, updated_at)
        SELECT ?, account_id, title, ?, publish_date, status,
               CASE WHEN preview_path = ? THEN ? ELSE preview_path END,
-              note, digest, is_demo, html, cover, created_at, ?
+              note, digest, is_demo, html, cover, current_version, created_at, ?
        FROM posts WHERE id = ?`,
     ).bind(to, source.slot, contentPath(from), contentPath(to), stamp, from),
     env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(to, from),
+    env.DB.prepare(`UPDATE post_versions SET post_id = ? WHERE post_id = ?`).bind(to, from),
     env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(from),
   ]);
   return { status: 200 };

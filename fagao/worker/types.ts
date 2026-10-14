@@ -42,6 +42,7 @@ export interface PostRow {
   is_demo: number;
   cover?: string | null;
   has_html?: number;
+  current_version?: number;
   created_at: string;
   updated_at: string;
 }
