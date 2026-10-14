@@ -11,7 +11,7 @@
     aiBusy = false,
     onAi,
     onLogout,
-    journal = false,
+    journal = true,
   }: {
     isDev?: boolean;
     locale: Locale;
@@ -59,7 +59,7 @@
       {#if journal}
         <details class="journal-account">
           <summary>{locale === "zh" ? "账号" : "Account"}</summary>
-          <div><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
+          <div><a href="/settings#account">{locale === "zh" ? "账号与连接" : "Account & connections"}</a><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
         </details>
       {:else}
         <button type="button" class="ai-btn" onclick={onLogout}>{t(locale, "logout")}</button>
@@ -81,7 +81,7 @@
   .journal-account { position: relative; font-size: 13px; }
   .journal-account summary { padding: 12px 4px; cursor: pointer; }
   .journal-account summary:focus-visible { outline: 2px solid var(--primary); }
-  .journal-account div { position: absolute; right: 0; top: 100%; width: 110px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .journal-account div { position: absolute; right: 0; top: 100%; width: 190px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
   .journal-account button { width: 100%; min-height: 44px; background: transparent; border: 0; color: var(--primary); cursor: pointer; }
   @media (max-width: 760px) {
     .journal-header .chrome-inner { height: auto; display: block; padding: 8px 0 0; }

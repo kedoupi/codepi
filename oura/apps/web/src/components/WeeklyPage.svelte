@@ -76,7 +76,7 @@
     <div class="hero-row">
       <div>
         <h1>{t(locale, "weeklyTitle")}</h1>
-        <p class="sub">{t(locale, "membershipNote")}</p>
+        <p class="sub">{locale === "zh" ? "回看一周的记录，理解自己的节奏。" : "Look back over your week and understand your rhythm."}</p>
       </div>
       <button class="ai-btn" type="button" onclick={() => goto("/")}>{t(locale, "backDash")}</button>
     </div>

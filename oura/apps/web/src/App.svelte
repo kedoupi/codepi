@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import "./workspace.css";
   import { api, errorText, RequestError } from "./lib/api";
   import ComparePage from "./components/ComparePage.svelte";
   import Dashboard from "./components/Dashboard.svelte";
@@ -170,6 +171,7 @@
 {#if !booted}
   <div class="status" style="padding:24px">{t(locale, "loading")}</div>
 {:else if me?.authenticated}
+  <div class="journal workspace">
   {#if router.path === "/sleep"}
     <SleepPage {me} {locale} onUnauthorized={() => showLogin()} />
   {:else if router.path === "/insights"}
@@ -189,6 +191,7 @@
   {:else}
     <Dashboard {me} {locale} onUnauthorized={() => showLogin()} />
   {/if}
+  </div>
 {:else}
   <LandingView
     allowDevLogin={isDevLoginAllowed(me?.allowDevLogin)}

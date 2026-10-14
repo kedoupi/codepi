@@ -97,6 +97,7 @@ try {
   await page.reload();
   await page.waitForSelector('.compare-grid');
   await healthy('direct compare URL reload');
+  await page.click('loc=css:.journal-account > summary');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');
   assert.equal(await page.evaluate(async () => (await (await fetch('/api/me')).json()).authenticated), false);
@@ -256,6 +257,7 @@ try {
   });
   console.log('PASS quota stops after one request and shows reset while history remains readable');
   await page.cdp('Emulation.clearDeviceMetricsOverride');
+  await page.click('loc=css:.journal-account > summary');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');
   await healthy('owner logout');
