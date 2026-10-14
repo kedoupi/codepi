@@ -1,9 +1,14 @@
 import type { Env } from "../env";
 import { ApiError } from "./errors.ts";
 
-// A conservative app budget, not the account-wide Cloudflare quota. Leave room
-// for manual sync, other products, scheduler bookkeeping and auth operations.
-export const AUTOMATIC_WRITE_BUDGET = 50_000;
+// A conservative app budget, not the account-wide Cloudflare quota. This only
+// bounds our own automatic work; manual sync never reserves here.
+// Workers Paid includes 50 million rows written per month (~1.6M/day) plus the
+// free daily allowance, so 400k estimated rows/day stays an order of magnitude
+// inside the plan and leaves room for other products on the account. The
+// estimate is deliberately ~4x the rows actually written (index and bookkeeping
+// overhead), so this corresponds to roughly 100k real rows per day.
+export const AUTOMATIC_WRITE_BUDGET = 400_000;
 
 export async function reserveSyncWrites(env: Env, userId: string, rows: number) {
   if (rows > AUTOMATIC_WRITE_BUDGET) throw new ApiError("sync_window_too_large", 422);

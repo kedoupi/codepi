@@ -219,7 +219,7 @@ test('automatic write budget defers work without damaging saved data; a new UTC 
     }
   });
   await f.queue([pending('heartrate'), pending('sleep')]);
-  await f.db.prepare("INSERT INTO auto_sync_budget(user_id,utc_day,reserved_rows) VALUES ('test-user',?,50000)").bind(today).run();
+  await f.db.prepare("INSERT INTO auto_sync_budget(user_id,utc_day,reserved_rows) VALUES ('test-user',?,400000)").bind(today).run();
   await f.tick();
   assert.equal((await f.status()).error, 'daily_sync_budget_reached');
   assert.equal((await f.tasks())[0].attempts, 0);
@@ -236,7 +236,7 @@ test('automatic write budget defers work without damaging saved data; a new UTC 
   assert.equal((await f.status()).error, null);
   const budget = await f.db.prepare("SELECT * FROM auto_sync_budget").first();
   assert.equal(budget.utc_day, today);
-  assert.ok(budget.reserved_rows > 0 && budget.reserved_rows < 50000);
+  assert.ok(budget.reserved_rows > 0 && budget.reserved_rows < 400000);
 });
 
 test('lightweight progress polling is owner-only and does not expose archived records', async t => {
