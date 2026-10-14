@@ -87,12 +87,14 @@ const server = createServer(async (req, res) => {
       await db.prepare("DELETE FROM health_sync_windows WHERE collection='sleep'").run();
       const today = new Date().toISOString().slice(0, 10);
       const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
-      if (scenario === 'records') {
+      if (scenario === 'records' || scenario === 'journal') {
+        const journal = scenario === 'journal';
         for (let back = 0; back < 30; back++) {
           if (back === 1) continue; // A missing day must not appear as zero hours.
           const day = date(back);
           for (const [type, seconds, hour] of [['long_sleep', 28800, '00'], ['sleep', 1800, '14']]) {
             const id = `${day}-${type}`;
+            const sampleHours = [7.4, 6.8, 7.6, 7.2, 8.1, 6.9, 7.5][back % 7];
             const payload = {
               id, day, type, total_sleep_duration: seconds, time_in_bed: seconds + 1800,
               bedtime_start: `${day}T${hour}:00:00+08:00`, bedtime_end: `${day}T${type === 'sleep' ? '15' : '08'}:30:00+08:00`,
@@ -100,12 +102,31 @@ const server = createServer(async (req, res) => {
               awake_time: 1800, efficiency: 92, average_hrv: type === 'sleep' ? null : 42,
               average_heart_rate: 55, lowest_heart_rate: 48, average_breath: 14.2,
             };
+            if (journal && type === 'long_sleep') {
+              payload.total_sleep_duration = Math.round(sampleHours * 3600);
+              payload.time_in_bed = payload.total_sleep_duration + 1800;
+              payload.average_hrv = [42, 39, 44, 48, 52, 46, 38][back % 7];
+            }
             await db.prepare('INSERT INTO health_records (user_id, collection, record_id, day, payload, fetched_at) VALUES (?, ?, ?, ?, ?, ?)')
               .bind('test-user', 'sleep', id, day, JSON.stringify(payload), new Date().toISOString()).run();
           }
         }
+        if (journal) {
+          await db.prepare("DELETE FROM daily_cache WHERE user_id='test-user'").run();
+          for (let back = 0; back < 90; back++) {
+            const day = date(back);
+            const payload = { date: day,
+              sleep: { score: [82, 76, 79, 84, 78, 81, 73][back % 7] },
+              readiness: { score: [76, 78, 74, 80, 72, 77, 83][back % 7] },
+              activity: { score: [88, 84, 79, 86, 82, 77, 85][back % 7], steps: [8240, 5900, 6300, 11200, 8700, 10400, 7800, 6100, 8900, 12300, 9600, 7100, 5200][back % 13] },
+            };
+            await db.prepare('INSERT INTO daily_cache (user_id,day,payload) VALUES (?,?,?)').bind('test-user', day, JSON.stringify(payload)).run();
+          }
+          await db.prepare("INSERT INTO sync_state (user_id,synced_at,window_to) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET synced_at=excluded.synced_at,window_to=excluded.window_to,last_error=NULL")
+            .bind('test-user', new Date().toISOString(), today).run();
+        }
       }
-      if (scenario === 'empty' || scenario === 'records') {
+      if (scenario === 'empty' || scenario === 'records' || scenario === 'journal') {
         for (const count of [7, 30]) {
           await db.prepare('INSERT INTO health_sync_windows (user_id, collection, window_from, window_to, synced_at, attempted_at) VALUES (?, ?, ?, ?, ?, ?)')
             .bind('test-user', 'sleep', date(count - 1), today, new Date().toISOString(), new Date().toISOString()).run();
