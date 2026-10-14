@@ -1,0 +1,27 @@
+{
+  "name": "kdp-gu",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Private investment dashboard",
+  "scripts": {
+    "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8791",
+    "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "db:local": "wrangler d1 migrations apply gu-production --local",
+    "check:deploy": "node scripts/check-deploy.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.2",
+    "@cloudflare/workers-types": "latest",
+    "esbuild": "^0.25.9",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.37.0"
+  }
+}

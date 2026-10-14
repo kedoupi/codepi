@@ -1,0 +1,12 @@
+export interface Env {
+  DB: D1Database;
+  ASSETS?: Fetcher;
+  ENVIRONMENT: string;
+  SESSION_SECRET?: string;
+  OTP_PEPPER?: string;
+  UPLOAD_TOKEN?: string;
+  RESEND_API_KEY?: string;
+  OTP_FROM?: string;
+}
+
+export type { Row, Dashboard } from "./dashboard-types";
