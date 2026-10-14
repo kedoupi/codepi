@@ -11,6 +11,7 @@
     aiBusy = false,
     onAi,
     onLogout,
+    journal = false,
   }: {
     isDev?: boolean;
     locale: Locale;
@@ -19,6 +20,7 @@
     aiBusy?: boolean;
     onAi?: () => void;
     onLogout: () => void;
+    journal?: boolean;
   } = $props();
 
   const links: { href: AppPath; key: MessageKey }[] = [
@@ -36,14 +38,15 @@
   }
 </script>
 
-<header class="chrome">
+<header class="chrome" class:journal-header={journal}>
   <div class="chrome-inner">
-    <ProductBrand class="brand" name={t(locale, "dashTitle")} />
-    <nav class="nav" aria-label="Primary">
+    <ProductBrand class="brand" name={journal ? "Oura / journal" : t(locale, "dashTitle")} />
+    <nav class="nav" aria-label={locale === "zh" ? "主导航" : "Primary"}>
       {#each links as link (link.href)}
         <a
           href={link.href}
           class:active={active === link.href}
+          aria-current={active === link.href ? "page" : undefined}
           onclick={(e) => onNav(e, link.href)}
         >{t(locale, link.key)}</a>
       {/each}
@@ -53,7 +56,14 @@
       {#if isDev}
         <span class="ver-chip">DEV</span>
       {/if}
-      <button type="button" class="ai-btn" onclick={onLogout}>{t(locale, "logout")}</button>
+      {#if journal}
+        <details class="journal-account">
+          <summary>{locale === "zh" ? "账号" : "Account"}</summary>
+          <div><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
+        </details>
+      {:else}
+        <button type="button" class="ai-btn" onclick={onLogout}>{t(locale, "logout")}</button>
+      {/if}
     </nav>
   </div>
 </header>
@@ -61,4 +71,23 @@
 <style>
   .chrome :global(.brand-name){white-space:nowrap}
   .chrome :global(.brand){flex-shrink:0}
+  .journal-header { background: var(--canvas); }
+  .journal-header .chrome-inner { max-width: none; height: 60px; gap: 24px; }
+  .journal-header :global(.brand-name) { font-family: var(--journal-display); font-weight: 500; font-size: 27px; letter-spacing: -.03em; }
+  .journal-header :global(.brand-mark) { width: 24px; height: 24px; }
+  .journal-header .nav { gap: 24px; flex-wrap: nowrap; }
+  .journal-header .nav a { font-size: 14px; font-weight: 500; min-height: 56px; border-bottom: 2px solid transparent; }
+  .journal-header .nav a.active { border-bottom-color: var(--primary); }
+  .journal-account { position: relative; font-size: 13px; }
+  .journal-account summary { padding: 12px 4px; cursor: pointer; }
+  .journal-account summary:focus-visible { outline: 2px solid var(--primary); }
+  .journal-account div { position: absolute; right: 0; top: 100%; width: 110px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .journal-account button { width: 100%; min-height: 44px; background: transparent; border: 0; color: var(--primary); cursor: pointer; }
+  @media (max-width: 760px) {
+    .journal-header .chrome-inner { height: auto; display: block; padding: 8px 0 0; }
+    .journal-header :global(.brand-name) { font-size: 24px; }
+    .journal-header .nav { justify-content: space-between; gap: 4px; flex-wrap: wrap; }
+    .journal-header .nav a { font-size: 12px; min-height: 44px; padding: 6px 2px; }
+    .journal-account { font-size: 12px; }
+  }
 </style>
