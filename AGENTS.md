@@ -22,6 +22,8 @@ Each site is a self-contained Astro project (its own `package.json`, `astro.conf
 
 `shared/` has no `package.json`; it's raw source files. Tests in `shared/lib/*.test.mjs` run from `calc/`'s test script, which globs both `src/lib/*.test.mjs` and `../shared/lib/*.test.mjs`.
 
+The private investment dashboard in `gu/` is a separate Vite + TypeScript + Pages Worker app. Read `gu/README.md` for its commands, data contracts and authentication boundaries; it does not use the shared public-tool layout or AdSense.
+
 Per-site brand identity lives in `<site>/src/site.config.js` exporting `siteName`, `tagline`, `footerNote`, `navLinks`, `applicationCategory`. `BaseLayout.astro` reads these via `@site/site.config.js` and the Astro-injected `import.meta.env.SITE` (auto-populated from each site's `astro.config.mjs` `site:` field).
 
 ## Commands

@@ -1,5 +1,7 @@
 import "./style.css";
 import { marketChange } from "./format";
+import { allocationGap, riskRail, weightHistory, historyDetail } from "./charts";
+import { applyChartStyles } from "./dom";
 import { escapeHtml as e, markdown } from "./markdown";
 import type { Dashboard, Row } from "../../worker/dashboard-types";
 
@@ -10,7 +12,6 @@ let hidden = sessionStorage.getItem("gu-hide") === "1";
 let reportQuery = "";
 let reportKind = "";
 let cooldown: ReturnType<typeof setInterval> | undefined;
-const colors = ["#305c50", "#708c6d", "#bcba8f", "#aa8564", "#889cac", "#d5d8ce"];
 const pct = (v: unknown) => typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—";
 const number = (v: unknown, digits = 2) => typeof v === "number" ? v.toLocaleString("zh-CN", { maximumFractionDigits: digits }) : "—";
 const money = (v: unknown) => hidden ? "••••" : typeof v === "number" ? `${(v / 10000).toFixed(2)} 万` : "—";
@@ -122,22 +123,16 @@ function riskCards(rows: Row[]) {
 function overview() {
   const d = snapshot!.data, a = d.account[0], report = d.reports[0];
   const relevant = d.risk.filter(r => r.triggered || ["critical", "near"].includes(String(r.proximity)));
-  let x = 0;
-  const segments = d.positions.map((p, i) => {
-    const w = Math.max(0, Math.min(1, Number(p.weight) || 0)) * 1000;
-    const segment = `<rect x="${x}" y="0" width="${w}" height="24" fill="${colors[i % colors.length]}"><title>${e(p.ticker)} ${pct(p.weight)}</title></rect>`;
-    x += w; return segment;
-  }).join("");
+  const targets = Object.fromEntries(d.positions.map(p => [String(p.ticker), typeof p.target === "number" ? p.target : null]));
   return `<div class="page-heading"><div><p class="muted">守住节奏，持续记录</p><h1>投资总览</h1></div><span class="stamp">行情截至 ${e(a.quote_date)}</span></div>
     <div class="data-note"><span>${a.data_mode === "demo" ? "本地演示 · 虚构数据" : Number(a.cash_age_days) > 14 ? "账户待核对" : "账户数据日期"}</span>持仓确认于 ${e(a.holdings_as_of)}；现金记录于 ${e(a.cash_as_of)}。行情更新不会改变账户确认日期。</div>
     <section class="brief"><div class="brief-label">最近一期报告<span>${report ? e(report.kind) : "尚无报告"}</span></div>
       <div><h2>${report ? e(report.action || "历史报告未记录行动") : "等待第一份报告"}</h2><p>${report ? e(report.headline || "这份历史报告未填写摘要，可打开阅读全文。") : "同步后会在这里展示最新报告与行动。"}</p>
       ${report ? `<a class="text-link" href="#reports/${encodeURIComponent(String(report.id))}">阅读报告 <span>${e(report.date)} · 交易日 ${e(report.trading_date || "未记录")}</span></a>` : ""}</div></section>
     <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight)}</small></div></section>
-    <div class="overview-grid"><section class="surface"><div class="section-title"><h2>资产配置</h2><a href="#positions">查看持仓</a></div>
-      <svg class="allocation" viewBox="0 0 1000 24" role="img" aria-label="当前资产配置">${segments}</svg>
-      <div class="allocation-list">${d.positions.map((p, i) => `<div><svg width="10" height="10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="${colors[i % colors.length]}"/></svg><span>${e(p.ticker)}</span><b>${pct(p.weight)}</b><small>目标 ${pct(p.target)}</small></div>`).join("")}</div></section>
-    <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant.slice(0, 4)) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section></div>
+    <section class="surface"><div class="section-title"><h2>配置缺口</h2><a href="#positions">查看持仓</a></div>${allocationGap(d.positions)}</section>
+    <section class="surface"><div class="section-title"><h2>持仓变化</h2><span class="muted">按持仓档案逐次确认</span></div>${weightHistory(d.history ?? [], targets)}</section>
+    <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant.slice(0, 4)) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section>
     <section class="surface market"><div class="section-title"><h2>市场一览</h2><span class="muted">按各标的最近行情展示</span></div>
     <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? e(m.error) : e(m.date)}</small></div>`).join("")}</div></section>`;
 }
@@ -147,7 +142,7 @@ function positions() {
   return `<div class="page-heading"><div><p class="muted">看清配置与边界</p><h1>持仓与风控</h1></div><span class="stamp">计算依据 ${e(d.account[0].framework)}</span></div>
     <section class="surface"><div class="section-title"><h2>当前持仓</h2><span class="muted">金额单位：美元</span></div><div class="table-scroll"><table><thead><tr><th>标的</th><th>股数</th><th>成本 / 现价</th><th>市值</th><th>浮盈亏</th><th>当前 / 目标</th><th>行情日期</th></tr></thead><tbody>
     ${d.positions.map(p => `<tr><td><strong>${e(p.ticker)}</strong><small>${e(p.name)}</small></td><td>${hidden ? "••••" : number(p.shares, 4)}</td><td>${price(p.avg_cost)} / ${price(p.price)}</td><td>${money(p.value_usd)}</td><td class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</td><td>${pct(p.weight)} / ${pct(p.target)}</td><td>${e(p.quote_date || "估值，待核实")}</td></tr>`).join("")}</tbody></table></div></section>
-    <section class="surface"><div class="section-title"><h2>规则状态</h2><span class="muted">触发状态与距离分别计算</span></div>${riskCards(d.risk)}</section>
+    <section class="surface"><div class="section-title"><h2>风控距离</h2><span class="muted">触发状态与距离分别计算</span></div>${riskRail(d.risk)}</section>
     <div class="data-note"><span>未评估</span>完整账户历史尚未补齐，组合单日跌幅与持仓月度跌幅等条件不能据此判定安全。</div>`;
 }
 
@@ -197,6 +192,14 @@ function render() {
   const active = ["positions", "reports", "status"].includes(page) ? page : "overview";
   const content = active === "positions" ? positions() : active === "reports" ? reportsPage(id) : active === "status" ? statusPage() : overview();
   shell((snapshot.data.account[0].data_mode === "demo" ? '<div class="notice">本地演示：全部金额、行情和报告均为虚构数据，不代表真实账户。</div>' : "") + content, active, `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`);
+  applyChartStyles(app);
+  const historyDate = document.querySelector<HTMLSelectElement>("#history-date");
+  if (historyDate) {
+    historyDate.onchange = () => {
+      const row = snapshot!.data.history?.find(r => r.source === historyDate.value);
+      if (row) document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
+    };
+  }
   const search = document.querySelector<HTMLInputElement>("#search");
   const kind = document.querySelector<HTMLSelectElement>("#kind");
   if (search && kind) {

@@ -5,6 +5,7 @@ import { hash, OWNER_EMAIL } from "../worker/lib";
 import type { Dashboard, Env } from "../worker/types";
 import { markdown } from "../web/src/markdown";
 import { marketChange } from "../web/src/format";
+import { allocationGap, riskRail, weightHistory, historyDetail } from "../web/src/charts";
 
 function request(path: string, options: { method?: string; body?: unknown; cookie?: string; bearer?: string; origin?: string; host?: string } = {}) {
   const host = options.host || "http://localhost";
@@ -49,14 +50,19 @@ function fixture(): Dashboard {
         level: "未触发；距离未临近", triggered: false, distance: .5, action: null, proximity: "clear" },
     ],
     market: [{ symbol: "TEST", name: "测试指数", group: "指数", close: 100, change_pct: .02, date: "2026-10-12", error: null }],
+    history: [
+      { date: "2026-09-16", source: "portfolio/snapshots/2026-09-16_持仓档案_SSOT.md", approx: true,
+        weights: { TEST: .6 } },
+      { date: "2026-10-14", source: "本批行情（positions.json）", approx: false, weights: { TEST: .6 } },
+    ],
     reports: [{ id: "test-report", date: "2026-10-13", date_source: "front_matter", trading_date: "2026-10-12",
       kind: "盘后复盘", headline: "测试报告", action: "只观察", rule: "无", body: "# 测试\n正文",
       path: "reports/2026-10/2026-10-13_盘后复盘.md" }],
   };
 }
-async function pack(data = fixture()) {
+async function pack(data = fixture(), schemaVersion = 2) {
   const payload = JSON.stringify(data);
-  return { schema_version: 1, batch_id: await hash(payload), payload };
+  return { schema_version: schemaVersion, batch_id: await hash(payload), payload };
 }
 async function sync(data = fixture()) {
   return call(request("/api/sync", { method: "PUT", body: await pack(data), bearer: env.UPLOAD_TOKEN }));
@@ -195,6 +201,35 @@ describe("complete dashboard batches", () => {
       (d: Dashboard) => { d.risk[0].action = 1; },
     ]) { const d = fixture(); mutate(d); expect((await sync(d)).status).toBe(400); }
   });
+  it("accepts the weight history and rejects malformed history", async () => {
+    expect((await sync()).status).toBe(200);
+    const cookie = await login();
+    const data = (await (await call(request("/api/dashboard", { cookie }))).json() as { data: Dashboard }).data;
+    expect(data.history).toHaveLength(2);
+    expect(data.history![0]).toMatchObject({ date: "2026-09-16", approx: true, weights: { TEST: .6 } });
+    for (const mutate of [
+      (d: Dashboard) => { d.history = []; },
+      (d: Dashboard) => { d.history![0].date = "2026-13-40"; },
+      (d: Dashboard) => { d.history![0].approx = "yes"; },
+      (d: Dashboard) => { d.history![0].weights = {}; },
+      (d: Dashboard) => { d.history![0].weights = { TEST: 1.5 }; },
+    ]) { const d = fixture(); mutate(d); expect((await sync(d)).status).toBe(400); }
+  });
+  it("still reads a schema v1 batch that predates the weight history", async () => {
+    const legacy = fixture();
+    delete legacy.history;
+    const packed = await pack(legacy, 1);
+    expect((await call(request("/api/sync", { method: "PUT", body: packed, bearer: env.UPLOAD_TOKEN }))).status).toBe(200);
+    const cookie = await login();
+    const result = await call(request("/api/dashboard", { cookie }));
+    expect((await result.json() as { data: Dashboard }).data.history).toBeUndefined();
+    // A v2 envelope must still carry the history key.
+    expect((await sync(legacy)).status).toBe(400);
+  });
+  it("rejects unsupported schema versions", async () => {
+    const packed = await pack(fixture(), 3);
+    expect((await call(request("/api/sync", { method: "PUT", body: packed, bearer: env.UPLOAD_TOKEN }))).status).toBe(400);
+  });
   it("keeps current data after invalid and stale uploads; retries are idempotent", async () => {
     expect((await sync()).status).toBe(200);
     expect((await sync()).status).toBe(200);
@@ -218,5 +253,104 @@ describe("complete dashboard batches", () => {
     expect(rendered).not.toContain("href=");
     expect(rendered).toContain("<strong>strong</strong>");
     expect(rendered).toContain("<table>");
+  });
+});
+
+describe("charts", () => {
+  const positions = [
+    { ticker: "VOO", weight: .056, target: .6 },
+    { ticker: "现金", weight: .698, target: .14 },
+  ];
+  it("sorts allocation rows by gap and marks the target position", () => {
+    const html = allocationGap(positions);
+    expect(html.indexOf("现金")).toBeLessThan(html.indexOf("VOO"));
+    expect(html).toContain("+55.8");
+    expect(html).toContain("−54.4");
+    expect((html.match(/class="gap-mark"/g) || []).length).toBe(2);
+  });
+  it("renders a missing target as no marker instead of zero", () => {
+    const html = allocationGap([{ ticker: "X", weight: .1, target: null }]);
+    expect(html).not.toContain("gap-mark");
+    expect(html).toContain("目标 —");
+  });
+  it("treats the cash line as a minimum buffer and displays exact allocation without negative zero", () => {
+    const html = allocationGap(positions);
+    expect(html).toContain("最低 14.0%");
+    expect(html).toContain('class="gap-fill buffer"');
+    expect(html).toContain("不代表需减至 14%");
+    expect(allocationGap([{ ticker: "VOO", weight: .6, target: .6 }])).not.toContain("−0.0");
+  });
+  it("keeps distance and trigger state separate on the risk rail", () => {
+    const html = riskRail([
+      { item: "NVDA 停买线", kind: "权重", current: "7.0%", threshold: "≥6.5% 停买",
+        distance: .0767, triggered: true, action: "不再加仓（不是卖出信号）", proximity: "near", level: "已触发" },
+      { item: "VOO", kind: "权重", current: "5.6%", threshold: "—",
+        distance: null, triggered: null, action: null, proximity: "none", level: "—" },
+      { item: "GOOGL 减仓线", kind: "权重", current: "13.2%", threshold: ">20% 减仓",
+        distance: .3396, triggered: false, action: null, proximity: "clear", level: "未触发；距离未临近" },
+    ]);
+    expect(html).toContain("已触发");
+    expect(html).toContain("不适用");
+    expect(html).toContain("未临近");
+    expect(html).toContain("不再加仓（不是卖出信号）");
+    // The closest rule is listed first; the rule without a threshold comes last.
+    expect(html.indexOf("NVDA 停买线")).toBeLessThan(html.indexOf("GOOGL 减仓线"));
+    expect(html.indexOf("GOOGL 减仓线")).toBeLessThan(html.indexOf(">VOO<"));
+    expect(html).not.toMatch(/data-[wl]="NaN/);
+  });
+  // The site CSP is style-src 'self': the browser drops style attributes written into markup,
+  // so chart geometry must travel as data-* and be applied through CSSOM.
+  it("never emits inline style attributes that the CSP would drop", () => {
+    const html = allocationGap(positions) + riskRail(fixture().risk)
+      + weightHistory(fixture().history!, { NVDA: .065 });
+    expect(html).not.toMatch(/\sstyle="/);
+    expect(allocationGap(positions)).toMatch(/class="gap-fill buffer" data-w="[\d.]+"/);
+    expect(riskRail(fixture().risk)).toMatch(/class="rail-dot" data-l="[\d.]+"/);
+  });
+  it("skips the history chart until there are at least two dated points", () => {
+    expect(weightHistory([], {})).toBe("");
+    expect(weightHistory([{ date: "2026-10-14", weights: { NVDA: .07 }, approx: false, source: "x" }], {})).toBe("");
+    const html = weightHistory([
+      { date: "2026-09-16", weights: { NVDA: .073, VOO: .056 }, approx: true, source: "a" },
+      { date: "2026-10-14", weights: { NVDA: .07, VOO: .056 }, approx: false, source: "b" },
+    ], { NVDA: .065, GOOGL: .135 });
+    expect(html).toContain("NVDA 停买线 6.5%");
+    expect(html).toContain("10-14");
+    expect(html).not.toContain("GOOGL 目标");
+  });
+  it("uses elapsed calendar days and sorts history without mutating its input", () => {
+    const rows = [
+      { date: "2026-10-11", weights: { NVDA: .07 }, approx: false, source: "latest" },
+      { date: "2026-10-01", weights: { NVDA: .06 }, approx: true, source: "first" },
+      { date: "2026-10-02", weights: { NVDA: .065 }, approx: true, source: "next" },
+    ];
+    const html = weightHistory(rows);
+    expect(html).toContain('cx="137.4"'); // Day 1 of the 10-day range: 54 + 834 * .1.
+    expect(html).toContain('<title>2026-10-02 · NVDA 6.5%</title>');
+    expect(rows[0].date).toBe("2026-10-11");
+    expect(html).not.toContain("NaN");
+  });
+  it("breaks lines for missing weights and handles same-day snapshot and quote records", () => {
+    const html = weightHistory([
+      { date: "2026-10-01", weights: { NVDA: .06 }, approx: true, source: "a" },
+      { date: "2026-10-02", weights: { VOO: .05 }, approx: true, source: "b" },
+      { date: "2026-10-03", weights: { NVDA: .07 }, approx: false, source: "c" },
+    ]);
+    expect(html).toMatch(/d="M54.0,[\d.]+ M888.0,[\d.]+"/);
+    const sameDay = weightHistory([
+      { date: "2026-10-14", weights: { NVDA: .07 }, approx: true, source: "snapshot" },
+      { date: "2026-10-14", weights: { NVDA: .071 }, approx: false, source: "quote" },
+    ]);
+    expect(sameDay).not.toMatch(/NaN|Infinity/);
+    expect(sameDay).toContain('value="snapshot"');
+    expect(sameDay).toContain('value="quote" selected');
+  });
+  it("shows the selected record's values and escapes its provenance", () => {
+    const detail = historyDetail({ date: "2026-06-11", approx: true,
+      source: "<img onerror=alert(1)>", weights: { GOOGL: .1376, NVDA: .0552 } });
+    expect(detail).toContain("13.8%");
+    expect(detail).toContain("历史档案约值");
+    expect(detail).toContain("&lt;img");
+    expect(detail).not.toContain("<img");
   });
 });

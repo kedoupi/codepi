@@ -4,6 +4,9 @@ export const OWNER_EMAIL = "kedoupi1121@gmail.com";
 export const MAX_BODY = 4 * 1024 * 1024;
 export const encoder = new TextEncoder();
 
+// Client-side validation failure: safe to report, and always a 400.
+export class ValidationError extends Error {}
+
 export function json(body: unknown, status = 200, headers: HeadersInit = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -52,17 +55,17 @@ export function cookie(request: Request, name: string, value: string, seconds: n
 }
 
 export async function bodyJson(request: Request, limit = MAX_BODY): Promise<unknown> {
-  if (!request.headers.get("Content-Type")?.startsWith("application/json")) throw new Error("需要 JSON 请求");
-  if (Number(request.headers.get("Content-Length")) > limit) throw new Error("请求过大");
+  if (!request.headers.get("Content-Type")?.startsWith("application/json")) throw new ValidationError("需要 JSON 请求");
+  if (Number(request.headers.get("Content-Length")) > limit) throw new ValidationError("请求过大");
   const reader = request.body?.getReader();
-  if (!reader) throw new Error("请求为空");
+  if (!reader) throw new ValidationError("请求为空");
   let size = 0;
   const chunks: Uint8Array[] = [];
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     size += value.length;
-    if (size > limit) { await reader.cancel(); throw new Error("请求过大"); }
+    if (size > limit) { await reader.cancel(); throw new ValidationError("请求过大"); }
     chunks.push(value);
   }
   const bytes = new Uint8Array(size);

@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import { authenticated, logout, requestOtp, verifyOtp } from "./auth";
 import { dashboard, upload } from "./data";
-import { json, localDev, secureResponse } from "./lib";
+import { json, localDev, secureResponse, ValidationError } from "./lib";
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -41,9 +41,8 @@ export default {
     } catch (error) {
       if (error instanceof SyntaxError) return secureResponse(json({ error: "JSON 格式无效" }, 400));
       // Validation errors are safe to return; infrastructure errors reveal no internals.
-      const message = error instanceof Error ? error.message : "";
-      const validation = /^(需要|请求|数据|账户|持仓|风控|行情|报告|正式看板)/.test(message);
-      return secureResponse(json({ error: validation ? message : "服务暂时不可用，请稍后重试" }, validation ? 400 : 503));
+      if (error instanceof ValidationError) return secureResponse(json({ error: error.message }, 400));
+      return secureResponse(json({ error: "服务暂时不可用，请稍后重试" }, 503));
     }
   },
 } satisfies ExportedHandler<Env>;
