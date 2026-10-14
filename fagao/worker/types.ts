@@ -1,7 +1,7 @@
 export const SLOTS = ["早", "中", "晚"] as const;
 export type Slot = (typeof SLOTS)[number];
 
-export const STATUSES = ["draft", "待审", "需改", "可推箱", "已进箱"] as const;
+export const STATUSES = ["draft", "待审", "需改", "可推箱", "已进箱", "弃用"] as const;
 export type Status = (typeof STATUSES)[number];
 
 export const REVIEW_ACTIONS = ["过", "要改", "拒"] as const;
@@ -43,6 +43,8 @@ export interface PostRow {
   cover?: string | null;
   has_html?: number;
   current_version?: number;
+  is_test?: number;
+  discarded_slot?: Slot | null;
   created_at: string;
   updated_at: string;
 }

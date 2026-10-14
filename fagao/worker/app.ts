@@ -3,6 +3,7 @@ import { handleLogout, handleRequestOtp, handleVerifyOtp, mePayload, requireAcco
 import {
   handleBoard,
   handleBoxed,
+  handleDiscard,
   handleGetPost,
   handlePatchPost,
   handleReleaseDemo,
@@ -97,5 +98,6 @@ api.post("/posts", (c) => handleUpsertPost(c.req.raw, c.env, c.get("account")));
 api.patch("/posts/:slug", (c) => handlePatchPost(c.req.raw, c.env, c.get("account"), c.req.param("slug")));
 api.post("/review", (c) => handleReview(c.req.raw, c.env, c.get("account")));
 api.post("/posts/:slug/boxed", (c) => handleBoxed(c.env, c.get("account"), c.req.param("slug")));
+api.post("/posts/:slug/discard", (c) => handleDiscard(c.req.raw, c.env, c.get("account"), c.req.param("slug")));
 api.post("/posts/:slug/withdraw", (c) => handleWithdraw(c.env, c.get("account"), c.req.param("slug")));
 api.post("/posts/:slug/release-demo", (c) => handleReleaseDemo(c.env, c.get("account"), c.req.param("slug")));

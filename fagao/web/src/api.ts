@@ -10,7 +10,7 @@ export interface BoardPost {
   title: string;
   slot: "早" | "中" | "晚" | null;
   publish_date: string;
-  status: "draft" | "待审" | "需改" | "可推箱" | "已进箱";
+  status: "draft" | "待审" | "需改" | "可推箱" | "已进箱" | "弃用";
   preview_path: string | null;
   note: string | null;
   digest: string | null;
@@ -143,6 +143,16 @@ export async function markBoxed(slug: string) {
 export async function withdrawPost(slug: string) {
   return parse<{ ok: boolean; post: BoardPost }>(
     await fetch(`/api/posts/${encodeURIComponent(slug)}/withdraw`, { method: "POST" }),
+  );
+}
+
+export async function discardPost(slug: string, note = "") {
+  return parse<{ ok: boolean; post: BoardPost }>(
+    await fetch(`/api/posts/${encodeURIComponent(slug)}/discard`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ note }),
+    }),
   );
 }
 

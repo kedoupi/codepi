@@ -3,6 +3,7 @@ import { MAX_HTML_CHARS, checkCover, contentPath, reviewPath } from "./content";
 import { ensureTodayDemo, markSkipAutoDemo, shouldClearDemo } from "./seed";
 import {
   canEditCopy,
+  canDiscard,
   canEditRole,
   canMarkBoxed,
   canReview,
@@ -14,7 +15,7 @@ import {
 import { REVIEW_ACTIONS, SLOTS, type AuthedAccount, type PostRow, type ReviewAction, type Slot } from "./types";
 
 const POST_COLUMNS =
-  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, cover, (html IS NOT NULL) AS has_html, current_version, created_at, updated_at";
+  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, cover, (html IS NOT NULL) AS has_html, current_version, is_test, discarded_slot, created_at, updated_at";
 
 function demoFlag(row: { is_demo: number }): boolean {
   return Number(row.is_demo) === 1;
@@ -40,6 +41,8 @@ interface BoardPost {
   has_cover: boolean;
   review_path: string;
   version: number;
+  is_test: boolean;
+  discarded_slot: Slot | null;
 }
 
 async function lastReview(env: Env, postId: string) {
@@ -67,6 +70,8 @@ async function toBoardPost(env: Env, row: PostRow): Promise<BoardPost> {
     has_cover: !!row.cover,
     review_path: reviewPath(row.id),
     version: Number(row.current_version ?? 0),
+    is_test: Number(row.is_test ?? 0) === 1,
+    discarded_slot: row.discarded_slot ?? null,
   };
 }
 
@@ -115,17 +120,19 @@ export async function handleBoard(request: Request, env: Env): Promise<Response>
   const url = new URL(request.url);
   const today = shanghaiDate();
   const date = url.searchParams.get("date") || today;
+  // ?test=1 只看测试稿；默认只看正式稿
+  const testFlag = url.searchParams.get("test") === "1" ? 1 : 0;
   if (!isDateOnly(date)) {
     return json({ ok: false, error: "日期无效" }, 400);
   }
 
-  if (date === today) {
+  if (date === today && !testFlag) {
     await ensureTodayDemo(env, date);
   }
 
   const rows = (
-    await env.DB.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ?`)
-      .bind(date)
+    await env.DB.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ? AND is_test = ?`)
+      .bind(date, testFlag)
       .all<PostRow>()
   ).results;
 
@@ -146,10 +153,10 @@ export async function handleBoard(request: Request, env: Env): Promise<Response>
   const pending = (
     await env.DB.prepare(
       `SELECT ${POST_COLUMNS} FROM posts
-       WHERE status = '待审'
+       WHERE status = '待审' AND is_test = ?
        ORDER BY publish_date ASC,
          CASE slot WHEN '早' THEN 1 WHEN '中' THEN 2 WHEN '晚' THEN 3 ELSE 4 END`,
-    ).all<PostRow>()
+    ).bind(testFlag).all<PostRow>()
   ).results;
 
   const queue = [];
@@ -161,6 +168,7 @@ export async function handleBoard(request: Request, env: Env): Promise<Response>
     ok: true,
     date,
     today,
+    test: testFlag === 1,
     brand: brandName(env),
     slots,
     queue,
@@ -195,6 +203,7 @@ interface UpsertBody {
   mark_official?: unknown;
   html?: unknown;
   cover?: unknown;
+  is_test?: unknown;
 }
 
 export async function handleUpsertPost(
@@ -249,15 +258,21 @@ export async function handleUpsertPost(
     return json({ ok: false, error: "请填写 slug、标题、日期和档位" }, 400);
   }
   const existing = await loadPost(env, lookupSlug);
+  // preview 部署与生产共用一个 D1，preview 环境写入的一律是测试稿
+  const isTest = existing
+    ? Number(existing.is_test ?? 0)
+    : body.is_test === true || env.ENVIRONMENT === "preview"
+      ? 1
+      : 0;
   const keepsHtml = !html && !!existing && Number(existing.has_html) === 1 && !previewPath;
   if (submit && !previewPath && !html && !keepsHtml) {
     return json({ ok: false, error: "待审需要预览地址或正文 html" }, 400);
   }
 
   const occupant = await env.DB.prepare(
-    `SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ? AND slot = ? AND id != ?`,
+    `SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ? AND slot = ? AND id != ? AND is_test = ?`,
   )
-    .bind(publishDate, slot, lookupSlug)
+    .bind(publishDate, slot, lookupSlug, isTest)
     .first<PostRow>();
   if (occupant) {
     if (!demoFlag(occupant)) {
@@ -271,7 +286,7 @@ export async function handleUpsertPost(
   }
 
   if (existing && !canEditCopy(existing.status)) {
-    return json({ ok: false, error: "已进箱的稿不能改" }, 409);
+    return json({ ok: false, error: existing.status === "弃用" ? "弃用的稿不能再改，换个 slug 重交" : "已进箱的稿不能改" }, 409);
   }
   if (existing && existing.status === "待审" && !demoFlag(existing)) {
     return json({ ok: false, error: IN_REVIEW_LOCKED, version: Number(existing.current_version ?? 0) }, 409);
@@ -334,8 +349,8 @@ export async function handleUpsertPost(
     }
   } else {
     await env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, is_test, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
     )
       .bind(
         persistSlug,
@@ -349,6 +364,7 @@ export async function handleUpsertPost(
         digest || null,
         html,
         coverCheck.value,
+        isTest,
         stamp,
         stamp,
       )
@@ -572,10 +588,10 @@ async function renamePostId(
   await env.DB.batch([
     env.DB.prepare(`UPDATE posts SET slot = NULL WHERE id = ?`).bind(from),
     env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, current_version, created_at, updated_at)
+      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, current_version, is_test, discarded_slot, created_at, updated_at)
        SELECT ?, account_id, title, ?, publish_date, status,
               CASE WHEN preview_path = ? THEN ? ELSE preview_path END,
-              note, digest, is_demo, html, cover, current_version, created_at, ?
+              note, digest, is_demo, html, cover, current_version, is_test, discarded_slot, created_at, ?
        FROM posts WHERE id = ?`,
     ).bind(to, source.slot, contentPath(from), contentPath(to), stamp, from),
     env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(to, from),
@@ -643,4 +659,35 @@ export async function handleReleaseDemo(
   await markSkipAutoDemo(env, post.publish_date);
 
   return json({ ok: true, released: slug, publish_date: post.publish_date });
+}
+
+export async function handleDiscard(
+  request: Request,
+  env: Env,
+  account: AuthedAccount,
+  slug: string,
+): Promise<Response> {
+  if (!canEditRole(account.role)) {
+    return json({ ok: false, error: "没有编辑权限" }, 403);
+  }
+  if (!isSlug(slug)) return json({ ok: false, error: "稿件不存在" }, 404);
+  let note = "";
+  try {
+    const body = (await request.json()) as { note?: unknown };
+    note = typeof body.note === "string" ? body.note.trim() : "";
+  } catch {
+    // 允许空 body
+  }
+  const post = await loadPost(env, slug);
+  if (!post) return json({ ok: false, error: "稿件不存在" }, 404);
+  if (!canDiscard(post.status)) {
+    return json({ ok: false, error: "已进箱或已弃用的稿不能弃用" }, 409);
+  }
+  await env.DB.prepare(
+    `UPDATE posts SET status = '弃用', discarded_slot = slot, slot = NULL, note = ?, updated_at = ? WHERE id = ?`,
+  )
+    .bind(note || "已弃用", nowIso(), slug)
+    .run();
+  const row = await loadPost(env, slug);
+  return json({ ok: true, post: row ? await toBoardPost(env, row) : null });
 }

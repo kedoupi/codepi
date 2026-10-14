@@ -14,6 +14,7 @@ import {
   todayShanghai,
   upsertPost,
   withdrawPost,
+  discardPost,
   type Account,
   type BoardPost,
   type SlotRow,
@@ -533,7 +534,17 @@ function reviewDock(post: BoardPost): string {
         <div class="dock-actions dock-edit-actions">
           <button type="button" data-boxed="${post.slug}">已进箱</button>
           <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>
+          <button class="secondary" type="button" data-discard="${post.slug}">弃用</button>
         </div>
+      </section>
+    `;
+  }
+
+  if (post.status === "弃用") {
+    return `
+      <section class="dock dock-done" aria-label="弃用">
+        <span class="stamp st s-弃用 st-弃用">弃用</span>
+        <p class="hint">${escapeHtml(post.note || "已弃用")}。档位已释放，可换个 slug 重新交稿。</p>
       </section>
     `;
   }
@@ -562,6 +573,7 @@ function reviewDock(post: BoardPost): string {
                <button class="secondary" type="button" data-withdraw="${post.slug}">撤回待审</button>`
             : ""
         }
+        <button class="secondary" type="button" data-discard="${post.slug}">弃用这篇</button>
         ${composeForm(post.publish_date, { slot, post }, post)}
       </section>
     `;
@@ -844,6 +856,14 @@ function bindEditorActions() {
     bindTwoTap(button, "确认撤回？再点一次", async () => {
       await withdrawPost(button.dataset.withdraw!);
       flashToast("已撤回待审", "ok");
+      location.reload();
+    });
+  }
+
+  for (const button of app.querySelectorAll<HTMLButtonElement>("[data-discard]")) {
+    bindTwoTap(button, "确认弃用？再点一次", async () => {
+      await discardPost(button.dataset.discard!);
+      flashToast("已弃用，档位已释放", "ok");
       location.reload();
     });
   }

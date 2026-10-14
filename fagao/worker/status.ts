@@ -24,7 +24,12 @@ export function canWithdraw(status: Status): boolean {
 }
 
 export function canEditCopy(status: Status): boolean {
-  return status !== "已进箱";
+  return status !== "已进箱" && status !== "弃用";
+}
+
+/** 已进箱是终点，弃用不重复弃用；其余状态都可弃用（释放档位）。 */
+export function canDiscard(status: Status): boolean {
+  return status !== "已进箱" && status !== "弃用";
 }
 
 export function canReviewRole(role: Role): boolean {

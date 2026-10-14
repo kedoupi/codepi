@@ -1191,3 +1191,10 @@ textarea {
     animation-iteration-count: 1 !important;
   }
 }
+
+.stamp.s-弃用,
+.st.st-弃用 {
+  color: #8a8a8a;
+  border-color: #c8c8c8;
+  text-decoration: line-through;
+}
