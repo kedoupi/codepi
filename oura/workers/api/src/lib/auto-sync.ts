@@ -78,7 +78,11 @@ export async function automaticSyncStatus(env: Env, userId: string) {
   const now = Date.now();
   const shanghaiDay = date(now + 8 * 3_600_000);
   let next = Date.parse(`${shanghaiDay}T01:00:00Z`);
-  if (next <= now) next += DAY;
+  if (next <= now) {
+    next = !row?.run_day || row.run_day < shanghaiDay
+      ? (Math.floor(now / 120_000) + 1) * 120_000
+      : next + DAY;
+  }
   return {
     enabled: env.AUTO_SYNC_ENABLED === "1",
     schedule: "09:00", timezone: "Asia/Shanghai", next_run_at: new Date(next).toISOString(),

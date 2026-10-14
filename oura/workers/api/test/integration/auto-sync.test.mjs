@@ -42,6 +42,11 @@ test('09:00 gate, durable batches, successful empty coverage, score refresh and 
   const f = await fixture(t, () => { calls++; });
   await f.tick(scheduledTime - 120000);
   assert.equal((await f.status()).status, 'idle');
+  const localDay = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  if (Date.now() >= Date.parse(`${localDay}T01:00:00Z`)) {
+    assert.ok(Date.parse((await f.status()).next_run_at) <= Date.now() + 120000,
+      'a due first run should show the next tick, not tomorrow');
+  }
   assert.equal(calls, 2, 'only OAuth login has called Oura before 09:00');
   const collections = ['sleep','daily_sleep','daily_readiness','daily_activity','heartrate','daily_spo2',
     'daily_stress','daily_resilience','daily_cardiovascular_age','vO2_max','workout','enhanced_tag',
