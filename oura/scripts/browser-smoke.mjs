@@ -164,6 +164,29 @@ try {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);
   await healthy('owner settings shows personal workspace, no billing');
   await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
+  await page.evaluate(async () => { await fetch('/__test/backfill-scenario', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForSelector('.sync-issues');
+  console.log(await page.snapshot({ scope: 'full_page' }));
+  await page.screenshot({ path: '/tmp/oura-backfill-retry.png' });
+  await page.click('loc=css:.health-data button:text-is("继续未完成部分")');
+  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。')
+    && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 60000 });
+  const splitResult = await page.evaluate(async () => {
+    const status = await (await fetch('/api/me/health-records/status')).json();
+    const heart = status.collections.find(row => row.name === 'heartrate');
+    const failures = window.__smokeFailures;
+    window.__smokeFailures = [];
+    return { heart, failures, progress: document.querySelector('.health-data progress').value };
+  });
+  assert.equal(splitResult.heart.records, 7);
+  assert.equal(splitResult.heart.failed_windows, 0);
+  assert.equal(splitResult.progress, 100);
+  assert.equal(splitResult.failures.length, 6, 'seven days split into seven one-day windows after six oversized requests');
+  assert.ok(splitResult.failures.every(f => f === '/api/me/health-records: HTTP 422'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.sync-issues').length), 0);
+  await healthy('oversized backfill automatically splits, saves every day and clears old failures');
+  await page.screenshot({ path: '/tmp/oura-backfill-desktop.png' });
   console.log(await page.snapshot({ scope: 'full_page' }));
   await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
   await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。'));
@@ -176,6 +199,8 @@ try {
   await healthy('owner completes 90-day backfill');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'settings fits mobile viewport');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.health-data *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sync controls and messages fit mobile');
+  await page.screenshot({ path: '/tmp/oura-backfill-mobile.png' });
   await page.cdp('Emulation.clearDeviceMetricsOverride');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');

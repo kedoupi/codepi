@@ -7,7 +7,17 @@ import { createRuntime, login, migrate } from '../workers/api/test/integration/r
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports, no billing).
-const ownerRuntime = createRuntime();
+let adaptiveBackfill = false;
+const ownerRuntime = createRuntime({
+  providerResponse(url) {
+    if (!adaptiveBackfill || !url.pathname.endsWith('/heartrate')) return undefined;
+    const from = url.searchParams.get('start_datetime');
+    const to = url.searchParams.get('end_datetime');
+    return Response.json({ data: Date.parse(to) - Date.parse(from) > 86400000
+      ? Array.from({ length: 5001 }, () => ({}))
+      : [{ timestamp: from, bpm: 60, source: 'rest' }], next_token: null });
+  },
+});
 await ownerRuntime.ready;
 await migrate(ownerRuntime);
 // Free runtime: no owner configured, so test-user is a regular account that
@@ -31,6 +41,17 @@ let sleepFailure = false;
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (url.pathname === '/__test/backfill-scenario' && req.method === 'POST') {
+      adaptiveBackfill = true;
+      const db = await ownerRuntime.getD1Database('DB');
+      const today = new Date().toISOString().slice(0, 10);
+      const from = new Date(Date.parse(today) - 6 * 86400000).toISOString().slice(0, 10);
+      await db.prepare(`INSERT OR REPLACE INTO health_sync_windows
+        (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)`)
+        .bind('test-user', 'heartrate', from, today, '2000-01-01T00:00:00Z', 'sync_window_too_large').run();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     if (url.pathname === '/__test/sleep-scenario' && req.method === 'POST') {
       const db = await ownerRuntime.getD1Database('DB');
       const scenario = url.searchParams.get('mode');

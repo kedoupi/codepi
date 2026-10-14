@@ -114,6 +114,32 @@ async function fetchRecords(token: string, w: Window, signal: AbortSignal): Prom
   throw new ApiError("sync_window_too_large", 422);
 }
 
+async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedAt: string) {
+  const parents = await env.DB.prepare(`SELECT window_from, window_to, attempted_at FROM health_sync_windows
+    WHERE user_id=? AND collection=? AND last_error='sync_window_too_large'
+      AND window_from<=? AND window_to>=?`)
+    .bind(userId, w.spec.name, w.from, w.to)
+    .all<{ window_from: string; window_to: string; attempted_at: string }>();
+  for (const parent of parents.results) {
+    // Only successes after this failure can resolve it; older archives do not prove recovery.
+    const children = await env.DB.prepare(`SELECT window_from, window_to FROM health_sync_windows
+      WHERE user_id=? AND collection=? AND last_error IS NULL AND synced_at>=?
+        AND window_to>=? AND window_from<=? ORDER BY window_from`)
+      .bind(userId, w.spec.name, parent.attempted_at, parent.window_from, parent.window_to)
+      .all<{ window_from: string; window_to: string }>();
+    let coveredUntil = Date.parse(parent.window_from);
+    for (const child of children.results) {
+      if (Date.parse(child.window_from) > coveredUntil) break;
+      coveredUntil = Math.max(coveredUntil, Date.parse(child.window_to) + DAY);
+    }
+    if (coveredUntil <= Date.parse(parent.window_to)) continue;
+    await env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
+      WHERE user_id=? AND collection=? AND window_from=? AND window_to=?
+        AND attempted_at=? AND last_error='sync_window_too_large'`)
+      .bind(fetchedAt, userId, w.spec.name, parent.window_from, parent.window_to, parent.attempted_at).run();
+  }
+}
+
 export async function syncHealthWindow(request: Request, env: Env, userId: string, w: Window, force = false) {
   const state = await windowState(env, userId, w);
   const now = Date.now();
@@ -160,12 +186,16 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
       env.DB.prepare("DELETE FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))")
         .bind(userId, w.spec.name, w.from, w.to),
       ...inserts,
+      env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
+        WHERE user_id=? AND collection=? AND window_from>=? AND window_to<=? AND last_error IS NOT NULL`)
+        .bind(fetchedAt, userId, w.spec.name, w.from, w.to),
       env.DB.prepare(`INSERT INTO health_sync_windows
         (user_id, collection, window_from, window_to, synced_at, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?, NULL)
         ON CONFLICT(user_id, collection, window_from, window_to)
         DO UPDATE SET synced_at=excluded.synced_at, attempted_at=excluded.attempted_at, last_error=NULL`)
         .bind(userId, w.spec.name, w.from, w.to, fetchedAt, fetchedAt),
     ]);
+    await resolveSplitWindows(env, userId, w, fetchedAt);
   } catch (err) {
     const error = err instanceof ApiError ? err : new ApiError("upstream_unavailable", 502);
     await env.DB.prepare(`INSERT INTO health_sync_windows
@@ -226,5 +256,7 @@ export async function healthStatus(env: Env, userId: string) {
     ...rows.results.find(row => row.collection === spec.name),
     last_attempt: windows.results.find(row => row.collection === spec.name) ?? null,
     failed_windows: windows.results.filter(row => row.collection === spec.name && row.last_error).length,
+    failed_ranges: windows.results.filter(row => row.collection === spec.name && row.last_error)
+      .map(row => ({ collection: spec.name, from: row.window_from, to: row.window_to, code: row.last_error })),
   }));
 }
