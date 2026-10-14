@@ -5,6 +5,7 @@
   import Dashboard from "./components/Dashboard.svelte";
   import LandingView from "./components/LandingView.svelte";
   import SettingsPage from "./components/SettingsPage.svelte";
+  import SleepPage from "./components/SleepPage.svelte";
   import WeeklyPage from "./components/WeeklyPage.svelte";
   import {
     readStoredLocalePref,
@@ -151,7 +152,9 @@
   $effect(() => {
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
     document.title = me?.authenticated
-      ? router.path === "/insights"
+      ? router.path === "/sleep"
+        ? locale === "zh" ? "睡眠与恢复" : "Sleep & recovery"
+        : router.path === "/insights"
         ? t(locale, "weeklyTitle")
         : router.path === "/compare"
           ? t(locale, "compareTitle")
@@ -166,7 +169,9 @@
 {#if !booted}
   <div class="status" style="padding:24px">{t(locale, "loading")}</div>
 {:else if me?.authenticated}
-  {#if router.path === "/insights"}
+  {#if router.path === "/sleep"}
+    <SleepPage {me} {locale} onUnauthorized={() => showLogin()} />
+  {:else if router.path === "/insights"}
     <WeeklyPage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => (window.location.href = "/api/auth/logout")} />
   {:else if router.path === "/compare"}
     <ComparePage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => (window.location.href = "/api/auth/logout")} />

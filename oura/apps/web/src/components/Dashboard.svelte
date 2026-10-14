@@ -2,25 +2,18 @@
   import { onMount } from "svelte";
   import { api, RequestError, errorText } from "../lib/api";
   import { fetchAi, stripMarkdown, type AiResponse } from "../lib/ai";
-  import {
-    createDonutChart,
-    createGaugeChart,
-    createRadarChart,
-    createSRAChart,
-    createStepsChart,
-  } from "../lib/charts";
+  import { createSRAChart } from "../lib/charts";
   import { sortDays } from "../lib/format";
   import { t, type Locale } from "../lib/i18n";
-  import { goto } from "../lib/router.svelte";
   import { isDevLoginAllowed, type DailyResponse, type Day, type MeResponse } from "../lib/types";
   import { computeViewModel } from "../lib/view-model";
   import AiDrawer from "./AiDrawer.svelte";
   import ChartCanvas from "./ChartCanvas.svelte";
   import ChromeHeader from "./ChromeHeader.svelte";
-  import ContribBars from "./ContribBars.svelte";
-  import HeatmapPanel from "./HeatmapPanel.svelte";
   import SyncStatus from "./SyncStatus.svelte";
-  import SummaryCards from "./SummaryCards.svelte";
+  import ArchiveStatus from "./ArchiveStatus.svelte";
+  import SleepPreview from "./SleepPreview.svelte";
+  import { calendarDays, dateWindow, finite, latestDay, scoreDelta } from "../lib/health";
 
   let {
     me,
@@ -32,9 +25,17 @@
     onUnauthorized: () => void;
   } = $props();
 
+  const text = (zh: string, en: string) => locale === "zh" ? zh : en;
+  const metrics = $derived([
+    { key: "sleep" as const, label: text("睡眠", "Sleep") },
+    { key: "readiness" as const, label: text("准备度", "Readiness") },
+    { key: "activity" as const, label: text("活动", "Activity") },
+  ]);
+  let loading = $state(true);
   const API = "/api/me/daily?days=90";
 
   let allDays = $state<Day[]>([]);
+  const latest = $derived(latestDay(allDays));
   let rangeDays = $state(7);
   let status = $state("");
   let statusErr = $state(false);
@@ -50,32 +51,8 @@
   let syncState = $state<import("../lib/types").SyncInfo | undefined>(undefined);
   let syncBusy = $state(false);
 
-  const vm = $derived(allDays.length ? computeViewModel(allDays, rangeDays) : null);
+  const vm = $derived(allDays.length ? computeViewModel(calendarDays(allDays, 90), rangeDays) : null);
 
-  const gaugeBuild = $derived(
-    vm
-      ? (el: HTMLCanvasElement) => {
-          void resizeTick;
-          return createGaugeChart(el, vm.readyScore);
-        }
-      : null,
-  );
-  const donutBuild = $derived(
-    vm
-      ? (el: HTMLCanvasElement) => {
-          void resizeTick;
-          return createDonutChart(el, vm.donutHigh, vm.donutMid, vm.donutLow, narrow);
-        }
-      : null,
-  );
-  const radarBuild = $derived(
-    vm
-      ? (el: HTMLCanvasElement) => {
-          void resizeTick;
-          return createRadarChart(el, vm.radarVals, narrow);
-        }
-      : null,
-  );
   const sraBuild = $derived(
     vm
       ? (el: HTMLCanvasElement) => {
@@ -94,23 +71,6 @@
         }
       : null,
   );
-  const stepsBuild = $derived(
-    vm
-      ? (el: HTMLCanvasElement) => {
-          void resizeTick;
-          return createStepsChart(
-            el,
-            vm.days,
-            vm.labels,
-            vm.stepsSeries,
-            vm.stepsAvg,
-            rangeDays,
-            narrow,
-          );
-        }
-      : null,
-  );
-
   $effect(() => {
     const mq = window.matchMedia("(max-width:520px)");
     const syncNarrow = () => {
@@ -134,7 +94,10 @@
   });
 
   $effect(() => {
-    if (vm && !statusErr) status = vm.statusText;
+    if (vm && !statusErr) {
+      const window = dateWindow(rangeDays);
+      status = `${text("已读取近 90 天评分", "Loaded the last 90 days of scores")} · ${window.from} — ${window.to}`;
+    }
   });
 
   async function load() {
@@ -146,10 +109,10 @@
       allDays = sortDays(data.days);
       syncState = data.sync;
     } catch (err) {
-      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
       statusErr = true;
       status = errorText(err, locale);
-    }
+    } finally { loading = false; }
   }
 
   async function syncNow() {
@@ -163,6 +126,7 @@
         statusErr = false;
       }
     } catch (err) {
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
       statusErr = true;
       status = errorText(err, locale);
     } finally { syncBusy = false; }
@@ -224,15 +188,6 @@
 </script>
 
 <div id="dash-view">
-  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
-    <defs>
-      <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#f97316" stop-opacity="0.28" />
-        <stop offset="100%" stop-color="#f97316" stop-opacity="0" />
-      </linearGradient>
-    </defs>
-  </svg>
-
   <ChromeHeader
     isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"}
     {locale}
@@ -244,19 +199,10 @@
   />
 
   <main class="wrap page" style="max-width:var(--page-max);margin-left:auto;margin-right:auto">
-    <div class="kicker">OURA · HEALTH {#if me.release}<span class="ver-chip">{me.release}</span>{/if}</div>
-    <div class="hero-row">
-      <div>
-        <h1>{t(locale, "dashTitle")}</h1>
-        <p class="sub">{vm?.rangeLabel ?? t(locale, "dashSubFallback")}</p>
-      </div>
-      <div class="range" role="group" aria-label={t(locale, "rangeAria")} data-on={String(rangeDays)}>
-        <span class="range-thumb" aria-hidden="true"></span>
-        <button type="button" class:on={rangeDays === 7} onclick={() => setRange(7)}>{t(locale, "rangeWeek")}</button>
-        <button type="button" class:on={rangeDays === 30} onclick={() => setRange(30)}>30</button>
-        <button type="button" class:on={rangeDays === 90} onclick={() => setRange(90)}>90</button>
-      </div>
-    </div>
+    <header class="overview-heading">
+      <div><h1>{text("今日概览", "Your daily overview")}</h1><p>{text("从今天的状态，看见自己的节奏。", "A closer look at your daily rhythm.")}</p></div>
+      <div class="latest-date"><span>{text("最新评分日期", "Latest score date")}</span><strong>{latest?.date ?? "—"}</strong></div>
+    </header>
     <div class="status" class:err={statusErr}>{status}</div>
     {#if statusErr}
       <div class="settings-actions" style="margin-bottom:12px">
@@ -266,142 +212,41 @@
     {/if}
     <SyncStatus sync={syncState} {locale} busy={syncBusy} onSync={syncNow} />
 
-    <section class="cards insight-entry-row">
-      <a
-        class="card insight-entry"
-        href="/insights"
-        onclick={(e) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-          e.preventDefault();
-          goto("/insights");
-        }}
-      >
-        <div class="label">{t(locale, "insightEntryTitle")}</div>
-        <div class="score insight-entry-lead">{t(locale, "insightEntryLead")}</div>
-        <div class="meta">{t(locale, "insightEntryMeta")}</div>
-        <span class="delta">{t(locale, "notMedical")} / {t(locale, "notMedicalEn")}</span>
-      </a>
-    </section>
-
-    <SummaryCards cards={vm?.cards ?? []} />
-
-    <section class="stack">
-      <div class="panel tech">
-        <h2>睡眠 / 准备度 / 活动趋势</h2>
-        <p class="takeaway">{@html vm?.takeSRA ?? "加载中…"}</p>
-        <p class="hint">浅橙带=周六日 · 刻度带「六/日」· 虚线为准备度均值</p>
-        <div class="chart-well"><div class="chart-box"><ChartCanvas build={sraBuild} /></div></div>
-      </div>
-    </section>
-
-    <section class="viz-row">
-      <div class="panel tech panel-gauge">
-        <h2>准备度仪表</h2>
-        <p class="takeaway">{@html vm?.takeGauge ?? "加载中…"}</p>
-        <p class="hint">{vm?.gaugeHint ?? ""}</p>
-        <div class="chart-well gauge-well">
-          <div class="chart-box gauge-ring">
-            <ChartCanvas build={gaugeBuild} />
-            <div class="gauge-center">
-              <div class="gauge-score">{vm?.gaugeScore ?? "—"}</div>
-              <div class="gauge-sub">{vm?.gaugeSub ?? ""}</div>
-            </div>
-          </div>
+    {#if latest}
+      <section class="today-scores" aria-label={text("最新一日官方评分", "Latest daily official scores")}>
+        {#each metrics as metric}
+          {@const score = latest[metric.key]?.score}
+          {@const delta = scoreDelta(allDays, latest, metric.key)}
+          <article>
+            <div class="score-heading"><h2>{metric.label}</h2><span>{text("Oura 官方评分", "Oura score")}</span></div>
+            <div class="today-score">{finite(score) ? score : "—"}<small>/ 100</small></div>
+            {#if delta}<p class="score-comparison"><strong>{delta.value > 0 ? "+" : ""}{delta.value}</strong> {text("较此前 7 天均值", "vs. prior 7-day mean")}</p><p class="score-source">{text("比较基于", "Based on")} {delta.count} {text("天有效记录", "recorded days")}</p>
+            {:else}<p class="score-comparison">{text("暂无足够记录用于比较", "Not enough records to compare")}</p>{/if}
+          </article>
+        {/each}
+      </section>
+      <p class="hint">{text("三项评分均对应标注日期。差值仅表示变化，不等同于健康判断。", "All three scores use the date shown. Differences describe change, not a health assessment.")}</p>
+    {:else if !loading && !statusErr}
+      <div class="overview-empty"><h2>{text("还没有评分记录", "No scores yet")}</h2><p>{text("刷新评分，或在数据设置中检查授权和同步状态。", "Refresh scores or check authorization and sync in settings.")}</p><a href="/settings">{text("打开数据设置", "Open data settings")}</a></div>
+    {/if}
+    {#if me.capabilities?.personal}<SleepPreview {locale} {onUnauthorized} />{/if}
+    <section class="overview-trend panel">
+      <div class="trend-heading">
+        <div><h2>{text("最近的节奏", "Your recent rhythm")}</h2><p class="sub">{rangeDays} {text("天评分趋势", "days of scores")}</p></div>
+        <div class="range" role="group" aria-label={t(locale, "rangeAria")} data-on={String(rangeDays)}>
+          <span class="range-thumb" aria-hidden="true"></span>
+          {#each [7, 30, 90] as n}<button type="button" class:on={rangeDays === n} aria-pressed={rangeDays === n} onclick={() => setRange(n)}>{n}</button>{/each}
         </div>
       </div>
-      <div class="panel tech">
-        <h2>步数档位分布</h2>
-        <p class="takeaway">{@html vm?.takeDonut ?? "加载中…"}</p>
-        <p class="hint">按步数档位统计所选区间天数</p>
-        <div class="chart-well"><div class="chart-box pair"><ChartCanvas build={donutBuild} /></div></div>
-      </div>
+      {#if latest}<div class="chart-well"><div class="chart-box"><ChartCanvas build={sraBuild} /></div></div>
+      {:else}<p class="overview-empty">{loading ? text("正在读取评分…", "Loading scores…") : text("有记录后，这里会呈现评分变化。", "Your score history will appear here once available.")}</p>{/if}
+      <p class="hint">{text("Oura 官方评分 · 虚线为所选区间准备度均值 · 缺失日期保留空缺", "Oura scores · Dashed line: mean readiness for this range · Missing dates remain gaps")}</p>
     </section>
-
-    <section class="stack">
-      <div class="panel tech">
-        <h2>步数</h2>
-        <p class="takeaway">{@html vm?.takeSteps ?? "加载中…"}</p>
-        <p class="hint">橙柱高于均值 · 浅柱低于均值 · 虚线为日均</p>
-        <div class="chart-well"><div class="chart-box"><ChartCanvas build={stepsBuild} /></div></div>
-      </div>
+    <section class="overview-links">
+      <a href="/insights"><h2>{text("本周解读", "This week")}</h2><p>{text("回看一周的变化与已有记录。", "Review the week's changes and recorded patterns.")}</p></a>
+      <a href="/compare"><h2>{text("区间对比", "Compare periods")}</h2><p>{text("把近期状态放到更长的时间里看。", "Put your recent scores in a longer perspective.")}</p></a>
     </section>
-
-    <section class="viz-row">
-      <div class="panel tech">
-        <h2>准备度贡献雷达</h2>
-        <p class="takeaway">{@html vm?.takeRadar ?? "加载中…"}</p>
-        <p class="hint">{vm?.radarHint ?? "最新一日贡献项"}</p>
-        <div class="chart-well"><div class="chart-box pair"><ChartCanvas build={radarBuild} /></div></div>
-      </div>
-      <HeatmapPanel
-        title={vm?.heatTitle ?? "准备度热力"}
-        takeaway={vm?.takeHeat ?? "加载中…"}
-        hint={vm?.heatHint ?? "所选区间每日 readiness"}
-        strip={vm?.heatStrip ?? true}
-        wdays={vm?.heatWdays ?? ["一", "二", "三", "四", "五", "六", "日"]}
-        cells={vm?.heatCells ?? []}
-      />
-    </section>
-
-    <section class="avgs">
-      <div class="panel">
-        <h2>区间均值</h2>
-        <p class="takeaway">{vm?.takeAvg ?? "加载中…"}</p>
-        <p class="hint">{vm?.avgHint ?? "当前所选范围"}</p>
-        <table class="avg-table">
-          <thead><tr><th>指标</th><th>均值</th></tr></thead>
-          <tbody>
-            {#each vm?.avgRows ?? [] as row (row[0])}
-              <tr><td>{row[0]}</td><td>{row[1]}</td></tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-      <div class="panel">
-        <h2>对比参考</h2>
-        <p class="takeaway">{vm?.takeCmp ?? "加载中…"}</p>
-        <p class="hint">30 天 vs 90 天</p>
-        <table class="avg-table">
-          <thead><tr><th>指标</th><th>30 天</th><th>90 天</th></tr></thead>
-          <tbody>
-            {#each vm?.cmpRows ?? [] as row (row[0])}
-              <tr><td>{row[0]}</td><td>{row[1]}</td><td>{row[2]}</td></tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="insights">
-      <h2>简要洞察</h2>
-      <ul>
-        {#if statusErr}
-          <li>无法拉取数据，请稍后刷新。CORS/网络异常时也会出现此提示。</li>
-        {:else if vm?.insights.length}
-          {#each vm.insights as item, i (`ins-${i}`)}
-            <li>{item}</li>
-          {/each}
-        {:else}
-          <li>{allDays.length ? "数据不足，暂无洞察。" : "加载中…"}</li>
-        {/if}
-      </ul>
-    </section>
-
-    <section class="contrib-grid">
-      <div class="panel">
-        <h2>最新睡眠贡献项</h2>
-        <p class="takeaway">{vm?.takeSleepContrib ?? "加载中…"}</p>
-        <p class="hint">{vm?.sleepContribDate ?? "—"}</p>
-        <ContribBars rows={vm?.sleepBars ?? []} />
-      </div>
-      <div class="panel">
-        <h2>最新准备度贡献项</h2>
-        <p class="takeaway">{vm?.takeReadyContrib ?? "加载中…"}</p>
-        <p class="hint">{vm?.readyContribDate ?? "—"}</p>
-        <ContribBars rows={vm?.readyBars ?? []} />
-      </div>
-    </section>
-
+    {#if me.capabilities?.personal}<ArchiveStatus {locale} {onUnauthorized} />{/if}
     <footer class="foot"><span>{t(locale, "footData")}</span></footer>
   </main>
 
@@ -416,3 +261,8 @@
     onClose={() => (aiOpen = false)}
   />
 </div>
+
+<style>
+  .page{padding-top:36px}.overview-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}.overview-heading h1{font-size:36px;letter-spacing:-.04em}.overview-heading p{font-size:15px;color:var(--muted);margin-top:8px}.latest-date{text-align:right;display:grid;gap:4px;font-variant-numeric:tabular-nums}.latest-date span{font-size:12px;color:var(--muted)}.latest-date strong{font-size:20px}.today-scores{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:20px;background:var(--surface);overflow:hidden;margin-top:24px}.today-scores article{padding:26px 28px}.today-scores article+article{border-left:1px solid var(--line)}.score-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.score-heading h2{font-size:17px}.score-heading span,.score-source{font-size:11px;color:var(--muted)}.today-score{font-size:64px;line-height:1.15;font-weight:650;letter-spacing:-.06em;margin:20px 0;font-variant-numeric:tabular-nums}.today-score small{font-size:16px;letter-spacing:0;font-weight:400;color:var(--muted);margin-left:8px}.score-comparison{font-size:12px;color:var(--muted)}.score-comparison strong{color:var(--ink)}.score-source{margin-top:4px}.hint{margin-top:10px}.trend-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:20px}.trend-heading h2{font-size:20px}.trend-heading .sub{font-size:13px}.overview-trend{padding:26px;border-radius:20px}.overview-links{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:28px 0}.overview-links a{padding:22px 0;border-top:1px solid var(--line)}.overview-links h2{font-size:19px}.overview-links p{color:var(--muted);font-size:13px;margin-top:8px}.overview-links a:hover h2{color:#9a3412}.overview-empty{padding:30px 0;color:var(--muted)}.overview-empty a{text-decoration:underline}
+  @media(max-width:600px){.page{padding-top:24px}.overview-heading{align-items:flex-start}.overview-heading h1{font-size:28px}.latest-date strong{font-size:14px}.overview-heading p{font-size:13px;max-width:190px}.today-scores article{padding:18px 12px}.score-heading span{display:none}.score-heading h2{font-size:14px}.today-score{font-size:40px;margin:16px 0}.today-score small{display:block;font-size:11px;margin:4px 0}.score-comparison{font-size:11px;line-height:1.6}.score-source{font-size:10px}.overview-trend{padding:20px 12px}.overview-links{gap:16px}.latest-date{padding-top:4px}}
+</style>
