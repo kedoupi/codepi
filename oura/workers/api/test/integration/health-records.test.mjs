@@ -35,6 +35,41 @@ async function expire(collection) {
 }
 function response(data, next_token = null) { return Response.json({ data, next_token }); }
 
+test('daily retries resolve an oversized parent only after its entire window is covered', async () => {
+  const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
+  handler = url => {
+    if (!url.pathname.endsWith('/heartrate')) return undefined;
+    const from = url.searchParams.get('start_datetime');
+    const to = url.searchParams.get('end_datetime');
+    return Date.parse(to) - Date.parse(from) > 86400000
+      ? response(Array.from({ length: 5001 }, () => ({})))
+      : response([{ timestamp: from, bpm: 60, source: 'rest' }]);
+  };
+  try {
+    assert.equal((await records('heartrate', { from: date(6), method: 'POST' })).status, 422);
+    for (let back = 0; back < 6; back++) {
+      assert.equal((await records('heartrate', { from: date(back), to: date(back), method: 'POST' })).status, 200);
+    }
+    let parent = await (await records('heartrate', { from: date(6) })).json();
+    assert.equal(parent.sync.error, 'sync_window_too_large', 'partial coverage must retain the failure');
+    await db.prepare("UPDATE health_sync_windows SET synced_at='2000-01-01T00:00:00Z' WHERE collection='heartrate' AND window_from=? AND window_to=?")
+      .bind(today, today).run();
+    assert.equal((await records('heartrate', { from: date(6), to: date(6), method: 'POST' })).status, 200);
+    parent = await (await records('heartrate', { from: date(6) })).json();
+    assert.equal(parent.sync.error, 'sync_window_too_large', 'old child snapshots cannot resolve a newer failure');
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    parent = await (await records('heartrate', { from: date(6) })).json();
+    assert.equal(parent.sync.error, null, 'complete daily retries clear the oversized parent');
+    assert.equal(parent.sync.window_verified, true);
+    const status = await (await get('/api/me/health-records/status')).json();
+    assert.equal(status.collections.find(row => row.name === 'heartrate').failed_windows, 0);
+  } finally {
+    handler = () => undefined;
+    await db.prepare("DELETE FROM health_records WHERE collection='heartrate'").run();
+    await db.prepare("DELETE FROM health_sync_windows WHERE collection='heartrate'").run();
+  }
+});
+
 test('expanded OAuth scopes and owner-only routes; malformed ranges cannot contact Oura', async () => {
   const start = await get('/api/auth/oura/start');
   const scopes = new URL(start.headers.get('location')).searchParams.get('scope').split(' ');
