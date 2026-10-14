@@ -1,4 +1,5 @@
 import { brandName, isDateOnly, isSlug, isSlot, json, nowIso, shanghaiDate } from "./lib";
+import { MAX_HTML_CHARS, checkCover, contentPath, reviewPath } from "./content";
 import { ensureTodayDemo, markSkipAutoDemo, shouldClearDemo } from "./seed";
 import {
   canEditCopy,
@@ -13,7 +14,7 @@ import {
 import { REVIEW_ACTIONS, SLOTS, type AuthedAccount, type PostRow, type ReviewAction, type Slot } from "./types";
 
 const POST_COLUMNS =
-  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at";
+  "id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, cover, (html IS NOT NULL) AS has_html, created_at, updated_at";
 
 function demoFlag(row: { is_demo: number }): boolean {
   return Number(row.is_demo) === 1;
@@ -35,6 +36,9 @@ interface BoardPost {
   } | null;
   is_demo: boolean;
   can_withdraw: boolean;
+  has_html: boolean;
+  has_cover: boolean;
+  review_path: string;
 }
 
 async function lastReview(env: Env, postId: string) {
@@ -58,6 +62,9 @@ async function toBoardPost(env: Env, row: PostRow): Promise<BoardPost> {
     last_review: (await lastReview(env, row.id)) ?? null,
     is_demo: demoFlag(row),
     can_withdraw: canWithdraw(row.status),
+    has_html: Number(row.has_html) === 1,
+    has_cover: !!row.cover,
+    review_path: reviewPath(row.id),
   };
 }
 
@@ -138,6 +145,8 @@ interface UpsertBody {
   digest?: unknown;
   submit?: unknown;
   mark_official?: unknown;
+  html?: unknown;
+  cover?: unknown;
 }
 
 export async function handleUpsertPost(
@@ -176,17 +185,26 @@ export async function handleUpsertPost(
   const submit = body.submit === true;
   const markOfficial = body.mark_official === true;
   const slot = body.slot;
+  const html = typeof body.html === "string" && body.html.trim() ? body.html : null;
+  if (body.html !== undefined && body.html !== null && typeof body.html !== "string") {
+    return json({ ok: false, error: "html 必须是字符串" }, 400);
+  }
+  if (html && html.length > MAX_HTML_CHARS) {
+    return json({ ok: false, error: "正文太大（上限约 1MB）" }, 413);
+  }
+  const coverCheck = checkCover(body.cover);
+  if (!coverCheck.ok) return json({ ok: false, error: coverCheck.error }, 400);
   const lookupSlug = fromSlug || requestedSlug;
   const persistSlug = newSlug || requestedSlug;
 
   if (!isSlug(lookupSlug) || !isSlug(persistSlug) || !title || !isDateOnly(publishDate) || !isSlot(slot)) {
     return json({ ok: false, error: "请填写 slug、标题、日期和档位" }, 400);
   }
-  if (submit && !previewPath) {
-    return json({ ok: false, error: "待审需要预览地址" }, 400);
-  }
-
   const existing = await loadPost(env, lookupSlug);
+  const keepsHtml = !html && !!existing && Number(existing.has_html) === 1 && !previewPath;
+  if (submit && !previewPath && !html && !keepsHtml) {
+    return json({ ok: false, error: "待审需要预览地址或正文 html" }, 400);
+  }
 
   const occupant = await env.DB.prepare(
     `SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ? AND slot = ? AND id != ?`,
@@ -220,7 +238,9 @@ export async function handleUpsertPost(
     return json({ ok: false, error: "当前状态不能再交待审" }, 409);
   }
 
-  const preview = previewPath || existing?.preview_path || `/p/${persistSlug}/`;
+  const preview = html || keepsHtml
+    ? previewPath || contentPath(persistSlug)
+    : previewPath || existing?.preview_path || `/p/${persistSlug}/`;
   const stamp = nowIso();
   const nextDemo =
     existing &&
@@ -238,7 +258,8 @@ export async function handleUpsertPost(
   if (existing) {
     await env.DB.prepare(
       `UPDATE posts
-       SET title = ?, slot = ?, publish_date = ?, status = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
+       SET title = ?, slot = ?, publish_date = ?, status = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?,
+           html = COALESCE(?, html), cover = COALESCE(?, cover)
        WHERE id = ?`,
     )
       .bind(
@@ -251,6 +272,8 @@ export async function handleUpsertPost(
         digest || existing.digest,
         nextDemo,
         stamp,
+        html,
+        coverCheck.value,
         existing.id,
       )
       .run();
@@ -260,8 +283,8 @@ export async function handleUpsertPost(
     }
   } else {
     await env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
     )
       .bind(
         persistSlug,
@@ -273,6 +296,8 @@ export async function handleUpsertPost(
         preview,
         note || null,
         digest || null,
+        html,
+        coverCheck.value,
         stamp,
         stamp,
       )
@@ -280,7 +305,11 @@ export async function handleUpsertPost(
   }
 
   const row = await loadPost(env, persistSlug);
-  return json({ ok: true, post: row ? await toBoardPost(env, row) : null });
+  return json({
+    ok: true,
+    post: row ? await toBoardPost(env, row) : null,
+    review_url: new URL(reviewPath(persistSlug), request.url).toString(),
+  });
 }
 
 interface PatchBody {
@@ -475,22 +504,12 @@ async function renamePostId(
   await env.DB.batch([
     env.DB.prepare(`UPDATE posts SET slot = NULL WHERE id = ?`).bind(from),
     env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      to,
-      source.account_id,
-      source.title,
-      source.slot,
-      source.publish_date,
-      source.status,
-      source.preview_path,
-      source.note,
-      source.digest,
-      source.is_demo,
-      source.created_at,
-      stamp,
-    ),
+      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, html, cover, created_at, updated_at)
+       SELECT ?, account_id, title, ?, publish_date, status,
+              CASE WHEN preview_path = ? THEN ? ELSE preview_path END,
+              note, digest, is_demo, html, cover, created_at, ?
+       FROM posts WHERE id = ?`,
+    ).bind(to, source.slot, contentPath(from), contentPath(to), stamp, from),
     env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(to, from),
     env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(from),
   ]);

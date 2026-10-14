@@ -12,4 +12,6 @@ interface Env {
   RESEND_API_KEY?: string;
   SESSION_SECRET: string;
   OTP_PEPPER: string;
+  /** 交稿脚本 Bearer token（wrangler pages secret）；未配置则 token 交稿关闭 */
+  SUBMIT_TOKEN?: string;
 }

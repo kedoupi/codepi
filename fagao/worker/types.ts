@@ -40,6 +40,8 @@ export interface PostRow {
   note: string | null;
   digest: string | null;
   is_demo: number;
+  cover?: string | null;
+  has_html?: number;
   created_at: string;
   updated_at: string;
 }

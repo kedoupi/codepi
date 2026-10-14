@@ -16,6 +16,7 @@ export default defineWorkersProject({
             OTP_PEPPER: "test-otp-pepper",
             ALLOWLIST: "kedoupi@gmail.com",
             EDITORS: "editor@example.com",
+            SUBMIT_TOKEN: "test-submit-token-0123456789abcdef",
             OTP_FROM: "otp@kdp.cool",
             ACCOUNT_BRAND: "珂抖屁",
             ENVIRONMENT: "test",

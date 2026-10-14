@@ -47,3 +47,12 @@ export function authed(cookie: string, path: string, init: RequestInit = {}) {
   }
   return SELF.fetch(`https://fagao.kdp.cool${path}`, { ...init, headers });
 }
+
+export const SUBMIT_TOKEN = "test-submit-token-0123456789abcdef";
+
+export function bot(path: string, init: RequestInit = {}, token = SUBMIT_TOKEN) {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
+  return SELF.fetch(`https://fagao.kdp.cool${path}`, { ...init, headers });
+}

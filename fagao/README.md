@@ -54,6 +54,7 @@ https://fagao.kdp.cool/api/*     Worker：OTP、session、board、review
 | `SESSION_SECRET` | secret | 会话 token 哈希 |
 | `OTP_PEPPER` | secret | OTP 哈希盐 |
 | `ALLOWLIST` | var | 逗号分隔邮箱，默认 `kedoupi@gmail.com` |
+| `SUBMIT_TOKEN` | secret | 交稿脚本 Bearer token（≥24 字符），只能调编辑类接口；未配置则 token 交稿关闭 |
 | `EDITORS` | var | 逗号分隔邮箱，登录即 editor（如黄薇） |
 | `OTP_FROM` | var | 默认 `otp@kdp.cool` |
 | `ACCOUNT_BRAND` | var | 默认 `珂抖屁` |
@@ -184,3 +185,8 @@ D1：`accounts` `sessions` `otp_codes` `posts`（含 `is_demo`）`reviews` `desk
 ## 一期明确不做
 
 Cloudflare Access、微信推箱 API、多公众号切换、合并 `gzh-preview` draft PR#1。
+
+
+## 脚本交稿（token）
+
+`Authorization: Bearer $SUBMIT_TOKEN`，`POST /api/posts` 可直接带 `html`（≤1MB）与 `cover`（https 地址或 data:image base64，≤约500KB），正文存 D1，由 `/api/posts/<slug>/content/` 同域提供（CSP sandbox），封面在 `.../content/cover.png`。响应带 `review_url`（`https://fagao.kdp.cool/p/<slug>/`）发给老板。详见交稿接口文档。
