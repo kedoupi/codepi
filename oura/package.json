@@ -15,7 +15,7 @@
     "deploy:api": "node scripts/deploy-api.mjs",
     "test:browser": "pnpm build && node scripts/run-browser-smoke.mjs",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm --filter @oura-kdp/api test && pnpm --filter @oura-kdp/api test:integration"
+    "test": "node --experimental-strip-types --test apps/web/test/*.test.mjs && pnpm --filter @oura-kdp/api test && pnpm --filter @oura-kdp/api test:integration"
   },
   "engines": {
     "node": ">=20"

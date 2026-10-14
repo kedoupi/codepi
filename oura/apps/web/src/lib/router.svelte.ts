@@ -1,8 +1,8 @@
-export type AppPath = "/" | "/insights" | "/compare" | "/settings";
+export type AppPath = "/" | "/sleep" | "/insights" | "/compare" | "/settings";
 
 export function normalizePath(pathname = location.pathname): AppPath {
   const p = pathname.replace(/\/+$/, "") || "/";
-  if (p === "/insights" || p === "/compare" || p === "/settings") return p;
+  if (p === "/sleep" || p === "/insights" || p === "/compare" || p === "/settings") return p;
   return "/";
 }
 
