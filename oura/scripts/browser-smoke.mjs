@@ -177,7 +177,7 @@ try {
     const heart = status.collections.find(row => row.name === 'heartrate');
     const failures = window.__smokeFailures;
     window.__smokeFailures = [];
-    return { heart, failures, progress: document.querySelector('.health-data progress').value };
+    return { heart, failures, progress: document.querySelector('.sync-progress progress').value };
   });
   assert.equal(splitResult.heart.records, 7);
   assert.equal(splitResult.heart.failed_windows, 0);
@@ -197,10 +197,29 @@ try {
     && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 60000 });
   assert.equal(await page.url(), `${origin}/settings`, 'automatic backfill flag is consumed once');
   await healthy('owner completes 90-day backfill');
+  await page.waitForSelector('.automatic-sync');
+  assert.ok(await page.evaluate(() => document.querySelector('.automatic-sync').textContent.includes('每天 09:00')));
+  // Leave settings, then deliver real Worker scheduled events with no page
+  // initiating Oura requests. Return to prove durable background progress.
+  await navigate('/');
+  await page.evaluate(async () => {
+    for (let i = 0; i < 2; i++) {
+      const response = await fetch('/__test/automatic-sync', { method: 'POST' });
+      if (!response.ok) throw new Error('Scheduled fixture event failed');
+    }
+  });
+  await navigate('/settings');
+  await page.waitForFunction(() => document.querySelector('.automatic-sync')?.textContent.includes('后台正在更新数据'));
+  const auto = await page.evaluate(async () => (await (await fetch('/api/me/health-records/status')).json()).automatic);
+  assert.equal(auto.completed, 2);
+  assert.equal(auto.status, 'running');
+  await healthy('scheduled sync continues away from settings and shows persisted progress');
+  await page.screenshot({ path: '/tmp/oura-automatic-desktop.png' });
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'settings fits mobile viewport');
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('.health-data *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sync controls and messages fit mobile');
   await page.screenshot({ path: '/tmp/oura-backfill-mobile.png' });
+  await page.screenshot({ path: '/tmp/oura-automatic-mobile.png' });
   await page.cdp('Emulation.clearDeviceMetricsOverride');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');

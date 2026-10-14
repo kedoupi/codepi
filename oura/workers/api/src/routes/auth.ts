@@ -162,6 +162,8 @@ export async function handleOuraCallback(
       ouraUserId: me.id,
     });
     await upsertEncryptedTokens(env, me.id, encKey, tokensFromOura(tokens));
+    await env.DB.prepare("UPDATE auto_sync_state SET status='running',last_error=NULL WHERE user_id=? AND status='blocked'")
+      .bind(me.id).run();
     await env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL, last_error=NULL WHERE user_id=?")
       .bind(me.id).run();
     const sessionId = await createSession(env, me.id, "oauth");

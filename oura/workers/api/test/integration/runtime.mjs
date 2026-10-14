@@ -8,7 +8,7 @@ const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare, Response } = wranglerRequire('miniflare');
 
 export function createRuntime(options = {}) {
-  const { providerResponse, variedDailyData, ...runtimeOptions } = options;
+  const { providerResponse, variedDailyData, autoSync = false, ...runtimeOptions } = options;
   return new Miniflare({
     modules: true,
     scriptPath: fileURLToPath(new URL('../../dist/index.js', import.meta.url)),
@@ -23,6 +23,7 @@ export function createRuntime(options = {}) {
       SESSION_SECRET: 'integration-session-secret',
       TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
       PERSONAL_OWNER_ID: 'test-user',
+      AUTO_SYNC_ENABLED: autoSync ? '1' : '0',
     },
     // Only the upstream provider is stubbed. Routing, crypto, sessions, D1,
     // token storage, daily mapping and reports execute the built Worker.
