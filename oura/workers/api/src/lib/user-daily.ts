@@ -23,6 +23,13 @@ export async function loadDailyForSession(
     return loadDevDaily(windowDays);
   }
 
+  return loadDailyForUser(request, env, session.user_id, windowDays, force);
+}
+
+export async function loadDailyForUser(
+  request: Request, env: Env, userId: string, days: number, force = false,
+): Promise<DailyResponse | Response> {
+  const windowDays = clampDays(days);
   const encKey = resolveEncryptionKey(request, env);
   if (!encKey) {
     return jsonError("TOKEN_ENCRYPTION_KEY not configured", 503);
@@ -34,8 +41,8 @@ export async function loadDailyForSession(
   }
 
   const selected = dateWindow(windowDays);
-  return cachedDaily(env, session.user_id, windowDays, selected.startDate, selected.endDate, force, async () => {
-  const accessToken = await ouraAccessToken(request, env, session.user_id);
+  return cachedDaily(env, userId, windowDays, selected.startDate, selected.endDate, force, async () => {
+  const accessToken = await ouraAccessToken(request, env, userId);
 
   const { startDate, endDate, dates } = dateWindow(90);
   const raw = await fetchDailySummaries({
@@ -50,7 +57,7 @@ export async function loadDailyForSession(
       readiness: raw.readiness,
       activity: raw.activity,
     }),
-    user_id: session.user_id,
+    user_id: userId,
   };
   });
 }

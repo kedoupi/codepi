@@ -14,6 +14,7 @@ export interface Env {
   AI_MODEL?: string;
   AI_DAILY_LIMIT?: string;
   BUILD_SHA?: string;
+  AUTO_SYNC_ENABLED?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;

@@ -2,13 +2,15 @@
   import { onMount } from "svelte";
   import { api, errorText, RequestError } from "../lib/api";
   import { planBackfill, runBackfill, type SyncWindow, type SyncFailure } from "../lib/backfill";
-  import type { HealthCollection } from "../lib/health";
+  import type { HealthCollection, AutomaticSyncStatus } from "../lib/health";
+  import AutomaticSync from "./AutomaticSync.svelte";
   import type { Locale } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
 
   let { locale }: { locale: Locale } = $props();
   type Collection = HealthCollection & { failed_ranges?: SyncFailure[] };
   let collections = $state<Collection[]>([]);
+  let automatic = $state<AutomaticSyncStatus | null>(null);
   let busy = $state(false);
   let stop = $state(false);
   let disposed = false;
@@ -38,15 +40,18 @@
     return errorText(new RequestError(failure.code, 0), locale);
   }
   async function load() {
-    const result = await api<{ collections: Collection[] }>("/api/me/health-records/status");
-    if (!disposed) collections = result.collections;
+    const result = await api<{ collections: Collection[]; automatic: AutomaticSyncStatus }>("/api/me/health-records/status");
+    if (!disposed) { collections = result.collections; automatic = result.automatic; }
   }
   onMount(() => {
     const backfill = new URLSearchParams(window.location.search).get("sync") === "90";
     if (backfill) goto("/settings", true);
     void load().then(() => { if (backfill && !stop) return sync(planBackfill(collections, 90)); })
       .catch(err => { if (!disposed) error = errorText(err, locale); });
-    return () => { disposed = true; stop = true; };
+    const timer = setInterval(() => {
+      if (!busy && !document.hidden) void load().catch(err => { if (!disposed) error = errorText(err, locale); });
+    }, 30_000);
+    return () => { disposed = true; stop = true; clearInterval(timer); };
   });
 
   async function sync(windows: SyncWindow[]) {
@@ -93,6 +98,7 @@
 
 <section class="panel health-data">
   <div class="data-heading"><div><h2>{text("数据采集与历史记录", "Health data and history")}</h2><p class="hint">{text("已保存的数据会保留。心率、电量逐日同步；遇到数据量上限会自动拆分日期。", "Saved history is retained. Heart rate and battery sync daily; oversized ranges split automatically.")}</p></div><span class="data-count">{savedTypes}/{collections.length || 18} {text("类已有数据", "collections saved")}</span></div>
+  {#if automatic}<AutomaticSync value={automatic} {locale} />{/if}
   <div class="actions">
     <button class="ai-btn primary-action" disabled={busy || !collections.length} onclick={() => sync(planBackfill(collections, 90))}>{text("补齐最近 90 天", "Backfill 90 days")}</button>
     <button class="ai-btn" disabled={busy || !collections.length} onclick={() => sync(planBackfill(collections, 7))}>{text("同步最近 7 天", "Sync last 7 days")}</button>
@@ -105,7 +111,7 @@
       <progress max="100" value={percent} aria-label={text("本次同步进度", "Sync progress")}></progress>
       {#if current}<p>{collectionLabel(current.collection)} · {current.from === current.to ? current.from : `${current.from} — ${current.to}`}</p>{/if}
       {#if splits}<p class="split-note">{busy ? text("数据较多，已自动拆分为更小批次继续同步。", "Large batches were split automatically; sync is continuing in smaller ranges.") : text("本次已自动拆分过大的批次，无需手动选择日期。", "Oversized batches were split automatically; no manual date adjustment was needed.")}</p>{/if}
-      {#if busy}<p class="hint">{text("请保持页面打开。关闭页面会停止后续批次。", "Keep this page open. Closing it stops subsequent batches.")}</p>{/if}
+      {#if busy}<p class="hint">{text("手动同步期间请保持页面打开。关闭页面不影响每日后台自动同步。", "Keep this page open for manual sync. Closing it does not affect daily background sync.")}</p>{/if}
     </div>
   {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
