@@ -50,6 +50,12 @@ const server = createServer(async (req, res) => {
       if (req.method === 'POST') {
         storageQuota = url.searchParams.get('enabled') === '1';
         quotaSyncAttempts = 0;
+        if (storageQuota) {
+          // Keep archived records, but expire the 30-second success cooldown
+          // so the next sync reaches an actual D1 mutation.
+          const db = await ownerRuntime.getD1Database('DB');
+          await db.prepare("UPDATE health_sync_windows SET synced_at='2000-01-01T00:00:00Z' WHERE synced_at IS NOT NULL").run();
+        }
       }
       res.writeHead(200, { 'Content-Type': 'application/json' })
         .end(JSON.stringify({ enabled: storageQuota, attempts: quotaSyncAttempts }));

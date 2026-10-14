@@ -227,7 +227,7 @@ try {
   console.log(await page.snapshot());
   await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
   await page.waitForFunction(() => document.querySelector('.sync-issue')?.textContent.includes('数据库写入额度')
-    && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 30000 });
+    && !document.querySelector('.health-data button[disabled]'));
   const quota = await page.evaluate(async () => ({
     attempts: (await (await fetch('/__test/storage-quota')).json()).attempts,
     groups: document.querySelectorAll('.sync-issue').length,
