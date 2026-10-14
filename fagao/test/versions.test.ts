@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authed, bot, loginAsAllowlisted } from "./helpers";
+import { authed, bot, loginAsAllowlisted, reviewCall } from "./helpers";
 
 function post(slug: string, html: string, extra: Record<string, unknown> = {}) {
   return bot("/api/posts", {
@@ -22,7 +22,7 @@ describe("版本", () => {
     const html1 = await authed(cookie, "/api/posts/ver-1/content/");
     expect(await html1.text()).toBe("<p>v1</p>");
 
-    await authed(cookie, "/api/review", {
+    await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "ver-1", action: "要改", note: "标题太长" }),
     });
@@ -37,7 +37,7 @@ describe("版本", () => {
     expect(second.post.version).toBe(2);
     expect(second.post.status).toBe("待审");
 
-    await authed(cookie, "/api/review", { method: "POST", body: JSON.stringify({ slug: "ver-1", action: "过" }) });
+    await reviewCall(cookie, { method: "POST", body: JSON.stringify({ slug: "ver-1", action: "过" }) });
 
     const full = (await (await bot("/api/posts/ver-1")).json()) as {
       versions: { version: number; reviews: { action: string; note: string | null }[] }[];

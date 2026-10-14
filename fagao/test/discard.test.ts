@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authed, bot, loginAsAllowlisted } from "./helpers";
+import { bot, loginAsAllowlisted, reviewCall } from "./helpers";
 
 function submit(slug: string, extra: Record<string, unknown> = {}) {
   return bot("/api/posts", {
@@ -25,14 +25,14 @@ describe("弃用 + 测试稿", () => {
     expect((await bot("/api/posts/dis-1/boxed", { method: "POST" })).status).toBe(409);
     expect((await bot("/api/posts/dis-1/discard", { method: "POST" })).status).toBe(409);
     const cookie = await loginAsAllowlisted();
-    const review = await authed(cookie, "/api/review", { method: "POST", body: JSON.stringify({ slug: "dis-1", action: "过" }) });
+    const review = await reviewCall(cookie, { method: "POST", body: JSON.stringify({ slug: "dis-1", action: "过" }) });
     expect(review.status).toBe(409);
   });
 
   it("已进箱的稿不能弃用", async () => {
     await submit("dis-3", { publish_date: "2026-11-21" });
     const cookie = await loginAsAllowlisted();
-    await authed(cookie, "/api/review", { method: "POST", body: JSON.stringify({ slug: "dis-3", action: "过" }) });
+    await reviewCall(cookie, { method: "POST", body: JSON.stringify({ slug: "dis-3", action: "过" }) });
     await bot("/api/posts/dis-3/boxed", { method: "POST" });
     expect((await bot("/api/posts/dis-3/discard", { method: "POST" })).status).toBe(409);
   });

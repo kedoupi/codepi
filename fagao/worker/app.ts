@@ -4,6 +4,7 @@ import {
   handleBoard,
   handleBoxed,
   handleDiscard,
+  handleRead,
   handleGetPost,
   handlePatchPost,
   handleReleaseDemo,
@@ -11,6 +12,7 @@ import {
   handleUpsertPost,
   handleWithdraw,
 } from "./desk";
+import { handleLegacyPutArticle, handleLegacyReview } from "./legacy";
 import { serveContent, serveCover } from "./content";
 import { timingSafeEqual } from "./crypto";
 import { json, sameOrigin } from "./lib";
@@ -37,7 +39,7 @@ function bearerToken(request: Request): string | null {
 /** 交稿 token 只能碰编辑类接口；审核、登录态接口一律不开放。 */
 function tokenRouteAllowed(method: string, path: string): boolean {
   if (method === "GET") return path === "/board" || path === "/me" || /^\/posts\/[^/]+(\/(content\/(cover\.png)?)?)?$/.test(path);
-  if (method === "POST") return path === "/posts" || /^\/posts\/[^/]+\/(boxed|withdraw|discard)$/.test(path);
+  if (method === "POST") return path === "/posts" || path === "/review" || /^\/posts\/[^/]+\/(boxed|withdraw|discard)$/.test(path);
   if (method === "PATCH") return /^\/posts\/[^/]+$/.test(path);
   if (method === "PUT") return /^\/articles\/[^/]+$/.test(path);
   return false;
@@ -96,7 +98,22 @@ api.get("/posts/:slug/content/cover.png", (c) => serveCover(c.env, c.req.param("
 api.get("/posts/:slug", (c) => handleGetPost(c.env, c.req.param("slug")));
 api.post("/posts", (c) => handleUpsertPost(c.req.raw, c.env, c.get("account")));
 api.patch("/posts/:slug", (c) => handlePatchPost(c.req.raw, c.env, c.get("account"), c.req.param("slug")));
-api.post("/review", (c) => handleReview(c.req.raw, c.env, c.get("account")));
+api.post("/review", async (c) => {
+  // 旧 gzh-preview 形状（有 id、没有 slug）走兼容层
+  const raw = c.req.raw;
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = (await raw.clone().json()) as Record<string, unknown>;
+  } catch {
+    body = null;
+  }
+  if (body && typeof body === "object" && body.id != null && body.slug == null) {
+    return handleLegacyReview(raw, c.env, c.get("account"), body);
+  }
+  return handleReview(raw, c.env, c.get("account"));
+});
+api.put("/articles/:id", (c) => handleLegacyPutArticle(c.req.raw, c.env, c.get("account"), c.req.param("id")));
+api.post("/posts/:slug/read", (c) => handleRead(c.env, c.get("account"), c.req.param("slug")));
 api.post("/posts/:slug/boxed", (c) => handleBoxed(c.env, c.get("account"), c.req.param("slug")));
 api.post("/posts/:slug/discard", (c) => handleDiscard(c.req.raw, c.env, c.get("account"), c.req.param("slug")));
 api.post("/posts/:slug/withdraw", (c) => handleWithdraw(c.env, c.get("account"), c.req.param("slug")));

@@ -190,3 +190,9 @@ Cloudflare Access、微信推箱 API、多公众号切换、合并 `gzh-preview`
 ## 脚本交稿（token）
 
 `Authorization: Bearer $SUBMIT_TOKEN`，`POST /api/posts` 可直接带 `html`（≤1MB）与 `cover`（https 地址或 data:image base64，≤约500KB），正文存 D1，由 `/api/posts/<slug>/content/` 同域提供（CSP sandbox），封面在 `.../content/cover.png`。响应带 `review_url`（`https://fagao.kdp.cool/p/<slug>/`）发给老板。详见交稿接口文档。
+
+## 读完回执 / 旧接口 / 旧链接
+
+- 审核人读到稿件底部时前端调用 `POST /api/posts/<slug>/read`，服务端按「稿件+当前版本+审核人」记回执；`POST /api/review` 没有回执返回 409 `read_required`。新版本需重新读。
+- 旧 gzh-preview 接口兼容：`PUT /api/articles/:id`、`POST /api/review {id, action|status}`。
+- `gzh-preview.kdp.cool/<id>/` 由本 Worker 301 到 `https://fagao.kdp.cool/p/<id>/`（前提：该域名仍挂在 Pages 项目 fagao 上）。

@@ -15,6 +15,7 @@ import {
   upsertPost,
   withdrawPost,
   discardPost,
+  markRead,
   type Account,
   type BoardPost,
   type SlotRow,
@@ -720,13 +721,28 @@ function bindDockClearance() {
   apply();
 }
 
+let readReceiptFor: string | null = null;
+
 function unlockReviewDock() {
   const dock = app.querySelector<HTMLElement>(".dock-review");
   if (!dock) return;
-  dock.classList.remove("is-locked", "has-manual-unlock");
-  for (const button of dock.querySelectorAll<HTMLButtonElement>("[data-review]")) {
-    button.disabled = false;
-  }
+  const slug = dock.querySelector<HTMLButtonElement>("[data-review]")?.dataset.slug;
+  if (slug && readReceiptFor === slug) return;
+  readReceiptFor = slug ?? null;
+  const enable = () => {
+    dock.classList.remove("is-locked", "has-manual-unlock");
+    for (const button of dock.querySelectorAll<HTMLButtonElement>("[data-review]")) {
+      button.disabled = false;
+    }
+  };
+  if (!slug) return enable();
+  // 服务端记下「读到底」回执后才解锁，审核接口会校验
+  markRead(slug)
+    .then(enable)
+    .catch(() => {
+      readReceiptFor = null;
+      flashToast("读完回执没记上，请稍后再滑到底", "err");
+    });
 }
 
 function bindReadGate(embed: EmbedMode) {

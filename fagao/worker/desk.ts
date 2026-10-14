@@ -508,6 +508,14 @@ export async function handleReview(
   if (!canReview(post.status)) {
     return json({ ok: false, error: "只有待审稿可以审" }, 409);
   }
+  const receipt = await env.DB.prepare(
+    `SELECT 1 AS ok FROM read_receipts WHERE post_id = ? AND version = ? AND account_id = ?`,
+  )
+    .bind(slug, Number(post.current_version ?? 0), account.id)
+    .first<{ ok: number }>();
+  if (!receipt) {
+    return json({ ok: false, error: "请先通读到底再审", code: "read_required" }, 409);
+  }
 
   const typedAction = action as ReviewAction;
   const toStatus = reviewNextStatus(typedAction);
@@ -690,4 +698,24 @@ export async function handleDiscard(
     .run();
   const row = await loadPost(env, slug);
   return json({ ok: true, post: row ? await toBoardPost(env, row) : null });
+}
+
+/** 审核人读到底的回执（绑定当前版本）。前端读完自动调用。 */
+export async function handleRead(env: Env, account: AuthedAccount, slug: string): Promise<Response> {
+  if (!canReviewRole(account.role)) {
+    return json({ ok: false, error: "没有审核权限" }, 403);
+  }
+  if (!isSlug(slug)) return json({ ok: false, error: "稿件不存在" }, 404);
+  const post = await loadPost(env, slug);
+  if (!post) return json({ ok: false, error: "稿件不存在" }, 404);
+  if (!canReview(post.status)) {
+    return json({ ok: false, error: "只有待审稿需要读完回执" }, 409);
+  }
+  const version = Number(post.current_version ?? 0);
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO read_receipts (post_id, version, account_id, created_at) VALUES (?, ?, ?, ?)`,
+  )
+    .bind(slug, version, account.id, nowIso())
+    .run();
+  return json({ ok: true, slug, version });
 }

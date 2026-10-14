@@ -56,3 +56,10 @@ export function bot(path: string, init: RequestInit = {}, token = SUBMIT_TOKEN) 
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   return SELF.fetch(`https://fagao.kdp.cool${path}`, { ...init, headers });
 }
+
+/** 先记读完回执，再调 /api/review（服务端要求读到底）。 */
+export async function reviewCall(cookie: string, init: RequestInit) {
+  const slug = JSON.parse(String(init.body ?? "{}")).slug as string | undefined;
+  if (slug) await authed(cookie, `/api/posts/${slug}/read`, { method: "POST" });
+  return authed(cookie, "/api/review", init);
+}

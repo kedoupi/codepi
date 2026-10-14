@@ -24,10 +24,28 @@ async function serveAsset(request: Request, env: Env, pathname: string): Promise
   return fetchStatic(env, new URL(request.url));
 }
 
+export const FAGAO_ORIGIN = "https://fagao.kdp.cool";
+const LEGACY_HOSTS = new Set(["gzh-preview.kdp.cool"]);
+
+/** 旧 gzh-preview 主机：页面链接 301 到 fagao；/api/* 不跳（POST 不能安全重定向），由同一 Worker 兼容处理。 */
+export function legacyRedirect(url: URL): string | null {
+  if (!LEGACY_HOSTS.has(url.hostname)) return null;
+  if (url.pathname.startsWith("/api/")) return null;
+  if (url.pathname.startsWith("/p/")) return `${FAGAO_ORIGIN}${url.pathname}`;
+  const m = /^\/([a-z0-9][a-z0-9-]{0,63})(?:\/.*)?$/.exec(url.pathname);
+  if (!m || ["index.html", "article.html", "app.js", "styles.css", "board.json"].includes(m[1]!)) {
+    return `${FAGAO_ORIGIN}/`;
+  }
+  return `${FAGAO_ORIGIN}/p/${m[1]}/`;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
+
+    const legacy = legacyRedirect(url);
+    if (legacy) return Response.redirect(legacy, 301);
 
     if (pathname.startsWith("/api/")) {
       const apiPath = pathname.slice("/api".length) || "/";

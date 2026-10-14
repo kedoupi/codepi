@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authed, bot, loginAsAllowlisted } from "./helpers";
+import { authed, bot, loginAsAllowlisted, reviewCall } from "./helpers";
 
 const PNG_1PX =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
@@ -67,7 +67,7 @@ describe("交稿 token + 正文直传", () => {
     expect(early.status).toBe(409);
 
     const cookie = await loginAsAllowlisted();
-    await authed(cookie, "/api/review", { method: "POST", body: JSON.stringify({ slug: "tok-4", action: "过" }) });
+    await reviewCall(cookie, { method: "POST", body: JSON.stringify({ slug: "tok-4", action: "过" }) });
     const boxed = await bot("/api/posts/tok-4/boxed", { method: "POST" });
     expect(boxed.status).toBe(200);
     const got = (await (await bot("/api/posts/tok-4")).json()) as { post: { status: string } };

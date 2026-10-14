@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authed, loginAsAllowlisted } from "./helpers";
+import { authed, loginAsAllowlisted, reviewCall } from "./helpers";
 
 describe("board + review", () => {
   it("returns today's three slots and the 2026-09-17 seed posts", async () => {
@@ -51,7 +51,7 @@ describe("board + review", () => {
       }),
     });
 
-    const passed = await authed(cookie, "/api/review", {
+    const passed = await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-pass", action: "过" }),
     });
@@ -79,13 +79,13 @@ describe("board + review", () => {
       }),
     });
 
-    const needNote = await authed(cookie, "/api/review", {
+    const needNote = await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-change", action: "要改" }),
     });
     expect(needNote.status).toBe(400);
 
-    const changed = await authed(cookie, "/api/review", {
+    const changed = await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-change", action: "要改", note: "标题再短" }),
     });
@@ -119,7 +119,7 @@ describe("board + review", () => {
         submit: true,
       }),
     });
-    const rejected = await authed(cookie, "/api/review", {
+    const rejected = await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-reject", action: "拒", note: "不做了" }),
     });
@@ -171,7 +171,7 @@ describe("board + review", () => {
       }),
     });
 
-    await authed(cookie, "/api/review", {
+    await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-withdraw", action: "过" }),
     });
@@ -182,7 +182,7 @@ describe("board + review", () => {
     expect(fromReadyBody.post.status).toBe("待审");
     expect(fromReadyBody.post.can_withdraw).toBe(false);
 
-    await authed(cookie, "/api/review", {
+    await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-withdraw", action: "过" }),
     });
@@ -193,7 +193,7 @@ describe("board + review", () => {
     expect(fromBoxed.status).toBe(200);
     expect(fromBoxedBody.post.status).toBe("待审");
 
-    const passedAgain = await authed(cookie, "/api/review", {
+    const passedAgain = await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-withdraw", action: "过" }),
     });
@@ -210,7 +210,7 @@ describe("board + review", () => {
         submit: true,
       }),
     });
-    await authed(cookie, "/api/review", {
+    await reviewCall(cookie, {
       method: "POST",
       body: JSON.stringify({ slug: "flow-withdraw-need", action: "要改", note: "再短" }),
     });

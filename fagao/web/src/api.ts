@@ -156,6 +156,12 @@ export async function discardPost(slug: string, note = "") {
   );
 }
 
+export async function markRead(slug: string) {
+  return parse<{ ok: boolean; version: number }>(
+    await fetch(`/api/posts/${encodeURIComponent(slug)}/read`, { method: "POST" }),
+  );
+}
+
 export async function releaseDemo(slug: string) {
   return parse<{ ok: boolean; released: string }>(
     await fetch(`/api/posts/${encodeURIComponent(slug)}/release-demo`, { method: "POST" }),
