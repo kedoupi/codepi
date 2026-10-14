@@ -15,11 +15,11 @@ const LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS[0];
 const SERVER_INFO = {
   name: "oura-personal-health",
   title: "Oura personal health",
-  version: "1.0.1",
+  version: "1.1.0",
 };
 
 const INSTRUCTIONS =
-  "Read-only access to one person's Oura ring data (sleep, readiness, activity). " +
+  "Read-only access to one person's Oura data, including detailed sleep, heart rate, HRV, activity and other authorized collections. " +
   "Scores are Oura's official values; missing metrics are null, never estimated. " +
   "Always state the date range you used, and mention coverage when days are missing. " +
   "This is wellness data, not medical advice: do not diagnose, and say so if asked.";

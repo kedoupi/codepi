@@ -8,6 +8,7 @@ const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare, Response } = wranglerRequire('miniflare');
 
 export function createRuntime(options = {}) {
+  const { providerResponse, variedDailyData, ...runtimeOptions } = options;
   return new Miniflare({
     modules: true,
     scriptPath: fileURLToPath(new URL('../../dist/index.js', import.meta.url)),
@@ -30,6 +31,8 @@ export function createRuntime(options = {}) {
       if (url.origin !== 'https://api.ouraring.com') {
         throw new Error(`Unexpected outbound host: ${url.hostname}`);
       }
+      const custom = providerResponse?.(url, request);
+      if (custom !== undefined) return custom;
       if (url.pathname === '/oauth/token') {
         return Response.json({
           access_token: 'test-access',
@@ -44,10 +47,11 @@ export function createRuntime(options = {}) {
         const data = [];
         const end = url.searchParams.get('end_date');
         for (let day = url.searchParams.get('start_date'); day <= end;) {
-          const varied = typeof options.variedDailyData === 'function'
-            ? options.variedDailyData(day)
+          const varied = typeof variedDailyData === 'function'
+            ? variedDailyData(day)
             : null;
           data.push({
+            id: `${url.pathname.split('/').at(-1)}-${day}`,
             day,
             score: varied?.score ?? 80,
             steps: varied?.steps ?? 8000,
@@ -58,9 +62,19 @@ export function createRuntime(options = {}) {
         }
         return Response.json({ data, next_token: null });
       }
+      if (url.pathname === '/v2/usercollection/sleep') {
+        return Response.json({ data: [{
+          id: 'sleep-main', day: url.searchParams.get('start_date'),
+          total_sleep_duration: 28800, average_hrv: 42, average_heart_rate: 55,
+          hrv: { interval: 300, items: [40, 44], timestamp: '2026-01-01T00:00:00Z' },
+        }], next_token: null });
+      }
+      if (/^\/v2\/usercollection\/(heartrate|daily_spo2|daily_stress|daily_resilience|daily_cardiovascular_age|vO2_max|workout|enhanced_tag|session|sleep_time|rest_mode_period|ring_configuration|ring_battery_level)$/.test(url.pathname)) {
+        return Response.json({ data: [], next_token: null });
+      }
       throw new Error(`Unexpected outbound path: ${url.pathname}`);
     },
-    ...options,
+    ...runtimeOptions,
   });
 }
 

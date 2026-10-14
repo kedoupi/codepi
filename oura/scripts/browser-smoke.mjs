@@ -111,6 +111,20 @@ try {
   await page.waitForFunction(() => document.body.textContent.includes('个人工作区'));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);
   await healthy('owner settings shows personal workspace, no billing');
+  await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
+  console.log(await page.snapshot({ scope: 'full_page' }));
+  await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
+  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.health-data .error').length), 0);
+  await healthy('owner syncs 18 health collections, including empty results');
+  await page.goto(`${origin}/settings?sync=90`);
+  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。')
+    && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 60000 });
+  assert.equal(await page.url(), `${origin}/settings`, 'automatic backfill flag is consumed once');
+  await healthy('owner completes 90-day backfill');
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'settings fits mobile viewport');
+  await page.cdp('Emulation.clearDeviceMetricsOverride');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');
   await healthy('owner logout');

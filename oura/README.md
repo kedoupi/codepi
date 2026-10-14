@@ -230,7 +230,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 | 命令 | 覆盖 |
 | --- | --- |
-| `pnpm test` | 28 项单元测试 + 20 项 Worker 集成测试（含 MCP 连接器全流程） |
+| `pnpm test` | 28 项单元测试 + 34 项 Worker 集成测试（含 MCP 和完整数据采集流程） |
 | `pnpm typecheck` | API TypeScript 与前端 Svelte 类型检查 |
 | `pnpm build` | 前端生产构建 + Worker 打包 |
 | `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
@@ -303,9 +303,48 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 | `get_daily_metrics` | 每日官方分数、contributors、数据覆盖 |
 | `get_period_summary` | 7/30/90 天均值与覆盖 |
 | `compare_periods` | 近 7 天 vs 前 7 天，或近 30 天 vs 前 30 天 |
+| `get_health_data_status` | 18 类数据的入库数量、历史范围、各类最近同步和失败窗口数 |
+| `get_health_records` | 按类型和日期读取官方详细记录，按需刷新，保留原始字段和单位 |
 
 每个响应都带日期范围、覆盖天数、同步状态与非医疗建议声明；缺失指标保持 `null`。
 在设置页的「AI 应用连接」可查看并随时撤销已授权应用。
+
+### 详细数据与长期保存
+
+新增授权入口：`https://oura.kdp.cool/api/auth/oura/start?sync_health=1`。
+申请 `daily personal email heartrate workout tag session spo2 heart_health`；
+授权后回到固定的 `/settings?sync=90`，自动启动最近 90 天分批补齐。
+页面消费此标记一次；关闭或离开设置页后不再启动下一批。
+可以在 `/settings` 重试补齐，或只同步最近 7 天。无需分享密码、令牌或重新创建 Oura 应用。
+如果官方拒绝某类数据，先检查该类别授权和会员访问资格；不把 403 当成空数据。
+
+`health_records` 按用户、类型、记录 ID 保存完整官方文档，包括睡眠 HRV/心率序列、
+活动详情与 `sleep_regularity`；同一天的多个睡眠片段分别保存。
+支持 18 类：`sleep`、`daily_sleep`、`daily_readiness`、`daily_activity`、
+`heartrate`、`daily_spo2`、`daily_stress`、`daily_resilience`、
+`daily_cardiovascular_age`、`vO2_max`（官方路径大小写）、`workout`、
+`enhanced_tag`、`session`、`sleep_time`、`rest_mode_period`、
+`ring_configuration`、`ring_battery_level`、`personal_info`。
+旧 `tag` 接口已弃用，使用 `enhanced_tag`。
+
+- HTTP：`GET /api/me/health-records/status` 查看状态；
+  `POST /api/me/health-records?collection=sleep&from=2026-10-01&to=2026-10-07`
+  同步指定窗口；同地址 `GET` 只读已保存数据。仅真实 OAuth 的个人 owner 可访问。
+- MCP：`get_health_records` 默认刷新过期窗口；`refresh:false` 只读历史。
+  `get_health_data_status` 不访问 Oura。
+- 起止日期均包含在内，最多 31 天；心率、电量最多 7 天，按 UTC 时间戳归日；
+  日文档保留 Oura 的 `day`。戒指配置和个人资料为当前快照，不表示历史画像。
+- 返回最多 20 条，较大记录会提前分页；继续传 `next_offset`。
+  默认省略大序列，`include_series:true` 可读取；数据库始终保留完整序列。
+- 成功同步缓存 10 分钟，手动刷新有 30 秒冷却；失败窗口短暂退避。
+  共用用户同步锁，避免与看板并发刷新 Oura token。
+- 所有上游页成功后，原子替换**本窗口**；分页错误、超时或权限失败保留旧数据，
+  标记 stale/error。历史窗口不会滚动删除；原有 `daily_cache` 也不再清空更早记录。
+- `window_verified:false` 表示该窗口尚未成功采集，不能解释为“没有数据”。
+  较旧窗口不因时间推移自动重取，除非被查询刷新或手动补齐；尚未接入 Cron / Webhook。
+
+自动回归使用隔离 D1 和模拟 Oura 验证权限、分页、历史保留及 90 天补齐 UI。
+真实账号的额外权限和实际数据覆盖，需用户完成上述授权后验收。
 
 ### 区域边缘说明
 

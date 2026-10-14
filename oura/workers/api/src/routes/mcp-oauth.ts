@@ -161,7 +161,7 @@ function consentPage(request: Request, env: Env, fields: Record<string, string>,
   <p>请求方：</p>
   <dl>
     <dt>应用</dt><dd>${escapeHtml(client)}</dd>
-    <dt>权限</dt><dd>只读：睡眠、准备度、活动日汇总</dd>
+    <dt>权限</dt><dd>只读：睡眠、心率与 HRV、活动、压力、血氧、运动、标签、个人资料及戒指信息；以你授予 Oura 的权限为准。</dd>
     <dt>账号</dt><dd>${escapeHtml(env.PERSONAL_OWNER_ID ?? "")}</dd>
   </dl>
   <ul>

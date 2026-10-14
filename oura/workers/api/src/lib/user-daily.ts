@@ -5,11 +5,10 @@ import {
   resolveEncryptionKey,
 } from "./config";
 import { clampDays, dateWindow, loadDevDaily, mapOuraToDaily, type DailyResponse } from "./daily";
-import { fetchDailySummaries, refreshAccessToken } from "./oura";
+import { fetchDailySummaries } from "./oura";
 import type { SessionRow } from "./session";
-import { loadEncryptedTokens, tokensFromOura, upsertEncryptedTokens } from "./tokens";
 import { cachedDaily } from "./sync-cache.ts";
-import { ApiError } from "./errors.ts";
+import { ouraAccessToken } from "./oura-access.ts";
 
 export async function loadDailyForSession(
   request: Request,
@@ -36,24 +35,11 @@ export async function loadDailyForSession(
 
   const selected = dateWindow(windowDays);
   return cachedDaily(env, session.user_id, windowDays, selected.startDate, selected.endDate, force, async () => {
-  let stored = await loadEncryptedTokens(env, session.user_id, encKey);
-  if (!stored) {
-    throw new ApiError("reconnect_required", 401);
-  }
-
-  if (!stored.access_token || stored.expires_at <= Date.now()) {
-    const refreshed = await refreshAccessToken({
-      refreshToken: stored.refresh_token,
-      clientId: env.OURA_CLIENT_ID!,
-      clientSecret: env.OURA_CLIENT_SECRET!,
-    });
-    stored = tokensFromOura(refreshed);
-    await upsertEncryptedTokens(env, session.user_id, encKey, stored);
-  }
+  const accessToken = await ouraAccessToken(request, env, session.user_id);
 
   const { startDate, endDate, dates } = dateWindow(90);
   const raw = await fetchDailySummaries({
-    accessToken: stored.access_token,
+    accessToken,
     startDate,
     endDate,
   });
