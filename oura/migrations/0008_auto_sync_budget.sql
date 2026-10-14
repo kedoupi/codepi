@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS auto_sync_budget (
+  user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  utc_day TEXT NOT NULL,
+  reserved_rows INTEGER NOT NULL DEFAULT 0
+);

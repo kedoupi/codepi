@@ -8,6 +8,7 @@
     timeZone: "Asia/Shanghai", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   }) : "—";
   const title = $derived(!value.enabled ? text("自动同步未开启", "Automatic sync is off")
+    : value.error === "daily_sync_budget_reached" ? text("自动同步等待额度恢复", "Automatic sync awaiting budget reset")
     : value.status === "blocked" ? text("自动同步已暂停 · 需要重新连接", "Automatic sync paused · reconnect required")
     : value.status === "running" ? text("后台正在更新数据", "Updating data in the background")
     : value.status === "partial" ? text("本次自动同步部分完成", "Automatic sync partially complete")

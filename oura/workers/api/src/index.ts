@@ -120,6 +120,7 @@ export default {
           break;
         case "/api/me/health-records":
         case "/api/me/health-records/status":
+        case "/api/me/health-records/automatic":
           res = await handleHealthRecords(request, env);
           break;
         case "/api/me/ai":

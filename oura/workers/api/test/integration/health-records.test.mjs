@@ -35,6 +35,57 @@ async function expire(collection) {
 }
 function response(data, next_token = null) { return Response.json({ data, next_token }); }
 
+test('identical samples incur no health-record writes; changed and removed samples reconcile atomically', async () => {
+  await db.prepare("CREATE TABLE sample_writes(n INTEGER NOT NULL)").run();
+  await db.prepare("INSERT INTO sample_writes VALUES (0)").run();
+  for (const action of ['INSERT', 'UPDATE', 'DELETE']) {
+    await db.prepare(`CREATE TRIGGER count_sample_${action} AFTER ${action} ON health_records
+      BEGIN UPDATE sample_writes SET n=n+1; END`).run();
+  }
+  let rows = [
+    { timestamp: `${today}T01:00:00Z`, bpm: 60, source: 'rest' },
+    { timestamp: `${today}T02:00:00Z`, bpm: 62, source: 'rest' },
+  ];
+  handler = url => url.pathname.endsWith('/heartrate') ? response(rows) : undefined;
+  try {
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    assert.equal((await db.prepare("SELECT n FROM sample_writes").first()).n, 2);
+    await expire('heartrate');
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    assert.equal((await db.prepare("SELECT n FROM sample_writes").first()).n, 2, 'unchanged samples must not be deleted, inserted or updated');
+    rows = [{ ...rows[0], bpm: 65 }];
+    await expire('heartrate');
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    const saved = await (await records('heartrate')).json();
+    assert.equal(saved.total, 1);
+    assert.equal(saved.records[0].bpm, 65);
+    assert.equal((await db.prepare("SELECT n FROM sample_writes").first()).n, 4, 'only one update and one deletion');
+  } finally {
+    handler = () => undefined;
+    for (const action of ['INSERT', 'UPDATE', 'DELETE']) await db.prepare(`DROP TRIGGER count_sample_${action}`).run();
+    await db.prepare("DROP TABLE sample_writes").run();
+    await db.prepare("DELETE FROM health_records WHERE collection='heartrate'").run();
+    await db.prepare("DELETE FROM health_sync_windows WHERE collection='heartrate'").run();
+  }
+});
+
+test('a thousand time-series samples import without per-row SQL statements or loss', async () => {
+  handler = url => url.pathname.endsWith('/heartrate') ? response(Array.from({ length: 1000 }, (_, i) => ({
+    timestamp: new Date(Date.parse(today) + i * 1000).toISOString(), bpm: 60, source: 'rest',
+  }))) : undefined;
+  try {
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    const result = await (await records('heartrate')).json();
+    assert.equal(result.total, 1000);
+    assert.equal(result.records.length, 20);
+    assert.equal(result.next_offset, 20);
+  } finally {
+    handler = () => undefined;
+    await db.prepare("DELETE FROM health_records WHERE collection='heartrate'").run();
+    await db.prepare("DELETE FROM health_sync_windows WHERE collection='heartrate'").run();
+  }
+});
+
 test('daily retries resolve an oversized parent only after its entire window is covered', async () => {
   const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
   handler = url => {
