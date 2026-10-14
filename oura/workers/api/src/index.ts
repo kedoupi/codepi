@@ -10,6 +10,7 @@ import {
 } from "./routes/auth";
 import { handleMeAi } from "./routes/ai";
 import { handleMeDaily } from "./routes/daily";
+import { handleHealthRecords } from "./routes/health-records";
 import { handleDevSubscription } from "./routes/dev-sub";
 import { handleCompareInsights, handleWeeklyInsights } from "./routes/insights";
 import { handleMe } from "./routes/me";
@@ -112,6 +113,10 @@ export default {
         case "/api/me/daily":
         case "/api/me/sync":
           res = await handleMeDaily(request, env);
+          break;
+        case "/api/me/health-records":
+        case "/api/me/health-records/status":
+          res = await handleHealthRecords(request, env);
           break;
         case "/api/me/ai":
           res = await handleMeAi(request, env);

@@ -411,11 +411,19 @@ test('tools are listed with schemas and return grounded Oura data', async () => 
 
   const list = await rpc(access_token, 'tools/list', {});
   const names = list.body.result.tools.map(tool => tool.name).sort();
-  assert.deepEqual(names, ['compare_periods', 'get_connection_status', 'get_daily_metrics', 'get_period_summary']);
+  assert.deepEqual(names, ['compare_periods', 'get_connection_status', 'get_daily_metrics', 'get_health_data_status', 'get_health_records', 'get_period_summary']);
   for (const tool of list.body.result.tools) {
     assert.equal(tool.inputSchema.type, 'object');
     assert.ok(tool.description.length > 20, `${tool.name} needs a usable description`);
   }
+  const details = await rpc(access_token, 'tools/call', { name: 'get_health_records', arguments: { collection: 'sleep' } });
+  assert.equal(details.body.result.structuredContent.records[0].average_hrv, 42);
+  assert.equal(details.body.result.structuredContent.records[0].total_sleep_duration, 28800);
+  assert.equal(details.body.result.structuredContent.records[0].hrv, undefined);
+  const health = await rpc(access_token, 'tools/call', { name: 'get_health_data_status', arguments: {} });
+  assert.equal(health.body.result.structuredContent.collections.find(row => row.name === 'sleep').records, 1);
+  const invalid = await rpc(access_token, 'tools/call', { name: 'get_health_records', arguments: { collection: '../personal_info' } });
+  assert.equal(invalid.body.result.isError, true);
 
   const status = await rpc(access_token, 'tools/call', { name: 'get_connection_status', arguments: {} });
   assert.ok(!status.body.result.isError);

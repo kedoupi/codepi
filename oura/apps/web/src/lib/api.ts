@@ -20,6 +20,8 @@ export function errorText(error: unknown, locale: Locale): string {
     reconnect_required: ["Oura 授权已失效，请重新连接。", "Your Oura authorization expired. Reconnect Oura."],
     rate_limited: ["Oura 请求较多，请稍后重试。", "Oura is rate limiting requests. Retry shortly."],
     sync_in_progress: ["数据正在同步，请稍后刷新。", "Sync is in progress. Retry shortly."],
+    permission_or_membership_required: ["此类数据缺少权限或会员访问资格，请重新授权并检查 Oura 会员状态。", "Permission or membership access is missing. Reauthorize and check your Oura membership."],
+    sync_window_too_large: ["数据量较大，请缩小日期范围后重试。", "Too much data. Retry with a shorter date range."],
     network_error: ["连接超时或网络不可用，请重试。", "The connection timed out or is unavailable. Retry."],
     service_unavailable: ["服务暂时不可用，请稍后重试。", "The service is temporarily unavailable. Retry shortly."],
     upstream_unavailable: ["暂时无法同步 Oura，请稍后重试。", "Oura sync is temporarily unavailable. Retry shortly."],
