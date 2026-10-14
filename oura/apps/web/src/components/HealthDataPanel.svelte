@@ -43,13 +43,21 @@
     const result = await api<{ collections: Collection[]; automatic: AutomaticSyncStatus }>("/api/me/health-records/status");
     if (!disposed) { collections = result.collections; automatic = result.automatic; }
   }
+  async function pollAutomatic() {
+    // Poll one small state row, not counts across the entire health archive.
+    const result = await api<AutomaticSyncStatus>("/api/me/health-records/automatic");
+    if (disposed) return;
+    const finished = result.finished_at && result.finished_at !== automatic?.finished_at;
+    automatic = result;
+    if (finished) await load();
+  }
   onMount(() => {
     const backfill = new URLSearchParams(window.location.search).get("sync") === "90";
     if (backfill) goto("/settings", true);
     void load().then(() => { if (backfill && !stop) return sync(planBackfill(collections, 90)); })
       .catch(err => { if (!disposed) error = errorText(err, locale); });
     const timer = setInterval(() => {
-      if (!busy && !document.hidden) void load().catch(err => { if (!disposed) error = errorText(err, locale); });
+      if (!busy && !document.hidden) void pollAutomatic().catch(err => { if (!disposed) error = errorText(err, locale); });
     }, 30_000);
     return () => { disposed = true; stop = true; clearInterval(timer); };
   });

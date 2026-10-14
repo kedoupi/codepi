@@ -2,6 +2,7 @@ import type { Env } from "../env";
 import { ApiError } from "./errors.ts";
 import { OURA_API_BASE } from "./oura";
 import { ouraAccessToken } from "./oura-access.ts";
+import { reserveSyncWrites } from "./sync-budget.ts";
 
 type Collection = { name: string; label: string; mode: "date" | "time" | "snapshot" | "profile" };
 export const HEALTH_COLLECTIONS: Collection[] = [
@@ -140,7 +141,7 @@ async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedA
   }
 }
 
-export async function syncHealthWindow(request: Request, env: Env, userId: string, w: Window, force = false) {
+export async function syncHealthWindow(request: Request, env: Env, userId: string, w: Window, force = false, automatic = false) {
   const state = await windowState(env, userId, w);
   const now = Date.now();
   if (state?.synced_at && !state.last_error && now - Date.parse(state.synced_at) < (force ? 30_000 : 600_000)) return;
@@ -169,22 +170,55 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
       if (bytes > 90_000 || totalBytes > 8_000_000) throw new ApiError("sync_window_too_large", 422);
       unique.set(recordId(row, w.spec), { day, payload });
     }
-    // Six parameters per row; keep each statement below D1's 100-bind limit.
-    const entries = [...unique];
+    const savedSize = await env.DB.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(length(CAST(payload AS BLOB))),0) AS bytes
+      FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))`)
+      .bind(userId, w.spec.name, w.from, w.to).first<{ n: number; bytes: number }>();
+    if (savedSize && (savedSize.n > 5000 || savedSize.bytes > 8_000_000)) {
+      throw new ApiError("sync_window_too_large", 422);
+    }
+    const saved = await env.DB.prepare(`SELECT record_id, day, payload FROM health_records
+      WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))`)
+      .bind(userId, w.spec.name, w.from, w.to).all<{ record_id: string; day: string; payload: string }>();
+    const previous = new Map(saved.results.map(row => [row.record_id, row]));
+    const entries = [...unique].filter(([id, row]) => previous.get(id)?.payload !== row.payload || previous.get(id)?.day !== row.day);
+    const removed = saved.results.filter(row => !unique.has(row.record_id)).length;
+    if (automatic) {
+      const windows = await env.DB.prepare(`SELECT COUNT(*) AS n FROM health_sync_windows
+        WHERE user_id=? AND collection=? AND window_from<=? AND window_to>=?`)
+        .bind(userId, w.spec.name, w.to, w.from).first<{ n: number }>();
+      await reserveSyncWrites(env, userId, 4 * (entries.length + removed + (windows?.n ?? 0)) + 32);
+    }
+    // Write only changed records. Rewriting identical high-frequency samples
+    // repeatedly can exhaust D1's free daily write quota, including index writes.
     const inserts: D1PreparedStatement[] = [];
-    for (let i = 0; i < entries.length; i += 16) {
-      const chunk = entries.slice(i, i + 16);
-      inserts.push(env.DB.prepare(`INSERT INTO health_records
-        (user_id, collection, record_id, day, payload, fetched_at)
-        VALUES ${chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(",")}
+    let chunk: string[] = [];
+    let chunkBytes = 2;
+    const flush = () => {
+      if (!chunk.length) return;
+      // JSON input keeps large time-series imports below D1's per-invocation
+      // query and 100-bind limits. Bound each JSON parameter to 512 KB.
+      inserts.push(env.DB.prepare(`INSERT INTO health_records (user_id, collection, record_id, day, payload, fetched_at)
+        SELECT ?, ?, json_extract(value,'$[0]'), json_extract(value,'$[1]'), json_extract(value,'$[2]'), ?
+        FROM json_each(?) WHERE 1
         ON CONFLICT(user_id, collection, record_id)
         DO UPDATE SET day=excluded.day, payload=excluded.payload, fetched_at=excluded.fetched_at`)
-        .bind(...chunk.flatMap(([id, row]) => [userId, w.spec.name, id, row.day, row.payload, fetchedAt])));
+        .bind(userId, w.spec.name, fetchedAt, `[${chunk.join(",")}]`));
+      chunk = [];
+      chunkBytes = 2;
+    };
+    for (const [id, row] of entries) {
+      const json = JSON.stringify([id, row.day, row.payload]);
+      const bytes = new TextEncoder().encode(json).length + 1;
+      if (chunkBytes + bytes > 512_000) flush();
+      chunk.push(json);
+      chunkBytes += bytes;
     }
+    flush();
     // Replace only a fully fetched window atomically; preserve all other history.
     await env.DB.batch([
-      env.DB.prepare("DELETE FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))")
-        .bind(userId, w.spec.name, w.from, w.to),
+      env.DB.prepare(`DELETE FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))
+        AND record_id NOT IN (SELECT value FROM json_each(?))`)
+        .bind(userId, w.spec.name, w.from, w.to, JSON.stringify([...unique.keys()])),
       ...inserts,
       env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
         WHERE user_id=? AND collection=? AND window_from>=? AND window_to<=? AND last_error IS NOT NULL`)
@@ -198,6 +232,7 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     await resolveSplitWindows(env, userId, w, fetchedAt);
   } catch (err) {
     const error = err instanceof ApiError ? err : new ApiError("upstream_unavailable", 502);
+    if (error.code === "daily_sync_budget_reached") throw error;
     await env.DB.prepare(`INSERT INTO health_sync_windows
       (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, collection, window_from, window_to)

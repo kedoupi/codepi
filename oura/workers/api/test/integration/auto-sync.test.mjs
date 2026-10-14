@@ -181,19 +181,18 @@ test('daily cleanup removes only expired temporary state and old analysis cache'
   assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM mcp_tokens").first()).n, 1);
 });
 
-test('an unfinished previous day resumes before the next daily refresh; last success survives', async t => {
+test('a new daily refresh prioritizes fresh data while re-planning unverified history', async t => {
   const f = await fixture(t);
   await f.queue([pending('heartrate', day(1), day(1))]);
   await f.db.prepare("UPDATE auto_sync_state SET run_day=?,last_success_at='2000-01-01T00:00:00Z'").bind(day(1)).run();
-  await f.tick();
-  assert.equal((await f.status()).run_day, day(1));
-  assert.equal((await f.status()).status, 'completed');
-  const lastSuccess = (await f.status()).last_success_at;
+  await f.tick(scheduledTime - 120000);
+  assert.equal((await f.status()).completed, 0, 'old backlog must not consume the new daily budget before the morning refresh');
   await f.tick();
   assert.equal((await f.status()).run_day, today);
   assert.equal((await f.status()).status, 'running');
   assert.equal((await f.status()).completed, 1);
-  assert.equal((await f.status()).last_success_at, lastSuccess);
+  assert.equal((await f.status()).last_success_at, '2000-01-01T00:00:00Z');
+  assert.ok((await f.tasks()).some(t => t.collection === 'heartrate' && t.from === day(1) && t.state === 'pending'));
 });
 
 test('disabled schedules and accounts with no stored authorization do not start a job', async t => {
@@ -209,4 +208,47 @@ test('disabled schedules and accounts with no stored authorization do not start 
   await f.db.prepare("DELETE FROM encrypted_tokens").run();
   await f.tick();
   assert.equal((await f.status()).status, 'idle');
+});
+
+test('automatic write budget defers work without damaging saved data; a new UTC day resets it', async t => {
+  let calls = 0;
+  const f = await fixture(t, url => {
+    if (url.pathname.endsWith('/heartrate')) {
+      calls++;
+      return Response.json({ data: [{ timestamp: `${today}T01:00:00Z`, bpm: 60 }], next_token: null });
+    }
+  });
+  await f.queue([pending('heartrate'), pending('sleep')]);
+  await f.db.prepare("INSERT INTO auto_sync_budget(user_id,utc_day,reserved_rows) VALUES ('test-user',?,50000)").bind(today).run();
+  await f.tick();
+  assert.equal((await f.status()).error, 'daily_sync_budget_reached');
+  assert.equal((await f.tasks())[0].attempts, 0);
+  assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM health_records").first()).n, 0);
+  assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM health_sync_windows").first()).n, 0);
+  await f.tick();
+  assert.equal(calls, 1, 'waiting for budget must not poll Oura every two minutes');
+  await f.db.prepare("UPDATE auto_sync_budget SET utc_day=?").bind(day(1)).run();
+  const tasks = await f.tasks();
+  tasks.forEach(t => t.after = 0);
+  await f.queue(tasks);
+  await f.tick();
+  assert.equal((await f.status()).completed, 1);
+  assert.equal((await f.status()).error, null);
+  const budget = await f.db.prepare("SELECT * FROM auto_sync_budget").first();
+  assert.equal(budget.utc_day, today);
+  assert.ok(budget.reserved_rows > 0 && budget.reserved_rows < 50000);
+});
+
+test('lightweight progress polling is owner-only and does not expose archived records', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.runtime.dispatchFetch(`${origin}/api/me/health-records/automatic`)).status, 401);
+  const response = await f.runtime.dispatchFetch(`${origin}/api/me/health-records/automatic`, { headers: { Cookie: f.cookie } });
+  assert.equal(response.status, 200);
+  const status = await response.json();
+  assert.equal(status.enabled, true);
+  assert.equal(status.status, 'idle');
+  assert.equal(status.collections, undefined);
+  assert.equal((await f.runtime.dispatchFetch(`${origin}/api/me/health-records/automatic`, {
+    method: 'POST', headers: { Cookie: f.cookie },
+  })).status, 405);
 });
