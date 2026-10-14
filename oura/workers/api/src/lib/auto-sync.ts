@@ -98,31 +98,53 @@ export async function automaticSyncStatus(env: Env, userId: string) {
 }
 
 export async function runAutomaticSync(env: Env, scheduledTime: number, cron: string) {
-  if (env.AUTO_SYNC_ENABLED !== "1" || cron !== CRON || !env.PERSONAL_OWNER_ID) return;
+  // One structured line per invocation: this is the only signal that the
+  // schedule is alive, so keep the reason for every early return.
+  const log = (fields: Record<string, unknown>) => console.log(JSON.stringify({ event: "auto_sync", ...fields }));
+  if (env.AUTO_SYNC_ENABLED !== "1" || cron !== CRON || !env.PERSONAL_OWNER_ID) {
+    log({ action: "skip", reason: "disabled_or_wrong_cron", cron,
+      enabled: env.AUTO_SYNC_ENABLED === "1", ownerConfigured: Boolean(env.PERSONAL_OWNER_ID) });
+    return;
+  }
   // Never use development credential fallbacks in a scheduled event.
   if (!env.TOKEN_ENCRYPTION_KEY || !env.OURA_CLIENT_ID || !env.OURA_CLIENT_SECRET) {
     throw new Error("Automatic sync requires Oura OAuth and encryption configuration");
   }
   const userId = env.PERSONAL_OWNER_ID;
   const owner = await env.DB.prepare("SELECT user_id FROM encrypted_tokens WHERE user_id=?").bind(userId).first();
-  if (!owner) return;
+  if (!owner) {
+    log({ action: "skip", reason: "no_authorization" });
+    return;
+  }
   const now = Date.now();
   const lease = crypto.randomUUID();
   const acquired = await env.DB.prepare(`INSERT INTO auto_sync_state (user_id,lease_id,lease_until) VALUES (?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET lease_id=excluded.lease_id,lease_until=excluded.lease_until
     WHERE auto_sync_state.lease_until<? RETURNING *`).bind(userId, lease, now + 120_000, now).first<State>();
-  if (!acquired) return;
+  if (!acquired) {
+    log({ action: "skip", reason: "lease_held" });
+    return;
+  }
   try {
     let row = acquired;
-    if (row.status === "blocked") return;
+    if (row.status === "blocked") {
+      log({ action: "skip", reason: "blocked", error: row.last_error });
+      return;
+    }
     let tasks: Task[] = JSON.parse(row.payload);
     // Cron is UTC; the daily gate is 09:00 Shanghai. Use event time so delayed
     // delivery cannot accidentally start tomorrow's run.
     const today = date(scheduledTime + 8 * 3_600_000);
     const due = scheduledTime >= Date.parse(`${today}T01:00:00Z`);
-    if (row.run_day && row.run_day < today && !due) return;
+    if (row.run_day && row.run_day < today && !due) {
+      log({ action: "skip", reason: "before_daily_gate", run_day: row.run_day });
+      return;
+    }
     const startNew = due && (!row.run_day || row.run_day < today);
-    if (row.status !== "running" && !startNew) return;
+    if (row.status !== "running" && !startNew) {
+      log({ action: "skip", reason: "idle", status: row.status, run_day: row.run_day });
+      return;
+    }
     if (startNew) {
       const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=? AND window_to>=?")
         .bind(userId, date(Date.parse(today) - 89 * DAY)).all<Coverage>();
@@ -139,9 +161,13 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
         last_error=NULL,payload=? WHERE user_id=? AND lease_id=?`)
         .bind(today, new Date(now).toISOString(), JSON.stringify(tasks), userId, lease).run();
       row = { ...row, run_day: today, status: "running", last_error: null };
+      log({ action: "plan", run_day: today, tasks: tasks.length });
     }
     const item = tasks.find(t => t.state === "pending" && t.after <= now);
-    if (!item) return;
+    if (!item) {
+      log({ action: "idle", reason: "no_task_due", pending: tasks.filter(t => t.state === "pending").length });
+      return;
+    }
     // This request supplies origin-dependent configuration only; it is never
     // routed through an authenticated HTTP endpoint or given a session.
     const request = new Request(env.FRONTEND_ORIGIN || "https://oura.kdp.cool");
@@ -192,6 +218,8 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     const failed = tasks.some(t => t.state === "failed");
     const status = blocked ? "blocked" : !finished ? "running" : failed ? "partial" : "completed";
     const lastError = blocked ? item.error : tasks.find(t => t.error && t.state !== "split")?.error ?? null;
+    log({ action: "task", collection: item.collection, from: item.from, to: item.to,
+      state: item.state, code: item.error ?? null, status, remaining: tasks.filter(t => t.state === "pending").length });
     await env.DB.prepare(`UPDATE auto_sync_state SET status=?,payload=?,last_error=?,finished_at=?,
       last_success_at=CASE WHEN ?='completed' THEN ? ELSE last_success_at END WHERE user_id=? AND lease_id=?`)
       .bind(status, JSON.stringify(tasks), lastError ?? null, finished ? new Date().toISOString() : null,
