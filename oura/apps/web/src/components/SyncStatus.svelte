@@ -8,7 +8,7 @@
 </script>
 <section class="sync-status" aria-live="polite">
   <div>
-    <strong>{locale === "zh" ? "数据状态" : "Data status"}</strong>
+    <strong>{locale === "zh" ? "评分数据" : "Score data"}</strong>
     {#if sync}
       <span>{locale === "zh" ? "最新数据" : "Latest data"} {sync.latestDataDate ?? "—"}</span>
       <span>{locale === "zh" ? "同步于" : "Synced"} {time}</span>
@@ -17,5 +17,5 @@
       {#if sync.error === "reconnect_required"}<a href="/api/auth/oura/start">{locale === "zh" ? "重新连接 Oura" : "Reconnect Oura"}</a>{/if}
     {:else}<span>{locale === "zh" ? "等待同步" : "Waiting for sync"}</span>{/if}
   </div>
-  {#if onSync}<button class="ai-btn" disabled={busy} onclick={onSync}>{busy ? (locale === "zh" ? "同步中…" : "Syncing…") : (locale === "zh" ? "刷新数据" : "Refresh data")}</button>{/if}
+  {#if onSync}<button class="ai-btn" disabled={busy} onclick={onSync}>{busy ? (locale === "zh" ? "同步中…" : "Syncing…") : (locale === "zh" ? "刷新评分" : "Refresh scores")}</button>{/if}
 </section>

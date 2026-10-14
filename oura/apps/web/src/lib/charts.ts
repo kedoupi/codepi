@@ -293,7 +293,7 @@ export function createSRAChart(
           pointRadius: 0,
           pointHoverRadius: 4,
           tension: 0.3,
-          spanGaps: true,
+          spanGaps: false,
           fill: false,
         },
         {
@@ -305,7 +305,7 @@ export function createSRAChart(
           pointRadius: 0,
           pointHoverRadius: 4,
           tension: 0.3,
-          spanGaps: true,
+          spanGaps: false,
         },
         {
           label: "活动",
@@ -316,7 +316,7 @@ export function createSRAChart(
           pointRadius: 0,
           pointHoverRadius: 4,
           tension: 0.3,
-          spanGaps: true,
+          spanGaps: false,
           borderDash: [4, 3],
         },
       ],
@@ -349,7 +349,7 @@ export function createSRAChart(
           border: { display: false },
         },
         y: {
-          min: 40,
+          min: 0,
           max: 100,
           grid: { color: gridColor },
           border: { display: false },

@@ -1,7 +1,15 @@
 import type { Locale } from "./i18n";
 
 export class RequestError extends Error {
-  constructor(public code: string, public status: number, public requestId = "") { super(code); }
+  code: string;
+  status: number;
+  requestId: string;
+  constructor(code: string, status: number, requestId = "") {
+    super(code);
+    this.code = code;
+    this.status = status;
+    this.requestId = requestId;
+  }
 }
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;

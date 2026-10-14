@@ -25,11 +25,47 @@ const freeRuntime = createRuntime({ bindings: {
 await freeRuntime.ready;
 await migrate(freeRuntime);
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+let sleepFailure = false;
 
 // Test-only server: ephemeral D1, mock Oura, loopback binding, no real secrets.
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (url.pathname === '/__test/sleep-scenario' && req.method === 'POST') {
+      const db = await ownerRuntime.getD1Database('DB');
+      const scenario = url.searchParams.get('mode');
+      sleepFailure = scenario === 'failure';
+      await db.prepare("DELETE FROM health_records WHERE collection='sleep'").run();
+      await db.prepare("DELETE FROM health_sync_windows WHERE collection='sleep'").run();
+      const today = new Date().toISOString().slice(0, 10);
+      const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
+      if (scenario === 'records') {
+        for (let back = 0; back < 30; back++) {
+          if (back === 1) continue; // A missing day must not appear as zero hours.
+          const day = date(back);
+          for (const [type, seconds, hour] of [['long_sleep', 28800, '00'], ['sleep', 1800, '14']]) {
+            const id = `${day}-${type}`;
+            const payload = {
+              id, day, type, total_sleep_duration: seconds, time_in_bed: seconds + 1800,
+              bedtime_start: `${day}T${hour}:00:00+08:00`, bedtime_end: `${day}T${type === 'sleep' ? '15' : '08'}:30:00+08:00`,
+              deep_sleep_duration: seconds / 4, rem_sleep_duration: seconds / 4, light_sleep_duration: seconds / 2,
+              awake_time: 1800, efficiency: 92, average_hrv: type === 'sleep' ? null : 42,
+              average_heart_rate: 55, lowest_heart_rate: 48, average_breath: 14.2,
+            };
+            await db.prepare('INSERT INTO health_records (user_id, collection, record_id, day, payload, fetched_at) VALUES (?, ?, ?, ?, ?, ?)')
+              .bind('test-user', 'sleep', id, day, JSON.stringify(payload), new Date().toISOString()).run();
+          }
+        }
+      }
+      if (scenario === 'empty' || scenario === 'records') {
+        for (const count of [7, 30]) {
+          await db.prepare('INSERT INTO health_sync_windows (user_id, collection, window_from, window_to, synced_at, attempted_at) VALUES (?, ?, ?, ?, ?, ?)')
+            .bind('test-user', 'sleep', date(count - 1), today, new Date().toISOString(), new Date().toISOString()).run();
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     if (url.pathname === '/__test/login') {
       const runtime = url.searchParams.get('free') === '1' ? freeRuntime : ownerRuntime;
       const cookie = await login(runtime);
@@ -53,6 +89,10 @@ const server = createServer(async (req, res) => {
       || url.pathname.startsWith('/oauth/')
       || url.pathname.startsWith('/.well-known/');
     if (isWorkerPath) {
+      if (sleepFailure && url.pathname === '/api/me/health-records' && url.searchParams.get('collection') === 'sleep') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end('{"error":"upstream_unavailable"}');
+        return;
+      }
       const jar = /oura_fixture_jar=free/.test(req.headers.cookie || '') ? freeRuntime : ownerRuntime;
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);

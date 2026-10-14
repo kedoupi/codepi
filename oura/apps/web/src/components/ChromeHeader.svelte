@@ -23,6 +23,7 @@
 
   const links: { href: AppPath; key: MessageKey }[] = [
     { href: "/", key: "navHealth" },
+    { href: "/sleep", key: "navSleep" },
     { href: "/insights", key: "navInsights" },
     { href: "/compare", key: "navCompare" },
     { href: "/settings", key: "navSettings" },
@@ -56,3 +57,8 @@
     </nav>
   </div>
 </header>
+
+<style>
+  .chrome :global(.brand-name){white-space:nowrap}
+  .chrome :global(.brand){flex-shrink:0}
+</style>
