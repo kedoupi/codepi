@@ -40,8 +40,14 @@ function fixture(): Dashboard {
       total_usd: 1000, stocks_usd: 600, hk_usd: 0, cash_usd: 400, cash_weight: .4, cash_after_dca: .2, cash_age_days: 27 }],
     positions: [{ ticker: "TEST", name: "测试", shares: 10, avg_cost: 50, price: 60, change_pct: .01,
       value_usd: 600, weight: .6, target: .6, pnl_pct: .2, quote_date: "2026-10-12" }],
-    risk: [{ rule_id: "test-stop", item: "TEST 停买", kind: "权重", current: "60%", threshold: ">=60%",
-      level: "停买", triggered: true, distance: 0, action: "不再加仓", proximity: "critical" }],
+    risk: [
+      { rule_id: "test-stop", item: "TEST 停买", kind: "权重", current: "60%", threshold: ">=60%",
+        level: "停买", triggered: true, distance: 0, action: "不再加仓", proximity: "critical" },
+      { rule_id: "test-none", item: "TEST 无阈值", kind: "权重", current: "5.6%", threshold: "—",
+        level: "—", triggered: null, distance: null, action: null, proximity: "none" },
+      { rule_id: "test-clear", item: "TEST 未触发", kind: "权重", current: "10%", threshold: ">20%",
+        level: "未触发；距离未临近", triggered: false, distance: .5, action: null, proximity: "clear" },
+    ],
     market: [{ symbol: "TEST", name: "测试指数", group: "指数", close: 100, change_pct: .02, date: "2026-10-12", error: null }],
     reports: [{ id: "test-report", date: "2026-10-13", date_source: "front_matter", trading_date: "2026-10-12",
       kind: "盘后复盘", headline: "测试报告", action: "只观察", rule: "无", body: "# 测试\n正文",
@@ -173,6 +179,20 @@ describe("complete dashboard batches", () => {
       (d: Dashboard) => { d.account[0].generated_at = "2099-01-01T00:00:00Z"; },
       (d: Dashboard) => { d.positions[0].price = null; },
       (d: Dashboard) => { d.risk[0].distance = -.1; },
+    ]) { const d = fixture(); mutate(d); expect((await sync(d)).status).toBe(400); }
+  });
+  it("accepts not-applicable and inactive risk states without inventing actions", async () => {
+    expect((await sync()).status).toBe(200);
+    const cookie = await login();
+    const result = await call(request("/api/dashboard", { cookie }));
+    const data = (await result.json() as { data: Dashboard }).data;
+    expect(data.risk[1]).toMatchObject({ rule_id: "test-none", triggered: null, action: null, distance: null });
+    expect(data.risk[2]).toMatchObject({ rule_id: "test-clear", triggered: false, action: null });
+  });
+  it("rejects malformed risk state types", async () => {
+    for (const mutate of [
+      (d: Dashboard) => { d.risk[0].triggered = "true"; },
+      (d: Dashboard) => { d.risk[0].action = 1; },
     ]) { const d = fixture(); mutate(d); expect((await sync(d)).status).toBe(400); }
   });
   it("keeps current data after invalid and stale uploads; retries are idempotent", async () => {

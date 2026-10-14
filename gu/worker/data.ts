@@ -7,6 +7,7 @@ const day = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(
 const numeric = (v: unknown) => typeof v === "number" && Number.isFinite(v);
 const text = (r: Row, keys: string[]) => keys.every(k => typeof r[k] === "string");
 const optionalNumber = (v: unknown) => v === null || numeric(v);
+const optionalText = (v: unknown) => v === null || typeof v === "string";
 
 export function validateDashboard(value: unknown): asserts value is Dashboard {
   if (!object(value) || Object.keys(value).sort().join() !== [...KEYS].sort().join()) throw new Error("需要完整的五份数据");
@@ -33,8 +34,9 @@ export function validateDashboard(value: unknown): asserts value is Dashboard {
     if (p.shares !== null && (!numeric(p.price) || Number(p.price) <= 0 || !day(p.quote_date))) throw new Error("持仓行情缺失");
   }
   for (const r of data.risk) {
-    if (!text(r, ["rule_id", "item", "kind", "current", "threshold", "level", "action", "proximity"]) ||
-      typeof r.triggered !== "boolean" || !optionalNumber(r.distance) ||
+    if (!text(r, ["rule_id", "item", "kind", "current", "threshold", "level", "proximity"]) ||
+      !optionalText(r.action) || !(r.triggered === null || typeof r.triggered === "boolean") ||
+      !optionalNumber(r.distance) ||
       (numeric(r.distance) && Number(r.distance) < 0)) throw new Error("风控数据缺少明确规则状态，请重新生成");
   }
   for (const m of data.market) {

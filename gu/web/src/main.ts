@@ -109,10 +109,14 @@ function showError(message: string) {
 }
 
 function riskCards(rows: Row[]) {
-  return rows.map(r => `<article class="risk-row ${r.triggered ? "triggered" : r.proximity === "critical" ? "near" : ""}">
+  return rows.map(r => {
+    const state = r.triggered === null ? "不适用" : r.triggered ? "已触发" : e(r.level);
+    const action = r.action || (r.triggered === null ? "无对应阈值" : "未触发动作");
+    return `<article class="risk-row ${r.triggered ? "triggered" : r.proximity === "critical" ? "near" : ""}">
     <div><strong>${e(r.item)}</strong><span>${e(r.kind)} · 当前 ${e(r.current)} · 阈值 ${e(r.threshold)}</span></div>
-    <div><b>${r.triggered ? "已触发" : e(r.level)}</b><span>相对距离 ${pct(r.distance)}</span></div>
-    <p>${e(r.action || "未触发动作")}</p></article>`).join("");
+    <div><b>${state}</b><span>相对距离 ${pct(r.distance)}</span></div>
+    <p>${e(action)}</p></article>`;
+  }).join("");
 }
 
 function overview() {
