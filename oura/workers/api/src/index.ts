@@ -1,7 +1,7 @@
 import type { Env } from "./env";
 import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { allowDevLogin, oauthConfigured } from "./lib/config";
-import { ApiError } from "./lib/errors.ts";
+import { normalizeApiError, storageQuotaResetAt } from "./lib/errors.ts";
 import { API_CONTRACT, RELEASE } from "./lib/version.ts";
 import {
   handleDevSession,
@@ -172,9 +172,16 @@ export default {
       }
       return new Response(res.body, { status: res.status, headers });
     } catch (err) {
+      const error = normalizeApiError(err);
+      const retryAt = error.code === "storage_write_quota_exceeded" ? storageQuotaResetAt() : null;
+      // Keep operational evidence without health data, credentials, query
+      // parameters or raw provider/database exception messages.
+      console.error(JSON.stringify({ event: "api_failure", requestId, route: url.pathname, code: error.code, status: error.status }));
       return Response.json(
-        { error: err instanceof ApiError ? err.code : "internal_error", requestId },
-        { status: err instanceof ApiError ? err.status : 500, headers: { ...cors(request, env), "Cache-Control": "no-store", "X-Request-ID": requestId } },
+        { error: error.code, requestId, ...(retryAt ? { retryAt } : {}) },
+        { status: error.status, headers: { ...cors(request, env), "Cache-Control": "no-store", "X-Request-ID": requestId,
+          ...(retryAt ? { "Retry-After": String(Math.max(1, Math.ceil((Date.parse(retryAt) - Date.now()) / 1000))) } : {}),
+        } },
       );
     }
   },

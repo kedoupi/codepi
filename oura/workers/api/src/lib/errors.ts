@@ -8,6 +8,26 @@ export class ApiError extends Error {
   }
 }
 
+export function normalizeApiError(error: unknown, fallback = "internal_error", status = 500): ApiError {
+  let current = error;
+  let isD1 = false;
+  // D1 may put the provider's quota message on a nested cause.
+  for (let depth = 0; depth < 5 && current instanceof Error; depth++) {
+    const message = current.message;
+    isD1 ||= /D1/i.test(message);
+    if (isD1 && /writ/i.test(message) && (/\b7500\b/.test(message)
+      || (/daily/i.test(message) && /limit|quota/i.test(message)))) {
+      return new ApiError("storage_write_quota_exceeded", 503);
+    }
+    current = current.cause;
+  }
+  return error instanceof ApiError ? error : new ApiError(fallback, status);
+}
+
+export function storageQuotaResetAt(now = Date.now()): string {
+  return new Date(Date.parse(new Date(now).toISOString().slice(0, 10)) + 86_400_000).toISOString();
+}
+
 export async function upstreamFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
   try {
     const response = await fetch(url, { ...init, signal: AbortSignal.timeout(12_000) });

@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { ApiError } from "./errors.ts";
+import { ApiError, normalizeApiError } from "./errors.ts";
 import { OURA_API_BASE } from "./oura";
 import { ouraAccessToken } from "./oura-access.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
@@ -231,8 +231,8 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     ]);
     await resolveSplitWindows(env, userId, w, fetchedAt);
   } catch (err) {
-    const error = err instanceof ApiError ? err : new ApiError("upstream_unavailable", 502);
-    if (error.code === "daily_sync_budget_reached") throw error;
+    const error = normalizeApiError(err, "upstream_unavailable", 502);
+    if (["daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(error.code)) throw error;
     await env.DB.prepare(`INSERT INTO health_sync_windows
       (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(user_id, collection, window_from, window_to)

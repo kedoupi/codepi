@@ -1,5 +1,5 @@
 export type SyncWindow = { collection: string; from: string; to: string };
-export type SyncFailure = SyncWindow & { code: string; requestId?: string };
+export type SyncFailure = SyncWindow & { code: string; requestId?: string; retryAt?: string };
 export type BackfillResult = { failed: SyncFailure[]; remaining: SyncWindow[]; completed: number; total: number; splits: number };
 const DAY = 86400000;
 const date = (time: number) => new Date(time).toISOString().slice(0, 10);
@@ -34,7 +34,7 @@ export async function runBackfill(windows: SyncWindow[], options: {
       await options.request(current);
       result.completed += windowDays(current);
     } catch (error) {
-      const detail = error as { code?: string; requestId?: string };
+      const detail = error as { code?: string; requestId?: string; retryAt?: string };
       const code = detail?.code || "service_unavailable";
       const days = windowDays(current);
       if (code === "sync_window_too_large" && days > 1) {
@@ -47,8 +47,9 @@ export async function runBackfill(windows: SyncWindow[], options: {
         result.splits++;
         continue;
       }
-      result.failed.push({ ...current, code, requestId: detail?.requestId });
-      if (["rate_limited", "reconnect_required", "unauthorized", "sync_in_progress", "network_error"].includes(code)) break;
+      result.failed.push({ ...current, code, requestId: detail?.requestId, retryAt: detail?.retryAt });
+      if (["rate_limited", "reconnect_required", "unauthorized", "sync_in_progress", "network_error",
+        "storage_write_quota_exceeded", "internal_error", "service_unavailable", "invalid_response"].includes(code)) break;
       if (code !== "sync_window_too_large") {
         // Preserve skipped work for an explicit retry without hammering a denied collection.
         result.remaining.push(...queue.filter(w => w.collection === current.collection));

@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { ApiError } from "./errors.ts";
+import { ApiError, normalizeApiError } from "./errors.ts";
 import { HEALTH_COLLECTIONS, healthWindow, syncHealthWindow } from "./health-records.ts";
 import { loadDailyForUser } from "./user-daily.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
@@ -159,11 +159,11 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       item.state = "done";
       delete item.error;
     } catch (error) {
-      const code = error instanceof ApiError ? error.code : "upstream_unavailable";
+      const code = normalizeApiError(error, "upstream_unavailable", 502).code;
       item.error = code;
       if (code === "reconnect_required" || code === "oura_not_configured") {
         blocked = true;
-      } else if (code === "daily_sync_budget_reached") {
+      } else if (["daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(code)) {
         const reset = Date.parse(date(now)) + DAY + 3_600_000;
         for (const other of tasks.filter(t => t.state === "pending")) other.after = reset;
       } else if (code === "sync_window_too_large" && item.from < item.to) {
