@@ -252,3 +252,19 @@ test('lightweight progress polling is owner-only and does not expose archived re
     method: 'POST', headers: { Cookie: f.cookie },
   })).status, 405);
 });
+
+test('every scheduled invocation leaves one structured line, including wrong-cron skips', async t => {
+  const f = await fixture(t);
+  const logs = [];
+  t.mock.method(console, 'log', line => logs.push(JSON.parse(line)));
+  const worker = await f.runtime.getWorker();
+  await worker.scheduled({ scheduledTime, cron: '0 1 * * *' });
+  assert.deepEqual(logs, [{ event: 'auto_sync', action: 'skip', reason: 'disabled_or_wrong_cron',
+    cron: '0 1 * * *', enabled: true, ownerConfigured: true }], 'a wrong cron must say so instead of failing silently');
+  logs.length = 0;
+  await f.tick();
+  assert.equal(logs.filter(entry => entry.event === 'auto_sync').length >= 2, true,
+    'a real run reports its plan and processed batch');
+  assert.equal(logs[0].action, 'plan');
+  assert.equal(logs[1].action, 'task');
+});
