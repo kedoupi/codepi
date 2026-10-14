@@ -4,6 +4,8 @@ interface Env {
   DB: D1Database;
   ASSETS?: Fetcher;
   ALLOWLIST: string;
+  /** 逗号分隔：这些邮箱登录即 editor（可交稿/标进箱），也自动允许登录 */
+  EDITORS?: string;
   OTP_FROM: string;
   ACCOUNT_BRAND: string;
   ENVIRONMENT: string;

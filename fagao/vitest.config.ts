@@ -15,6 +15,7 @@ export default defineWorkersProject({
             SESSION_SECRET: "test-session-secret",
             OTP_PEPPER: "test-otp-pepper",
             ALLOWLIST: "kedoupi@gmail.com",
+            EDITORS: "editor@example.com",
             OTP_FROM: "otp@kdp.cool",
             ACCOUNT_BRAND: "珂抖屁",
             ENVIRONMENT: "test",

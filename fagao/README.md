@@ -20,13 +20,15 @@
 
 | 状态 | 谁动 | 含义 |
 | --- | --- | --- |
-| 空档 / `draft` | 编辑 | 还没交审；「拒」也回到 draft |
+| 空档 / `draft` | 编辑 | 还没交审 |
 | 待审 | 编辑标、老板审 | 有预览地址，可 过 / 要改 / 拒 |
-| 需改 | 老板点要改 | 编辑改完再交，或一键撤回待审 |
+| 需改 | 老板点要改或拒（2026-10-10 起「拒」=「要改」，不再回 draft） | 编辑改完再交，或一键撤回待审 |
 | 可推箱 | 老板点过 | 黄薇去微信后台人工进箱；编辑可撤回待审 |
 | 已进箱 | 编辑确认 | 一期终点；编辑可撤回待审再过 |
 
-种子账号展示名写死 **珂抖屁**。一期允许名单只有 `kedoupi@gmail.com`（可用环境变量 `ALLOWLIST` 追加黄薇邮箱，不必做多账号 UI）。
+种子账号展示名写死 **珂抖屁**。允许登录：`ALLOWLIST`（新账号默认 reviewer，只能审）+ `EDITORS`（这些邮箱自动允许登录，首次登录即 editor，可交稿/撤回/标已进箱；已有 reviewer 账号登录时升为 editor）。黄薇邮箱放进 `EDITORS`，不再手改数据库。
+
+**fagao 只看预览，不做文字审。** 文字稿在上游定稿，这里只审接近成稿的 H5。
 
 演示稿：slug `kdp-MMDD-zao|zhong|wan` 且 `is_demo=1` 会标「演示」。迁移里写了 `2026-09-17` 三档。上海时区「今天」若三档都空且当天没被标记跳过，才自动补演示。演示可 **撤回待审**、**撤掉演示** 腾档，或直接交真稿替掉该档演示；撤掉后当天不再自动补。其它日期不自动造稿。
 
@@ -52,6 +54,7 @@ https://fagao.kdp.cool/api/*     Worker：OTP、session、board、review
 | `SESSION_SECRET` | secret | 会话 token 哈希 |
 | `OTP_PEPPER` | secret | OTP 哈希盐 |
 | `ALLOWLIST` | var | 逗号分隔邮箱，默认 `kedoupi@gmail.com` |
+| `EDITORS` | var | 逗号分隔邮箱，登录即 editor（如黄薇） |
 | `OTP_FROM` | var | 默认 `otp@kdp.cool` |
 | `ACCOUNT_BRAND` | var | 默认 `珂抖屁` |
 | `ENVIRONMENT` | var | `production` / `preview` / `development` / `test` |
@@ -110,7 +113,8 @@ npx wrangler pages secret put OTP_PEPPER --project-name=fagao
 
 Dashboard → `fagao` → Settings → Environment variables：
 
-- `ALLOWLIST=kedoupi@gmail.com`（以后加黄薇：`kedoupi@gmail.com,huangwei@…`）
+- `ALLOWLIST=kedoupi@gmail.com`
+- `EDITORS=<黄薇邮箱>`（交稿人；不要放进 ALLOWLIST 冒充 reviewer）
 - `OTP_FROM=otp@kdp.cool`
 - `ACCOUNT_BRAND=珂抖屁`
 - `ENVIRONMENT=production`

@@ -88,7 +88,12 @@ function cookieHeader(token: string, request: Request, maxAge: number): string {
 }
 
 function allowlisted(env: Env, email: string): boolean {
-  return parseAllowlist(env.ALLOWLIST).includes(email);
+  return parseAllowlist(env.ALLOWLIST).includes(email) || isEditorEmail(env, email);
+}
+
+/** EDITORS 名单里的邮箱：首次登录即 editor，已有 reviewer 账号登录时升为 editor（owner 不降级）。 */
+export function isEditorEmail(env: Env, email: string): boolean {
+  return parseAllowlist(env.EDITORS).includes(email);
 }
 
 async function ipHash(env: Env, request: Request): Promise<string> {
@@ -246,13 +251,17 @@ export async function handleVerifyOtp(request: Request, env: Env): Promise<Respo
   await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ?`).bind(nowIso(), row.id).run();
 
   let account = await findAccountByEmail(env, email);
+  const editor = isEditorEmail(env, email);
   if (!account) {
     const id = `acc_${crypto.randomUUID()}`;
     await env.DB.prepare(
-      `INSERT INTO accounts (id, email, display_name, role, active) VALUES (?, ?, ?, 'reviewer', 1)`,
+      `INSERT INTO accounts (id, email, display_name, role, active) VALUES (?, ?, ?, ?, 1)`,
     )
-      .bind(id, email, brandName(env))
+      .bind(id, email, brandName(env), editor ? "editor" : "reviewer")
       .run();
+    account = await findAccountByEmail(env, email);
+  } else if (editor && account.role === "reviewer") {
+    await env.DB.prepare(`UPDATE accounts SET role = 'editor' WHERE id = ?`).bind(account.id).run();
     account = await findAccountByEmail(env, email);
   }
   if (!account || account.active !== 1) {

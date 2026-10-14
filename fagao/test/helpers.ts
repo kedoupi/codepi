@@ -21,13 +21,19 @@ export async function verifyOtp(email: string, code: string) {
   });
 }
 
+export const EDITOR = "editor@example.com";
+
 export async function loginAsAllowlisted() {
-  const otpRes = await requestOtp(ALLOWED);
+  return loginAs(ALLOWED);
+}
+
+export async function loginAs(email: string) {
+  const otpRes = await requestOtp(email);
   const otpBody = (await otpRes.json()) as { dev_otp?: string };
   if (!otpBody.dev_otp) {
     throw new Error("test expected dev_otp");
   }
-  const verifyRes = await verifyOtp(ALLOWED, otpBody.dev_otp);
+  const verifyRes = await verifyOtp(email, otpBody.dev_otp);
   const cookie = verifyRes.headers.get("Set-Cookie");
   if (!cookie) throw new Error("missing session cookie");
   return cookie.split(";")[0];
