@@ -35,11 +35,16 @@ async function navigate(path) {
 }
 
 try {
+  // A previous interrupted run may leave the shared page in a mobile emulation override.
+  await page.cdp('Emulation.clearDeviceMetricsOverride');
   // Journey 1: free account (no owner match, no subscription) sees paywalls.
   await page.goto(`${origin}/__test/login?free=1`);
-  await page.waitForFunction(() => document.querySelector('.status')?.textContent?.includes('90'));
+  await page.waitForSelector('.journal-main');
+  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '80');
+  console.log('PASS free overview renders');
   // Snapshot establishes page state and actionable controls before the journey.
   console.log(await page.snapshot());
+  await page.click('loc=css:.journal-score-history > summary');
   for (const days of [30, 90]) {
     await page.click(`loc=css:.range button:text-is("${days}")`);
     await page.waitForSelector(`.range[data-on="${days}"]`);
@@ -77,7 +82,7 @@ try {
   await page.waitForFunction(() => document.documentElement.lang.startsWith('zh'));
   await healthy('language restored');
   await page.goto(`${origin}/__test/login?subscribed=1`);
-  await page.waitForSelector('.range');
+  await page.waitForSelector('.journal-main');
   await navigate('/insights');
   await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
   await healthy('subscribed weekly advice');
@@ -99,7 +104,11 @@ try {
 
   // Journey 2: personal owner has full reports without billing UI.
   await page.goto(`${origin}/__test/login`);
-  await page.waitForSelector('.range');
+  await page.waitForSelector('.journal-main');
+  // Journey 1's fixture seeded a full journal dataset; reset sleep so the unsynced state is testable.
+  await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=missing', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForSelector('.journal-main');
   await page.waitForSelector('.today-scores article');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.today-scores article').length), 3);
   await page.waitForFunction(() => document.querySelector('.sleep-preview')?.textContent.includes('近 30 天还没有保存'));
@@ -151,7 +160,7 @@ try {
   await page.waitForSelector('#landing-view');
   console.log('PASS sleep returns to login when session expires');
   await page.goto(`${origin}/__test/login`);
-  await page.waitForSelector('.range');
+  await page.waitForSelector('.journal-main');
   await navigate('/insights');
   await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
   assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
