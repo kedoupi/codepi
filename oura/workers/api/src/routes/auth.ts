@@ -78,7 +78,7 @@ export async function handleOuraStart(
   const returnTo = parsedReturn?.origin === new URL(request.url).origin
       && parsedReturn?.pathname === "/oauth/authorize"
     ? parsedReturn.pathname + parsedReturn.search
-    : null;
+    : new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null;
   await saveOauthState(env, state, returnTo);
 
   const headers = new Headers();
@@ -162,6 +162,8 @@ export async function handleOuraCallback(
       ouraUserId: me.id,
     });
     await upsertEncryptedTokens(env, me.id, encKey, tokensFromOura(tokens));
+    await env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL, last_error=NULL WHERE user_id=?")
+      .bind(me.id).run();
     const sessionId = await createSession(env, me.id, "oauth");
     const headers = new Headers();
     await attachSessionCookie(headers, request, secret, sessionId);

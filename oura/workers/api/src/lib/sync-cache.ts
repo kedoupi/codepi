@@ -42,7 +42,8 @@ export async function cachedDaily(
         const syncedAt = new Date().toISOString();
         // One atomic batch: a failed sync must not partially replace the last good snapshot.
         await env.DB.batch([
-          env.DB.prepare("DELETE FROM daily_cache WHERE user_id = ?").bind(userId),
+          env.DB.prepare("DELETE FROM daily_cache WHERE user_id = ? AND day >= ? AND day <= ?")
+            .bind(userId, data.from, data.to),
           ...data.days.map(day => env.DB.prepare("INSERT INTO daily_cache (user_id, day, payload) VALUES (?, ?, ?)")
             .bind(userId, day.date, JSON.stringify(day))),
           env.DB.prepare("UPDATE sync_state SET synced_at=?, window_to=?, last_error=NULL, lease_until=0 WHERE user_id=? AND lease_id=?")

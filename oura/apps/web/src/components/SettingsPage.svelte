@@ -6,6 +6,7 @@
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
   import ChromeHeader from "./ChromeHeader.svelte";
+  import HealthDataPanel from "./HealthDataPanel.svelte";
 
   let {
     me,
@@ -157,6 +158,7 @@
     </section>
 
     {#if personal}
+      <HealthDataPanel {locale} />
       <section class="panel">
         <h2>{locale === "en" ? "Personal workspace" : "个人工作区"}</h2>
         <p class="hint">

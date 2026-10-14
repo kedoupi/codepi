@@ -50,6 +50,8 @@ async function check(path, expectedStatus = 200) {
         && target.pathname === '/oauth/authorize'
         && Boolean(target.searchParams.get('client_id'))
         && Boolean(target.searchParams.get('state'))
+        && ['heartrate', 'workout', 'tag', 'session', 'spo2', 'heart_health'].every(scope =>
+          target.searchParams.get('scope')?.split(' ').includes(scope))
         && target.searchParams.get('redirect_uri') === expectedCallback;
       // Do not print the authorize URL: it includes an OAuth state token.
       return { path, ok, detail: `HTTP ${response.status}; redirect host=${target?.hostname || 'none'}` };
@@ -125,6 +127,8 @@ const results = await Promise.all(
     ['/api/me/insights/compare?mode=week', 401],
     ['/api/me/insights/compare?mode=range', 401],
     ['/api/me/prefs', 405],
+    ['/api/me/health-records/status', 401],
+    ['/api/me/health-records?collection=sleep', 401],
     ['/.well-known/oauth-protected-resource'],
     ['/.well-known/oauth-authorization-server'],
   ].map(([path, status]) => check(path, status)),
