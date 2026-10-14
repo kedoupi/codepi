@@ -2,6 +2,7 @@ import type { Env } from "../env";
 import { ApiError } from "./errors.ts";
 import { HEALTH_COLLECTIONS, healthWindow, syncHealthWindow } from "./health-records.ts";
 import { loadDailyForUser } from "./user-daily.ts";
+import { reserveSyncWrites } from "./sync-budget.ts";
 
 const DAY = 86_400_000;
 const CRON = "*/2 * * * *";
@@ -119,12 +120,21 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     // delivery cannot accidentally start tomorrow's run.
     const today = date(scheduledTime + 8 * 3_600_000);
     const due = scheduledTime >= Date.parse(`${today}T01:00:00Z`);
-    if (row.status !== "running") {
-      if (!due || (row.run_day && row.run_day >= today)) return;
+    if (row.run_day && row.run_day < today && !due) return;
+    const startNew = due && (!row.run_day || row.run_day < today);
+    if (row.status !== "running" && !startNew) return;
+    if (startNew) {
       const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=? AND window_to>=?")
         .bind(userId, date(Date.parse(today) - 89 * DAY)).all<Coverage>();
       tasks = planAutomaticSync(today, coverage.results);
-      await cleanup(env, now);
+      // Cleanup is bounded too; if today's budget is used, preserve the work
+      // queue and perform cleanup at a later daily start.
+      try {
+        await reserveSyncWrites(env, userId, 6_000);
+        await cleanup(env, now);
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.code !== "daily_sync_budget_reached") throw error;
+      }
       await env.DB.prepare(`UPDATE auto_sync_state SET run_day=?,status='running',started_at=?,finished_at=NULL,
         last_error=NULL,payload=? WHERE user_id=? AND lease_id=?`)
         .bind(today, new Date(now).toISOString(), JSON.stringify(tasks), userId, lease).run();
@@ -138,12 +148,13 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     let blocked = false;
     try {
       if (item.collection === "__scores") {
+        await reserveSyncWrites(env, userId, 1_000);
         const data = await loadDailyForUser(request, env, userId, 90, true);
         if (data instanceof Response) throw new ApiError("oura_not_configured", 503);
         if (data.sync?.error) throw new ApiError(data.sync.error);
         if (data.sync?.stale) throw new ApiError("sync_in_progress", 409);
       } else {
-        await syncHealthWindow(request, env, userId, healthWindow(item.collection, item.from, item.to));
+        await syncHealthWindow(request, env, userId, healthWindow(item.collection, item.from, item.to), false, true);
       }
       item.state = "done";
       delete item.error;
@@ -152,6 +163,9 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       item.error = code;
       if (code === "reconnect_required" || code === "oura_not_configured") {
         blocked = true;
+      } else if (code === "daily_sync_budget_reached") {
+        const reset = Date.parse(date(now)) + DAY + 3_600_000;
+        for (const other of tasks.filter(t => t.state === "pending")) other.after = reset;
       } else if (code === "sync_window_too_large" && item.from < item.to) {
         const middle = Math.floor((Date.parse(item.to) - Date.parse(item.from)) / DAY / 2);
         const cut = Date.parse(item.from) + middle * DAY;

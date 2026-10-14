@@ -11,6 +11,10 @@ export async function handleHealthRecords(request: Request, env: Env): Promise<R
     throw new ApiError("not_owner", 403);
   }
   const url = new URL(request.url);
+  if (url.pathname.endsWith("/automatic")) {
+    if (request.method !== "GET") throw new ApiError("method_not_allowed", 405);
+    return Response.json(await automaticSyncStatus(env, auth.session.user_id));
+  }
   if (url.pathname.endsWith("/status")) {
     if (request.method !== "GET") throw new ApiError("method_not_allowed", 405);
     const [collections, automatic] = await Promise.all([
