@@ -2,6 +2,7 @@
   import { fade, fly } from "svelte/transition";
   import { quintOut } from "svelte/easing";
   import { t, type Locale, type LocalePref } from "../lib/i18n";
+  import { errorText, RequestError } from "../lib/api";
   import BrandMark from "./BrandMark.svelte";
   import LandingReveal from "./LandingReveal.svelte";
   import LandingSlot from "./LandingSlot.svelte";
@@ -90,7 +91,10 @@
         window.location.href = res.headers.get("Location") || "/api/auth/oura/start";
         return;
       }
-      actionError = t(locale, "apiUnreachable");
+      const body = await res.json().catch(() => null);
+      actionError = typeof body?.error === "string" ? errorText(new RequestError(body.error, res.status,
+        res.headers.get("X-Request-ID") || "", typeof body.retryAt === "string" ? body.retryAt : ""), locale)
+        : t(locale, "apiUnreachable");
     } catch {
       actionError = t(locale, "apiUnreachable");
     }

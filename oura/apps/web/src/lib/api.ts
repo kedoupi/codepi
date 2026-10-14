@@ -4,11 +4,13 @@ export class RequestError extends Error {
   code: string;
   status: number;
   requestId: string;
-  constructor(code: string, status: number, requestId = "") {
+  retryAt: string;
+  constructor(code: string, status: number, requestId = "", retryAt = "") {
     super(code);
     this.code = code;
     this.status = status;
     this.requestId = requestId;
+    this.retryAt = retryAt;
   }
 }
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -17,7 +19,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     response = await fetch(path, { ...init, credentials: "include", cache: "no-store", signal: AbortSignal.timeout(25_000) });
   } catch { throw new RequestError("network_error", 0); }
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new RequestError(body?.error || "service_unavailable", response.status, response.headers.get("X-Request-ID") || "");
+  if (!response.ok) throw new RequestError(body?.error || "service_unavailable", response.status,
+    response.headers.get("X-Request-ID") || "", typeof body?.retryAt === "string" ? body.retryAt : "");
   if (!body || typeof body !== "object") throw new RequestError("invalid_response", 502);
   return body as T;
 }
@@ -29,6 +32,7 @@ export function errorText(error: unknown, locale: Locale): string {
     rate_limited: ["Oura 请求较多，请稍后重试。", "Oura is rate limiting requests. Retry shortly."],
     sync_in_progress: ["数据正在同步，请稍后刷新。", "Sync is in progress. Retry shortly."],
     daily_sync_budget_reached: ["今日自动同步写入预算已用完，将在北京时间次日 09:00 后继续，已保存的数据保留。", "Today's automatic write budget is used. Background sync resumes after 01:00 UTC tomorrow; saved data is retained."],
+    storage_write_quota_exceeded: ["数据库写入额度已达到上限，暂时无法保存新数据。额度每天北京时间 08:00 重置，已保存的历史数据保留。", "The database write limit has been reached. New data cannot be saved until the daily reset at 00:00 UTC. Saved history is retained."],
     permission_or_membership_required: ["此类数据缺少权限或会员访问资格，请重新授权并检查 Oura 会员状态。", "Permission or membership access is missing. Reauthorize and check your Oura membership."],
     sync_window_too_large: ["数据量较大，请缩小日期范围后重试。", "Too much data. Retry with a shorter date range."],
     network_error: ["连接超时或网络不可用，请重试。", "The connection timed out or is unavailable. Retry."],
@@ -36,6 +40,12 @@ export function errorText(error: unknown, locale: Locale): string {
     upstream_unavailable: ["暂时无法同步 Oura，请稍后重试。", "Oura sync is temporarily unavailable. Retry shortly."],
     invalid_response: ["服务响应异常，请稍后重试。", "Unexpected server response. Retry shortly."],
   };
-  const text = (messages[code] ?? messages.service_unavailable)[locale === "zh" ? 0 : 1];
+  let text = (messages[code] ?? messages.service_unavailable)[locale === "zh" ? 0 : 1];
+  if (code === "storage_write_quota_exceeded" && error instanceof RequestError && Number.isFinite(Date.parse(error.retryAt))) {
+    const reset = new Date(error.retryAt).toLocaleString(locale === "zh" ? "zh-CN" : "en", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    });
+    text += locale === "zh" ? ` 本次预计恢复：${reset}（北京时间）。` : ` Expected reset: ${reset} (Shanghai time).`;
+  }
   return text + (error instanceof RequestError && error.requestId ? ` (${error.requestId.slice(0, 8)})` : "");
 }

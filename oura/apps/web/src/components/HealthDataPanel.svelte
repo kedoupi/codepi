@@ -37,7 +37,7 @@
     if (failure.code === "sync_window_too_large") return failure.from === failure.to
       ? text("这一天的数据仍超过处理上限，其他日期会继续同步。", "This day still exceeds the limit. Other days will continue.")
       : text("这个批次数据较多，继续同步时会自动拆分日期，无需手动调整。", "This batch is large. Retrying will split its dates automatically.");
-    return errorText(new RequestError(failure.code, 0), locale);
+    return errorText(new RequestError(failure.code, 0, "", failure.retryAt), locale);
   }
   async function load() {
     const result = await api<{ collections: Collection[]; automatic: AutomaticSyncStatus }>("/api/me/health-records/status");

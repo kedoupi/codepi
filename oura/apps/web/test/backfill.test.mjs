@@ -41,13 +41,14 @@ test('stopping waits for current batch and preserves pending work', async () => 
   assert.equal(result.remaining.length, 6);
 });
 test('authorization and rate limits stop the run, retaining only unfinished work for retry', async () => {
-  for (const code of ['reconnect_required', 'rate_limited', 'unauthorized', 'network_error']) {
+  for (const code of ['reconnect_required', 'rate_limited', 'unauthorized', 'network_error',
+    'storage_write_quota_exceeded', 'internal_error', 'service_unavailable', 'invalid_response']) {
     let attempts = 0;
-    const plan = planBackfill([{ name: 'heartrate', mode: 'time' }], 7, '2026-10-14');
+    const plan = planBackfill([{ name: 'heartrate', mode: 'time' }, { name: 'sleep', mode: 'date' }], 7, '2026-10-14');
     const result = await runBackfill(plan, { request: async () => { attempts++; fail(code); }, shouldStop: () => false, progress: () => {} });
     assert.equal(attempts, 1);
     assert.equal(result.failed[0].code, code);
-    assert.equal(result.remaining.length, 6);
+    assert.equal(result.remaining.length, 7);
   }
 });
 test('denied collection retains skipped windows while other collections proceed', async () => {

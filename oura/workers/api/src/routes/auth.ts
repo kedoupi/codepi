@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { normalizeApiError, storageQuotaResetAt } from "../lib/errors.ts";
 import {
   allowDevLogin,
   DEV_PLACEHOLDER_CLIENT_ID,
@@ -127,7 +128,10 @@ export async function handleOuraCallback(
     const taken = await takeOauthState(env, state);
     dbOk = taken.ok;
     returnTo = taken.returnTo;
-  } catch {
+  } catch (error) {
+    if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
+      return redirectToApp(request, env, { error: "storage_write_quota_exceeded", retry_at: storageQuotaResetAt() });
+    }
     dbOk = false;
   }
   if (!dbOk) {
@@ -178,7 +182,10 @@ export async function handleOuraCallback(
       return new Response(null, { status: 302, headers });
     }
     return redirectToApp(request, env, { login: "ok" }, headers);
-  } catch {
+  } catch (error) {
+    if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
+      return redirectToApp(request, env, { error: "storage_write_quota_exceeded", retry_at: storageQuotaResetAt() });
+    }
     return redirectToApp(request, env, {
       error: "token_exchange_failed",
     });

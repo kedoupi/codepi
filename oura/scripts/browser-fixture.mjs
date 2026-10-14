@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRuntime, login, migrate } from '../workers/api/test/integration/runtime.mjs';
+import worker from '../workers/api/dist/index.js';
+import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
@@ -37,11 +39,28 @@ await freeRuntime.ready;
 await migrate(freeRuntime);
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
 let sleepFailure = false;
+let storageQuota = false;
+let quotaSyncAttempts = 0;
 
 // Test-only server: ephemeral D1, mock Oura, loopback binding, no real secrets.
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (url.pathname === '/__test/storage-quota') {
+      if (req.method === 'POST') {
+        storageQuota = url.searchParams.get('enabled') === '1';
+        quotaSyncAttempts = 0;
+        if (storageQuota) {
+          // Keep archived records, but expire the 30-second success cooldown
+          // so the next sync reaches an actual D1 mutation.
+          const db = await ownerRuntime.getD1Database('DB');
+          await db.prepare("UPDATE health_sync_windows SET synced_at='2000-01-01T00:00:00Z' WHERE synced_at IS NOT NULL").run();
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ enabled: storageQuota, attempts: quotaSyncAttempts }));
+      return;
+    }
     if (url.pathname === '/__test/automatic-sync' && req.method === 'POST') {
       const worker = await ownerRuntime.getWorker();
       const today = new Date().toISOString().slice(0, 10);
@@ -128,6 +147,17 @@ const server = createServer(async (req, res) => {
       // The Worker whitelists its own origin + FRONTEND_ORIGIN. The fixture
       // impersonates the trusted frontend origin for browser requests.
       const requestHeaders = { ...req.headers, origin: 'https://oura.example', referer: 'https://oura.example/' };
+      if (storageQuota) {
+        if (req.method === 'POST' && url.pathname === '/api/me/health-records') quotaSyncAttempts++;
+        const bindings = await jar.getBindings();
+        const response = await worker.fetch(new Request(`https://oura.example${url.pathname}${url.search}`, {
+          method: req.method, headers: requestHeaders,
+          body: chunks.length ? Buffer.concat(chunks) : undefined,
+        }), { ...bindings, DB: failingDb(bindings.DB) });
+        res.writeHead(response.status, Object.fromEntries(response.headers))
+          .end(Buffer.from(await response.arrayBuffer()));
+        return;
+      }
       // Public hostname exercises production auth gates, while data stays local.
       const response = await jar.dispatchFetch(`https://oura.example${url.pathname}${url.search}`, {
         method: req.method, headers: requestHeaders, redirect: 'manual',

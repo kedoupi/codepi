@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, errorText } from "./lib/api";
+  import { api, errorText, RequestError } from "./lib/api";
   import ComparePage from "./components/ComparePage.svelte";
   import Dashboard from "./components/Dashboard.svelte";
   import LandingView from "./components/LandingView.svelte";
@@ -50,6 +50,7 @@
     const params = new URLSearchParams(location.search);
     const error = params.get("error");
     if (!error) return "";
+    if (error === "storage_write_quota_exceeded") return errorText(new RequestError(error, 503, "", params.get("retry_at") || ""), locale);
     const hint = params.get("hint") ?? params.get("detail") ?? "";
     return publicLoginError(hint ? `${error} — ${hint}` : error);
   }
