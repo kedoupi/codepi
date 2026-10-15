@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, cookie, authOrigin, clients } from './runtime.mjs';
 
-test('real service bindings: one OTP signs into three sites; one logout revokes all, but not another browser', async t => {
+test('real service bindings: one OTP signs into four sites; one logout revokes all, but not another browser', async t => {
   const f = await fixture(t);
   const oura = await f.otpLogin();
   assert.equal(oura.finished.status, 303);
   assert.equal(oura.finished.headers.get('Location'), '/private');
   const logged = [oura];
-  for (const id of ['gu', 'fagao']) {
+  for (const id of ['gu', 'fagao', 'desk']) {
     const tx = await f.begin(id, oura.centralCookie);
     assert.equal(tx.response.status, 302, 'existing center session bypasses OTP');
     const done = await tx.app.fetch(tx.response.headers.get('Location'), { headers: { Cookie: tx.appCookie }, redirect: 'manual' });

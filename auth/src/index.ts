@@ -57,7 +57,7 @@ function configuration(env: Env): Config {
       clients[id].redirectUris = [...new Set([...clients[id].redirectUris, ...uris])];
     }
     for (const [id, c] of Object.entries(clients)) {
-      if (!["gu", "oura", "fagao"].includes(id) || typeof c?.secret !== "string" || c.secret.length < 32
+      if (!["gu", "oura", "fagao", "desk"].includes(id) || typeof c?.secret !== "string" || c.secret.length < 32
         || typeof c.name !== "string" || c.name.length > 80 || !Array.isArray(c.redirectUris) || !c.redirectUris.length) throw new Error();
       for (const uri of c.redirectUris) {
         const u = new URL(uri);

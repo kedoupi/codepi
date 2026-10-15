@@ -1,6 +1,6 @@
 # Shared SSO client
 
-Raw TypeScript source imported by the GU, Oura and fagao Worker bundles. This
+Raw TypeScript source imported by the GU, Oura, fagao and personal desk bundles. This
 directory is not a package and introduces no runtime dependency. Keep application
 roles, data access and provider OAuth in the individual applications.
 
@@ -13,7 +13,7 @@ Required configuration when `SSO_ENABLED=1`:
 - `DB`: the application's existing database with the SSO migration applied.
 - `AUTH`: service binding to the central auth Worker.
 - `AUTH_ORIGIN`: the central HTTPS origin, without a path or query.
-- `AUTH_CLIENT_ID`: `gu`, `oura` or `fagao`.
+- `AUTH_CLIENT_ID`: `gu`, `oura`, `fagao` or `desk`.
 - `AUTH_CLIENT_SECRET`: a separate secret per application, also registered centrally.
 
 Only the central subject `kdp-owner` is accepted. The application supplies the

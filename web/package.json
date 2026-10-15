@@ -9,6 +9,10 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "test": "npm --prefix ../auth run build && node --test test/*.test.mjs",
+    "typecheck:desk": "node ../auth/node_modules/typescript/bin/tsc -p tsconfig.desk.json && node ../auth/node_modules/typescript/bin/tsc -p tsconfig.desk-web.json",
+    "build:functions": "node ../auth/node_modules/wrangler/bin/wrangler.js pages functions build --outdir=.wrangler/desk-functions",
+    "test:browser:desk": "node scripts/browser-desk.mjs",
     "astro": "astro"
   },
   "dependencies": {

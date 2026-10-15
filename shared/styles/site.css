@@ -78,6 +78,8 @@ a { text-underline-offset: 4px; }
   .kdp-wordmark small { font-size: 12px; }
   .kdp-nav { gap: 18px; font-size: 13px; }
   .kdp-nav .kdp-nav-entry { display: none; }
+  .kdp-nav .kdp-desk-entry { display: inline-flex; min-height: 44px; padding: 4px 10px; }
+  .kdp-nav:has(.kdp-desk-entry) { flex-wrap: wrap; gap: 8px 18px; }
   .kdp-footer-inner { flex-direction: column; gap: 24px; }
   .kdp-footer-links { justify-content: flex-start; }
   .kdp-copyright { text-align: left; }
