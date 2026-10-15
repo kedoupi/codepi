@@ -1,4 +1,4 @@
-# 发稿台 · Cloudflare Pages project `gzh`
+# 发稿台 · Cloudflare Pages project `codepi-gzh`
 # 生产域名：https://gzh.codepi.app
 # 密钥禁止写入本文件，只用 wrangler pages secret put（见 README）
 
@@ -30,26 +30,27 @@ ENVIRONMENT = "production"
 
 # Pages 项目不支持 [observability]，已从本文件移除（否则 wrangler pages deploy 校验失败）
 
-# Pages preview 部署共用同一套库名；上线前换成独立 preview D1 也可以
+# Pages preview 环境 = staging runtime（治理规范第 4 节）：仅由 staging branch
+# 通过 Actions 上传，绑定 staging D1 与 codepi-auth-staging；禁止连接生产资源。
 [env.preview]
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
 
 [[env.preview.services]]
 binding = "AUTH"
-service = "codepi-auth"
+service = "codepi-auth-staging"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "codepi-gzh"
-database_id = "346f7627-3365-47df-ba40-6762072c5613"
+database_name = "codepi-gzh-staging"
+database_id = "5162cf66-7bf8-4ba9-9758-5c546e13582f"
 migrations_dir = "migrations"
 
 [env.preview.vars]
-SSO_ENABLED = "0"
+SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "gzh"
-AUTH_ORIGIN = "https://auth.codepi.app"
+AUTH_ORIGIN = "https://auth-staging.codepi.app"
 ALLOWLIST = "codepi@example.invalid"
 OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"
-ENVIRONMENT = "preview"
+ENVIRONMENT = "staging"

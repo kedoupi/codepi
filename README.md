@@ -66,7 +66,11 @@ The `shared/` directory has no `package.json` — it's a raw source folder pulle
 
 ## Deployment
 
-Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watching the same repo but a different `Root directory`). Most pushes only change one site, but CF rebuilds everyone — harmless, builds are ~30s each.
+Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规范见
+[Cloudflare 项目级治理规范](docs/development/cloudflare-governance.md)；
+全部资源的实时归属与状态见
+[Cloudflare 资源登记表](docs/development/cloudflare-resource-registry.md)。
+四个 `codepi-*` Pages 项目均为 GitHub Actions direct upload，未启用 Git 自动构建。
 
 ### CF Pages settings (reference)
 
