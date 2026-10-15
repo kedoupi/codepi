@@ -1,4 +1,5 @@
 import type { Env } from "./types";
+import { handleDeskSummary } from "./desk-summary";
 import { authenticated, callbackSso, loginSso, logout, requestOtp, verifyOtp } from "./auth";
 import { ssoEnabled, ssoErrorResponse } from "../../shared/auth/client";
 import { dashboard, upload } from "./data";
@@ -8,6 +9,7 @@ import { json, localDev, secureResponse, ValidationError } from "./lib";
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname;
+  if (path === "/api/internal/desk-summary") return handleDeskSummary(request, env);
   if (url.protocol !== "https:" && !localDev(request, env)) return json({ error: "需要 HTTPS" }, 403);
   if (path === "/api/health" && request.method === "GET") return json({ ok: true, sso_enabled: ssoEnabled(env) });
   if (path === "/api/auth/login" && request.method === "GET") return loginSso(request, env);

@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { handleDeskSummary } from "./routes/desk-summary";
 import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { allowDevLogin, oauthConfigured } from "./lib/config";
 import { normalizeApiError, storageQuotaResetAt } from "./lib/errors.ts";
@@ -67,6 +68,9 @@ export default {
     try {
       let res: Response;
       switch (url.pathname) {
+        case "/api/internal/desk-summary":
+          res = await handleDeskSummary(request, env);
+          break;
         case "/api/auth/login":
           res = await handleLogin(request, env);
           break;
