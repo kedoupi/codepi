@@ -64,8 +64,15 @@ Production acceptance must separately confirm the released build, warm theme,
 three access pauses and continued progress of the pre-existing queue.
 
 Local result: all four selected checks passed via the affected-check runner.
-`pnpm test` passed 227 cases (25 script, 49 frontend, 44 API unit, 109 integration).
+`pnpm test` passed 228 cases (25 script, 49 frontend, 44 API unit, 110 integration).
 Type checking reported zero errors/warnings; build and normal/SSO browser journeys
 passed, including 375px/390px layouts. Added race cases fail against the prior
 bundle and pass after the fencing fixes. No production deployment was performed
 as part of these local checks.
+
+The live-success authorization unblock also verifies the caller's current sync
+lease: an old success cannot clear a newer `invalid_grant` block. The added
+interleaving regression reproduces that failure on the previous bundle.
+The PR's first Linux browser run exposed an independent readiness race in the
+keyboard test; it now waits for the asynchronously loaded sleep table before
+focusing it, retaining the keyboard and data-row assertions.

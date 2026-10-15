@@ -27,7 +27,7 @@ export async function ouraAccessToken(
 
 /** Must run inside the caller's per-user sync lease, including the retry. */
 export async function withOuraAccess<T>(
-  request: Request, env: Env, userId: string, load: (token: string) => Promise<T>,
+  request: Request, env: Env, userId: string, load: (token: string) => Promise<T>, lease: string,
 ): Promise<T> {
   const token = await ouraAccessToken(request, env, userId);
   let data: T;
@@ -48,7 +48,8 @@ export async function withOuraAccess<T>(
   // An actual successful provider request proves an old global auth block is
   // obsolete. Cached reads must never clear it; keep failed windows for retry.
   await env.DB.prepare(`UPDATE auto_sync_state SET status='running', last_error=NULL
-    WHERE user_id=? AND status='blocked' AND last_error='reconnect_required' AND lease_until<?`)
-    .bind(userId, Date.now()).run();
+    WHERE user_id=? AND status='blocked' AND last_error='reconnect_required' AND lease_until<?
+      AND EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)`)
+    .bind(userId, Date.now(), userId, lease).run();
   return data;
 }

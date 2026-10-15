@@ -23,7 +23,7 @@ export async function readSyncState(env: Env, userId: string): Promise<SyncState
 
 export async function cachedDaily(
   env: Env, userId: string, days: number, from: string, to: string,
-  force: boolean, load: () => Promise<DailyResponse>,
+  force: boolean, load: (lease: string) => Promise<DailyResponse>,
 ): Promise<DailyResponse> {
   let state = await readSyncState(env, userId);
   const now = Date.now();
@@ -38,7 +38,7 @@ export async function cachedDaily(
     ).bind(userId, lease, now + 120_000, now).first();
     if (acquired) {
       try {
-        const data = await load();
+        const data = await load(lease);
         const syncedAt = new Date().toISOString();
         // Best-effort heartbeat: extend our own lease in case the upstream call
         // outlived the initial 120s. A no-op here means someone else took over.

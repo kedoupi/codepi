@@ -676,6 +676,9 @@ try {
   await page.evaluate(() => document.querySelector('.journal-calendar-cells button').focus());
   await press(' ', 'Space', 32, ' ');
   assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-pressed')), 'true');
+  // Scores and archived sleep load independently. Linux CI may finish this
+  // keyboard path before the sleep response mounts its accessible table.
+  await page.waitForSelector('.journal-sleep .chart-data > summary');
   await page.evaluate(() => document.querySelector('.journal-sleep .chart-data > summary').focus());
   await press('Enter', 'Enter', 13, '\r');
   await page.waitForSelector('.journal-sleep .chart-data[open]');

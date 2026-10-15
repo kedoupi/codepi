@@ -186,7 +186,7 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     if (paused) throw new ApiError(paused.code, 403);
     const signal = AbortSignal.timeout(20_000);
     providerStarted = true;
-    const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w, signal));
+    const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w, signal), lease);
     const fetchedAt = new Date().toISOString();
     const unique = new Map<string, { day: string; payload: string }>();
     let totalBytes = 0;

@@ -347,3 +347,43 @@ test('a late successful import cannot replace the history saved after new consen
   assert.deepEqual(rows.results, [{ record_id: 'new' }], 'fenced writers cannot delete or reinsert a previous snapshot');
   assert.equal((await db.prepare('SELECT last_error FROM health_sync_windows').first()).last_error, null);
 });
+
+test('a late success cannot unlock a newer revoked grant', { timeout: 15000 }, async t => {
+  let release, notify, revoked = false, refreshes = 0;
+  const started = new Promise(resolve => { notify = resolve; });
+  const gate = new Promise(resolve => { release = resolve; });
+  const runtime = createRuntime({ autoSync: true, providerResponse(url) {
+    if (url.pathname.endsWith('/daily_resilience')) {
+      notify();
+      return gate.then(() => Response.json({ data: [], next_token: null }));
+    }
+    if (revoked && url.pathname === '/oauth/token') {
+      refreshes++;
+      return Response.json({ error: 'invalid_grant' }, { status: 400 });
+    }
+    if (revoked && /\/daily_(sleep|readiness|activity)$/.test(url.pathname)) return new Response('', { status: 401 });
+  } });
+  t.after(() => { release(); return runtime.dispose(); });
+  await migrate(runtime);
+  const cookie = await login(runtime);
+  const db = await runtime.getD1Database('DB');
+  const worker = await runtime.getWorker();
+  const pending = runtime.dispatchFetch(
+    `${origin}/api/me/health-records?collection=daily_resilience&from=${today}&to=${today}`,
+    { method: 'POST', headers: { Cookie: cookie } });
+  await started;
+  await login(runtime);
+  await db.prepare(`INSERT INTO auto_sync_state(user_id,run_day,status,payload)
+    VALUES ('test-user',?,'running',?)`).bind(today, JSON.stringify([task('__scores')])).run();
+  revoked = true;
+  const tick = () => worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
+  await tick();
+  assert.equal((await db.prepare('SELECT status FROM auto_sync_state').first()).status, 'blocked');
+  release();
+  assert.equal((await pending).status, 409);
+  const row = await db.prepare('SELECT status,last_error FROM auto_sync_state').first();
+  assert.equal(row.status, 'blocked', 'a fenced request cannot clear a subsequent authorization failure');
+  assert.equal(row.last_error, 'reconnect_required');
+  await tick();
+  assert.equal(refreshes, 1, 'revoked authorization must stay blocked without another token refresh');
+});
