@@ -236,7 +236,9 @@ export async function handleOuraCallback(
       env.DB.prepare(`UPDATE sync_state SET lease_id=?,lease_until=0,
         last_error=CASE WHEN last_error='reconnect_required' THEN NULL ELSE last_error END WHERE user_id=?`)
         .bind(crypto.randomUUID(), userId),
-      env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL,last_error=NULL WHERE user_id=?").bind(userId),
+      env.DB.prepare(`UPDATE health_sync_windows SET synced_at=NULL,last_error=NULL WHERE user_id=?
+        AND last_error IN ('reconnect_required','upstream_access_denied','permission_or_membership_required','oura_scope_required')`)
+        .bind(userId),
       env.DB.prepare(`UPDATE auto_sync_state SET lease_id=?,lease_until=0 WHERE user_id=?`)
         .bind(crypto.randomUUID(), userId),
       env.DB.prepare(`UPDATE auto_sync_state SET status='running',last_error=NULL,finished_at=NULL,
