@@ -1,6 +1,7 @@
 import type { SsoEnv } from "../../shared/auth/client";
 
 export interface Env extends SsoEnv {
+  DESK_SUMMARY_TOKEN?: string;
   ASSETS?: Fetcher;
   ENVIRONMENT: string;
   SESSION_SECRET?: string;

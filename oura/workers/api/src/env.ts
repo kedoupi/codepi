@@ -1,6 +1,7 @@
 import type { SsoEnv } from "../../../../shared/auth/client";
 
 export interface Env extends SsoEnv {
+  DESK_SUMMARY_TOKEN?: string;
   OURA_CLIENT_ID?: string;
   OURA_CLIENT_SECRET?: string;
   OURA_REDIRECT_URI?: string;
