@@ -1,0 +1,4 @@
+interface:
+  display_name: "kedoupi 任务交接"
+  short_description: "整理可继续执行的任务记录，保留工作区基线、关键决策和验证证据"
+  default_prompt: "使用 $kdp-handoff 整理当前任务的交接记录，明确已完成事项和下一步。"
