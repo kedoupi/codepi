@@ -12,6 +12,8 @@ export const ACCESS_TTL_SECONDS = 60 * 60;
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
+// Match migration 0009, including NULL rows written by an older Worker during rollout.
+const TOKEN_FAMILY_SQL = "COALESCE(family_id, 'legacy:' || hex(user_id) || ':' || hex(client_id))";
 
 function base64Url(bytes: Uint8Array): string {
   let bin = "";
@@ -94,6 +96,19 @@ export type AuthCodeRow = {
   scope: string;
 };
 
+/**
+ * Non-consuming lookup. The token endpoint validates client, redirect_uri and
+ * PKCE against this first, so a failed attempt does not burn the code the
+ * client may still be able to redeem correctly.
+ */
+export async function lookupAuthCode(env: Env, code: string): Promise<AuthCodeRow | null> {
+  return env.DB.prepare(
+    `SELECT client_id, user_id, redirect_uri, code_challenge, scope
+     FROM oauth_auth_codes
+     WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?`,
+  ).bind(await sha256Base64Url(code), Date.now()).first<AuthCodeRow>();
+}
+
 /** Consent screen GET is transactional: approval must carry this one-time id. */
 export async function createConsentRequest(
   env: Env,
@@ -153,17 +168,6 @@ export async function consentCsrfMatches(
   return row !== null && row.csrf_hash === await sha256Base64Url(csrfToken);
 }
 
-/** Atomic single-use consume: a replayed code returns null even under a race. */
-export async function consumeAuthCode(env: Env, code: string): Promise<AuthCodeRow | null> {
-  const row = await env.DB.prepare(
-    `UPDATE oauth_auth_codes SET consumed_at = ?
-     WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
-     RETURNING client_id, user_id, redirect_uri, code_challenge, scope`,
-  ).bind(Date.now(), await sha256Base64Url(code), Date.now())
-    .first<AuthCodeRow>();
-  return row ?? null;
-}
-
 export type IssuedTokens = {
   access_token: string;
   refresh_token: string;
@@ -172,23 +176,43 @@ export type IssuedTokens = {
   scope: string;
 };
 
-async function storeToken(
-  env: Env, token: string, userId: string, clientId: string,
-  kind: "access" | "refresh", scope: string, ttlSeconds: number,
-): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(await sha256Base64Url(token), userId, clientId, kind, scope, Date.now() + ttlSeconds * 1000).run();
-}
-
-export async function issueTokens(
-  env: Env, userId: string, clientId: string, scope: string,
-): Promise<IssuedTokens> {
+/** After validation, consume the code and issue its pair in one D1 transaction. */
+export async function exchangeAuthCode(
+  env: Env, code: string, validated: AuthCodeRow,
+): Promise<IssuedTokens | null> {
+  const now = Date.now();
   const access = randomToken(32);
   const refresh = randomToken(32);
-  await storeToken(env, access, userId, clientId, "access", scope, ACCESS_TTL_SECONDS);
-  await storeToken(env, refresh, userId, clientId, "refresh", scope, REFRESH_TTL_SECONDS);
+  const codeHash = await sha256Base64Url(code);
+  const refreshHash = await sha256Base64Url(refresh);
+  const scope = validated.scope || MCP_SCOPE;
+  const results = await env.DB.batch([
+    // Only a still-live, unchanged code can create this request's random
+    // successor. That hash gates every remaining write, so a concurrent loser
+    // neither consumes the code nor issues credentials.
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
+       SELECT ?, user_id, client_id, 'refresh', ?, ?, ?
+       FROM oauth_auth_codes
+       WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
+         AND client_id = ? AND user_id = ? AND redirect_uri = ? AND code_challenge = ? AND scope = ?`,
+    ).bind(
+      refreshHash, scope, now + REFRESH_TTL_SECONDS * 1000, refreshHash, codeHash, now,
+      validated.client_id, validated.user_id, validated.redirect_uri, validated.code_challenge, validated.scope,
+    ),
+    env.DB.prepare(
+      `UPDATE oauth_auth_codes SET consumed_at = ?
+       WHERE code_hash = ? AND consumed_at IS NULL
+         AND EXISTS (SELECT 1 FROM mcp_tokens WHERE token_hash = ?)`,
+    ).bind(now, codeHash, refreshHash),
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
+       SELECT ?, user_id, client_id, 'access', scope, ?, family_id
+       FROM mcp_tokens WHERE token_hash = ?`,
+    ).bind(await sha256Base64Url(access), now + ACCESS_TTL_SECONDS * 1000, refreshHash),
+    env.DB.prepare("SELECT token_hash FROM mcp_tokens WHERE token_hash = ?").bind(refreshHash),
+  ]);
+  if (!results.at(-1)?.results?.length) return null;
   return {
     access_token: access, refresh_token: refresh, token_type: "Bearer",
     expires_in: ACCESS_TTL_SECONDS, scope,
@@ -210,18 +234,107 @@ export async function findAccessToken(env: Env, token: string): Promise<TokenRow
   return row ?? null;
 }
 
-/** Rotates a refresh token; the old one stops working immediately. */
-export async function rotateRefreshToken(
-  env: Env, refreshToken: string,
-): Promise<{ userId: string; clientId: string; scope: string } | null> {
-  const hash = await sha256Base64Url(refreshToken);
-  const row = await env.DB.prepare(
+export type RefreshExchange =
+  | { ok: true; userId: string; clientId: string; tokens: IssuedTokens }
+  | { ok: false; reason: "invalid" | "replay" };
+
+/**
+ * Exchanges a refresh token for a new pair in ONE transaction.
+ *
+ * Revoking the old token and inserting its successor either both happen or
+ * neither does, so a failure can no longer leave the connector without
+ * credentials. The successor's own hash gates the exchange, which makes
+ * concurrent redemptions of the same token mutually exclusive: only the
+ * request that really inserted the successor may retire the old row.
+ *
+ * A replayed (already rotated) refresh token is treated as a leak: the whole
+ * family is revoked, per OAuth 2.1 refresh-token reuse detection.
+ */
+export async function exchangeRefreshToken(
+  env: Env, refreshToken: string, clientId: string,
+): Promise<RefreshExchange> {
+  const now = Date.now();
+  const access = randomToken(32);
+  const refresh = randomToken(32);
+  const oldHash = await sha256Base64Url(refreshToken);
+  const successorHash = await sha256Base64Url(refresh);
+
+  const results = await env.DB.batch([
+    // 1. Insert the successor, inheriting identity, scope and family from the
+    //    presented row. This only matches while that row is still live.
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
+       SELECT ?, user_id, client_id, 'refresh', scope, ?, ${TOKEN_FAMILY_SQL}
+       FROM mcp_tokens
+       WHERE token_hash = ? AND kind = 'refresh' AND revoked_at IS NULL
+         AND expires_at > ? AND client_id = ?`,
+    ).bind(successorHash, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId),
+    // 2. Retire the presented token only if this batch issued its successor.
+    //    A failed exchange is checked separately for authenticated replay.
+    env.DB.prepare(
+      `UPDATE mcp_tokens SET revoked_at = ?
+       WHERE token_hash = ? AND revoked_at IS NULL
+         AND EXISTS (SELECT 1 FROM mcp_tokens WHERE token_hash = ?)`,
+    ).bind(now, oldHash, successorHash),
+    // 3. The paired access token, gated on the successor existing.
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
+       SELECT ?, user_id, client_id, 'access', scope, ?, family_id
+       FROM mcp_tokens WHERE token_hash = ?`,
+    ).bind(await sha256Base64Url(access), now + ACCESS_TTL_SECONDS * 1000, successorHash),
+    // 4. Read the granted identity back; empty means the exchange did not happen.
+    env.DB.prepare(`SELECT user_id, client_id, scope FROM mcp_tokens WHERE token_hash = ?`)
+      .bind(successorHash),
+  ]);
+
+  const granted = results.at(-1)?.results?.[0] as
+    | { user_id: string; client_id: string; scope: string }
+    | undefined;
+  if (!granted) {
+    const replayed = await env.DB.prepare(
+      `SELECT ${TOKEN_FAMILY_SQL} AS family_id FROM mcp_tokens
+       WHERE token_hash = ? AND client_id = ? AND kind = 'refresh' AND revoked_at IS NOT NULL`,
+    ).bind(oldHash, clientId).first<{ family_id: string }>();
+    if (replayed) {
+      await revokeFamily(env, replayed.family_id, clientId);
+      return { ok: false, reason: "replay" };
+    }
+    return { ok: false, reason: "invalid" };
+  }
+  const scope = granted.scope || MCP_SCOPE;
+  return {
+    ok: true,
+    userId: granted.user_id,
+    clientId: granted.client_id,
+    tokens: {
+      access_token: access, refresh_token: refresh, token_type: "Bearer",
+      expires_in: ACCESS_TTL_SECONDS, scope,
+    },
+  };
+}
+
+/** Retires every live token that belongs to one rotation family. */
+async function revokeFamily(env: Env, familyId: string, clientId: string): Promise<number> {
+  const result = await env.DB.prepare(
     `UPDATE mcp_tokens SET revoked_at = ?
-     WHERE token_hash = ? AND kind = 'refresh' AND revoked_at IS NULL AND expires_at > ?
-     RETURNING user_id, client_id, scope`,
-  ).bind(Date.now(), hash, Date.now()).first<{ user_id: string; client_id: string; scope: string }>();
-  if (!row) return null;
-  return { userId: row.user_id, clientId: row.client_id, scope: row.scope };
+     WHERE revoked_at IS NULL AND ${TOKEN_FAMILY_SQL} = ? AND client_id = ?`,
+  ).bind(Date.now(), familyId, clientId).run();
+  return result.meta?.changes ?? 0;
+}
+
+/**
+ * RFC 7009 revocation. Revoking a token also retires its family, so a
+ * connector that is being disconnected cannot keep rotating the pair it has.
+ */
+export async function revokeToken(env: Env, token: string, clientId: string): Promise<number> {
+  const hash = await sha256Base64Url(token);
+  const result = await env.DB.prepare(
+    `UPDATE mcp_tokens SET revoked_at = ?
+     WHERE revoked_at IS NULL AND client_id = ?
+       AND ${TOKEN_FAMILY_SQL} =
+           (SELECT ${TOKEN_FAMILY_SQL} FROM mcp_tokens WHERE token_hash = ? AND client_id = ?)`,
+  ).bind(Date.now(), clientId, hash, clientId).run();
+  return result.meta?.changes ?? 0;
 }
 
 export type ConnectionRow = {

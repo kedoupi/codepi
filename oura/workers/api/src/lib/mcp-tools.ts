@@ -9,7 +9,6 @@ import type { Env } from "../env";
 import { capabilities } from "./capabilities.ts";
 import { clampDays, type DailyResponse, type NestedDay } from "./daily.ts";
 import type { SessionRow } from "./session.ts";
-import { loadSubscription } from "./subscription.ts";
 import { isDailyResponse, loadDailyForSession } from "./user-daily.ts";
 import { HEALTH_COLLECTIONS, healthStatus, healthWindow, readHealthRecords, syncHealthWindow } from "./health-records.ts";
 import { ApiError } from "./errors.ts";
@@ -200,8 +199,7 @@ export async function runTool(
   name: string,
   args: Record<string, unknown>,
 ): Promise<ToolResult> {
-  const sub = await loadSubscription(env, userId);
-  const caps = capabilities(env, userId, sub?.status);
+  const caps = capabilities(env, userId);
   if (!caps.personal) {
     return {
       content: [{ type: "text", text: "This connector is limited to the account owner." }],

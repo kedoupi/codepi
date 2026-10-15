@@ -71,11 +71,7 @@
       userId: typeof rec.userId === "string" ? rec.userId : null,
       allowDevLogin: rec.allowDevLogin === true,
       oauthConfigured: rec.oauthConfigured === true,
-      subscribed: rec.subscribed === true,
-      subscriptionStatus: typeof rec.subscriptionStatus === "string" ? rec.subscriptionStatus : null,
       localePref: localeFromApi,
-      stripeConfigured: rec.stripeConfigured === true,
-      priceLabel: typeof rec.priceLabel === "string" ? rec.priceLabel : undefined,
       capabilities: rec.capabilities as MeResponse["capabilities"],
       release: typeof rec.release === "string" ? rec.release : undefined,
       build: typeof rec.build === "string" ? rec.build : undefined,
@@ -185,7 +181,6 @@
       {localePref}
       {prefSaving}
       onLocalePref={(pref) => applyLocalePref(pref, true)}
-      onMeChange={(next) => (me = next)}
       onLogout={() => (window.location.href = "/api/auth/logout")}
     />
   {:else}

@@ -23,6 +23,14 @@ test('baseline uses preceding calendar week, excluding today and sparse values',
   assert.deepEqual(scoreDelta(records, latest, 'sleep'), { value: 10, count: 3 });
   assert.equal(scoreDelta(records.slice(0, 3), latest, 'sleep'), null);
 });
+test('invalid scores do not contaminate a baseline or create a false trend', () => {
+  const latest = { date: '2026-10-14', sleep: { score: 80 } };
+  const days = [latest, ...[70, 70, 70, 101, -1, Infinity, NaN].map((score, i) => ({
+    date: `2026-10-${String(i + 7).padStart(2, '0')}`, sleep: { score },
+  }))];
+  assert.deepEqual(scoreDelta(days, latest, 'sleep'), { value: 10, count: 3 });
+  assert.equal(scoreDelta(days, { ...latest, sleep: { score: 101 } }, 'sleep'), null);
+});
 test('sleep periods preserve naps and select explicitly marked main sleep first', () => {
   const records = [
     { id: 'nap', day: '2026-10-14', type: 'sleep', total_sleep_duration: 3600 },

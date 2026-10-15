@@ -9,6 +9,14 @@ const origin = 'http://127.0.0.1:4178';
 await page.cdp('Emulation.clearDeviceMetricsOverride');
 const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__smokeFailures = [];
+    window.__smokeConsole = [];
+    for (const level of ['error', 'warn']) {
+      const original = console[level].bind(console);
+      console[level] = (...args) => {
+        window.__smokeConsole.push(level + ': ' + args.map(String).join(' '));
+        original(...args);
+      };
+    }
     window.addEventListener('error', e => { if(e.message) window.__smokeFailures.push(e.message); });
     window.addEventListener('unhandledrejection', () => window.__smokeFailures.push('Unhandled rejection'));
     const originalFetch = window.fetch;
@@ -22,10 +30,33 @@ const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', 
 });
 async function healthy(label) {
   const result = await page.evaluate(() => ({
+    origin: location.origin,
+    path: location.pathname,
+    lang: document.documentElement.lang,
+    landing: Boolean(document.querySelector('#landing-view')),
+    title: document.title,
+    meaningfulContent: document.body.textContent.trim().length > 100,
+    frameworkOverlay: Boolean(document.querySelector('vite-error-overlay')),
     errors: window.__smokeFailures || [],
+    console: window.__smokeConsole || [],
     banners: [...document.querySelectorAll('.status.err')].map(el => el.textContent),
   }));
+  assert.equal(result.origin, origin, label);
+  const titles = {
+    '/': ['健康看板', 'Health board'],
+    '/sleep': ['睡眠与恢复', 'Sleep & recovery'],
+    '/insights': ['本周解读', 'Weekly insights'],
+    '/compare': ['对比', 'Compare'],
+    '/settings': ['设置', 'Settings'],
+  };
+  const english = result.lang === 'en';
+  assert.equal(result.title, result.landing
+    ? english ? 'Oura health board' : 'Oura 健康看板'
+    : titles[result.path]?.[english ? 1 : 0], label);
+  assert.equal(result.meaningfulContent, true, label);
+  assert.equal(result.frameworkOverlay, false, label);
   assert.deepEqual(result.errors, [], label);
+  assert.deepEqual(result.console, [], label);
   assert.deepEqual(result.banners, [], label);
   console.log(`PASS ${label}`);
 }
@@ -34,10 +65,38 @@ async function navigate(path) {
   await page.waitForURL(`${origin}${path}`);
 }
 
+// Delay one real Worker response to exercise loading states and out-of-order delivery.
+async function holdNextReport(path, staleLabel = '') {
+  await page.evaluate(({ path, staleLabel }) => {
+    const original = window.fetch;
+    let held = false;
+    window.__releaseReport = null;
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (held || new URL(response.url).pathname + new URL(response.url).search !== path) return response;
+      held = true;
+      const body = await response.json();
+      if (staleLabel && body.left) body.left.label = staleLabel;
+      await new Promise(resolve => { window.__releaseReport = resolve; });
+      return new Response(JSON.stringify(body), { status: response.status, headers: response.headers });
+    };
+    window.__restoreReportFetch = () => { window.fetch = original; };
+  }, { path, staleLabel });
+}
+
+async function releaseReport() {
+  await page.evaluate(async () => {
+    window.__releaseReport();
+    window.__restoreReportFetch();
+    // Let the late response and Svelte's render flush finish before inspecting the DOM.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
 try {
   // A previous interrupted run may leave the shared page in a mobile emulation override.
   await page.cdp('Emulation.clearDeviceMetricsOverride');
-  // Journey 1: free account (no owner match, no subscription) sees paywalls.
+  // Journey 1: non-owner account sees access notices.
   await page.goto(`${origin}/__test/login?free=1`);
   await page.waitForSelector('.journal-main');
   await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '80');
@@ -51,10 +110,15 @@ try {
     await page.waitForFunction(n => document.querySelector('.sub')?.textContent?.includes(String(n)), days);
     await healthy(`dashboard ${days} days`);
   }
+  await holdNextReport('/api/me/insights/weekly');
   await navigate('/insights');
+  await page.waitForFunction(() => typeof window.__releaseReport === 'function');
+  assert.equal(await page.evaluate(() => document.body.textContent.includes('数据不足，暂无解读。')), false,
+    'pending weekly requests must not flash an empty-data result');
+  await releaseReport();
   await page.waitForSelector('.insight-lines li');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.insight-lines li').length), 3);
-  // Billing is disabled in the fixture, so free users see a notice, not a checkout card.
+  // Non-owner access stays restricted.
   await page.waitForFunction(() => {
     const text = document.body.textContent;
     return text.includes('完整建议需要个人账号权限') || text.includes('Full advice requires personal access');
@@ -68,24 +132,24 @@ try {
   });
   await healthy('free compare locked notice');
   await navigate('/settings');
-  await page.waitForSelector('button[role="radio"]');
+  await page.waitForSelector('button[aria-pressed]');
   console.log(await page.snapshot());
-  await page.click('loc=css:button[role="radio"]:text-is("English")');
+  await page.click('loc=css:button[aria-pressed]:text-is("English")');
   await page.waitForFunction(async () => (await (await fetch('/api/me')).json()).localePref === 'en');
-  await page.waitForSelector('button[role="radio"]:not([disabled])');
+  await page.waitForSelector('button[aria-pressed]:not([disabled])');
   await page.reload();
   await page.waitForFunction(() => document.documentElement.lang === 'en' && document.querySelector('h1')?.textContent === 'Settings');
   await healthy('language persisted across reload');
-  await page.click('loc=css:button[role="radio"]:text-is("中文")');
+  await page.click('loc=css:button[aria-pressed]:text-is("中文")');
   await page.waitForFunction(async () => (await (await fetch('/api/me')).json()).localePref === 'zh');
   await page.reload();
   await page.waitForFunction(() => document.documentElement.lang.startsWith('zh'));
   await healthy('language restored');
-  await page.goto(`${origin}/__test/login?subscribed=1`);
+  await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.journal-main');
   await navigate('/insights');
   await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
-  await healthy('subscribed weekly advice');
+  await healthy('owner weekly advice');
   await navigate('/compare');
   await page.waitForSelector('.compare-grid');
   console.log(await page.snapshot());
@@ -94,6 +158,19 @@ try {
   await page.click('loc=css:button:text-is("近 7 天 vs 近 30 天")');
   await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
   await healthy('7 vs 30 day comparison');
+  await holdNextReport('/api/me/insights/compare?mode=week', 'STALE RESPONSE');
+  await page.click('loc=css:button:text-is("本周 vs 上周")');
+  await page.waitForFunction(() => typeof window.__releaseReport === 'function');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.compare-grid').length), 0,
+    'old range results must be hidden while loading another mode');
+  await page.click('loc=css:button:text-is("近 7 天 vs 近 30 天")');
+  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
+  await page.click('loc=css:button:text-is("本周 vs 上周")');
+  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '上周');
+  await releaseReport();
+  assert.equal(await page.evaluate(() => document.body.textContent.includes('STALE RESPONSE')), false,
+    'a late response must not replace the newer request for the same mode');
+  await healthy('rapid comparison switches ignore stale responses');
   await page.reload();
   await page.waitForSelector('.compare-grid');
   await healthy('direct compare URL reload');
@@ -103,7 +180,7 @@ try {
   assert.equal(await page.evaluate(async () => (await (await fetch('/api/me')).json()).authenticated), false);
   await healthy('logout returns to landing and invalidates session');
 
-  // Journey 2: personal owner has full reports without billing UI.
+  // Journey 2: personal owner has full reports and health archive.
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.journal-main');
   // Journey 1's fixture seeded a full journal dataset; reset sleep so the unsynced state is testable.

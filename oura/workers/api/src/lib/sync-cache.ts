@@ -40,12 +40,24 @@ export async function cachedDaily(
       try {
         const data = await load();
         const syncedAt = new Date().toISOString();
-        // One atomic batch: a failed sync must not partially replace the last good snapshot.
+        // Best-effort heartbeat: extend our own lease in case the upstream call
+        // outlived the initial 120s. A no-op here means someone else took over.
+        await env.DB.prepare("UPDATE sync_state SET lease_until=? WHERE user_id=? AND lease_id=?")
+          .bind(Date.now() + 120_000, userId, lease).run();
+        // One atomic, lease-fenced batch: a failed sync must not partially
+        // replace the last good snapshot, and a writer whose lease already
+        // expired must not clobber the snapshot a newer writer just saved.
+        // Every statement re-checks lease ownership, so either all of them
+        // apply (we still hold the lease) or none of them do.
         await env.DB.batch([
-          env.DB.prepare("DELETE FROM daily_cache WHERE user_id = ? AND day >= ? AND day <= ?")
-            .bind(userId, data.from, data.to),
-          ...data.days.map(day => env.DB.prepare("INSERT INTO daily_cache (user_id, day, payload) VALUES (?, ?, ?)")
-            .bind(userId, day.date, JSON.stringify(day))),
+          env.DB.prepare(
+            `DELETE FROM daily_cache WHERE user_id = ? AND day >= ? AND day <= ?
+             AND EXISTS (SELECT 1 FROM sync_state WHERE user_id = ? AND lease_id = ?)`,
+          ).bind(userId, data.from, data.to, userId, lease),
+          ...data.days.map(day => env.DB.prepare(
+            `INSERT INTO daily_cache (user_id, day, payload)
+             SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM sync_state WHERE user_id = ? AND lease_id = ?)`,
+          ).bind(userId, day.date, JSON.stringify(day), userId, lease)),
           env.DB.prepare("UPDATE sync_state SET synced_at=?, window_to=?, last_error=NULL, lease_until=0 WHERE user_id=? AND lease_id=?")
             .bind(syncedAt, to, userId, lease),
         ]);
@@ -56,6 +68,9 @@ export async function cachedDaily(
         if (!state?.synced_at) throw error;
       }
       state = await readSyncState(env, userId);
+      // A fenced-out first writer has no usable snapshot until its successor
+      // commits. Preserve the same retry signal as a failed lease acquisition.
+      if (!state?.synced_at) throw new ApiError("sync_in_progress", 409);
     } else if (!state?.synced_at) {
       throw new ApiError("sync_in_progress", 409);
     }

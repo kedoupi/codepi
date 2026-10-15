@@ -13,18 +13,19 @@ import { hmacSign, hmacVerify } from "../lib/crypto.ts";
 import {
   ACCESS_TTL_SECONDS,
   clientRedirects,
-  consumeAuthCode,
   consentCsrfMatches,
   createAuthCode,
   createClient,
   createConsentRequest,
+  exchangeAuthCode,
+  exchangeRefreshToken,
   getClient,
-  issueTokens,
   listConnections,
+  lookupAuthCode,
   MCP_SCOPE,
   redirectAllowed,
   revokeClient,
-  rotateRefreshToken,
+  revokeToken,
   takeConsentRequest,
   sha256Base64Url,
 } from "../lib/mcp-store.ts";
@@ -420,15 +421,20 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     const client = await getClient(env, clientId);
     if (!client) return oauthError("invalid_client", "Unknown client_id", 401);
 
-    // Single-use: consuming before validation keeps replays from racing.
-    const row = await consumeAuthCode(env, code);
-    if (!row) return oauthError("invalid_grant", "Authorization code is invalid, expired or already used");
-    if (row.client_id !== clientId) return oauthError("invalid_grant", "Code was issued to a different client");
-    if (row.redirect_uri !== redirectUri) return oauthError("invalid_grant", "redirect_uri does not match the authorization request");
-    if (!(await verifyPkce(value("code_verifier"), row.code_challenge))) {
+    // Validate the whole request before consuming anything: a failed attempt
+    // (wrong verifier, typo in redirect_uri) must not burn a code the client
+    // can still redeem correctly, and it must not let anyone spend codes.
+    const lookup = await lookupAuthCode(env, code);
+    if (!lookup) return oauthError("invalid_grant", "Authorization code is invalid, expired or already used");
+    if (lookup.client_id !== clientId) return oauthError("invalid_grant", "Code was issued to a different client");
+    if (lookup.redirect_uri !== redirectUri) return oauthError("invalid_grant", "redirect_uri does not match the authorization request");
+    if (!(await verifyPkce(value("code_verifier"), lookup.code_challenge))) {
       return oauthError("invalid_grant", "PKCE verification failed");
     }
-    const tokens = await issueTokens(env, row.user_id, clientId, row.scope || GRANTED_SCOPE);
+    // Single-use consumption and pair issuance commit together; an insert
+    // failure rolls back the code so the client can safely retry.
+    const tokens = await exchangeAuthCode(env, code, lookup);
+    if (!tokens) return oauthError("invalid_grant", "Authorization code is invalid, expired or already used");
     return json(tokens);
   }
 
@@ -438,11 +444,13 @@ export async function handleToken(request: Request, env: Env): Promise<Response>
     if (!refreshToken || !clientId) {
       return oauthError("invalid_request", "refresh_token and client_id are required");
     }
-    const rotated = await rotateRefreshToken(env, refreshToken);
-    if (!rotated) return oauthError("invalid_grant", "Refresh token is invalid, expired or already used");
-    if (rotated.clientId !== clientId) return oauthError("invalid_grant", "Refresh token belongs to a different client");
-    const tokens = await issueTokens(env, rotated.userId, clientId, rotated.scope || GRANTED_SCOPE);
-    return json(tokens);
+    // Rotation + re-issue are one transaction, and a replayed token retires its
+    // whole family inside the same call.
+    const exchanged = await exchangeRefreshToken(env, refreshToken, clientId);
+    if (!exchanged.ok) {
+      return oauthError("invalid_grant", "Refresh token is invalid, expired or already used");
+    }
+    return json(exchanged.tokens);
   }
 
   return oauthError("unsupported_grant_type", `Unsupported grant_type: ${grantType ?? "(missing)"}`);
@@ -457,13 +465,10 @@ export async function handleRevoke(request: Request, env: Env): Promise<Response
   if (typeof token !== "string" || typeof clientId !== "string") {
     return oauthError("invalid_request", "token and client_id are required");
   }
-  // Rotation marks the presented token itself; revoke any token matching it.
-  const rotated = await rotateRefreshToken(env, token);
-  if (!rotated) {
-    await env.DB.prepare(
-      "UPDATE mcp_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
-    ).bind(Date.now(), await sha256Base64Url(token)).run();
-  }
+  // Revoke the presented token (access or refresh) and its rotation family
+  // only for its owning client. RFC 7009 always answers 200, even for an
+  // unknown token, so a probe cannot tell what this server stores.
+  await revokeToken(env, token, clientId);
   return json({ ok: true });
 }
 

@@ -110,23 +110,26 @@
 
   <header class="landing-top">
     <ProductBrand class="landing-brand" name={t(locale, "dashTitle")} />
-    <div class="lang-pills landing-lang" role="radiogroup" aria-label={t(locale, "settingsLang")}>
+    <div class="lang-pills landing-lang" role="group" aria-label={t(locale, "settingsLang")}>
       <button
         type="button"
         class="ai-btn"
         class:on={localePref === "system"}
+        aria-pressed={localePref === "system"}
         onclick={() => onLocalePref("system")}
       >{t(locale, "followSystem")}</button>
       <button
         type="button"
         class="ai-btn"
         class:on={localePref === "zh"}
+        aria-pressed={localePref === "zh"}
         onclick={() => onLocalePref("zh")}
       >{t(locale, "langZh")}</button>
       <button
         type="button"
         class="ai-btn"
         class:on={localePref === "en"}
+        aria-pressed={localePref === "en"}
         onclick={() => onLocalePref("en")}
       >{t(locale, "langEn")}</button>
     </div>

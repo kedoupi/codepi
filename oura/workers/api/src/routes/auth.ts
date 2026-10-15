@@ -173,10 +173,7 @@ export async function handleOuraCallback(
     const sessionId = await createSession(env, me.id, "oauth");
     const headers = new Headers();
     await attachSessionCookie(headers, request, secret, sessionId);
-    headers.append(
-      "Set-Cookie",
-      `${OAUTH_STATE_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    );
+    clearCookie(headers, request, OAUTH_STATE_COOKIE);
     if (returnTo) {
       headers.set("Location", returnTo);
       return new Response(null, { status: 302, headers });
@@ -212,11 +209,9 @@ export async function handleDevSession(
     const headers = new Headers();
     await attachSessionCookie(headers, request, secret, sessionId);
     return redirectToApp(request, env, { login: "dev" }, headers);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "dev_session_failed";
+  } catch {
     return jsonError("DEV session failed", 503, {
       hint: "Apply D1 migrations (wrangler d1 migrations apply oura_kdp --local)",
-      detail: message,
     });
   }
 }

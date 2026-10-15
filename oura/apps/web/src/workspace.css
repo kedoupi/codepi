@@ -79,6 +79,7 @@
 }
 .workspace .page .sleep-detail { background: transparent; border-radius: 6px; }
 .workspace .page .sleep-duration { background: var(--peach); }
+.workspace .page .sleep-duration h2 { font-size: 42px; }
 .workspace .page .bar-fill { background: #79909d; border-radius: 2px 2px 0 0; }
 .workspace .page .chosen .bar-fill { background: var(--primary); }
 .workspace .page .sleep-empty { border-radius: 6px; }
@@ -96,6 +97,7 @@
   .workspace .page { padding-top: 24px; }
   .workspace .page .hero-row { align-items: flex-start; gap: 16px; flex-wrap: wrap; }
   .workspace .page h2 { font-size: 23px; }
+  .workspace .page .sleep-duration h2 { font-size: 34px; }
   .workspace .page .compare-grid { gap: 12px; grid-template-columns: 1fr; }
   .workspace .page .sleep-history { padding-inline: 0; }
   .workspace .page .panel { padding-block: 22px; }

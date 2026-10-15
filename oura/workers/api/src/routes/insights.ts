@@ -2,16 +2,12 @@ import type { Env } from "../env";
 import { capabilities } from "../lib/capabilities.ts";
 import { isResponse, requireSession } from "../lib/authz";
 import { jsonError } from "../lib/config";
-import {
-  isEntitled,
-  loadSubscription,
-} from "../lib/subscription";
 import { isDailyResponse, loadDailyForSession } from "../lib/user-daily";
 import {
   buildCompareReport,
   buildWeeklyReport,
-  paywallCompare,
-  paywallWeekly,
+  compareForAccess,
+  weeklyForAccess,
 } from "../lib/weekly-report";
 
 const noStore = { "Cache-Control": "no-store" };
@@ -21,11 +17,10 @@ async function sessionDaily(request: Request, env: Env) {
   if (isResponse(auth)) return auth;
   const daily = await loadDailyForSession(request, env, auth.session, 30);
   if (!isDailyResponse(daily)) return daily;
-  const sub = await loadSubscription(env, auth.session.user_id);
-  return { days: daily.days, subscribed: isEntitled(sub?.status), full: capabilities(env, auth.session.user_id, sub?.status).weeklyFull, sync: daily.sync };
+  return { days: daily.days, full: capabilities(env, auth.session.user_id).weeklyFull, sync: daily.sync };
 }
 
-/** GET /api/me/insights/weekly — 3 teaser lines free; tips require subscription. */
+/** GET /api/me/insights/weekly — summary for signed-in accounts; full advice for the personal owner. */
 export async function handleWeeklyInsights(
   request: Request,
   env: Env,
@@ -34,10 +29,10 @@ export async function handleWeeklyInsights(
   const loaded = await sessionDaily(request, env);
   if (isResponse(loaded)) return loaded;
   const report = buildWeeklyReport(loaded.days);
-  return Response.json({ ...paywallWeekly(report, loaded.full), subscribed: loaded.subscribed, sync: loaded.sync }, { headers: noStore });
+  return Response.json({ ...weeklyForAccess(report, loaded.full), sync: loaded.sync }, { headers: noStore });
 }
 
-/** GET /api/me/insights/compare?mode=week|range — full page requires subscription. */
+/** GET /api/me/insights/compare?mode=week|range — full comparison requires personal access. */
 export async function handleCompareInsights(
   request: Request,
   env: Env,
@@ -48,5 +43,5 @@ export async function handleCompareInsights(
   const url = new URL(request.url);
   const mode = url.searchParams.get("mode") === "range" ? "range" : "week";
   const report = buildCompareReport(loaded.days, mode);
-  return Response.json({ ...paywallCompare(report, loaded.full), subscribed: loaded.subscribed, sync: loaded.sync }, { headers: noStore });
+  return Response.json({ ...compareForAccess(report, loaded.full), sync: loaded.sync }, { headers: noStore });
 }

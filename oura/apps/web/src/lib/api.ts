@@ -13,16 +13,63 @@ export class RequestError extends Error {
     this.retryAt = retryAt;
   }
 }
+
+// AbortSignal.any is not part of ES2022's lib; combine signals without relying on it.
+function mergeSignals(...signals: (AbortSignal | null | undefined)[]) {
+  const defined = signals.filter((s): s is AbortSignal => !!s);
+  const dispose = () => { for (const signal of defined) signal.removeEventListener("abort", abort); };
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  for (const signal of defined) {
+    if (signal.aborted) {
+      abort();
+      break;
+    }
+    signal.addEventListener("abort", abort, { once: true });
+  }
+  return { signal: controller.signal, dispose };
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let response: Response;
+  const timeoutSignal = AbortSignal.timeout(25_000);
+  const { signal, dispose } = mergeSignals(timeoutSignal, init.signal);
+  const abortFailure = () => init.signal?.aborted
+    ? new RequestError("aborted", 0)
+    : timeoutSignal.aborted ? new RequestError("timeout", 0) : null;
   try {
-    response = await fetch(path, { ...init, credentials: "include", cache: "no-store", signal: AbortSignal.timeout(25_000) });
-  } catch { throw new RequestError("network_error", 0); }
-  const body = await response.json().catch(() => null);
-  if (!response.ok) throw new RequestError(body?.error || "service_unavailable", response.status,
-    response.headers.get("X-Request-ID") || "", typeof body?.retryAt === "string" ? body.retryAt : "");
-  if (!body || typeof body !== "object") throw new RequestError("invalid_response", 502);
-  return body as T;
+    let response: Response;
+    try {
+      response = await fetch(path, { ...init, credentials: "include", cache: "no-store", signal });
+    } catch {
+      throw abortFailure() ?? new RequestError("network_error", 0);
+    }
+    let body: unknown = null;
+    try {
+      body = await response.json();
+    } catch {
+      const cancelled = abortFailure();
+      if (cancelled) throw cancelled;
+      if (!response.ok) {
+        throw new RequestError(response.status === 401 ? "unauthorized" : "service_unavailable", response.status,
+          response.headers.get("X-Request-ID") || "");
+      }
+      throw new RequestError("invalid_response", 502,
+        response.headers.get("X-Request-ID") || "");
+    }
+    if (!response.ok) {
+      const errorBody = (body && typeof body === "object") ? body as Record<string, unknown> : {};
+      const code = typeof errorBody.error === "string"
+        ? errorBody.error
+        : response.status === 401 ? "unauthorized" : "service_unavailable";
+      throw new RequestError(code, response.status,
+        response.headers.get("X-Request-ID") || "",
+        typeof errorBody.retryAt === "string" ? errorBody.retryAt : "");
+    }
+    if (!body || typeof body !== "object") throw new RequestError("invalid_response", 502);
+    return body as T;
+  } finally {
+    dispose();
+  }
 }
 export function errorText(error: unknown, locale: Locale): string {
   const code = error instanceof RequestError ? error.code : "service_unavailable";
@@ -36,6 +83,8 @@ export function errorText(error: unknown, locale: Locale): string {
     permission_or_membership_required: ["此类数据缺少权限或会员访问资格，请重新授权并检查 Oura 会员状态。", "Permission or membership access is missing. Reauthorize and check your Oura membership."],
     sync_window_too_large: ["数据量较大，请缩小日期范围后重试。", "Too much data. Retry with a shorter date range."],
     network_error: ["连接超时或网络不可用，请重试。", "The connection timed out or is unavailable. Retry."],
+    timeout: ["连接超时，请重试。", "The connection timed out. Retry."],
+    aborted: ["请求已取消。", "The request was cancelled."],
     service_unavailable: ["服务暂时不可用，请稍后重试。", "The service is temporarily unavailable. Retry shortly."],
     upstream_unavailable: ["暂时无法同步 Oura，请稍后重试。", "Oura sync is temporarily unavailable. Retry shortly."],
     invalid_response: ["服务响应异常，请稍后重试。", "Unexpected server response. Retry shortly."],
