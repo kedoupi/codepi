@@ -93,7 +93,7 @@ const tone = (v: unknown) => {
   if (typeof v !== "number" || !Number.isFinite(v)) return "neutral";
   return v < 0 ? "negative" : "positive";
 };
-const brand = `<a class="brand" href="#overview" aria-label="${PRODUCT_BRAND} · GU"><span class="brand-mark">股</span><span>kedoupi<small>codepi · 个人投资工作台</small></span></a>`;
+const brand = `<a class="brand" href="#overview" aria-label="${PRODUCT_BRAND} · GU"><span class="brand-mark">k</span><span>kedoupi<small>codepi · 个人投资工作台</small></span></a>`;
 
 function clearSession() {
   returnHash = validHash(location.hash);
