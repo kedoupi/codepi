@@ -117,6 +117,11 @@ jobs:
         run: pnpm typecheck
       - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         run: pnpm --filter @oura-kdp/web build
+      - name: Install Chinese fonts for browser screenshots
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Browser regression (normal and SSO)
         if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         timeout-minutes: 15
