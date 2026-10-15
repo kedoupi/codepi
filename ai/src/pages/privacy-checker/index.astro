@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'AI Privacy Checker - Scan Text Before Pasting Into AI';
 const description = 'Browser-only privacy checker for prompts and documents. Detect emails, phone-like strings, SSN-like IDs, credit-card-like numbers, API keys, and token patterns.';
@@ -26,7 +25,6 @@ const faqs = [
     title="AI Privacy Checker"
     intro="Paste text before sending it to an AI system. The checker scans locally for common sensitive patterns and suggests what to redact."
   >
-    <AdSense slot="top-ad" adSlot="ai-privacy-top" style="min-height:90px" />
 
     <div slot="inputs" class="space-y-4">
       <div>
@@ -55,7 +53,6 @@ const faqs = [
       <div id="pc-results" class="space-y-2 text-sm"></div>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="ai-privacy-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How the privacy checker works</h2>
@@ -89,7 +86,6 @@ const faqs = [
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="ai-privacy-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

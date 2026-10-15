@@ -10,6 +10,6 @@ export const extraFooterLinks = [
 ];
 export const applicationCategory = 'FinanceApplication';
 
-// Primary AdSense review surface (apex + finance calculators)
-export const adsenseEnabled = true;
 export const defaultRobots = 'index, follow';
+
+export const personalSite = false;

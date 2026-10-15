@@ -1,33 +1,17 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-
-const title = 'Terms of Service';
-const description = 'Terms of using Kdp.Cool. The short version: results are estimates; you accept the site as-is and are responsible for your own decisions.';
 ---
-<BaseLayout title={title} description={description} pathname="/terms/" schemaType="WebPage">
-  <article class="prose-like max-w-3xl space-y-4">
-    <h1 class="text-3xl font-bold tracking-tight">Terms of Service</h1>
-    <p class="text-sm text-slate-500">Last updated: 2026-05-08</p>
-
-    <h2 class="text-xl font-semibold mt-6">Use at your own risk</h2>
-    <p>Kdp.Cool's tools (including the calculators on calc.kdp.cool and any future tool families launched on kdp.cool subdomains) provide estimates and conversions based on the inputs you enter. They are not financial, tax, legal, medical, or investment advice. Always consult a qualified professional before making consequential decisions.</p>
-
-    <h2 class="text-xl font-semibold mt-6">No warranty</h2>
-    <p>The site is provided "as is" and "as available" without warranties of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not warrant that the calculations are error-free or up to date with the latest tax law, IRS rulings, or market rates.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Limitation of liability</h2>
-    <p>To the maximum extent permitted by law, Kdp.Cool and its operators are not liable for any direct, indirect, incidental, consequential, or punitive damages arising from your use of the site or reliance on its outputs.</p>
-
-    <h2 class="text-xl font-semibold mt-6">External links and ads</h2>
-    <p>Pages may contain ads (via Google AdSense) and links to third-party sites. We do not endorse or vouch for the products or content of third parties.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Intellectual property</h2>
-    <p>The site's design, code, and original written content are © Kdp.Cool. Public-domain reference data we cite (e.g., IRS Revenue Procedures) is attributed to its source.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Changes</h2>
-    <p>We may update these terms from time to time. Continued use of the site means you accept the current terms.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Contact</h2>
-    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+<BaseLayout title="使用说明" description="个人空间、应用和历史工具的使用范围。" pathname="/terms/" schemaType="WebPage">
+  <article class="personal-article">
+    <h1>使用说明</h1>
+    <p><time datetime="2026-10-15">更新于 2026 年 10 月 15 日</time></p>
+    <h2>公开内容与私人应用</h2>
+    <p>公开页面用于个人介绍、内容分享和应用说明。私人应用需要登录和相应权限；公开入口不代表其中的数据可以公开访问。</p>
+    <h2>历史工具的结果</h2>
+    <p>计算器与其他工具根据输入和页面说明生成结果。使用前请阅读工具的假设、数据来源、适用范围和更新时间。</p>
+    <p>结果可能存在误差或过时之处，不能替代专业意见。请勿仅凭工具结果作出医疗、投资、税务或法律决定。</p>
+    <h2>链接与内容</h2>
+    <p>网站可能链接到独立的外部服务。原始资料和引用内容属于各自权利人，代码的使用以项目仓库中的许可文件为准。</p>
+    <p>发现内容或工具问题，可以通过<a href="/contact/">联系页</a>反馈。</p>
   </article>
 </BaseLayout>

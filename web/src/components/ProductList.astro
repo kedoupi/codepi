@@ -1,0 +1,49 @@
+---
+import { products } from '@shared/products';
+import Icon from './Icon.astro';
+
+interface Props {
+  detailed?: boolean;
+}
+const { detailed = false } = Astro.props;
+const Heading = detailed ? 'h2' : 'h3';
+---
+<div class:list={['product-list', { 'product-list--detailed': detailed }]}>
+  {products.map((product) => (
+    <article id={detailed ? product.id : undefined} class="product-row">
+      <span class="product-icon"><Icon name={product.icon} size={28} /></span>
+      <div class="product-copy">
+        <Heading class="product-title"><a href={product.href} target="_blank" rel="noopener noreferrer">{product.name}<span class="sr-only">（在新标签页打开）</span></a></Heading>
+        <p>{detailed ? product.detail : product.description}</p>
+        {detailed && <p class="product-note">{product.note}</p>}
+      </div>
+      <a class="product-open" href={product.href} target="_blank" rel="noopener noreferrer" aria-label={`打开${product.name}，需要登录，在新标签页打开`}>
+        <span>{product.access}</span><Icon name="external" size={18} />
+      </a>
+    </article>
+  ))}
+</div>
+<style>
+  .product-list { padding: 4px 28px; border: 1px solid rgb(255 255 255 / 80%); border-radius: var(--kdp-radius-lg); background: var(--kdp-surface); box-shadow: var(--kdp-shadow); }
+  .product-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 28px; min-height: 110px; padding-block: 20px; }
+  .product-row + .product-row { border-top: 1px solid var(--kdp-line); }
+  .product-icon { width: 56px; height: 56px; display: grid; place-items: center; border-radius: var(--kdp-radius); color: var(--kdp-accent); background: var(--kdp-accent-soft); }
+  .product-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; line-height: 1.5; }
+  .product-title a { color: var(--kdp-ink); text-decoration: none; }
+  .product-title a:hover { color: var(--kdp-accent); }
+  p { margin: 0; color: var(--kdp-muted); font-size: 14px; line-height: 1.8; }
+  .product-open { min-height: 44px; padding: 10px 0 10px 16px; display: inline-flex; align-items: center; gap: 16px; color: var(--kdp-muted); font-size: 13px; text-decoration: none; white-space: nowrap; }
+  .product-open:hover { color: var(--kdp-accent); }
+  .product-note { margin-top: 12px; font-size: 12px; }
+  .product-list--detailed .product-row { min-height: 168px; }
+  @media (max-width: 720px) {
+    .product-list { padding: 0 20px; }
+    .product-row { grid-template-columns: 44px minmax(0, 1fr) 32px; gap: 12px; padding-block: 24px; }
+    .product-icon { width: 44px; height: 48px; border-radius: 12px; }
+    .product-title { font-size: 16px; }
+    p { font-size: 13px; }
+    .product-open { justify-content: flex-end; padding: 0; margin-left: -12px; min-width: 44px; }
+    .product-open span { display: none; }
+    .product-list--detailed .product-row { min-height: 180px; }
+  }
+</style>

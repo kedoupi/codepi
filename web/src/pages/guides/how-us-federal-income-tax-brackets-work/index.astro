@@ -31,23 +31,23 @@ const guide = getGuide('how-us-federal-income-tax-brackets-work');
   <p>
     For a single filer in 2026, ordinary taxable income is stacked like this (lower bound inclusive, next bound exclusive, matching the way our calculator stores the table):
   </p>
-  <div class="not-prose my-6 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-6 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">2026 federal income tax brackets for single filers</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Rate</th>
           <th class="px-4 py-3 font-semibold">Taxable income in this slice</th>
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">10%</td><td class="px-4 py-2.5">$0 to $12,400</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">12%</td><td class="px-4 py-2.5">$12,400 to $50,400</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">22%</td><td class="px-4 py-2.5">$50,400 to $105,700</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">24%</td><td class="px-4 py-2.5">$105,700 to $201,775</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">32%</td><td class="px-4 py-2.5">$201,775 to $256,225</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">35%</td><td class="px-4 py-2.5">$256,225 to $640,600</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">37%</td><td class="px-4 py-2.5">over $640,600</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">10%</td><td class="px-4 py-2.5">$0 to $12,400</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">12%</td><td class="px-4 py-2.5">$12,400 to $50,400</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">22%</td><td class="px-4 py-2.5">$50,400 to $105,700</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">24%</td><td class="px-4 py-2.5">$105,700 to $201,775</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">32%</td><td class="px-4 py-2.5">$201,775 to $256,225</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">35%</td><td class="px-4 py-2.5">$256,225 to $640,600</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">37%</td><td class="px-4 py-2.5">over $640,600</td></tr>
       </tbody>
     </table>
   </div>
@@ -69,10 +69,10 @@ const guide = getGuide('how-us-federal-income-tax-brackets-work');
     The marginal rate is 22%. The effective rate on taxable income is 10,970 / 73,900 ≈ <strong>14.84%</strong>. The effective rate on the original $90,000 is 10,970 / 90,000 ≈ <strong>12.19%</strong>. Those two effective rates are both useful, and they are not interchangeable. One describes the tax table. The other describes the bite relative to the income people actually say out loud.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">Bracket-by-bracket tax for $73,900 of taxable income</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Slice</th>
           <th class="px-4 py-3 font-semibold">Income in slice</th>
@@ -80,10 +80,10 @@ const guide = getGuide('how-us-federal-income-tax-brackets-work');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">10% on $0–$12,400</td><td class="px-4 py-2.5">$12,400</td><td class="px-4 py-2.5">$1,240</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">12% on $12,400–$50,400</td><td class="px-4 py-2.5">$38,000</td><td class="px-4 py-2.5">$4,560</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">22% on $50,400–$73,900</td><td class="px-4 py-2.5">$23,500</td><td class="px-4 py-2.5">$5,170</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Total</td><td class="px-4 py-2.5">$73,900</td><td class="px-4 py-2.5">$10,970</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">10% on $0–$12,400</td><td class="px-4 py-2.5">$12,400</td><td class="px-4 py-2.5">$1,240</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">12% on $12,400–$50,400</td><td class="px-4 py-2.5">$38,000</td><td class="px-4 py-2.5">$4,560</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">22% on $50,400–$73,900</td><td class="px-4 py-2.5">$23,500</td><td class="px-4 py-2.5">$5,170</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Total</td><td class="px-4 py-2.5">$73,900</td><td class="px-4 py-2.5">$10,970</td></tr>
       </tbody>
     </table>
   </div>

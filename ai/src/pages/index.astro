@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'AIKDP - Free AI Prompt, Token, Cost, Skill, and Privacy Tools';
 const description = 'Practical browser-only AI utilities: token and cost calculator, prompt builder, skill builder, prompt cleaner, and privacy checker. Free, no signup.';
@@ -21,7 +20,6 @@ const tools = [
     <p class="max-w-3xl text-stone-600 leading-7">AIKDP is for people who already use AI assistants and want cleaner inputs, safer drafts, and more predictable costs. The tools do not call an AI model on your behalf; they help you prepare better material before you choose where to run it.</p>
   </section>
 
-  <AdSense adSlot="ai-home-top" style="min-height:90px" />
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {tools.map((c) => (
@@ -77,5 +75,4 @@ const tools = [
     </ul>
   </section>
 
-  <AdSense adSlot="ai-home-bottom" style="min-height:90px" />
 </BaseLayout>

@@ -1,45 +1,21 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-
-const title = 'Privacy Policy';
-const description = 'How Kdp.Cool handles your data. Short answer: we don\'t collect personal information; tool inputs stay in your browser.';
 ---
-<BaseLayout title={title} description={description} pathname="/privacy/" schemaType="WebPage">
-  <article class="prose-like max-w-3xl space-y-4">
-    <h1 class="text-3xl font-bold tracking-tight">Privacy Policy</h1>
-    <p class="text-sm text-slate-500">Last updated: 2026-10-10</p>
-
-    <h2 class="text-xl font-semibold mt-6">Short version</h2>
-    <p>Kdp.Cool and the kdp.cool family of tools (including calc.kdp.cool) run entirely in your browser. We do not ask for accounts, do not collect personal information, and do not sell data. Anything you enter into a tool stays on your device.</p>
-
-    <h2 class="text-xl font-semibold mt-6">What we collect</h2>
-    <ul class="list-disc pl-6 space-y-1">
-      <li><strong>No analytics snippet of our own.</strong> The only third-party script on these pages is Google's AdSense loader. After approval it may use cookies to serve and measure ads.</li>
-      <li><strong>Tool state in URL parameters</strong> when you change inputs on a tool page — this is so you can share scenarios. Nothing is sent to a server beyond the static page request.</li>
-      <li><strong>Advertising</strong> via Google AdSense. AdSense may use cookies and third-party identifiers to serve personalized ads, subject to <a href="https://policies.google.com/privacy" class="text-blue-600 hover:underline">Google's privacy policy</a>. You can opt out of personalized ads at <a href="https://adssettings.google.com" class="text-blue-600 hover:underline">Google Ads Settings</a>.</li>
-    </ul>
-
-    <h2 class="text-xl font-semibold mt-6">What we don't collect</h2>
-    <ul class="list-disc pl-6 space-y-1">
-      <li>Email addresses</li>
-      <li>Names</li>
-      <li>The values you enter into our tools (these never leave your browser)</li>
-      <li>Account credentials (we have no accounts)</li>
-    </ul>
-
-    <h2 class="text-xl font-semibold mt-6">Cookies</h2>
-    <p>Kdp.Cool itself does not set cookies. Google AdSense may set cookies to serve and measure ads. If you're in the EU, EEA, or UK, AdSense will show a consent prompt before personalized ads are served.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Children</h2>
-    <p>Kdp.Cool is not directed at children under 13. We do not knowingly collect any information from children.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Your rights (GDPR / CCPA)</h2>
-    <p>Because we don't store personal information, there's typically nothing to access, delete, or export. If you have questions, see Contact below.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Changes</h2>
-    <p>If we change this policy, we'll update the "Last updated" date above. Material changes will be highlighted on the homepage.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Contact</h2>
-    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+<BaseLayout title="隐私说明" description="公开主站、浏览器工具与私人应用分别如何处理内容和访问。" pathname="/privacy/" schemaType="WebPage">
+  <article class="personal-article">
+    <h1>隐私说明</h1>
+    <p><time datetime="2026-10-15">更新于 2026 年 10 月 15 日</time></p>
+    <h2>公开主站</h2>
+    <p>这里展示个人介绍、应用说明和明确选择公开的内容。主站不加载广告脚本，也不为广告设置 Cookie；浏览公开页面不需要登录。</p>
+    <h2>保留的小工具</h2>
+    <p>静态计算器和文本工具在浏览器中处理输入。部分工具会把参数写入网址，方便保存或分享；网址也可能进入浏览记录、页面请求或你分享给他人的链接。因此，请勿输入私人资料或密钥。</p>
+    <h2>私人应用与登录</h2>
+    <p>健康、投资理财和公众号工作台有各自的服务端数据与访问控制，并使用统一登录。登录会使用会话 Cookie；应用中的记录与公开主站内容分开处理。</p>
+    <p>访问私人应用需要相应权限。应用中的连接授权、数据同步和 MCP 授权，以各应用的设置与说明为准。</p>
+    <h2>MCP 与公开范围</h2>
+    <p>主站的公共 MCP 仍在建设中，计划仅提供明确公开的介绍、项目和内容。个人业务数据通过独立授权访问，不因应用出现在首页而公开。</p>
+    <h2>访问与外部链接</h2>
+    <p>页面由 Cloudflare 提供服务，网络请求经过其基础设施。外部链接指向独立网站，访问后适用相应网站的数据处理规则。</p>
+    <p>使用范围可参阅<a href="/terms/">使用说明</a>。如有问题，请查看<a href="/contact/">联系页</a>。反馈时不需要提供私人原始记录。</p>
   </article>
 </BaseLayout>

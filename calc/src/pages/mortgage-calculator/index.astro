@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 import FaqSection from '../../components/FaqSection.astro';
 
 const title = 'Mortgage Calculator - Free Monthly Payment Calculator';
@@ -55,7 +54,6 @@ const faqs = [
     title="Mortgage Calculator"
     intro="Estimate your monthly mortgage payment, including principal & interest, property tax, and homeowners insurance."
   >
-    <AdSense slot="top-ad" adSlot="mortgage-top" style="min-height:90px" />
 
     <form id="mortgage-form" class="space-y-5" slot="inputs" autocomplete="off">
       <div>
@@ -154,7 +152,6 @@ const faqs = [
       <p class="text-xs text-slate-500">Loan amount: <span id="r-principal" class="tabular-nums">$0</span></p>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="mortgage-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
@@ -267,7 +264,6 @@ const faqs = [
       />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="mortgage-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

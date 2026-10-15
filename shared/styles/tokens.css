@@ -1,0 +1,38 @@
+/* Shared visual contract for the personal site and future application migrations. */
+:root {
+  color-scheme: light;
+  --kdp-canvas: #f4f7fb;
+  --kdp-surface: #ffffff;
+  --kdp-ink: #1e2b3c;
+  --kdp-text: #43536a;
+  --kdp-muted: #657386;
+  --kdp-line: #dce4ee;
+  --kdp-line-strong: #bdcde3;
+  --kdp-accent: #3568c7;
+  --kdp-accent-strong: #2854a8;
+  --kdp-accent-soft: #eaf2ff;
+  --kdp-focus: #3568c7;
+  --kdp-success: #32745e;
+  --kdp-warning: #8c601d;
+  --kdp-danger: #b63d49;
+  --kdp-font: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --kdp-font-mono: "SFMono-Regular", Consolas, monospace;
+  --kdp-space-1: 4px;
+  --kdp-space-2: 8px;
+  --kdp-space-3: 12px;
+  --kdp-space-4: 16px;
+  --kdp-space-5: 24px;
+  --kdp-space-6: 32px;
+  --kdp-space-7: 48px;
+  --kdp-space-8: 64px;
+  --kdp-radius-sm: 8px;
+  --kdp-radius: 14px;
+  --kdp-radius-lg: 20px;
+  --kdp-shadow: 0 8px 32px rgb(49 80 126 / 5%);
+  --kdp-content-width: 1120px;
+  --kdp-reading-width: 720px;
+  --kdp-motion: 160ms ease;
+  /* Existing tool components consume these aliases. */
+  --kdp-paper: var(--kdp-canvas);
+  --kdp-paper-deep: var(--kdp-accent-soft);
+}

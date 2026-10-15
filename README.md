@@ -1,18 +1,24 @@
-# kdp-tools
+# kedoupi（codepi）个人数字空间
 
-Monorepo for the `kdp.cool` family of single-purpose web tools. Each subdirectory is one independent static Astro site, deployed to its own Cloudflare Pages project on its own (sub)domain. Shared layout / components / utilities live under `shared/` and are imported via the `@shared/*` Vite alias.
+`kdp.cool` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
+
+P1 已在本地代码实现个人首页、应用介绍、工具存档和去广告。应用仍使用当前域名，Health 和公众号域名迁移属于 P2。本地改动不代表已部署。
+
+整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
+
+各静态站继续独立 Astro 构建和 Cloudflare Pages 部署，通过 `shared/` 与 `@shared/*` alias 复用基础样式和组件。私人应用保留现有技术栈与数据边界。
 
 ## Live family (17 tools across 6 domains)
 
 | Path      | Domain                    | Tools | CF Pages project |
 | --------- | ------------------------- | ----- | ---------------- |
-| `web/`    | `kdp.cool` + `www.`       | portal landing + 4 brand pages | `kdp-portal` |
+| `web/`    | `kdp.cool` + `www.`       | personal home, apps, archive + existing tools | `kdp-portal` |
 | `calc/`   | `calc.kdp.cool`           | mortgage, auto loan, compound interest, paycheck, income tax | `kdp-tools` |
 | `convert/`| `convert.kdp.cool`        | time zone, unit, temperature | `kdp-convert` |
 | `text/`   | `text.kdp.cool`           | word counter, Lorem Ipsum generator | `kdp-text` |
 | `dev/`    | `dev.kdp.cool`            | JSON formatter, Base64 encoder | `kdp-dev` |
 | `ai/`     | `ai.kdp.cool`             | token cost calculator, prompt builder, skill builder, prompt cleaner, privacy checker | `kdp-ai` |
-| `shared/` | —                         | BaseLayout, AdSense, CalculatorShell, charts.js, url-state.js | — |
+| `shared/` | —                         | BaseLayout, CalculatorShell, charts.js, url-state.js | — |
 
 Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 
@@ -25,35 +31,11 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 | `oura/` | `oura.kdp.cool` | `oura-kdp` + worker `oura-kdp-api` | pnpm workspace. Web: root `oura`, build `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build`, output `apps/web/dist`. API: `cd oura/workers/api && npx wrangler deploy` |
 
 
-## AdSense
+## 广告与历史工具
 
-| Item                    | Value                              |
-| ----------------------- | ---------------------------------- |
-| Account                 | `kedoupi1121@gmail.com`            |
-| Publisher ID            | `pub-4790759596265225`             |
-| Client ID (script src)  | `ca-pub-4790759596265225`          |
-| Verified property       | `kdp.cool` (apex; covers all subdomains) |
-| Status                  | Low-value-content rejection; hardening apex focus (2026-10-10) |
+P1 已移除六个静态站的广告脚本、账号 meta、广告组件与占位、`ads.txt`，并更新页面中的广告说明。不要重新引入广告审核或占位要求。旧计算器与工具地址继续保留，从主站 `/tools/` 进入。
 
-`ads.txt` lives at the root of every domain (`web/calc/convert/text/dev/ai/public/ads.txt`). The AdSense `<script>` + `<meta name="google-adsense-account">` tag are injected by `shared/layouts/BaseLayout.astro`, so every page across all 6 domains carries them.
-
-Ad placeholders in `shared/components/AdSense.astro` reserve `min-height` for CLS and stay visually quiet during review (no bordered "Advertisement" boxes, no real `<ins class="adsbygoogle">` until approval).
-
-### Post-approval (after Google emails "Approved")
-
-1. **No script change needed** — the AdSense loader is already injected by `BaseLayout`.
-2. **Replace the placeholder body in `shared/components/AdSense.astro`**: swap the `<div class="adsense-placeholder">` for a real `<ins class="adsbygoogle">` block plus a `<script is:inline>(adsbygoogle = window.adsbygoogle || []).push({});</script>`. Because `AdSense.astro` is in `shared/`, one change applies across all 5 domains.
-3. Per ad placement (e.g. `mortgage-top`, `home-top`, `wc-top`, `tz-top`, `json-top`, `portal-top`), create an ad unit in AdSense and map its generated numeric `data-ad-slot` ID to the semantic name we use in `adSlot` props — easiest is a small lookup table inside `AdSense.astro` (`SLOT_IDS = { 'mortgage-top': '1234567890', ... }`).
-
-
-### Review-hardening notes (2026-10-10)
-
-Google rejected the property for **low-value content** (ownership already verified). Until re-approval:
-
-1. **Review surface = `kdp.cool` (+ `calc.kdp.cool` finance remainder).** `convert` / `text` / `dev` / `ai` set `adsenseEnabled: false` and `defaultRobots: 'noindex, follow'` in each `site.config.js`.
-2. **No duplicate mortgage/paycheck/income-tax on calc.** Those URLs 301 to the apex copies; calc sitemap drops them.
-3. **Lorem Ipsum generator** 301s to the word counter (thin filler utility).
-4. After approval: flip satellite `adsenseEnabled` / `defaultRobots` back, swap `AdSense.astro` placeholder → real `<ins>`, map slot IDs.
+历史拒审与部署记录保存在 `docs/architecture/adsense-review-hardening-record.md`，只供历史参考。卫星站原有 `noindex` 和去重跳转本轮保留，后续按实际内容状态单独审查。
 
 ## SEO + GEO
 
@@ -128,7 +110,7 @@ Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watc
 To a calculator-style subdomain (e.g. another converter on `convert/`):
 
 1. Create `<subdomain>/src/pages/<slug>/index.astro` modeled on an existing tool page (e.g. `convert/src/pages/temperature-converter/index.astro` or `calc/src/pages/mortgage-calculator/index.astro`).
-2. Import shared bits from `@shared/*`: `BaseLayout`, `CalculatorShell`, `AdSense`, `renderPie`/`renderLineChart` from `charts.js`, `decodeState`/`pushUrlState` from `url-state.js`.
+2. Import shared bits from `@shared/*`: `BaseLayout`, `CalculatorShell`, `renderPie`/`renderLineChart` from `charts.js`, `decodeState`/`pushUrlState` from `url-state.js`.
 3. If the tool needs custom math, put it in `<subdomain>/src/lib/<slug>.js` plus a `<slug>.test.mjs`. Wire it into the test script in `<subdomain>/package.json` if not already covered by the glob.
 4. Add a card entry to the homepage (`<subdomain>/src/pages/index.astro`)'s `tools` array (mark `available: true`, set `href`).
 5. (Optional) Add an FAQ block + `FAQPage` JSON-LD if the tool has natural Q&A potential.
@@ -155,7 +137,7 @@ Tested recipe (used for `convert/`, `text/`, `dev/`):
 5. **Write `<family>/tailwind.config.mjs`** with content globs including `'./src/**/*.{astro,...}'` AND `'../shared/**/*.{astro,...}'`.
 6. **Write `<family>/src/site.config.js`** exporting `siteName`, `tagline`, `footerNote`, `navLinks`, `applicationCategory`.
 7. **Pages:** delete the default `src/pages/index.astro`, then write a homepage + tool pages + clone the 4 brand pages (privacy/terms/about/contact) from a sibling project, brand-swapping.
-8. **Public files:** `ads.txt` (clone), `_headers` (clone), `favicon.svg` (visually distinct color/letter), `robots.txt` (template with the 11 AI-bot Allows + sitemap line for the new domain), `llms.txt` (custom summary).
+8. **Public files:** `_headers` (clone), `favicon.svg` (visually distinct color/letter), `robots.txt` (template with the 11 AI-bot Allows + sitemap line for the new domain), `llms.txt` (custom summary).
 9. **Commit + push.**
 10. **CF Pages provisioning** (via API or dashboard):
     - Create CF Pages project with `root_dir: <family>`, `build_command: npm run build`, `destination_dir: dist`, env var `NODE_VERSION=22`, source = GitHub `kedoupi/kdp-tools` main branch.
@@ -174,15 +156,13 @@ Tested recipe (used for `convert/`, `text/`, `dev/`):
 
 ## Roadmap
 
-| Phase | Status | Notes |
-| ----- | ------ | ----- |
-| Phase 1 — calc to AdSense-ready | ✅ | 5 calculators, brand pages, AdSense submitted |
-| Phase 2 — extract `shared/` | ✅ | BaseLayout, AdSense, CalculatorShell, charts, url-state in `shared/` |
-| Phase 3 — convert/text/dev subdomains | ✅ | each with 2-3 tools + brand pages |
-| Phase 4 — `kdp.cool` portal | ✅ | shipped early to satisfy AdSense apex requirement |
-| Sprint D — SEO + GEO | ✅ | llms.txt, AI-bot Allow, FAQ schema, internal links, Crawler Hints |
-| Sprint E — people-first quality pass + `ai.kdp.cool` | ✅ | evergreen title cleanup, review/limitations/source signals, 4 browser-only AI tools |
-| **AdSense re-review prep** | 🟡 | Apex-only review surface; satellite sites noindex; expand guides; then resubmit |
-| Future — currency converter | ⏳ | Needs live FX API |
-| Future — regex tester, JWT decoder, case converter, markdown↔HTML | ⏳ | Pure JS candidates; keep off public homepages until shipped |
-| Future — calc P1.5 (scenario compare, CSV export, OBBBA tax features) | ⏳ | Hold during AdSense review |
+| 阶段 | 范围 | 状态 |
+| --- | --- | --- |
+| P1 | 个人首页、应用介绍、工具存档、六站去广告、共享视觉基础 | 本地实现，待验收与发布 |
+| P2 | Health 域名迁移、GU 表达、公众号名称和入口 | 待实施 |
+| P3 | 博客、公开笔记与内容发布 | 待实施 |
+| P4 | 本人工作台与按需摘要 | 待实施 |
+| P5 | 公开内容 MCP | 待实施 |
+| P6 | 私人应用的授权 AI 能力 | 按实际使用逐步接入 |
+
+私人应用全面换肤在各自迁移阶段执行，须沿用共享设计规范并单独验证业务状态。

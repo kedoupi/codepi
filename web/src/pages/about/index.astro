@@ -1,61 +1,20 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-
-const title = 'About Kdp.Cool';
-const description = 'Kdp.Cool builds fast, ad-supported web tools — financial calculators, format converters, developer utilities, and text helpers. No signup. Tool inputs stay in the browser.';
 ---
-<BaseLayout title={title} description={description} pathname="/about/" schemaType="WebPage">
-  <article class="prose-like max-w-3xl space-y-4">
-    <h1 class="text-3xl font-bold tracking-tight">About Kdp.Cool</h1>
-    <p class="text-sm text-slate-500">A portal of fast, no-signup web tools.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Who maintains it</h2>
-    <p>Kdp.Cool is a small independent project. There is no parent company, no app-store listing, and no account database. Bug reports, math corrections, and tool ideas go to <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>.</p>
-    <p>We publish review dates on educational pages so you can see when a tax year or a formula walkthrough was last checked. If a figure is wrong, email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL and the numbers you expected.</p>
-
-    <h2 class="text-xl font-semibold mt-6">What this is</h2>
-    <p>Kdp.Cool publishes focused, single-purpose web tools. The mortgage, paycheck, and federal income-tax calculators run on this hostname, next to <a href="/guides/" class="text-blue-600 hover:underline">original guides</a> that fill in the same formulas with static examples. Other tool families live on their own subdomains. The goal is practical: open a page, use the tool immediately, understand how the result was produced, and leave without creating an account.</p>
-
-    <h2 class="text-xl font-semibold mt-6">What lives on this site</h2>
-    <ul class="list-disc pl-6 space-y-1">
-      <li><strong>Calculators on kdp.cool</strong> — Mortgage, paycheck, and federal income-tax tools, each with a worked example and a matching guide.</li>
-      <li><strong>Guides</strong> — Original explainers that fill the same formulas by hand so you can check the method without JavaScript.</li>
-      <li><strong>Related finance tools</strong> — Auto loan and compound interest stay on <a href="https://calc.kdp.cool/" class="text-blue-600 hover:underline">calc.kdp.cool</a> and link back here for the longer write-ups.</li>
-    </ul>
-    <p class="mt-3 text-sm text-slate-600">Other small utility hostnames under the same project (converters, text, developer, and AI helpers) are secondary. The pages you should judge this site by are the calculators and guides on kdp.cool.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Why it exists</h2>
-    <p>Most online tools are slow, require email signups for "premium features," hide the math, and hammer you with intrusive ads. We built Kdp.Cool because we wanted the opposite: instant, transparent, free.</p>
-
-    <h2 class="text-xl font-semibold mt-6">How we keep it free</h2>
-    <p>There is no premium tier and no email wall. Hosting and maintenance are paid for by Google AdSense on reserved layout slots. During review those slots stay quiet; after approval they may show ads, still without popups, interstitials, or fake buttons. The calculators, converters, and guides remain usable if you ignore the ads. If you want to help without clicking anything, share a link.</p>
-    <p>We do not sell leads, do not rent an email list (we do not have one), and do not charge “unlock” fees for showing a formula.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Our methodology</h2>
-    <ul class="list-disc pl-6 space-y-1">
-      <li><strong>Source data</strong>: Where applicable, we cite the authoritative source (e.g., the IRS Revenue Procedure number for tax tables).</li>
-      <li><strong>Math</strong>: Every calculator shows its formula in a "Show the math" section, so you can verify or learn. No black boxes.</li>
-      <li><strong>Local-first tools</strong>: When a task can run in the browser, it should. Text, JSON, Base64, and similar inputs stay on your device.</li>
-      <li><strong>Maintenance signals</strong>: Tool pages include review dates, limitations, and plain-English explanations so readers can judge whether the result fits their situation.</li>
-      <li><strong>Corrections</strong>: Found a wrong figure? Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, and what you expected.</li>
-    </ul>
-
-    <h2 class="text-xl font-semibold mt-6">What data is not collected</h2>
-    <p>The tools run in your browser. We do not create accounts, so we do not collect names, email addresses, passwords, or payment methods. Numbers you type into a calculator are not uploaded to our servers as a saved profile. If a tool puts state in the URL, that is so you can bookmark or share a scenario; it is still just a request for a static page. We also do not ask for tax documents, bank statements, or customer lists, and you should not paste them into a text box.</p>
-    <p>We do not run our own analytics snippet. The only third-party script on these pages is Google's AdSense loader, which may use cookies after ads are approved. That is described on the <a href="/privacy/" class="text-blue-600 hover:underline">Privacy</a> page. This About page is the human-language version of that boundary: if a task requires sending us your data, we probably should not have built it as a public static tool.</p>
-
-    <h2 class="text-xl font-semibold mt-6">What we do not do</h2>
-    <ul class="list-disc pl-6 space-y-1">
-      <li>No email walls for basic tools.</li>
-      <li>No fake rankings, scraped tool directories, or pages made only to chase search keywords.</li>
-      <li>No popups, auto-playing video ads, or interface tricks that push accidental ad clicks.</li>
-      <li>No server-side upload for tools that can safely run in the browser.</li>
-    </ul>
-
-    <h2 class="text-xl font-semibold mt-6">What's next</h2>
-    <p>Active work is the mortgage, paycheck, and federal income-tax calculators on this site, plus the guides that walk through the same numbers. Other families stay on their own hostnames. We prioritize tools that solve a repeatable task, show the formula, and cite an official source where the number can go stale.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Contact</h2>
-    <p>See <a href="/contact/" class="text-blue-600 hover:underline">Contact</a>.</p>
+<BaseLayout title="关于这个空间" description="我是 kedoupi（codepi）。这里连接我的生活、工作、知识与表达。" pathname="/about/" schemaType="WebPage">
+  <article class="personal-article">
+    <h1>关于这个空间</h1>
+    <p class="lead">我是 kedoupi（codepi）。我把生活里关心的事，做成可以长期使用和积累的东西。</p>
+    <p>kdp.cool 最初是一组小工具。现在，我希望它逐渐成为自己的数字空间：有正在使用的应用，也有留下来的思考。</p>
+    <h2>以自己为中心，慢慢连接</h2>
+    <p>健康应用帮助我回顾睡眠、恢复和活动；投资工作台整理持仓、研究与决策；公众号工作台承接稿件、预览和审核。它们用途不同，也共同构成我的日常工作站。</p>
+    <p>你可以在<a href="/apps/">应用页</a>了解这些东西。私人记录需要登录，公开介绍不包含个人健康、投资或未发布的稿件数据。</p>
+    <h2>给思考留一个地方</h2>
+    <p>文章和笔记正在整理中。我希望先留下真实的想法，再逐渐形成可以回看、连接和复用的知识。</p>
+    <h2>也让 AI 能够理解</h2>
+    <p>接下来，我会逐步通过 MCP 提供公开的内容和项目介绍。个人记录则在独立授权后使用，让日常积累能参与自己的 AI 工作流程。</p>
+    <h2>保留做过的东西</h2>
+    <p>以前的计算器、转换器和其他小工具仍可从<a href="/tools/">工具存档</a>访问。这里不再以广告、工具数量或访问量作为建设目标。</p>
+    <p>如果想交流，可以从<a href="/contact/">联系页</a>找到项目入口。</p>
   </article>
 </BaseLayout>

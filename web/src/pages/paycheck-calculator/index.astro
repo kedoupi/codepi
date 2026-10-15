@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 import FaqSection from '../../components/FaqSection.astro';
 
 const title = 'Paycheck Calculator - US Take-Home Pay 2026';
@@ -46,12 +45,11 @@ const faqs = [
   },
 ];
 ---
-<BaseLayout title={title} description={description} pathname="/paycheck-calculator/">
+<BaseLayout locale="en" title={title} description={description} pathname="/paycheck-calculator/">
   <CalculatorShell
     title="Paycheck Calculator (2026)"
     intro="See your real take-home pay after federal tax, FICA, state tax, and pretax deductions like 401(k)."
   >
-    <AdSense slot="top-ad" adSlot="pay-top" style="min-height:90px" />
 
     <form id="pay-form" class="space-y-5" slot="inputs" autocomplete="off">
       <div>
@@ -132,8 +130,6 @@ const faqs = [
 
       <p class="text-xs text-slate-500">Annual: gross <span id="pay-r-annual-gross" class="tabular-nums">$0</span> → net <span id="pay-r-annual-net" class="tabular-nums">$0</span></p>
     </div>
-
-    <AdSense slot="middle-ad" adSlot="pay-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
@@ -236,7 +232,6 @@ const faqs = [
       />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="pay-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

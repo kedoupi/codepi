@@ -1,12 +1,11 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 import { guides } from '../../guides.js';
 
 const title = 'Guides — how the calculators actually work';
 const description = 'Original explainers from Kdp.Cool on mortgage payments, take-home pay, and US federal tax brackets. Each guide includes a static worked example you can check without JavaScript.';
 ---
-<BaseLayout title={title} description={description} pathname="/guides/" schemaType="WebPage">
+<BaseLayout locale="en" title={title} description={description} pathname="/guides/" schemaType="WebPage">
   <section class="max-w-3xl">
     <p class="kdp-section-label mb-3">From the portal</p>
     <h1 class="font-serif text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">Guides</h1>
@@ -18,8 +17,6 @@ const description = 'Original explainers from Kdp.Cool on mortgage payments, tak
     </p>
   </section>
 
-  <AdSense adSlot="guides-index-top" style="min-height:90px" />
-
   <section class="mt-10 grid grid-cols-1 gap-4">
     {guides.map((guide) => (
       <a href={guide.href} class="kdp-card block rounded-2xl p-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
@@ -30,7 +27,7 @@ const description = 'Original explainers from Kdp.Cool on mortgage payments, tak
     ))}
   </section>
 
-  <section class="kdp-prose mt-14 max-w-3xl border-t border-[#e6d9c8] pt-8">
+  <section class="kdp-prose mt-14 max-w-3xl border-t border-[var(--kdp-line)] pt-8">
     <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950">How we write these</h2>
     <ul class="mt-5 list-disc space-y-3 pl-6">
       <li><strong>Cite public methods.</strong> Mortgage math uses the standard fully amortizing payment formula. Federal tax figures come from IRS Revenue Procedure 2025-32 for tax year 2026.</li>

@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Free Developer Utilities for JSON and Base64';
 const description = 'Free browser-only developer tools for formatting JSON and encoding or decoding Base64. Instant validation, readable output, no signup.';
@@ -18,7 +17,6 @@ const tools = [
     <p class="max-w-3xl text-stone-600 leading-7">DevKDP favors small tools with clear explanations over large dashboards. Each page includes practical notes about safe usage, common mistakes, and where browser-only utilities are not enough.</p>
   </section>
 
-  <AdSense adSlot="dev-home-top" style="min-height:90px" />
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {tools.map((c) => (
@@ -64,5 +62,4 @@ const tools = [
     </ul>
   </section>
 
-  <AdSense adSlot="dev-home-bottom" style="min-height:90px" />
 </BaseLayout>

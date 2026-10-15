@@ -1,35 +1,17 @@
-# Kdp.Cool
+# kedoupi（codepi）
 
-> Free, fast, no-signup financial calculators and original guides. Each calculator runs in the browser and shows its math.
+> kdp.cool 是 kedoupi（codepi）的个人数字空间，连接生活、工作、知识与表达。
 
-## Calculators on this site
+## 公开入口
 
-- [Mortgage calculator](/mortgage-calculator/): monthly principal and interest, plus a simple tax and insurance draft.
-- [Paycheck calculator](/paycheck-calculator/): federal brackets, FICA, optional flat state tax, and pretax deductions.
-- [Income tax calculator](/income-tax-calculator/): 2026 US federal ordinary brackets from IRS Revenue Procedure 2025-32.
+- [首页](https://kdp.cool/): 个人介绍、近况和应用入口。
+- [应用](https://kdp.cool/apps/): 健康、投资理财和公众号工作台的用途与访问说明。
+- [关于](https://kdp.cool/about/): 这套个人空间的来由与方向。
+- [联系](https://kdp.cool/contact/): 项目交流入口。
+- [隐私](https://kdp.cool/privacy/): 公开内容与私人应用的数据边界。
+- [工具存档](https://kdp.cool/tools/): 以前做过的计算器和工具，旧链接保留。
 
-## Related finance tools
+## 访问范围
 
-- [Auto loan calculator](https://calc.kdp.cool/auto-loan-calculator/)
-- [Compound interest calculator](https://calc.kdp.cool/compound-interest-calculator/)
-
-## Guides
-
-- [Guides index](/guides/): original explainers with static worked examples.
-- [How monthly mortgage payments are calculated](/guides/how-monthly-mortgage-payments-are-calculated/)
-- [15-year vs 30-year mortgages](/guides/15-year-vs-30-year-mortgage/)
-- [Extra principal payments](/guides/extra-principal-payments-on-a-mortgage/)
-- [PITI vs the Loan Estimate](/guides/piti-vs-loan-estimate/)
-- [How to read take-home pay](/guides/how-to-read-take-home-pay/)
-- [Federal income tax vs FICA](/guides/federal-income-tax-vs-fica/)
-- [How a pretax 401(k) changes take-home](/guides/how-pretax-401k-changes-take-home-pay/)
-- [Why annual tax ÷ pay periods is only a model](/guides/why-annual-tax-divided-by-pay-periods-is-only-a-model/)
-- [How US federal income tax brackets work](/guides/how-us-federal-income-tax-brackets-work/)
-- [Marginal rate vs effective rate](/guides/marginal-vs-effective-tax-rate/)
-
-## About
-
-- [About](/about/)
-- [Privacy](/privacy/)
-- [Terms](/terms/)
-- [Contact](/contact/)
+健康、投资理财和公众号工作台需要登录。应用入口与公开介绍不包含私人记录。
+博客、公开笔记和主站公共 MCP 正在建设中，暂不提供相关服务地址。

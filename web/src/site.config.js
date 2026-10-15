@@ -1,19 +1,14 @@
-export const siteName = 'Kdp.Cool';
-export const tagline = 'Free, fast, no-signup web tools.';
-export const footerNote = 'Free, fast, ad-supported web tools.';
+import { PRODUCT_BRAND } from '@shared/brand';
+
+export const siteName = PRODUCT_BRAND;
+export const personalSite = true;
+export const tagline = '连接生活、工作与思考的个人数字空间。';
+export const footerNote = '生活、工作与思考，在这里连接。';
 export const navLinks = [
-  { href: '/', label: 'Home' },
-  { href: '/mortgage-calculator/', label: 'Mortgage' },
-  { href: '/paycheck-calculator/', label: 'Paycheck' },
-  { href: '/income-tax-calculator/', label: 'Income tax' },
-  { href: '/guides/', label: 'Guides' },
-  { href: '/about/', label: 'About' },
-];
-export const extraFooterLinks = [
-  { href: '/guides/', label: 'Guides' },
+  { href: '/', label: '首页' },
+  { href: '/apps/', label: '应用' },
+  { href: '/about/', label: '关于' },
 ];
 export const applicationCategory = 'WebApplication';
-
-// Primary AdSense review surface (apex + finance calculators)
-export const adsenseEnabled = true;
 export const defaultRobots = 'index, follow';
+export const extraFooterLinks = [];

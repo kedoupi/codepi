@@ -10,7 +10,6 @@ const { title, intro } = Astro.props;
   {intro && <p class="text-slate-600 max-w-2xl">{intro}</p>}
 </section>
 
-<slot name="top-ad" />
 
 <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
   <div class="bg-white border border-slate-200 rounded-lg p-5">
@@ -21,10 +20,7 @@ const { title, intro } = Astro.props;
   </div>
 </section>
 
-<slot name="middle-ad" />
 
 <section class="mt-10 space-y-3 text-slate-700 leading-relaxed">
   <slot name="content" />
 </section>
-
-<slot name="bottom-ad" />
