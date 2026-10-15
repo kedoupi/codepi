@@ -19,4 +19,9 @@ describe("read-only calendar display", () => {
     expect(hidden).toContain("日历标记已成交");
     expect(hidden).toContain("2026-10-15 全天");
   });
+  it("qualifies an unexpired retained snapshot when authorization has been revoked", () => {
+    const view = { state: "not_connected", last_success: { fetched_at: "2026-10-15T00:00:00Z" },
+      snapshot: { stale: false, events: [] } };
+    expect(calendarPanel(view, false, false, format)).toContain("仅供追溯");
+  });
 });
