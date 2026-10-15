@@ -1902,9 +1902,21 @@ summary:focus-visible {
   outline-offset: 2px;
   background: var(--kdp-accent-soft);
 }
-.position-row.is-active {
+/* 高亮画在单元格上：border-collapse: collapse 时 tr 的 box-shadow 不会绘制，
+   只给 tr 加背景又太浅（#eaf2ff 落在白底上几乎看不出来）。 */
+.position-row.is-active > td {
   background: var(--kdp-accent-soft);
   box-shadow: inset 3px 0 0 var(--kdp-focus);
+}
+.position-row.is-active > td:first-child {
+  box-shadow: inset 4px 0 0 var(--kdp-accent);
+}
+.position-card.is-active {
+  background: var(--kdp-accent-soft);
+  border-radius: var(--kdp-radius-sm);
+  box-shadow: inset 4px 0 0 var(--kdp-accent);
+  padding-left: 14px;
+  padding-right: 14px;
 }
 
 /* ——— 现金缓冲 ——— */

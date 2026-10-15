@@ -44,6 +44,8 @@ let notice = "";
 let returnHash = "";
 let mounted = false;
 let renderKey = "";
+// 图表 → 持仓联动：点图表后要打标的 ticker，等 DOM 重建完再消费。
+let pendingPositionFocus: string | null = null;
 let dataRevision = 0;
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -337,6 +339,8 @@ function renderContent(html: string) {
   main.innerHTML = html;
   applyChartStyles(app);
   bindContentHandlers();
+  // DOM 刚重建完，此刻才有可打标的节点；早于这一步调用会落在旧节点上。
+  applyPendingPositionFocus();
 }
 
 function showError(message: string) {
@@ -410,7 +414,7 @@ function positions() {
       .map(
         (
           p,
-        ) => `<article class="position-card"><div class="position-heading"><strong>${e(p.ticker)}</strong><span>${e(p.name)}</span></div>
+        ) => `<article id="${e(positionAnchorId(String(p.ticker ?? "")))}" class="position-card" data-position="${e(String(p.ticker ?? ""))}"><div class="position-heading"><strong>${e(p.ticker)}</strong><span>${e(p.name)}</span></div>
       <dl class="position-metrics"><div><dt>市值 · 美元</dt><dd>${money(p.value_usd)}</dd></div><div><dt>浮盈亏</dt><dd class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</dd></div><div><dt>当前权重</dt><dd>${pct(weight(p))}</dd></div><div><dt>${p.ticker === "现金" ? "最低保留线" : "目标权重"}</dt><dd>${pct(p.target)}</dd></div></dl>
       <details><summary>持仓与行情详情</summary><p>股数 ${number(p.shares, 4)} · 成本 ${number(p.avg_cost)} · 现价 ${number(p.price)}</p><p>${e(quoteInfo(p))}</p></details></article>`,
       )
@@ -553,7 +557,11 @@ function render() {
     : "";
   syncChrome(active, subtitle);
   const nextKey = JSON.stringify([dataRevision, active, id, snapshot ? "ready" : [dataState, loading, auth]]);
-  if (nextKey === renderKey) return;
+  if (nextKey === renderKey) {
+    // 记忆化命中：DOM 没重建，但 pending 仍需消费，否则会漏到下一次重绘。
+    applyPendingPositionFocus();
+    return;
+  }
   renderKey = nextKey;
   if (!snapshot) {
     renderContent(
@@ -585,25 +593,36 @@ const cssEscape = (value: string) =>
         "\\$1",
       );
 
-/** 跳到持仓页后，滚动到指定 ticker 行并加 2.4s 高亮。 */
+/**
+ * 跳到持仓页后高亮指定 ticker。
+ *
+ * 桌面表格行（tr.position-row）和 <=900px 才显示的 position-card 都带
+ * [data-position]，两侧同时打标；只滚到当前真正可见的那一个，因为
+ * scrollIntoView 对 display:none 的节点是空操作。高亮保持到下次重绘或
+ * 点击其它标的——不自动消失，否则用户还没看清就没了。
+ */
 function focusPositionRow(ticker: string) {
-  const id = positionAnchorId(ticker);
-  const row = document.getElementById(id);
-  if (!row) return;
+  const selector = `[data-position="${cssEscape(ticker)}"]`;
+  const targets = Array.from(
+    document.querySelectorAll<HTMLElement>(selector),
+  );
+  if (!targets.length) return;
   document
-    .querySelectorAll<HTMLElement>(".position-row.is-active")
+    .querySelectorAll<HTMLElement>(".is-active")
     .forEach((el) => el.classList.remove("is-active"));
-  document
-    .querySelectorAll<HTMLElement>(
-      ".composition-segment.is-active, .composition-legend-item.is-active",
-    )
-    .forEach((el) => el.classList.remove("is-active"));
-  row.classList.add("is-active");
-  document
-    .querySelectorAll<HTMLElement>(`[data-position="${cssEscape(ticker)}"]`)
-    .forEach((el) => el.classList.add("is-active"));
-  row.scrollIntoView({ behavior: "smooth", block: "center" });
-  setTimeout(() => row.classList.remove("is-active"), 2400);
+  targets.forEach((el) => el.classList.add("is-active"));
+  // getClientRects().length 为 0 表示被 display:none 挡掉（另一个视图）。
+  const visible =
+    targets.find((el) => el.getClientRects().length > 0) ?? targets[0];
+  visible.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/** 在 renderContent 写完 DOM 后消费，避免高亮落在重绘前的旧节点上。 */
+function applyPendingPositionFocus() {
+  const ticker = pendingPositionFocus;
+  if (!ticker) return;
+  pendingPositionFocus = null;
+  focusPositionRow(ticker);
 }
 
 /** 内容重绘后绑定事件处理器。挂载时（刷新 / 退出 / hashchange）会重新调用。 */
@@ -616,15 +635,21 @@ function bindContentHandlers() {
         .querySelector<HTMLElement>("#content")
         ?.focus({ preventScroll: true });
     });
-  // 资产构成 / 持仓联动：点段或图例项 → 跳到持仓页并高亮对应行
+  // 资产构成 / 持仓联动：点段或图例项 → 跳到持仓页并高亮对应行。
+  // 只绑总览的图表节点：持仓行本身也带 data-position，不能变成跳转按钮。
   document
-    .querySelectorAll<HTMLElement>("[data-position]")
+    .querySelectorAll<HTMLElement>(
+      ".composition-segment[data-position], .composition-legend-item[data-position]",
+    )
     .forEach((el) => {
       el.onclick = () => {
         const ticker = el.dataset.position;
         if (!ticker) return;
-        location.hash = "#positions";
-        requestAnimationFrame(() => focusPositionRow(ticker));
+        pendingPositionFocus = ticker;
+        // 已经在持仓页时 hash 不变、不会触发 hashchange，必须显式重绘；
+        // 跨页则交给 hashchange -> render -> renderContent 打标。
+        if (location.hash === "#positions") render();
+        else location.hash = "#positions";
       };
     });
   document
