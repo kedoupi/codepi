@@ -89,6 +89,7 @@ export function errorText(error: unknown, locale: Locale): string {
     invalid_upstream_response: ["Oura 返回的数据格式异常，请稍后重试。", "Oura returned an unexpected response. Retry later."],
     rate_limited: ["Oura 请求较多，请稍后重试。", "Oura is rate limiting requests. Retry shortly."],
     sync_in_progress: ["数据正在同步，请稍后刷新。", "Sync is in progress. Retry shortly."],
+    auto_sync_disabled: ["后台数据更新暂未开启，请联系维护者检查配置。", "Background data updates are disabled. Contact the site maintainer."],
     daily_sync_budget_reached: ["今日自动同步写入预算已用完，将在北京时间次日 09:00 后继续，已保存的数据保留。", "Today's automatic write budget is used. Background sync resumes after 01:00 UTC tomorrow; saved data is retained."],
     storage_write_quota_exceeded: ["数据库写入额度已达到上限，暂时无法保存新数据。额度每天北京时间 08:00 重置，已保存的历史数据保留。", "The database write limit has been reached. New data cannot be saved until the daily reset at 00:00 UTC. Saved history is retained."],
     permission_or_membership_required: ["此类数据缺少权限或会员访问资格，请重新授权并检查 Oura 会员状态。", "Permission or membership access is missing. Reauthorize and check your Oura membership."],

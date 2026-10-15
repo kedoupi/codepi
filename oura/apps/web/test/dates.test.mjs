@@ -3,17 +3,16 @@ import assert from 'node:assert/strict';
 import { calendarDay, calendarWindow, shiftDay } from '../../../shared/dates.ts';
 import { dateWindow as frontendWindow } from '../src/lib/health.ts';
 import { dateWindow as apiWindow } from '../../../workers/api/src/lib/daily.ts';
-import { planBackfill } from '../src/lib/backfill.ts';
 import { watchCalendarDay } from '../src/lib/calendar.ts';
 
-test('Beijing midnight is consistent across frontend, API and manual backfill', t => {
+test('Beijing midnight is consistent across frontend, API and health date windows', t => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-14T16:30:00Z') });
   assert.equal(calendarDay(), '2026-10-15');
   assert.equal(frontendWindow(7).to, '2026-10-15');
   assert.equal(apiWindow(7).endDate, '2026-10-15');
   assert.equal(apiWindow(7).startDate, frontendWindow(7).from);
   assert.equal(apiWindow(7).dates.length, 7);
-  assert.equal(planBackfill([{ name: 'sleep', mode: 'date' }], 7)[0].to, '2026-10-15');
+  assert.deepEqual(calendarWindow(90), { from: '2026-07-18', to: '2026-10-15' });
   assert.equal(calendarDay(new Date('2026-10-14T15:59:59Z')), '2026-10-14');
   assert.equal(calendarDay(new Date('2026-10-14T16:00:00Z')), '2026-10-15');
 });

@@ -123,7 +123,8 @@ try {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       const response = await originalFetch(...args);
-      if (new URL(response.url).pathname === '/api/me/sync' && response.status === 401) window.__directApi401 = true;
+      if (new URL(response.url).pathname === '/api/me/health-records/automatic'
+        && args[1]?.method === 'POST' && response.status === 401) window.__directApi401 = true;
       return response;
     };
     await fetch('/__test/central?revoke=1', { method: 'POST' });
@@ -140,7 +141,7 @@ try {
   assert.equal(final.meaningful, true);
   assert.equal(final.overlay, false);
   assert.deepEqual(final.errors, []);
-  assert.equal(final.api401, true, 'the score refresh must receive an actual website-session 401');
+  assert.equal(final.api401, true, 'the automatic update POST must receive an actual website-session 401');
   assert.equal(new URL(await page.url()).pathname, '/');
   assert.equal(await page.title(), '健康 Health · kedoupi（codepi）');
   console.log('PASS API 401 clears private state, no overlay/console failures; SSO browser journey');
