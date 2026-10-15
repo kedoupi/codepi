@@ -142,7 +142,7 @@ export default {
         case "/api/health":
           res = Response.json({
             ok: true,
-            service: "oura-kdp-api",
+            service: "codepi-health-api",
             allowDevLogin: allowDevLogin(request, env),
             oauthConfigured: oauthConfigured(env),
             ssoEnabled: ssoEnabled(env),

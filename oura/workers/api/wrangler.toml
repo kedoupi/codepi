@@ -1,4 +1,4 @@
-name = "oura-kdp-api"
+name = "codepi-health-api"
 main = "src/index.ts"
 rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
 compatibility_date = "2025-01-01"
@@ -24,13 +24,13 @@ crons = ["*/2 * * * *"]
 
 [[services]]
 binding = "AUTH"
-service = "kdp-auth"
+service = "codepi-auth"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "oura_kdp"
-# Production D1: oura_kdp
-database_id = "a1a08301-b4f9-4b9c-a1d1-2dd04f9038ab"
+database_name = "codepi-health"
+# Production D1: codepi-health
+database_id = "2e35deaa-8066-49c1-b19a-afcd8706d58c"
 migrations_dir = "../../migrations"
 
 # Secrets via `wrangler secret put` / `.dev.vars` — never commit real values:

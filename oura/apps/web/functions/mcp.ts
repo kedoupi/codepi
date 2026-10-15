@@ -1,5 +1,5 @@
 /**
- * Pages proxy for /mcp. Forwards MCP requests to the oura-kdp-api Worker.
+ * Pages proxy for /mcp. Forwards MCP requests to the codepi-health-api Worker.
  */
 interface Env {
   WORKER?: Fetcher;

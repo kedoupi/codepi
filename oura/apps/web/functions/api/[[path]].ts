@@ -1,5 +1,5 @@
 /**
- * Pages proxy at /api/*. Forwards matching API calls to the oura-kdp-api
+ * Pages proxy at /api/*. Forwards matching API calls to the codepi-health-api
  * Worker via the WORKER service binding that the Pages project ships with.
  *
  * The Worker still owns all real logic and secrets; this function only

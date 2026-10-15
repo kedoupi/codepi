@@ -75,7 +75,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("fixed owner authentication", () => {
   it("requires login for every private API and hides static JSON paths", async () => {
-    for (const host of ["https://gu.codepi.app", "https://kdp-gu.pages.dev", "https://preview.kdp-gu.pages.dev"]) {
+    for (const host of ["https://gu.codepi.app", "https://codepi-gu.pages.dev", "https://preview.codepi-gu.pages.dev"]) {
       expect((await call(request("/api/dashboard", { host }))).status).toBe(401);
       expect((await call(request("/dashboard/account.json", { host }))).status).toBe(404);
       expect((await call(request("/", { host }))).status).toBe(302);
@@ -139,7 +139,7 @@ describe("fixed owner authentication", () => {
     expect((await call(request("/api/me", { cookie }))).status).toBe(401);
   });
   it("does not expose local OTP on a remote preview hostname", async () => {
-    expect((await call(request("/api/auth/request-otp", { body: {}, host: "https://preview.kdp-gu.pages.dev" }))).status).toBe(503);
+    expect((await call(request("/api/auth/request-otp", { body: {}, host: "https://preview.codepi-gu.pages.dev" }))).status).toBe(503);
   });
 });
 

@@ -1,6 +1,6 @@
 /**
  * Pages proxy for /oauth/*. Forwards MCP OAuth endpoints to the
- * oura-kdp-api Worker.
+ * codepi-health-api Worker.
  */
 interface Env {
   WORKER?: Fetcher;
