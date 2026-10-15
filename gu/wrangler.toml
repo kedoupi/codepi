@@ -20,19 +20,21 @@ database_name = "codepi-gu"
 database_id = "4d3b6713-85dd-4f61-ac55-9925db72394b"
 migrations_dir = "migrations"
 
+# Pages preview 环境 = staging runtime（治理规范第 4 节）：仅由 staging branch
+# 通过 Actions 上传，绑定 staging D1 与 codepi-auth-staging。
 [env.preview.vars]
-SSO_ENABLED = "0"
+SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "gu"
-AUTH_ORIGIN = "https://auth.codepi.app"
-ENVIRONMENT = "preview"
 OTP_FROM = "otp@kdp.cool"
+AUTH_ORIGIN = "https://auth-staging.codepi.app"
+ENVIRONMENT = "staging"
 
 [[env.preview.services]]
 binding = "AUTH"
-service = "codepi-auth"
+service = "codepi-auth-staging"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "codepi-gu-preview"
-database_id = "2dd4b95a-e3a0-47ce-bda4-0598e523b350"
+database_name = "codepi-gu-staging"
+database_id = "86d7d48c-ef12-4cd6-932c-38c0a53bcded"
 migrations_dir = "migrations"

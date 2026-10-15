@@ -17,3 +17,25 @@ SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "desk"
 AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
+
+# Pages preview 环境 = staging runtime（治理规范第 4 节）：仅由 staging branch
+# 通过 Actions 上传，绑定 staging D1 与 codepi-auth-staging。
+[env.preview]
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+
+[[env.preview.services]]
+binding = "AUTH"
+service = "codepi-auth-staging"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "codepi-desk-staging"
+database_id = "cbbe0037-4132-4ec2-bf6b-2c1ff4363977"
+migrations_dir = "migrations"
+
+[env.preview.vars]
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "desk"
+AUTH_ORIGIN = "https://auth-staging.codepi.app"
+ENVIRONMENT = "staging"
