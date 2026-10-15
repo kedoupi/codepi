@@ -52,7 +52,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 | `GU_SUMMARY_TOKEN` | 与 GU 的摘要 token 一致 |
 | `WECHAT_SUMMARY_TOKEN` | 与公众号的摘要 token 一致 |
 
-5. 发布 web：Root directory 仍为 `web`，构建 `npm run build`，输出 `dist`。Pages 额外编译 `web/functions/`；`public/_routes.json` 仅让 `/api/*` 进入 Functions，其他公开页面继续静态服务。不需要将整站改为 SSR 或新增 Worker 路由。
+5. 发布 web：Root directory 为 `web`，构建命令 `npm run build:pages`，输出 `dist`。Pages 构建不会自动编译项目根目录之外的 Functions，因此 `build:pages` 先跑 `npm run build:functions` 把 `web/functions/api/` 编译进 `dist/`；`public/_routes.json` 仅让 `/api/*` 进入 Functions，其他公开页面继续静态服务。不需要将整站改为 SSR 或新增 Worker 路由。
 6. 实际验收登录、三来源读取、摘要、退出、其他应用会话撤销。代码已为 www 的工作台页面和 GET API 配置到 apex 的临时跳转；www 的写请求拒绝执行。发布后确认跳转生效，勿额外登记 www 回调。
 7. 回退时撤回 web 部署即可恢复公共站入口；新增源接口没有业务写入。如退役工作台，撤销 desk 注册及三份摘要凭证，保留原应用注册与数据库。
 

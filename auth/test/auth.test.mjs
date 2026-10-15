@@ -144,7 +144,7 @@ test('five failed OTP attempts lock the challenge, including concurrent requests
   assert.equal((await f.call('/api/auth/verify-otp', tx.txCookie, { code })).status, 400);
 });
 
-test('OTP cooldown, rolling 15 minute limit and UTC daily budget cannot be bypassed by new transactions', async t => {
+test('OTP cooldown, rolling 15 minute limit and Shanghai daily budget cannot be bypassed by new transactions', async t => {
   const f = await fixture(t);
   const tx = await f.begin();
   const results = await Promise.all([1, 2].map(() => f.call('/api/auth/request-otp', tx.txCookie, {})));
@@ -155,9 +155,11 @@ test('OTP cooldown, rolling 15 minute limit and UTC daily budget cannot be bypas
   for (let i = 0; i < 3; i++) await f.db.prepare('INSERT INTO auth_otp_sends VALUES (?,?)').bind('recent-' + i, now - 120000 - i).run();
   assert.equal((await f.call('/api/auth/request-otp', (await f.begin('gu')).txCookie, {})).status, 429);
   await f.db.prepare('DELETE FROM auth_otp_sends').run();
-  const midnight = Math.floor(now / 86400000) * 86400000;
-  for (let i = 0; i < 10; i++) await f.db.prepare('INSERT INTO auth_otp_sends VALUES (?,?)').bind('daily-' + i, midnight + i).run();
-  assert.equal((await f.call('/api/auth/request-otp', tx.txCookie, {})).status, 429);
+  const shanghaiMidnight = Math.floor((now + 8 * 3600_000) / 86400000) * 86400000 - 8 * 3600_000;
+  for (let i = 0; i < 10; i++) await f.db.prepare('INSERT INTO auth_otp_sends VALUES (?,?)').bind('daily-' + i, shanghaiMidnight + i).run();
+  const daily = await f.call('/api/auth/request-otp', tx.txCookie, {});
+  assert.equal(daily.status, 429);
+  assert.equal((await daily.json()).error, 'rate_limited_daily');
 });
 
 test('PKCE/client/code binding, expired codes, replay and cross-client references are enforced', async t => {

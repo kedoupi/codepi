@@ -27,6 +27,9 @@ class Failure extends Error {
   constructor(public code: string, public status = 400) { super(code); }
 }
 const DAY = 86400_000;
+const SHANGHAI_OFFSET = 8 * 3600_000;
+/** Daily quota counts in Asia/Shanghai days so owners see the reset they expect. */
+const dayStart = (now: number) => Math.floor((now + SHANGHAI_OFFSET) / DAY) * DAY - SHANGHAI_OFFSET;
 const encoder = new TextEncoder();
 const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const random = () => b64(crypto.getRandomValues(new Uint8Array(32)));
@@ -162,12 +165,17 @@ async function requestOtp(request: Request, env: Env, cfg: Config): Promise<Resp
   await body(request);
   const tx = await transaction(request, env), now = Date.now(), event = random();
   if (!env.RESEND_API_KEY && !cfg.dev) throw new Failure("mail_unavailable", 503);
+  // Probe the daily cap first so the error can distinguish a cooling-down window
+  // from an exhausted day, which needs an explicit reset time.
+  const daily = await env.DB.prepare("SELECT COUNT(*) AS n FROM auth_otp_sends WHERE created_at>=?")
+    .bind(dayStart(now)).first<{ n: number }>();
+  if ((daily?.n ?? 0) >= 10) throw new Failure("rate_limited_daily", 429);
   // Reserve the global owner budget atomically before contacting the mail provider.
   const reserved = await env.DB.prepare(`INSERT INTO auth_otp_sends (id,created_at)
     SELECT ?,? WHERE NOT EXISTS (SELECT 1 FROM auth_otp_sends WHERE created_at>?)
     AND (SELECT COUNT(*) FROM auth_otp_sends WHERE created_at>?)<3
     AND (SELECT COUNT(*) FROM auth_otp_sends WHERE created_at>=?)<10`)
-    .bind(event, now, now - 60_000, now - 900_000, Math.floor(now / DAY) * DAY).run();
+    .bind(event, now, now - 60_000, now - 900_000, dayStart(now)).run();
   if (reserved.meta.changes !== 1) throw new Failure("rate_limited", 429);
   let value: number;
   do { value = crypto.getRandomValues(new Uint32Array(1))[0]; } while (value >= 4294000000);

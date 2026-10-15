@@ -72,10 +72,14 @@ Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watc
 
 | Project       | Root      | Build cmd       | Output | Node | Custom domains                                  |
 | ------------- | --------- | --------------- | ------ | ---- | ----------------------------------------------- |
-| `kdp-portal`  | `web`     | `npm run build` | `dist` | 22   | `codepi.app` (apex), `www.codepi.app`           |
+| `kdp-portal`  | `web`     | `npm run build:pages` | `dist` | 22   | `codepi.app` (apex), `www.codepi.app`           |
 | `kdp-gu`      | `gu`      | `npm run build` | `dist` | 22   | `gu.codepi.app`, `kdp-gu.pages.dev`             |
 | `gzh`         | `gzh`     | `npm run build` | `dist` | 22   | `gzh.codepi.app`, `gzh.pages.dev`               |
 | `oura-kdp`    | `oura/apps/web` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` | 22 | `health.codepi.app`, `oura-kdp.pages.dev` |
+
+`kdp-portal` uses `npm run build:pages` because Pages only auto-compiles the
+Functions folder when it sits next to the project root; the portal's Functions
+(`web/functions/api/`) are compiled into `dist/` by the build script instead.
 
 ### DNS records (CF zone for `codepi.app`)
 
