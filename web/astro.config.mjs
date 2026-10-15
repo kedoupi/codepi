@@ -14,7 +14,7 @@ export default defineConfig({
   trailingSlash: 'always',
   build: { format: 'directory' },
   redirects: privacyRedirects,
-  integrations: [tailwind(), sitemap({ filter: ignoreDoorwayLocales })],
+  integrations: [tailwind(), sitemap({ filter: (page) => ignoreDoorwayLocales(page) && !new URL(page).pathname.startsWith('/desk/') })],
   vite: {
     resolve: {
       alias: {

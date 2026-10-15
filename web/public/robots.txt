@@ -1,64 +1,104 @@
 # AI / LLM crawlers — explicitly allowed (we want GEO citation traffic)
 User-agent: GPTBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Claude-User
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Claude-SearchBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Perplexity-User
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: GoogleOther
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Applebot-Extended
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Meta-ExternalAgent
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Bytespider
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: CCBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: cohere-ai
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Amazonbot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: DuckAssistBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 # Search engines
 User-agent: Googlebot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 User-agent: DuckDuckBot
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 # Default
 User-agent: *
 Allow: /
+Disallow: /desk/
+Disallow: /api/
 
 Sitemap: https://kdp.cool/sitemap-index.xml

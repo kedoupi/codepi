@@ -45,7 +45,7 @@ export function makePlan(files) {
       addAll();
       workflow = true;
     } else if (file.startsWith('auth/') || file.startsWith('shared/auth/')) {
-      add(privateApps);
+      add(['web', ...privateApps]);
       sharedAuth = true;
     } else if (file.startsWith('shared/')) {
       const staticOnly = ['layouts/', 'components/', 'lib/', 'i18n/']
@@ -64,6 +64,11 @@ export function makePlan(files) {
   const check = (cwd, ...argv) => checks.push({ cwd, argv });
   if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
   for (const app of staticApps.filter(app => apps.has(app))) {
+    if (app === 'web') {
+      check(app, 'npm', 'test');
+      check(app, 'npm', 'run', 'typecheck:desk');
+      check(app, 'npm', 'run', 'build:functions');
+    }
     if (app === 'calc') check(app, 'npm', 'test');
     check(app, 'npm', 'run', 'build');
   }

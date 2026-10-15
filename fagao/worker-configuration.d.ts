@@ -1,6 +1,7 @@
 // Bindings match wrangler.toml / wrangler.test.toml.
 // Secrets (RESEND_API_KEY, SESSION_SECRET, OTP_PEPPER) are wrangler secrets, never committed.
 interface Env {
+  DESK_SUMMARY_TOKEN?: string;
   DB: D1Database;
   ASSETS?: Fetcher;
   ALLOWLIST: string;

@@ -1,6 +1,6 @@
 # KDP unified login
 
-`kdp-auth` is the first-party login Worker for Oura, GU and fagao. It accepts no
+`kdp-auth` is the first-party login Worker for Oura, GU, fagao and the personal desk. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `shared/brand.ts`.
@@ -37,7 +37,7 @@ npm run typecheck
 npm run build
 ```
 
-The tests run the built center plus three real shared-client Workers with service
+The tests run the built center plus four real shared-client Workers with service
 bindings and independent D1 databases. Only mail delivery is replaced locally.
 The test registry contains synthetic identities and secrets, and is never
 included in the production bundle.

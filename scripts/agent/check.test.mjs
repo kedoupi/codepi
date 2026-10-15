@@ -46,13 +46,13 @@ test('single static app stays isolated; calculator includes math tests', () => {
 test('static shared code covers all six consumers', () => {
   const plan = makePlan(['shared/lib/url-state.js', 'shared/layouts/BaseLayout.astro']);
   assert.deepEqual(plan.apps, staticApps);
-  assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 1);
+  assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 2);
 });
 
-test('SSO changes cover center, all three clients and shared client tests', () => {
+test('SSO changes cover center, all four clients and shared client tests', () => {
   for (const file of ['auth/src/index.ts', 'shared/auth/client.ts', 'shared/auth/schema.sql']) {
     const plan = makePlan([file]);
-    assert.deepEqual(plan.apps, privateApps);
+    assert.deepEqual(plan.apps, ['web', ...privateApps]);
     assert.ok(plan.checks.some(check => check.argv.includes('shared/auth/client.test.mjs')));
   }
 });

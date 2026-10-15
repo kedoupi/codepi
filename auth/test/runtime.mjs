@@ -5,7 +5,7 @@ import { build } from 'esbuild';
 const require = createRequire(import.meta.url);
 const { Miniflare, Response, convertV4MiniflareOptions } = createRequire(require.resolve('wrangler'))('miniflare');
 export const authOrigin = 'http://localhost:8795';
-export const clients = Object.fromEntries(['oura', 'gu', 'fagao'].map((id, i) => [id, {
+export const clients = Object.fromEntries(['oura', 'gu', 'fagao', 'desk'].map((id, i) => [id, {
   name: id, secret: `integration-only-${id}-` + 'x'.repeat(32),
   redirectUris: [`http://localhost:${8801 + i}/api/auth/callback`],
 }]));
@@ -25,11 +25,11 @@ const bundle = await build({
   },
   bundle: true, format: 'esm', platform: 'neutral', write: false,
 });
-export async function fixture(t, overrides = {}) {
+export async function fixture(t, overrides = {}, options = {}) {
   const sent = [];
   const runtime = new Miniflare(convertV4MiniflareOptions({
     workers: [{
-      name: 'auth', modules: true, scriptPath: fileURLToPath(new URL('../dist/index.js', import.meta.url)),
+      name: 'auth', modules: true, script: await readFile(new URL('../dist/index.js', import.meta.url), 'utf8'),
       compatibilityDate: '2026-10-15', d1Databases: { DB: 'auth-test' },
       bindings: {
         OWNER_EMAIL: 'owner@example.test', OTP_FROM: 'KDP <login@example.test>',
@@ -42,10 +42,11 @@ export async function fixture(t, overrides = {}) {
         return Response.json({ id: 'test-mail' });
       },
     }, ...Object.entries(clients).map(([id]) => ({
-      name: id, modules: true, script: bundle.outputFiles[0].text,
+      name: id, modules: true, script: options.scripts?.[id] ?? bundle.outputFiles[0].text,
       compatibilityDate: '2026-10-15', d1Databases: { DB: id + '-test' },
       serviceBindings: { AUTH: 'auth' },
-      bindings: { AUTH_CLIENT_ID: id, AUTH_CLIENT_SECRET: clients[id].secret, AUTH_ORIGIN: overrides.AUTH_ORIGIN || authOrigin, SSO_ENABLED: '1' },
+      bindings: { AUTH_CLIENT_ID: id, AUTH_CLIENT_SECRET: clients[id].secret, AUTH_ORIGIN: overrides.AUTH_ORIGIN || authOrigin, SSO_ENABLED: '1', ...options.bindings?.[id] },
+      ...(options.outbound?.[id] ? { outboundService: options.outbound[id] } : {}),
     }))],
   }));
   t?.after(() => runtime.dispose());

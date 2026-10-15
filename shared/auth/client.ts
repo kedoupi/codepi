@@ -38,7 +38,7 @@ export function ssoEnabled(env: SsoEnv): boolean {
 
 function config(env: SsoEnv): Config {
   if (!env.AUTH || !env.AUTH_ORIGIN || !env.AUTH_CLIENT_SECRET
-    || !["gu", "oura", "fagao"].includes(env.AUTH_CLIENT_ID ?? "")) {
+    || !["gu", "oura", "fagao", "desk"].includes(env.AUTH_CLIENT_ID ?? "")) {
     throw new SsoError("auth_not_configured", 503);
   }
   let origin: URL;

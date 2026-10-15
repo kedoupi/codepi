@@ -22,7 +22,7 @@ for (const [id, origin] of origins) {
   await new Promise(resolve => server.listen(Number(new URL(origin).port), '127.0.0.1', resolve));
   servers.push(server);
 }
-console.log('SSO browser fixture ready: auth localhost:8795, clients localhost:8801/8802/8803');
+console.log('SSO browser fixture ready: auth localhost:8795, clients localhost:8801/8802/8803/8804');
 async function close() {
   for (const server of servers) server.close();
   await f.runtime.dispose();
