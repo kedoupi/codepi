@@ -1,12 +1,10 @@
 import { escapeHtml as e } from "./markdown";
 import { proximityRequirement } from "./risk-summary";
 import type { Row } from "../../worker/dashboard-types";
+import { percent, ruleCurrent, ruleAction, weight } from "./format";
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-const pct = (v: unknown, digits = 1) => {
-  const n = num(v);
-  return n === null ? "—" : `${(n * 100).toFixed(digits)}%`;
-};
+const pct = percent;
 // Percentage points, not percent: an allocation gap reads as 55.8 个百分点.
 const points = (v: number, digits = 1) => `${v === 0 ? "" : v > 0 ? "+" : "−"}${(Math.abs(v) * 100).toFixed(digits)}`;
 
@@ -35,10 +33,10 @@ interface Gap {
 export function allocationGap(rows: Row[]) {
   const items = rows
     .map(row => {
-      const weight = num(row.weight);
+      const current = num(weight(row));
       const target = num(row.target);
-      return { ticker: String(row.ticker), weight, target,
-               gap: weight !== null && target !== null ? weight - target : null };
+      return { ticker: String(row.ticker), weight: current, target,
+               gap: current !== null && target !== null ? current - target : null };
     })
     .filter((item): item is Gap => item.weight !== null);
   if (!items.length) return "";
@@ -92,8 +90,8 @@ interface Rule {
 /** 风控距离：所有规则共用一条距离轴，阴影是 5% / 15% 临近带。 */
 export function riskRail(rows: Row[]) {
   const items: Rule[] = rows.map(row => ({
-    item: String(row.item), kind: String(row.kind), current: String(row.current),
-    threshold: String(row.threshold), action: String(row.action || ""),
+    item: String(row.item), kind: String(row.kind), current: ruleCurrent(row),
+    threshold: String(row.threshold), action: ruleAction(row),
     level: String(row.level || ""), proximity: String(row.proximity || "none"),
     distance: num(row.distance), triggered: row.triggered === true,
   }));
@@ -146,7 +144,7 @@ export function riskRail(rows: Row[]) {
 }
 
 export function historyDetail(row: Row) {
-  const weights = row.weights as Record<string, unknown>;
+  const weights = (row.weights_raw ?? row.weights) as Record<string, unknown>;
   return `<div class="history-values" aria-live="polite">
     ${SERIES.filter(t => num(weights[t]) !== null).map(t =>
       `<div><span>${e(t)}</span><strong>${pct(weights[t])}</strong></div>`).join("")}
@@ -158,7 +156,7 @@ export function weightHistory(history: Row[], targets: Record<string, number | n
   const rows = (history || []).filter(row => row && typeof row === "object" &&
     Number.isFinite(Date.parse(String(row.date))) && row.weights && typeof row.weights === "object")
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  const value = (row: Row, ticker: string) => num((row.weights as Record<string, unknown>)[ticker]);
+  const value = (row: Row, ticker: string) => num(((row.weights_raw ?? row.weights) as Record<string, unknown>)[ticker]);
   const series = SERIES.filter(ticker => rows.some(row => value(row, ticker) !== null));
   if (rows.length < 2 || !series.length) return "";
 

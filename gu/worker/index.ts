@@ -2,6 +2,7 @@ import type { Env } from "./types";
 import { authenticated, callbackSso, loginSso, logout, requestOtp, verifyOtp } from "./auth";
 import { ssoEnabled, ssoErrorResponse } from "../../shared/auth/client";
 import { dashboard, upload } from "./data";
+import { calendar, syncCalendar } from "./calendar";
 import { json, localDev, secureResponse, ValidationError } from "./lib";
 
 async function route(request: Request, env: Env): Promise<Response> {
@@ -12,6 +13,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (path === "/api/auth/login" && request.method === "GET") return loginSso(request, env);
   if (path === "/api/auth/callback" && request.method === "GET") return callbackSso(request, env);
   if (path === "/api/sync" && request.method === "PUT") return upload(request, env);
+  if (path === "/api/calendar/sync" && request.method === "PUT") return syncCalendar(request, env);
   if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
     request.headers.get("Origin") !== url.origin) return json({ error: "请求来源无效" }, 403);
   if (path === "/api/auth/request-otp" && request.method === "POST") return requestOtp(request, env);
@@ -22,6 +24,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (!await authenticated(request, env)) return json({ error: "请先登录", authenticated: false, authMode }, 401);
     if (request.method === "GET" && path === "/api/me") return json({ ok: true, authenticated: true, authMode });
     if (request.method === "GET" && path === "/api/dashboard") return dashboard(env);
+    if (request.method === "GET" && path === "/api/calendar") return calendar(env);
     return json({ error: "接口不存在" }, 404);
   }
   if (!["GET", "HEAD"].includes(request.method)) return new Response("Method not allowed", { status: 405 });

@@ -42,5 +42,9 @@ jobs:
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: npm run test:scripts
+        if: matrix.app == 'gu'
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run check:deploy
+        if: matrix.app == 'gu'

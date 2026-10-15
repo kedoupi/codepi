@@ -1,40 +1,76 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Minimal DOM boundary: exercise the real entry point, fetch handling and route handlers.
-async function mount(sso = false) {
+async function mount(initial = "#overview", firstStatus = 200, sso = false, legacyHide: string | null = null) {
   vi.resetModules();
   const app = { innerHTML: "", querySelectorAll: () => [] };
-  const controls = new Map<string, { onclick?: () => unknown }>();
+  const controls = new Map<string, any>();
   const listeners: Record<string, () => void> = {};
-  const intervals = new Map<number, () => void>();
-  vi.stubGlobal("setInterval", (callback: () => void, ms: number) => { intervals.set(ms, callback); return ms; });
   vi.stubGlobal("document", {
+    addEventListener: (event: string, fn: () => void) => { listeners[event] = fn; },
+    visibilityState: "visible",
+    querySelectorAll: () => [],
     querySelector: (selector: string) => {
       if (selector === "#app") return app;
-      if (["#history-date", "#search", "#kind", "#notice"].includes(selector)) return null;
-      if (selector === "#content") return { prepend: () => {} };
-      if (!controls.has(selector)) controls.set(selector, {});
+      if (["#history-date", "#search", "#kind", "#back-top"].includes(selector)) return null;
+      if (!controls.has(selector)) controls.set(selector, { focus: vi.fn(), value: "123456" });
       return controls.get(selector);
     },
-    createElement: () => ({ setAttribute: () => {} }),
   });
-  vi.stubGlobal("window", { addEventListener: (event: string, fn: () => void) => { listeners[event] = fn; }, scrollTo: () => {} });
-  vi.stubGlobal("sessionStorage", { getItem: () => null });
-  vi.stubGlobal("location", { hash: "#overview" });
-  vi.stubGlobal("history", { replaceState: () => {} });
+  vi.stubGlobal("window", { addEventListener: (event: string, fn: () => void) => { listeners[event] = fn; }, scrollTo: vi.fn(), scrollY: 300 });
+  const storage = new Map(legacyHide === null ? [] : [["gu-hide", legacyHide]]);
+  vi.stubGlobal("sessionStorage", {
+    getItem: vi.fn((key: string) => storage.get(key) ?? null),
+    removeItem: vi.fn((key: string) => storage.delete(key)),
+  });
+  vi.stubGlobal("location", { hash: initial, search: "" });
+  vi.stubGlobal("history", { replaceState: vi.fn((_a, _b, url: string) => { location.hash = url.includes("#") ? url.slice(url.indexOf("#")) : ""; }) });
   const data = { account: [{ total_usd: 123456, warnings: "⚠️ 情绪疲劳锁：48 小时禁止卖出/调仓" }], positions: [], risk: [], market: [], reports: [] };
-  const fetch = vi.fn(async (path: string, _init?: RequestInit) =>
-    Response.json(path === "/api/health" ? { sso_enabled: sso } : path === "/api/me" ? {} : { data }));
+  const fetch = vi.fn(async (path: string) => path === "/api/health" ? Response.json({ sso_enabled: sso })
+    : path === "/api/me" ? Response.json({ authenticated: true }) : firstStatus !== 200 ? Response.json({ error: "尚未同步数据" }, { status: firstStatus }) : Response.json({ batch_id: "one", data }));
   vi.stubGlobal("fetch", fetch);
   await import("../src/main");
-  await vi.waitFor(() => expect(app.innerHTML).toContain("估算总资产"));
-  expect(app.innerHTML).toContain("情绪疲劳锁");
-  return { app, controls, listeners, intervals, fetch, data };
+  const ready = firstStatus !== 200 ? "等待第一批投资数据"
+    : initial.startsWith("#reports/") ? "未找到这份报告" : initial === "#positions" ? "当前持仓" : "估算总资产";
+  await vi.waitFor(() => expect(app.innerHTML).toContain(ready));
+  return { app, controls, listeners, fetch, data, storage };
 }
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(async () => {
+  // Let independent calendar reads settle before removing the browser globals.
+  await new Promise(done => setTimeout(done, 0));
+  vi.unstubAllGlobals(); vi.restoreAllMocks();
+});
 
 describe("expired browser sessions", () => {
+  it.each(["focus", "visibilitychange"])("clears a revoked SSO session on %s and keeps the report return link", async event => {
+    const { app, listeners, fetch } = await mount("#reports/private", 200, true);
+    fetch.mockResolvedValue(Response.json({ authenticated: false, authMode: "sso" }));
+    listeners[event]();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("统一登录"));
+    expect(app.innerHTML).toContain("/api/auth/login?return=%2F%23reports%2Fprivate");
+    expect(app.innerHTML).not.toContain("发送验证码");
+    expect(app.innerHTML).not.toContain("估算总资产");
+  });
+  it("retains the SSO login after a non-JSON 401 and does not call a legacy OTP route", async () => {
+    const { app, controls, fetch } = await mount("#positions", 200, true);
+    fetch.mockResolvedValue(new Response("expired", { status: 401 }));
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("统一登录"));
+    expect(app.innerHTML).toContain("/api/auth/login?return=%2F%23positions");
+    expect(fetch.mock.calls.some(([url]) => url.includes("request-otp"))).toBe(false);
+  });
+  it("preserves cached assets during an SSO service outage and retries successfully", async () => {
+    const { app, controls, fetch, data } = await mount("#overview", 200, true);
+    fetch.mockResolvedValue(Response.json({ error: "auth_unavailable" }, { status: 503 }));
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("刷新失败，仍展示上一批数据"));
+    expect(app.innerHTML).toContain("估算总资产");
+    expect(app.innerHTML).not.toContain("登录投资工作台");
+    fetch.mockImplementation(async path => Response.json(path === "/api/me" ? { authenticated: true } : { batch_id: "two", data }));
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("已载入新同步批次"));
+  });
   it.each(["/api/me", "/api/dashboard"])("clears cached assets after %s returns even a non-JSON 401", async path => {
     const { app, controls, listeners, fetch } = await mount();
     fetch.mockImplementation(async url => url === path
@@ -50,15 +86,17 @@ describe("expired browser sessions", () => {
     }
   });
 
-  it("discards a pending dashboard response after another refresh expires", async () => {
+  it("deduplicates refreshes and discards a pending dashboard response after logout", async () => {
     const { app, controls, listeners, fetch, data } = await mount();
     let resolve!: (value: Response) => void;
-    fetch.mockImplementation(async path => path === "/api/me" ? Response.json({})
+    fetch.mockImplementation(async path => ["/api/me", "/api/auth/logout"].includes(path) ? Response.json({})
       : new Promise<Response>(done => { resolve = done; }));
     controls.get("#refresh")!.onclick!();
     await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
-    fetch.mockResolvedValue(new Response("", { status: 401 }));
+    const count = fetch.mock.calls.length;
     controls.get("#refresh")!.onclick!();
+    expect(fetch.mock.calls.length).toBe(count);
+    await controls.get("#logout")!.onclick!();
     await vi.waitFor(() => expect(app.innerHTML).toContain("登录投资工作台"));
     resolve(Response.json({ data }));
     await new Promise(done => setTimeout(done, 0));
@@ -66,50 +104,90 @@ describe("expired browser sessions", () => {
     expect(app.innerHTML).toContain("登录投资工作台");
     expect(app.innerHTML).not.toContain("估算总资产");
   });
+});
 
-  it.each(["interval", "focus", "pageshow"])("clears private data on a confirmed 401 from %s", async trigger => {
-    const { app, listeners, intervals, fetch } = await mount(true);
-    fetch.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
-    if (trigger === "interval") intervals.get(30_000)!();
-    else listeners[trigger]();
-    await vi.waitFor(() => expect(app.innerHTML).toContain('href="/api/auth/login?return=%2F"'));
-    expect(app.innerHTML).not.toContain('id="send"');
-    expect(app.innerHTML).not.toContain("估算总资产");
-    expect(app.innerHTML).not.toContain("情绪疲劳锁");
-  });
-
-  it("clears private data when the session endpoint returns authenticated:false", async () => {
-    const { app, listeners, fetch } = await mount(true);
-    fetch.mockResolvedValue(Response.json({ authenticated: false }));
-    listeners.focus();
-    await vi.waitFor(() => expect(app.innerHTML).toContain("统一登录"));
-    expect(app.innerHTML).not.toContain("估算总资产");
-  });
-
-  it("preserves the cached dashboard and allows retry during a 503", async () => {
-    const { app, listeners, fetch, data, controls } = await mount(true);
-    fetch.mockResolvedValue(new Response("Unavailable", { status: 503 }));
-    listeners.focus();
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/me", expect.anything()));
-    expect(app.innerHTML).toContain("估算总资产");
-    expect(app.innerHTML).toContain("情绪疲劳锁");
-    fetch.mockImplementation(async path => Response.json(path === "/api/me" ? {} : { data }));
+describe("empty and failed data", () => {
+  it("renders refresh progress and unchanged-batch feedback without concurrent requests", async () => {
+    const { app, controls, fetch, data } = await mount();
+    let complete!: (value: Response) => void;
+    fetch.mockImplementation(async path => path === "/api/me" ? Response.json({})
+      : new Promise<Response>(resolve => { complete = resolve; }));
     controls.get("#refresh")!.onclick!();
-    await vi.waitFor(() => expect(app.innerHTML).toContain("估算总资产"));
+    expect(app.innerHTML).toContain("刷新中…");
+    expect(app.innerHTML).toContain('aria-busy="true"');
+    await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
+    complete(Response.json({ batch_id: "one", data }));
+    await vi.waitFor(() => expect(app.innerHTML).toContain("当前已是最新同步批次"));
+    expect(app.innerHTML).toContain('aria-busy="false"');
   });
-
-  it("retains the dashboard when global logout fails and clears it after a successful retry", async () => {
-    const { app, fetch, controls } = await mount(true);
-    fetch.mockResolvedValue(Response.json({ error: "Unavailable" }, { status: 503 }));
-    await controls.get("#logout")!.onclick!();
-    expect(app.innerHTML).toContain("估算总资产");
-    fetch.mockResolvedValue(Response.json({ ok: true }));
-    await controls.get("#logout")!.onclick!();
-    expect(fetch).toHaveBeenLastCalledWith("/api/auth/logout", expect.objectContaining({
-      method: "POST", credentials: "same-origin",
-    }));
-    expect(app.innerHTML).toContain('href="/api/auth/login?return=%2F"');
-    expect(app.innerHTML).not.toContain("估算总资产");
-    expect(app.innerHTML).not.toContain("情绪疲劳锁");
+  it.each([null, "1"])("always displays complete data across routes with legacy hide preference %s", async legacyHide => {
+    const { app, controls, listeners, data, storage } = await mount("#overview", 200, true, legacyHide);
+    expect(storage.has("gu-hide")).toBe(false);
+    expect(sessionStorage.getItem).not.toHaveBeenCalled();
+    data.account[0].warnings += " / 月投后 12345 美元触发硬刹车";
+    (data.positions as any[]).push({ ticker: "NVDA", shares: 214.6206, price: 170.25, avg_cost: 160, value_usd: 36539.156, weight_raw: .065, target: .065 });
+    (data.risk as any[]).push({ item: "NVDA", kind: "价格", current_value: 170.25, current_unit: "USD", threshold: "< 160 美元", action: "不得新开定投", triggered: false, proximity: "near", distance: .064 });
+    (data.reports as any[]).push({ id: "private", kind: "盘后复盘", date: "2026-10-15",
+      headline: "组合当日约 +350 美元", action: "只观察", body: "# 账户 123456 美元\n## 持仓 214.6206 股\n[来源](https://example.com/123456)\n## 记录", path: "reports/2026-10/private.md" });
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("12345 美元"));
+    for (const hash of ["#overview", "#positions", "#reports", "#reports/private", "#status"]) {
+      location.hash = hash; listeners.hashchange();
+      expect(app.innerHTML).not.toMatch(/id="hide"|显示金额|隐藏金额|隐私模式|摘要已隐藏|原始记录路径已隐藏/);
+      expect(app.innerHTML).toContain('id="refresh"');
+      expect(app.innerHTML).toContain('id="logout"');
+      if (hash === "#overview") {
+        expect(app.innerHTML).toContain("12.35 万");
+        expect(app.innerHTML).toContain("+350 美元");
+        expect(app.innerHTML).toContain("12345 美元");
+      } else if (hash === "#positions") {
+        expect(app.innerHTML).toContain("214.6206");
+        expect(app.innerHTML).toContain("170.25");
+        expect(app.innerHTML).toContain("160 美元");
+        expect(app.innerHTML).toContain("3.65 万");
+      } else if (hash === "#reports") {
+        expect(app.innerHTML).toContain("+350 美元");
+      } else if (hash === "#reports/private") {
+        expect(app.innerHTML).toContain("123456 美元");
+        expect(app.innerHTML).toContain("214.6206 股");
+        expect(app.innerHTML).toContain('href="https://example.com/123456"');
+        expect(app.innerHTML).toContain("reports/2026-10/private.md");
+        expect(app.innerHTML).toContain("章节目录 · 3 节");
+      } else {
+        expect(app.innerHTML).toContain("12345 美元");
+      }
+    }
+  });
+  it("keeps valid sessions in the empty state during navigation", async () => {
+    const { app, listeners } = await mount("#reports", 404);
+    location.hash = "#positions"; listeners.hashchange();
+    expect(app.innerHTML).toContain("等待第一批投资数据");
+    expect(app.innerHTML).not.toContain("登录投资工作台");
+  });
+  it.each(["offline", "html", "server"])("persists %s failure with cached batch across routes, then recovers", async mode => {
+    const { app, controls, listeners, fetch, data } = await mount();
+    fetch.mockImplementation(async () => {
+      if (mode === "offline") throw new TypeError("Failed to fetch");
+      return mode === "html" ? new Response("<html>bad gateway</html>", { status: 502 }) : Response.json({ error: "server" }, { status: 500 });
+    });
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("刷新失败，仍展示上一批数据"));
+    location.hash = "#status"; listeners.hashchange();
+    expect(app.innerHTML).toContain("刷新失败，仍展示上一批数据");
+    fetch.mockImplementation(async path => Response.json(path === "/api/me" ? {} : { batch_id: "one", data }));
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("当前已是最新同步批次"));
+    expect(app.innerHTML).not.toContain("刷新失败");
+  });
+  it("restores a report deep link after reauthentication", async () => {
+    const { app, controls, fetch } = await mount();
+    location.hash = "#reports/test";
+    fetch.mockResolvedValue(new Response("expired", { status: 401 }));
+    controls.get("#refresh")!.onclick!();
+    await vi.waitFor(() => expect(app.innerHTML).toContain("登录投资工作台"));
+    fetch.mockImplementation(async path => Response.json(path === "/api/dashboard" ? { data: { account: [{}], positions: [], risk: [], market: [], reports: [{ id: "test", kind: "盘后复盘", body: "# 测试正文", date: "2026-10-15" }] } } : {}));
+    await controls.get("#verify")!.onsubmit({ preventDefault() {} });
+    expect(location.hash).toBe("#reports/test");
+    expect(app.innerHTML).toContain("测试正文");
   });
 });
