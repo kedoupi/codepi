@@ -230,12 +230,26 @@ export async function handleOuraCallback(
       ouraUserId: me.id,
     });
     await upsertEncryptedTokens(env, userId, encKey, tokensFromOura(tokens));
-    await env.DB.prepare("UPDATE auto_sync_state SET status='running',last_error=NULL WHERE user_id=? AND status='blocked'")
-      .bind(userId).run();
-    await env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL, last_error=NULL WHERE user_id=?")
-      .bind(userId).run();
-    await env.DB.prepare("UPDATE sync_state SET last_error=NULL WHERE user_id=? AND last_error='reconnect_required'")
-      .bind(userId).run();
+    // Fence outstanding work before clearing refusal evidence. Its late
+    // response must not pause or overwrite a newly authorized connection.
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE sync_state SET lease_id=?,lease_until=0,
+        last_error=CASE WHEN last_error='reconnect_required' THEN NULL ELSE last_error END WHERE user_id=?`)
+        .bind(crypto.randomUUID(), userId),
+      env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL,last_error=NULL WHERE user_id=?").bind(userId),
+      env.DB.prepare(`UPDATE auto_sync_state SET lease_id=?,lease_until=0 WHERE user_id=?`)
+        .bind(crypto.randomUUID(), userId),
+      env.DB.prepare(`UPDATE auto_sync_state SET status='running',last_error=NULL,finished_at=NULL,
+        payload=(SELECT json_group_array(json(CASE
+          WHEN json_extract(value,'$.state')='unavailable'
+            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required')
+          THEN json_remove(json_set(value,'$.state','pending','$.attempts',0,'$.after',0),'$.error')
+          ELSE value END)) FROM json_each(payload))
+        WHERE user_id=? AND (status='blocked' OR EXISTS (
+          SELECT 1 FROM json_each(payload) WHERE json_extract(value,'$.state')='unavailable'
+            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required')
+        ))`).bind(userId),
+    ]);
     const headers = new Headers();
     if (!auth) {
       const sessionId = await createSession(env, userId, "oauth");

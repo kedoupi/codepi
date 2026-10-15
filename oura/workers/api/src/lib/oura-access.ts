@@ -2,7 +2,7 @@ import type { Env } from "../env";
 import { resolveEncryptionKey, oauthConfigured } from "./config";
 import { ApiError } from "./errors.ts";
 import { refreshAccessToken } from "./oura";
-import { loadEncryptedTokens, tokensFromOura, upsertEncryptedTokens } from "./tokens";
+import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens";
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
 export async function ouraAccessToken(
@@ -10,8 +10,9 @@ export async function ouraAccessToken(
 ): Promise<string> {
   const key = resolveEncryptionKey(request, env);
   if (!key || !oauthConfigured(env)) throw new ApiError("oura_not_configured", 503);
-  let stored = await loadEncryptedTokens(env, userId, key);
-  if (!stored) throw new ApiError("reconnect_required", 401);
+  const record = await loadEncryptedTokenRecord(env, userId, key);
+  if (!record) throw new ApiError("reconnect_required", 401);
+  let stored = record.tokens;
   if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
     || stored.access_token === rejectedToken) {
     stored = tokensFromOura(await refreshAccessToken({
@@ -19,14 +20,14 @@ export async function ouraAccessToken(
       clientId: env.OURA_CLIENT_ID!,
       clientSecret: env.OURA_CLIENT_SECRET!,
     }));
-    await upsertEncryptedTokens(env, userId, key, stored);
+    await upsertEncryptedTokens(env, userId, key, stored, record.revision);
   }
   return stored.access_token;
 }
 
 /** Must run inside the caller's per-user sync lease, including the retry. */
 export async function withOuraAccess<T>(
-  request: Request, env: Env, userId: string, load: (token: string) => Promise<T>,
+  request: Request, env: Env, userId: string, load: (token: string) => Promise<T>, lease: string,
 ): Promise<T> {
   const token = await ouraAccessToken(request, env, userId);
   let data: T;
@@ -47,7 +48,8 @@ export async function withOuraAccess<T>(
   // An actual successful provider request proves an old global auth block is
   // obsolete. Cached reads must never clear it; keep failed windows for retry.
   await env.DB.prepare(`UPDATE auto_sync_state SET status='running', last_error=NULL
-    WHERE user_id=? AND status='blocked' AND last_error='reconnect_required' AND lease_until<?`)
-    .bind(userId, Date.now()).run();
+    WHERE user_id=? AND status='blocked' AND last_error='reconnect_required' AND lease_until<?
+      AND EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)`)
+    .bind(userId, Date.now(), userId, lease).run();
   return data;
 }

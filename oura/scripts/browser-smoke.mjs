@@ -450,15 +450,47 @@ try {
   await fixture('automatic-sync', 'POST');
   await page.goto(`${origin}/`);
   auto = await automatic();
-  assert.equal(auto.status, 'partial');
+  assert.equal(auto.status, 'completed');
   assert.deepEqual(auto.scores, { status: 'completed', error: null });
-  assert.deepEqual(auto.details, { total: 2, completed: 1, failed: 1, remaining: 0 });
+  assert.deepEqual(auto.details, { total: 1, completed: 1, failed: 0, remaining: 0 });
+  assert.equal(auto.unavailable[0].collection, 'daily_spo2');
   await assertAutomaticDom(auto);
   assert.equal(await page.evaluate(() => document.querySelector('.journal-score-body strong').textContent), '91');
   const permissionCalls = (await fixture('sync-scenario')).providerCalls;
   await fixture('automatic-sync', 'POST');
   assert.deepEqual((await assertSyncWrites(1)).providerCalls, permissionCalls, 'terminal failures do not loop');
   await healthy('homepage keeps refreshed scores when a detail collection fails');
+
+  // Reproduce the three production refusals through the real token refresh,
+  // collection import, durable executor and rendered settings page.
+  const deniedCollections = ['daily_resilience', 'ring_configuration', 'ring_battery_level'];
+  await startShortScenario('access-denied', [...deniedCollections, 'heartrate'].join(','));
+  await page.goto('about:blank');
+  for (let batch = 0; batch < 4; batch++) await fixture('automatic-sync', 'POST');
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.equal(auto.status, 'completed');
+  assert.equal(auto.failed, 0);
+  assert.equal(auto.remaining, 0);
+  assert.equal(auto.completed, auto.total);
+  assert.deepEqual(auto.unavailable.map(row => row.collection).sort(), [...deniedCollections].sort());
+  await assertAutomaticDom(auto);
+  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('访问受限'));
+  assert.equal(await page.evaluate(() => Boolean(document.querySelector('.sync-issues'))), false,
+    'access pauses must not appear as retryable failures');
+  const denialsBefore = (await fixture('sync-scenario')).providerCalls;
+  for (const collection of deniedCollections) {
+    assert.equal(denialsBefore.filter(path => path === `/v2/usercollection/${collection}`).length, 2,
+      'one request plus one fresh-token check, not a request for every date');
+  }
+  await page.reload();
+  await assertAutomaticDom(auto);
+  await fixture('automatic-sync', 'POST');
+  assert.deepEqual((await fixture('sync-scenario')).providerCalls, denialsBefore);
+  await navigate('/sleep');
+  await page.waitForFunction(() => document.querySelector('.archive-status')?.textContent.includes('3 类访问暂停'));
+  assert.equal(await page.evaluate(() => document.querySelector('.archive-status').textContent.includes('类存在未完成批次')), false);
+  await healthy('three refused collections stay paused across reloads without hiding successful sync');
 
   // Force only the persisted retry deadline to mature between real scheduled
   // invocations. The score executor must stop after three provider failures.
@@ -644,6 +676,9 @@ try {
   await page.evaluate(() => document.querySelector('.journal-calendar-cells button').focus());
   await press(' ', 'Space', 32, ' ');
   assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-pressed')), 'true');
+  // Scores and archived sleep load independently. Linux CI may finish this
+  // keyboard path before the sleep response mounts its accessible table.
+  await page.waitForSelector('.journal-sleep .chart-data > summary');
   await page.evaluate(() => document.querySelector('.journal-sleep .chart-data > summary').focus());
   await press('Enter', 'Enter', 13, '\r');
   await page.waitForSelector('.journal-sleep .chart-data[open]');

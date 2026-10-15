@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import { ApiError, normalizeApiError } from "./errors.ts";
-import { HEALTH_COLLECTIONS, healthWindow, syncHealthWindow } from "./health-records.ts";
+import { HEALTH_COLLECTIONS, collectionAccess, deniedHealthCollections, isCollectionAccessDenied, healthWindow, syncHealthWindow } from "./health-records.ts";
 import { loadDailyForUser } from "./user-daily.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
 import { calendarDay } from "../../../../shared/dates.ts";
@@ -10,7 +10,7 @@ const CRON = "*/2 * * * *";
 const date = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 type Task = {
   collection: string; from: string; to: string;
-  state: "pending" | "done" | "failed" | "split";
+  state: "pending" | "done" | "failed" | "split" | "unavailable";
   attempts: number; after: number; error?: string;
 };
 type State = {
@@ -28,7 +28,9 @@ export function planAutomaticSync(today: string, coverage: Coverage[]): Task[] {
   const end = Date.parse(today);
   const recent: Task[] = [task("__scores", today, today)];
   const history: Task[] = [];
+  const denied = new Set(collectionAccess(coverage).map(row => row.collection));
   for (const spec of HEALTH_COLLECTIONS) {
+    if (denied.has(spec.name)) continue;
     if (spec.mode === "snapshot" || spec.mode === "profile") {
       recent.push(task(spec.name, today, today));
       continue;
@@ -90,7 +92,9 @@ async function cleanup(env: Env, now: number) {
 export async function automaticSyncStatus(env: Env, userId: string) {
   const row = await env.DB.prepare("SELECT * FROM auto_sync_state WHERE user_id=?").bind(userId).first<State>();
   const tasks: Task[] = JSON.parse(row?.payload ?? "[]");
-  const active = tasks.filter(t => t.state !== "split");
+  const unavailable = await deniedHealthCollections(env, userId);
+  const denied = new Set(unavailable.map(row => row.collection));
+  const active = tasks.filter(t => t.state !== "split" && t.state !== "unavailable" && !denied.has(t.collection));
   const pending = active.filter(t => t.state === "pending");
   const scores = active.find(t => t.collection === "__scores");
   const details = active.filter(t => t.collection !== "__scores");
@@ -109,6 +113,7 @@ export async function automaticSyncStatus(env: Env, userId: string) {
     status: row?.status ?? "idle", run_day: row?.run_day ?? null,
     started_at: row?.started_at ?? null, finished_at: row?.finished_at ?? null,
     last_success_at: row?.last_success_at ?? null, error: row?.last_error ?? null,
+    unavailable,
     total: active.length, completed: active.filter(t => t.state === "done").length,
     failed: active.filter(t => t.state === "failed").length, remaining: pending.length,
     scores: {
@@ -154,8 +159,8 @@ export async function requestAutomaticSync(env: Env, userId: string) {
     if (row.status !== "running" && row.status !== "blocked"
       && !(row.finished_at && now - Date.parse(row.finished_at) < 30_000)) {
       const today = calendarDay(new Date(now));
-      const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=? AND window_to>=?")
-        .bind(userId, date(Date.parse(today) - 89 * DAY)).all<Coverage>();
+      const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=?")
+        .bind(userId).all<Coverage>();
       const tasks = planAutomaticSync(today, coverage.results);
       const previous: Task[] = JSON.parse(row.payload);
       preserveRetryDelays(tasks, previous, now);
@@ -210,6 +215,25 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       return;
     }
     let tasks: Task[] = JSON.parse(row.payload);
+    // Reconcile pre-deploy queues and direct/manual refusals, even when the
+    // old run already finished or its retry deadlines have not elapsed.
+    const unavailable = await deniedHealthCollections(env, userId);
+    let reconciled = false;
+    for (const item of tasks) {
+      if (item.collection === "__scores") continue;
+      const denial = unavailable.find(row => row.collection === item.collection);
+      if (denial && (item.state === "pending" || item.state === "failed")) {
+        item.state = "unavailable";
+        item.error = denial.code;
+        reconciled = true;
+      } else if (!denial && (item.state === "unavailable" || item.state === "failed" && isCollectionAccessDenied(item.error))) {
+        item.state = "pending";
+        item.after = 0;
+        item.attempts = 0;
+        delete item.error;
+        reconciled = true;
+      }
+    }
     // Cron is UTC; the daily gate is 09:00 Shanghai. Use event time so delayed
     // delivery cannot accidentally start tomorrow's run.
     const today = calendarDay(new Date(scheduledTime));
@@ -217,13 +241,13 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     // The daily gate starts idle jobs only. Accepted work keeps its exact
     // checkpoints and retry delays across midnight and subsequent daily gates.
     const startNew = row.status !== "running" && due && (!row.run_day || row.run_day < today);
-    if (row.status !== "running" && !startNew) {
+    if (row.status !== "running" && !startNew && !reconciled) {
       log({ action: "skip", reason: "idle", status: row.status, run_day: row.run_day });
       return;
     }
     if (startNew) {
-      const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=? AND window_to>=?")
-        .bind(userId, date(Date.parse(today) - 89 * DAY)).all<Coverage>();
+      const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=?")
+        .bind(userId).all<Coverage>();
       const planned = planAutomaticSync(today, coverage.results);
       preserveRetryDelays(planned, tasks, now);
       tasks = planned;
@@ -244,6 +268,7 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     }
     const item = tasks.find(t => t.state === "pending" && t.after <= now);
     if (!item) {
+      if (reconciled) await saveProgress(env, userId, lease, tasks, false);
       log({ action: "idle", reason: "no_task_due", pending: tasks.filter(t => t.state === "pending").length });
       return;
     }
@@ -277,9 +302,9 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
         item.state = "split";
         tasks.splice(tasks.indexOf(item) + 1, 0,
           task(item.collection, date(cut + DAY), item.to), task(item.collection, item.from, date(cut)));
-      } else if (code === "permission_or_membership_required") {
-        for (const other of tasks.filter(t => t.collection === item.collection && t.state === "pending")) {
-          other.state = "failed";
+      } else if (item.collection !== "__scores" && isCollectionAccessDenied(code)) {
+        for (const other of tasks.filter(t => t.collection === item.collection && ["pending", "failed"].includes(t.state))) {
+          other.state = "unavailable";
           other.error = code;
         }
       } else if (code === "sync_in_progress") {
@@ -293,18 +318,23 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
         }
       }
     }
-    const finished = !tasks.some(t => t.state === "pending");
-    const failed = tasks.some(t => t.state === "failed");
-    const status = blocked ? "blocked" : !finished ? "running" : failed ? "partial" : "completed";
-    const lastError = blocked ? item.error : tasks.find(t => t.error && t.state === "pending")?.error
-      ?? tasks.find(t => t.error && t.state === "failed")?.error ?? null;
+    const status = await saveProgress(env, userId, lease, tasks, blocked, item.error);
     log({ action: "task", collection: item.collection, from: item.from, to: item.to,
       state: item.state, code: item.error ?? null, status, remaining: tasks.filter(t => t.state === "pending").length });
-    await env.DB.prepare(`UPDATE auto_sync_state SET status=?,payload=?,last_error=?,finished_at=?,
-      last_success_at=CASE WHEN ?='completed' THEN ? ELSE last_success_at END WHERE user_id=? AND lease_id=?`)
-      .bind(status, JSON.stringify(tasks), lastError ?? null, finished ? new Date().toISOString() : null,
-        status, new Date().toISOString(), userId, lease).run();
   } finally {
     await env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
   }
+}
+
+async function saveProgress(env: Env, userId: string, lease: string, tasks: Task[], blocked: boolean, error?: string) {
+  const finished = !tasks.some(t => t.state === "pending");
+  const failed = tasks.some(t => t.state === "failed");
+  const status = blocked ? "blocked" : !finished ? "running" : failed ? "partial" : "completed";
+  const lastError = blocked ? error : tasks.find(t => t.error && t.state === "pending")?.error
+    ?? tasks.find(t => t.error && t.state === "failed")?.error ?? null;
+  const now = new Date().toISOString();
+  await env.DB.prepare(`UPDATE auto_sync_state SET status=?,payload=?,last_error=?,finished_at=?,
+    last_success_at=CASE WHEN ?='completed' THEN ? ELSE last_success_at END WHERE user_id=? AND lease_id=?`)
+    .bind(status, JSON.stringify(tasks), lastError ?? null, finished ? now : null, status, now, userId, lease).run();
+  return status;
 }

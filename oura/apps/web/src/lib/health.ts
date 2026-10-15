@@ -7,6 +7,12 @@ export type HealthCollection = {
   name: string; label: string; mode: string; records: number;
   earliest_day: string | null; latest_day: string | null; failed_windows: number;
   last_attempt: { synced_at: string | null; attempted_at: string; last_error: string | null } | null;
+  access?: {
+    status: "unavailable" | "available" | "unknown";
+    automatic_retry: boolean;
+    code: string | null;
+    checked_at: string | null;
+  };
 };
 export type SyncFailure = {
   collection: string; from: string; to: string;
@@ -87,6 +93,7 @@ export type AutomaticSyncStatus = {
   completed: number;
   failed: number;
   remaining: number;
+  unavailable?: { collection: string; code: string | null; checked_at: string | null }[];
   scores: { status: "pending" | "completed" | "failed"; error: string | null };
   details: { total: number; completed: number; failed: number; remaining: number };
   current: { collection: string; from: string; to: string } | null;
