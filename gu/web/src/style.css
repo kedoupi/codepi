@@ -1903,13 +1903,21 @@ summary:focus-visible {
   background: var(--kdp-accent-soft);
 }
 /* 高亮画在单元格上：border-collapse: collapse 时 tr 的 box-shadow 不会绘制，
-   只给 tr 加背景又太浅（#eaf2ff 落在白底上几乎看不出来）。 */
+   只给 tr 加背景又太浅（#eaf2ff 落在白底上几乎看不出来）。
+   停留 6 秒后由 main.ts 加 is-fading 淡出，transition 时长与那里的
+   HIGHLIGHT_FADE_MS（600ms）保持一致；prefers-reduced-motion 下全局关闭过渡。 */
 .position-row.is-active > td {
   background: var(--kdp-accent-soft);
   box-shadow: inset 3px 0 0 var(--kdp-focus);
+  transition:
+    background-color 600ms ease,
+    box-shadow 600ms ease;
 }
 .position-row.is-active > td:first-child {
   box-shadow: inset 4px 0 0 var(--kdp-accent);
+  transition:
+    background-color 600ms ease,
+    box-shadow 600ms ease;
 }
 .position-card.is-active {
   background: var(--kdp-accent-soft);
@@ -1917,6 +1925,24 @@ summary:focus-visible {
   box-shadow: inset 4px 0 0 var(--kdp-accent);
   padding-left: 14px;
   padding-right: 14px;
+  transition:
+    background-color 600ms ease,
+    box-shadow 600ms ease,
+    padding 600ms ease;
+}
+/* 淡出：背景与色条过渡到透明，内边距一并收回，避免摘掉 class 时布局回弹。 */
+.position-row.is-fading > td {
+  background: transparent;
+  box-shadow: inset 3px 0 0 transparent;
+}
+.position-row.is-fading > td:first-child {
+  box-shadow: inset 4px 0 0 transparent;
+}
+.position-card.is-fading {
+  background: transparent;
+  box-shadow: inset 4px 0 0 transparent;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* ——— 现金缓冲 ——— */

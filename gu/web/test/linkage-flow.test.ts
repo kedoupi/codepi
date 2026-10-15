@@ -18,8 +18,8 @@ function makeFake(tag: string, dataPosition: string, visible: boolean): Fake {
   const el: Fake = {
     tag, dataPosition, classes, visible, scrolled: 0,
     classList: {
-      add: (c: string) => { classes.add(c); },
-      remove: (c: string) => { classes.delete(c); },
+      add: (...cs: string[]) => { cs.forEach((c) => classes.add(c)); },
+      remove: (...cs: string[]) => { cs.forEach((c) => classes.delete(c)); },
       contains: (c: string) => classes.has(c),
     },
     dataset: { position: dataPosition },
@@ -76,11 +76,16 @@ async function mountOverview(visible: "desktop" | "mobile") {
     querySelectorAll: (selector: string) => {
       if (selector.includes("composition-segment") || selector.includes("composition-legend-item"))
         return registry.filter(el => el.classes.has("composition-legend-item") || el.classes.has("composition-segment"));
-      if (selector === ".is-active") return registry.filter(el => el.classes.has("is-active"));
       if (selector.startsWith("[data-position=")) {
         const want = selector.match(/data-position="([^"]+)"/)![1];
         return registry.filter(el => el.dataPosition === want);
       }
+      // 类选择器（含 ".is-active, .is-fading" 这类列表）：命中任一即可。
+      const classSelectors = selector.split(",").map(s => s.trim())
+        .filter(s => s.startsWith("."))
+        .map(s => s.split(".").filter(Boolean));
+      if (classSelectors.length)
+        return registry.filter(el => classSelectors.some(cs => cs.every(c => el.classes.has(c))));
       return [];
     },
     querySelector: (selector: string) => {
@@ -148,15 +153,33 @@ describe.each(["desktop", "mobile"] as const)("chart to position linkage on %s",
     expect(hidden.every(el => el.scrolled === 0)).toBe(true);
   });
 
-  it("keeps the highlight instead of clearing it on a timer", async () => {
+  it("keeps the highlight for a few seconds, then fades it out", async () => {
     const { clickLegend, listeners, getRegistry, flushRaf } = await mountOverview(viewport);
-    clickLegend();
-    listeners.hashchange();
-    flushRaf();
-    expect(getRegistry().some(el => el.classes.has("is-active"))).toBe(true);
+    const rows = () => getRegistry().filter(
+      el => el.classes.has("position-row") || el.classes.has("position-card"));
+    // 挂载走真实时钟，接管时钟后再触发联动，保证高亮那枚计时器完全受控。
+    vi.useFakeTimers();
+    try {
+      clickLegend();
+      listeners.hashchange();
+      flushRaf();
+      expect(rows().every(el => el.classes.has("is-active"))).toBe(true);
 
-    await new Promise(done => setTimeout(done, 60)); // 远超旧的 2.4s 语义窗口的量级
-    expect(getRegistry().some(el => el.classes.has("is-active"))).toBe(true);
+      vi.advanceTimersByTime(6000 - 1);
+      expect(rows().every(el => el.classes.has("is-active"))).toBe(true);
+      expect(rows().some(el => el.classes.has("is-fading"))).toBe(false);
+
+      vi.advanceTimersByTime(1); // 6 秒整：开始淡出
+      expect(rows().every(el => el.classes.has("is-fading"))).toBe(true);
+      // 淡出期间保留 is-active，交给 CSS 过渡，避免同帧消失像闪烁。
+      expect(rows().every(el => el.classes.has("is-active"))).toBe(true);
+
+      vi.advanceTimersByTime(600); // 淡出结束：两个 class 一起摘掉
+      expect(rows().some(el => el.classes.has("is-active"))).toBe(false);
+      expect(rows().some(el => el.classes.has("is-fading"))).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
