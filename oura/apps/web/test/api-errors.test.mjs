@@ -2,6 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { api, errorText, RequestError } from '../src/lib/api.ts';
 
+test('missing Oura scopes ask for provider consent without claiming an expired website session', () => {
+  const error = new RequestError('oura_scope_required', 403);
+  assert.match(errorText(error, 'zh'), /重新连接.*权限/);
+  assert.doesNotMatch(errorText(error, 'zh'), /已失效|已过期|会员/);
+  assert.match(errorText(error, 'en'), /Reconnect Oura.*permissions/);
+});
+
 test('HTML failures preserve HTTP status and request id, including expired sessions', async t => {
   for (const [status, code] of [[401, 'unauthorized'], [503, 'service_unavailable']]) {
     const mock = t.mock.method(globalThis, 'fetch', async () => new Response('<html>error</html>', {

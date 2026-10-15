@@ -86,6 +86,7 @@ export function errorText(error: unknown, locale: Locale): string {
     oura_not_configured: ["Oura 连接配置异常，请联系维护者检查。", "The Oura connection configuration needs attention. Contact the site maintainer."],
     upstream_request_rejected: ["Oura 拒绝了此次数据请求，请稍后重试；这不代表授权已失效。", "Oura rejected this data request. Retry later; this does not indicate expired authorization."],
     upstream_access_denied: ["已刷新 Oura 连接，但上游仍拒绝此类数据的访问，请检查 Oura 中的应用授权。", "The Oura connection was refreshed, but access to this data is still denied. Check the app's permissions in Oura."],
+    oura_scope_required: ["Oura 授权缺少此类数据所需权限，请重新连接并允许请求的全部权限。", "Reconnect Oura and allow all requested permissions to access this data."],
     invalid_upstream_response: ["Oura 返回的数据格式异常，请稍后重试。", "Oura returned an unexpected response. Retry later."],
     rate_limited: ["Oura 请求较多，请稍后重试。", "Oura is rate limiting requests. Retry shortly."],
     sync_in_progress: ["数据正在同步，请稍后刷新。", "Sync is in progress. Retry shortly."],

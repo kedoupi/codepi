@@ -9,8 +9,8 @@ export const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 export const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 export const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
 
-/** Default scopes: sleep / readiness / activity (+ email for account identity). */
-export const DEFAULT_SCOPES = "daily personal email heartrate workout tag session spo2 heart_health";
+/** Resilience needs stress; both ring endpoints need ring_configuration. */
+export const DEFAULT_SCOPES = "daily personal email heartrate workout tag session spo2 heart_health stress ring_configuration";
 
 export type OuraTokens = {
   access_token: string;

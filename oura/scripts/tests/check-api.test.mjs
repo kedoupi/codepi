@@ -8,7 +8,7 @@ const script = fileURLToPath(new URL('../check-api.mjs', import.meta.url));
 // The deployed Worker was configured with the public hostname, so the mock
 // always advertises it no matter which hostname answers the probe.
 const PUBLIC_ORIGIN = 'https://oura.kdp.cool';
-const SCOPES = 'heartrate workout tag session spo2 heart_health';
+const SCOPES = 'heartrate workout tag session spo2 heart_health stress ring_configuration';
 
 /** Minimal stand-in for the Worker + zone edge. */
 async function listen(handler) {

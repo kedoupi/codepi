@@ -50,11 +50,46 @@ export function ouraResourceError(status: number): ApiError {
   return new ApiError("upstream_unavailable", 502);
 }
 
+async function missingOuraScope(response: Response): Promise<boolean> {
+  const reader = response.body?.getReader();
+  if (!reader) return false;
+  const decoder = new TextDecoder();
+  let text = "";
+  let size = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > 4096) return false;
+      text += decoder.decode(part.value, { stream: true });
+    }
+    const body = JSON.parse(text + decoder.decode()) as { detail?: unknown; error?: unknown; title?: unknown } | null;
+    return body?.error === "insufficient_scope" || body?.title === "Missing Scopes"
+      || typeof body?.detail === "string"
+        && /^Token is not authorized access [a-z][a-z0-9_]{0,63} scope\.$/.test(body.detail);
+  } catch {
+    // An unreadable diagnostic body must retain the original HTTP error.
+    return false;
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
+export async function ouraResponseError(response: Response): Promise<ApiError> {
+  // Oura uses 401 for missing scopes too. Refreshing cannot expand consent.
+  if (response.status === 401 || response.status === 403) {
+    if (await missingOuraScope(response)) return new ApiError("oura_scope_required", 403);
+  } else {
+    await response.body?.cancel();
+  }
+  return ouraResourceError(response.status);
+}
+
 export async function upstreamFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
   const response = await upstreamRequest(url, init);
   if (!response.ok) {
-    await response.body?.cancel();
-    throw ouraResourceError(response.status);
+    throw await ouraResponseError(response);
   }
   return response;
 }
