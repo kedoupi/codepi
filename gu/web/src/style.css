@@ -500,6 +500,7 @@ small {
   font-size: 22px;
   font-weight: 500;
   margin: 10px 0 6px;
+  font-variant-numeric: tabular-nums;
 }
 .market-grid b {
   font-size: 12px;
@@ -514,6 +515,9 @@ small {
 }
 .positive {
   color: #306858;
+}
+.neutral {
+  color: var(--muted);
 }
 .negative {
   color: var(--red);
@@ -705,6 +709,28 @@ tr:last-child td {
 }
 .warnings li {
   margin-bottom: 12px;
+  position: relative;
+  padding-left: 16px;
+}
+.warnings .notice-mark {
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.notice-mark.notice-mark-info {
+  background: var(--muted);
+}
+.notice-mark.notice-mark-success {
+  background: #5a8a73;
+}
+.notice-mark.notice-mark-warning {
+  background: #b7882c;
+}
+.notice-mark.notice-mark-danger {
+  background: var(--red);
 }
 .surface > p {
   font-size: 13px;
@@ -735,6 +761,32 @@ footer {
   padding: 12px 18px;
   border-radius: 8px;
   font-size: 13px;
+}
+/* 四级提示色调，按消息严重程度区分：
+ * info    — 中性说明，奶油色背景
+ * warning — 提醒但未触发硬刹车，原 .notice 的暖红色
+ * danger  — 触发规则 / 加载失败，深红边色
+ * success — 已完成或同步成功，森林绿边色 */
+.notice-info {
+  background: var(--peach);
+  color: #5d4c1f;
+  border: 1px solid #e1ddc9;
+}
+.notice-success {
+  background: #e6efe6;
+  color: #2c5046;
+  border: 1px solid #c4d8c4;
+}
+.notice-warning {
+  background: #fbecd2;
+  color: #7a5410;
+  border: 1px solid #e9d6a8;
+}
+.notice-danger {
+  background: #f4dad6;
+  color: #6f2a23;
+  border: 1px solid #d9a39c;
+  border-left: 3px solid var(--red);
 }
 .boot {
   padding: 40px;
