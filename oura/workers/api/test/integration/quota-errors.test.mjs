@@ -1,7 +1,7 @@
 import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import worker from '../../dist/index.js';
+import worker from './node-worker.mjs';
 import { createRuntime, login, migrate } from './runtime.mjs';
 import { failingDb } from './failing-db.mjs';
 

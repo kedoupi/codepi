@@ -1,9 +1,7 @@
 <script lang="ts">
-  import BrandMark from "./BrandMark.svelte";
-
   let {
     class: className = "brand",
-    name = "健康看板",
+    name = "健康 Health",
   }: {
     class?: string;
     name?: string;
@@ -11,6 +9,6 @@
 </script>
 
 <a class={className} href="/">
-  <BrandMark class="{className}-mark" />
+  <img class="{className}-mark" src="/icon.svg" alt="" width="36" height="36" />
   <span class="{className}-name">{name}</span>
 </a>

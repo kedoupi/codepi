@@ -1,7 +1,12 @@
 name = "oura-kdp-api"
 main = "src/index.ts"
+rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
 compatibility_date = "2025-01-01"
 routes = [
+  { pattern = "health.kdp.cool/api/*", zone_name = "kdp.cool" },
+  { pattern = "health.kdp.cool/mcp", zone_name = "kdp.cool" },
+  { pattern = "health.kdp.cool/oauth*", zone_name = "kdp.cool" },
+  { pattern = "health.kdp.cool/.well-known*", zone_name = "kdp.cool" },
   { pattern = "oura.kdp.cool/api/*", zone_name = "kdp.cool" },
   { pattern = "oura.kdp.cool/mcp", zone_name = "kdp.cool" },
   { pattern = "oura.kdp.cool/oauth*", zone_name = "kdp.cool" },
@@ -14,7 +19,8 @@ ALLOW_DEV_LOGIN = "0"
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "oura"
 AUTH_ORIGIN = "https://auth.kdp.cool"
-FRONTEND_ORIGIN = "https://oura.kdp.cool"
+FRONTEND_ORIGIN = "https://health.kdp.cool"
+FRONTEND_ORIGINS = "https://health.kdp.cool,https://oura.kdp.cool"
 OURA_REDIRECT_URI = "https://oura.kdp.cool/api/auth/oura/callback"
 
 [triggers]

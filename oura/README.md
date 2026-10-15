@@ -1,8 +1,16 @@
-# oura-kdp
+# 健康 Health
 
-Open-source Oura health dashboard for [oura.kdp.cool](https://oura.kdp.cool) — OAuth, sleep / readiness / activity.
+kedoupi（codepi）的个人健康空间，主入口为 `health.kdp.cool`，`oura.kdp.cool` 保留兼容访问。当前数据来源为 Oura；内部目录、Worker、Pages、D1 和 client ID 保留原技术名称。
 
-未登录是工具落地页（产品标题 + 看板预览 +「用 Oura 登录」）；登录后是完整 Svelte 看板。设计摘要见 [DESIGN.md](./DESIGN.md)。
+未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../docs/architecture/health-domain-migration.md)。
+
+## 当前生产登录与授权
+
+- 网页登录：`/api/auth/login` → `auth.kdp.cool` → 当前域名 `/api/auth/callback`。
+- Oura 提供方回调继续使用已登记的 `https://oura.kdp.cool/api/auth/oura/callback`。
+- 从 Health 发起设备连接时，先通过 SSO 在旧域建立独立会话，再进入 Oura 授权；完成后回到 Health 设置页。不跨域复制 Cookie，也不改变加密令牌或用户身份。
+- 新旧域保留独立的 MCP 发现与授权路径，原有 MCP 凭证继续有效。新连接使用 `https://health.kdp.cool/mcp`。
+- 以下 DEV / 非 SSO 说明属于本地调试或历史模式；生产已启用 SSO，网页登录与设备授权分开。
 
 ## Quick start
 

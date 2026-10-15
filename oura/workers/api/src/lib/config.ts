@@ -53,9 +53,21 @@ export function resolveSessionSecret(request: Request, env: Env): string | null 
 }
 
 export function frontendOrigin(request: Request, env: Env): string {
+  const origin = new URL(request.url).origin;
+  const allowed = (env.FRONTEND_ORIGINS ?? "").split(",").map(value => value.trim());
+  if (allowed.includes(origin)) return origin;
   if (env.FRONTEND_ORIGIN) return env.FRONTEND_ORIGIN.replace(/\/$/, "");
   if (isLocalHost(request)) return "http://localhost:5173";
   return new URL(request.url).origin;
+}
+
+/** Only the configured canonical settings page may cross the provider callback host. */
+export function providerSettingsReturn(request: Request, env: Env): string | null {
+  const target = new URL(request.url).searchParams.get("health_return");
+  if (!target || !env.FRONTEND_ORIGIN) return null;
+  const allowed = ["/settings", "/settings?sync=90"]
+    .map(path => new URL(path, env.FRONTEND_ORIGIN).href);
+  return allowed.includes(target) ? target : null;
 }
 
 export function redirectUri(request: Request, env: Env): string {

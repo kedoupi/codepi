@@ -11,6 +11,7 @@ export function createRuntime(options = {}) {
   const { providerResponse, variedDailyData, autoSync = false, sso = false, bindings = {}, ...runtimeOptions } = options;
   return new Miniflare({
     modules: true,
+    modulesRules: [{ type: 'Text', include: ['**/*.css'], fallthrough: true }],
     scriptPath: fileURLToPath(new URL('../../dist/index.js', import.meta.url)),
     compatibilityDate: '2025-01-01',
     d1Databases: ['DB'],

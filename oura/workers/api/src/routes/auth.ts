@@ -6,6 +6,7 @@ import {
   allowDevLogin,
   DEV_PLACEHOLDER_CLIENT_ID,
   frontendOrigin,
+  providerSettingsReturn,
   jsonError,
   oauthConfigured,
   OAUTH_STATE_COOKIE,
@@ -83,6 +84,21 @@ export async function handleOuraStart(
   if (request.method !== "GET") return jsonError("method_not_allowed", 405);
   const auth = ssoEnabled(env) ? await requireSession(request, env) : null;
   if (isResponse(auth)) return auth;
+  // Keep Oura's registered callback and its host-only session/state cookies
+  // together until the provider's callback registration is changed.
+  const providerOrigin = new URL(redirectUri(request, env)).origin;
+  if (ssoEnabled(env) && providerOrigin !== new URL(request.url).origin) {
+    const settings = new URL("/settings", providerOrigin);
+    settings.searchParams.set("connect_oura", "1");
+    const destination = new URL(request.url).searchParams.get("sync_health") === "1"
+      ? "/settings?sync=90" : "/settings";
+    settings.searchParams.set("health_return", new URL(destination, env.FRONTEND_ORIGIN).href);
+    const login = new URL("/api/auth/login", providerOrigin);
+    login.searchParams.set("return", settings.pathname + settings.search);
+    return new Response(null, { status: 302, headers: {
+      Location: login.href, "Cache-Control": "no-store",
+    } });
+  }
   const clientId = resolveClientId(request, env);
   if (!clientId) {
     return jsonError("OURA_CLIENT_ID not configured", 503, {
@@ -106,7 +122,8 @@ export async function handleOuraStart(
   const returnTo = parsedReturn?.origin === new URL(request.url).origin
       && parsedReturn?.pathname === "/oauth/authorize"
     ? parsedReturn.pathname + parsedReturn.search
-    : new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null;
+    : providerSettingsReturn(request, env)
+      ?? (new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null);
   await saveOauthState(env, state, returnTo, auth ? {
     userId: auth.session.user_id, sessionId: auth.session.id,
   } : undefined);

@@ -40,7 +40,7 @@
 
 <header class="chrome" class:journal-header={journal}>
   <div class="chrome-inner">
-    <ProductBrand class="brand" name={journal ? "Oura / journal" : t(locale, "dashTitle")} />
+    <ProductBrand class="brand" name={t(locale, "dashTitle")} />
     <nav class="nav" aria-label={locale === "zh" ? "主导航" : "Primary"}>
       {#each links as link (link.href)}
         <a
@@ -59,7 +59,7 @@
       {#if journal}
         <details class="journal-account">
           <summary>{locale === "zh" ? "账号" : "Account"}</summary>
-          <div><a href="/settings#account">{locale === "zh" ? "账号与连接" : "Account & connections"}</a><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
+          <div><a href="https://kdp.cool/">{locale === "zh" ? "返回个人空间" : "Personal home"}</a><a href="/settings#account">{locale === "zh" ? "账号与连接" : "Account & connections"}</a><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
         </details>
       {:else}
         <button type="button" class="ai-btn" onclick={onLogout}>{t(locale, "logout")}</button>
@@ -72,20 +72,21 @@
   .chrome :global(.brand-name){white-space:nowrap}
   .chrome :global(.brand){flex-shrink:0}
   .journal-header { background: var(--canvas); }
-  .journal-header .chrome-inner { max-width: none; height: 60px; gap: 24px; }
-  .journal-header :global(.brand-name) { font-family: var(--journal-display); font-weight: 500; font-size: 27px; letter-spacing: -.03em; }
-  .journal-header :global(.brand-mark) { width: 24px; height: 24px; }
+  .journal-header .chrome-inner { height: 76px; gap: 24px; }
+  .journal-header :global(.brand-name) { font-weight: 650; font-size: 19px; letter-spacing: -.03em; }
+  .journal-header :global(.brand-mark) { width: 32px; height: 32px; }
   .journal-header .nav { gap: 24px; flex-wrap: nowrap; }
   .journal-header .nav a { font-size: 14px; font-weight: 500; min-height: 56px; border-bottom: 2px solid transparent; }
-  .journal-header .nav a.active { border-bottom-color: var(--primary); }
+  .journal-header .nav a.active { color: var(--primary); border-bottom-color: var(--primary); }
   .journal-account { position: relative; font-size: 13px; }
   .journal-account summary { padding: 12px 4px; cursor: pointer; }
   .journal-account summary:focus-visible { outline: 2px solid var(--primary); }
-  .journal-account div { position: absolute; right: 0; top: 100%; width: 190px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+  .journal-account div { position: absolute; right: 0; top: 100%; width: 190px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--kdp-radius); box-shadow: var(--kdp-shadow); }
+  .journal-account div a { display: flex; min-height: 44px; border: 0; }
   .journal-account button { width: 100%; min-height: 44px; background: transparent; border: 0; color: var(--primary); cursor: pointer; }
   @media (max-width: 760px) {
     .journal-header .chrome-inner { height: auto; display: block; padding: 8px 0 0; }
-    .journal-header :global(.brand-name) { font-size: 24px; }
+    .journal-header :global(.brand-name) { font-size: 18px; }
     .journal-header .nav { justify-content: space-between; gap: 4px; flex-wrap: wrap; }
     .journal-header .nav a { font-size: 12px; min-height: 44px; padding: 6px 2px; }
     .journal-account { font-size: 12px; }

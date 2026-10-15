@@ -38,6 +38,6 @@
 
 <style>
   .sleep-preview{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:28px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(110deg,#fff0df,var(--canvas) 75%);margin:24px 0}
-  .eyebrow{font-size:13px;color:#9a3412}h2{font-size:28px;line-height:1.3;margin:8px 0}p{font-size:14px;color:var(--muted);max-width:580px}.ai-btn{flex-shrink:0;background:white}
+  .eyebrow{font-size:13px;color:var(--kdp-accent-strong)}h2{font-size:28px;line-height:1.3;margin:8px 0}p{font-size:14px;color:var(--muted);max-width:580px}.ai-btn{flex-shrink:0;background:white}
   @media(max-width:600px){.sleep-preview{padding:22px;align-items:flex-start;flex-direction:column}h2{font-size:24px}}
 </style>
