@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "发稿台一期：珂抖屁公众号审核台",
+  "description": "珂抖屁公众号一期：稿件、预览与审核工作台",
   "scripts": {
     "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8788",
     "dev:ui": "vite --config web/vite.config.ts",
