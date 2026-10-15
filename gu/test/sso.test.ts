@@ -131,7 +131,18 @@ describe("GU SSO adapter", () => {
     const { cookie } = await sso.login();
     sso.revoke();
     expect((await sso.call("/api/dashboard", cookie)).status).toBe(401);
+    expect((await sso.call("/api/calendar", cookie)).status).toBe(401);
     expect((await sso.call("/", cookie)).status).toBe(302);
+  });
+
+  it("serves the read-only calendar to the same SSO owner as the dashboard", async () => {
+    const sso = setup();
+    const { cookie } = await sso.login();
+    const response = await sso.call("/api/calendar", cookie);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ read_only: true, sustained_authorization: "unconfirmed" });
+    expect((await sso.call("/api/calendar")).status).toBe(401);
+    expect((await sso.call("/api/calendar/sync", cookie, "PUT")).status).toBe(401);
   });
 
   it("returns 503 during an AUTH outage and retains the session for retry", async () => {
