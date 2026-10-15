@@ -25,7 +25,7 @@ const canonicalURL = canonical || new URL(pathname, SITE).toString();
 const fullTitle = title === siteName ? title : `${title} | ${siteName}`;
 const home = personalSite && pathname === '/';
 const footerLinks = personalSite
-  ? [{ href: '/about/', label: '关于' }, { href: '/tools/', label: '工具存档' }, { href: '/privacy/', label: '隐私' }, { href: '/contact/', label: '联系' }]
+  ? [{ href: '/about/', label: '关于' }, { href: '/blog/', label: '博客' }, { href: '/tools/', label: '工具存档' }, { href: '/privacy/', label: '隐私' }, { href: '/contact/', label: '联系' }]
   : [...extraFooterLinks, { href: '/privacy/', label: 'Privacy' }, { href: '/terms/', label: 'Terms' }, { href: '/about/', label: 'About' }, { href: '/contact/', label: 'Contact' }];
 
 const jsonLd = {
