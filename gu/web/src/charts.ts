@@ -3,6 +3,9 @@ import { proximityRequirement } from "./risk-summary";
 import type { Row } from "../../worker/dashboard-types";
 import { percent, ruleCurrent, ruleAction, weight } from "./format";
 
+const money = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) ? `${(v / 10000).toFixed(2)} 万` : "—";
+
 const num = (v: unknown) =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 const pct = percent;
@@ -410,3 +413,197 @@ export function weightHistory(
     <p class="fine">横轴按实际日期间隔，连线只连接记录点，不代表每日走势或收益率。历史权重是档案约值，账户分母口径曾变化；最后一点为本批行情估算。
       现金不进本图：早期档案的现金口径不一致（06-25 把 14% 目标值写成了当前值）。</p></div>`;
 }
+
+
+/**
+ * 资产构成：单条横向条，按权重比例分割，每段带 data-position 用于联动
+ * 到持仓详情。现金、港股用独立色系，避免与个股盈亏色冲突。
+ */
+export function compositionBar(positions: Row[]) {
+  const items = (positions || [])
+    .map((p) => ({
+      ticker: String(p.ticker ?? ""),
+      name: String(p.name ?? ""),
+      weight: num(weight(p)),
+      value: num(p.value_usd),
+    }))
+    .filter((i) => i.ticker && i.weight !== null && i.weight > 0)
+    .sort((a, b) => (b.weight ?? 0) - (a.weight ?? 0));
+  if (!items.length) return "";
+  const total = items.reduce((sum, i) => sum + (i.weight ?? 0), 0);
+  if (total <= 0) return "";
+  const classify = (ticker: string) => {
+    if (ticker === "现金") return "cash";
+    if (ticker === "港股") return "hk";
+    return ticker;
+  };
+  return `<div class="chart chart-composition">
+    <div class="chart-legend">
+      <span class="key key-bar">资产构成 · 估算总资产</span>
+      <span class="chart-unit">${items.length} 项 · 现金单列</span>
+    </div>
+    <div class="composition-bar" role="group" aria-label="资产构成堆叠条">${items
+      .map((item) => {
+        const ratio = ((item.weight ?? 0) / total) * 100;
+        const cls = classify(item.ticker);
+        const label = ratio >= 4.5 ? pct(item.weight ?? 0, 1) : "";
+        return `<button type="button" class="composition-segment" data-w="${ratio.toFixed(4)}" data-color="${e(cls)}" data-position="${e(item.ticker)}"
+          aria-label="${e(item.ticker)} ${e(item.name)} 占比 ${pct(item.weight ?? 0, 1)}"
+          title="${e(item.ticker)} · ${e(item.name)} · ${pct(item.weight ?? 0, 1)}">${
+          label ? `<span class="composition-label">${e(label)}</span>` : ""
+        }</button>`;
+      })
+      .join("")}</div>
+    <ul class="composition-legend">${items
+      .map((item) => {
+        const cls = classify(item.ticker);
+        return `<li><button type="button" class="composition-legend-item" data-position="${e(item.ticker)}">
+          <span class="dot" data-color="${e(cls)}"></span>
+          <strong>${e(item.ticker)}</strong>
+          <span class="muted">${e(item.name)}</span>
+          <b>${pct(item.weight ?? 0, 1)}</b>
+          <small>${money(item.value)}</small>
+        </button></li>`;
+      })
+      .join("")}</ul>
+    <p class="fine">点击段或图例项跳到持仓详情。现金作为独立项以低墨色块展示，港股为估值口径；现金 / 港股的当前价未确认，本图不展示。</p>
+  </div>`;
+}
+
+/**
+ * 现金缓冲：两条对照条，当前 vs 最低保留线、月投后 vs 最低保留线。
+ * 月投估算来自 account.dca_amount_usd；缺失时只渲染一条。
+ */
+export function cashBuffer(
+  cashAfter: number | null,
+  cashMinimum: number | null,
+  dcaAmount: number | null,
+  totalUsd: number | null,
+  cashAsOf: unknown,
+) {
+  if (typeof cashAfter !== "number" || typeof cashMinimum !== "number") return "";
+  const usd = (w: number) =>
+    typeof totalUsd === "number" && totalUsd > 0 ? totalUsd * w : null;
+  const usdLabel = (val: number | null) =>
+    val === null ? "—" : `${(val / 10000).toFixed(2)} 万美元`;
+  const afterUsd = usd(cashAfter);
+  const afterDca =
+    typeof dcaAmount === "number" && typeof totalUsd === "number" && totalUsd > 0
+      ? cashAfter - dcaAmount / totalUsd
+      : null;
+  const afterDcaUsd = afterDca === null ? null : usd(afterDca);
+  const row = (
+    title: string,
+    weightVal: number,
+    usdVal: number | null,
+    kind: string,
+  ) => {
+    const overshoot = weightVal - cashMinimum;
+    const tone =
+      overshoot < 0 ? "danger" : overshoot < 0.05 ? "warning" : "success";
+    return `<div class="cash-row ${kind}">
+      <div class="cash-row-head"><span>${e(title)}</span><b>${pct(weightVal, 1)}</b></div>
+      <div class="cash-track">
+        <div class="cash-zone" data-w="${(cashMinimum * 100).toFixed(4)}"></div>
+        <div class="cash-fill ${tone}" data-w="${(weightVal * 100).toFixed(4)}"></div>
+        <div class="cash-min-mark" data-l="${(cashMinimum * 100).toFixed(4)}">最低 ${pct(cashMinimum, 0)}</div>
+      </div>
+      <div class="cash-row-foot"><span>缓冲 ${points(overshoot)}</span><small>${e(usdLabel(usdVal))}</small></div>
+    </div>`;
+  };
+  return `<div class="chart chart-cash">
+    <div class="chart-legend">
+      <span class="key key-bar">现金缓冲</span>
+      <span class="chart-unit">记录于 ${e(String(cashAsOf || "未记录"))}</span>
+    </div>
+    <div class="cash-rows">
+      ${row("当前现金", cashAfter, afterUsd, "default")}
+      ${
+        afterDca === null
+          ? ""
+          : row("本月投后估算", afterDca, afterDcaUsd, "after-dca")
+      }
+    </div>
+    <p class="fine">轨道以总资产为分母，月投估算基于本批 account.dca_amount_usd；估算不等于可以下单，仍须核实买入通道及账户。橙色为接近最低保留线，红色表示跌破。</p>
+  </div>`;
+}
+
+/**
+ * 投资事件时间轴：当天 + 未来 3 天的日历快照。
+ * 只展示已同步范围；超出窗口的「无事件」不能推断。
+ */
+export function eventTimeline(
+  events: {
+    title: string;
+    start: { date?: string; date_time?: string };
+    execution_status: string;
+  }[],
+  fetchedAt: unknown,
+) {
+  if (!Array.isArray(events) || !events.length) return "";
+  const statusLabel: Record<string, string> = {
+    unconfirmed: "执行状态未确认",
+    recorded_done: "日历标记已成交",
+    recorded_skipped: "日历标记已跳过",
+    recorded_postponed: "日历标记已推迟",
+  };
+  const statusTone: Record<string, string> = {
+    unconfirmed: "neutral",
+    recorded_done: "success",
+    recorded_skipped: "muted",
+    recorded_postponed: "warning",
+  };
+  const items = events
+    .map((event) => {
+      const start = event.start?.date
+        ? { kind: "day" as const, iso: event.start.date }
+        : event.start?.date_time
+          ? { kind: "time" as const, iso: event.start.date_time }
+          : null;
+      if (!start) return null;
+      const stamp = Date.parse(start.iso);
+      if (!Number.isFinite(stamp)) return null;
+      return {
+        title: String(event.title ?? "未命名事件"),
+        status: String(event.execution_status ?? "unconfirmed"),
+        stamp,
+        iso: start.iso,
+        kind: start.kind,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => a.stamp - b.stamp);
+  if (!items.length) return "";
+  const first = items[0].stamp;
+  const last = items[items.length - 1].stamp;
+  const span = Math.max(1, last - first);
+  const fetchedLabel = fetchedAt ? `快照于 ${e(String(fetchedAt))}` : "快照时间未记录";
+  return `<div class="chart chart-timeline">
+    <div class="chart-legend">
+      <span class="key key-bar">投资事件时间轴</span>
+      <span class="chart-unit">已同步范围 · ${e(fetchedLabel)}</span>
+    </div>
+    <div class="timeline-axis" role="group" aria-label="投资事件时间轴">${items
+      .map((item, i) => {
+        const offset = ((item.stamp - first) / span) * 100;
+        const label = item.kind === "day" ? item.iso : item.iso.slice(11, 16);
+        const tone = statusTone[item.status] || "neutral";
+        return `<button type="button" class="timeline-event ${tone}" data-l="${offset.toFixed(2)}" data-i="${i}"
+          title="${e(item.title)} · ${e(statusLabel[item.status] ?? "执行状态未确认")}">
+          <span class="timeline-dot"></span>
+          <span class="timeline-time">${e(label)}</span>
+          <span class="timeline-title">${e(item.title)}</span>
+        </button>`;
+      })
+      .join("")}</div>
+    <p class="fine">仅展示已同步只读快照；超出同步范围的「无事件」不能据此推断。日历与行情分别同步，长期授权尚未接入。</p>
+  </div>`;
+}
+
+/** 标的 → DOM id，去掉空格和特殊字符，给锚点 / hash 跳转用。 */
+export function positionAnchorId(ticker: string) {
+  return `position-anchor-${String(ticker || "")
+    .replace(/[^A-Za-z0-9一-鿿]/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+}
+

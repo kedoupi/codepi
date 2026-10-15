@@ -13,6 +13,10 @@ import {
 import { calendarPanel, type CalendarView } from "./calendar";
 import {
   allocationGap,
+  cashBuffer,
+  compositionBar,
+  eventTimeline,
+  positionAnchorId,
   riskRail,
   weightHistory,
   historyDetail,
@@ -40,16 +44,11 @@ let notice = "";
 let returnHash = "";
 let mounted = false;
 let renderKey = "";
-// load() 完成会 bump 一次，让下一次 render() 跳过同 batch 的优化失效。
-let renderNonce = 0;
+let dataRevision = 0;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
 function focusContent() {
-  // hashchange / 返回顶部都会调用：保持 contentEl 可聚焦，并避免在测试 mock 里
-  // 碰到 #content.focus not a function（实测 vi.waitFor 会触发）。
-  const el = document.querySelector<HTMLElement>("#content");
-  if (el && typeof (el as HTMLElement).focus === "function") {
-    (el as HTMLElement).focus({ preventScroll: true });
-  }
+  document.querySelector<HTMLElement>("#content")?.focus({ preventScroll: true });
 }
 const NAV_ITEMS = [
   ["overview", "总览"],
@@ -69,11 +68,11 @@ let reportQuery = "";
 let reportKind = "";
 let cooldown: ReturnType<typeof setInterval> | undefined;
 const number = (v: unknown, digits = 2) =>
-  typeof v === "number"
+  typeof v === "number" && Number.isFinite(v)
     ? v.toLocaleString("zh-CN", { maximumFractionDigits: digits })
     : "—";
 const money = (v: unknown) =>
-  typeof v === "number" ? `${(v / 10000).toFixed(2)} 万` : "—";
+  typeof v === "number" && Number.isFinite(v) ? `${(v / 10000).toFixed(2)} 万` : "—";
 const time = (v: unknown) => {
   const date = new Date(String(v));
   return Number.isFinite(date.getTime())
@@ -91,7 +90,7 @@ const signed = (v: unknown) =>
 // 旧实现在缺失值时也落进 positive 绿色，会把「行情暂时取不到」伪装成上涨。
 const tone = (v: unknown) => {
   if (typeof v !== "number" || !Number.isFinite(v)) return "neutral";
-  return v < 0 ? "negative" : "positive";
+  return v < 0 ? "negative" : v > 0 ? "positive" : "neutral";
 };
 const brand = `<a class="brand" href="#overview" aria-label="${PRODUCT_BRAND} · GU"><span class="brand-mark">k</span><span>kedoupi<small>codepi · 个人投资工作台</small></span></a>`;
 
@@ -163,6 +162,7 @@ function validHash(hash: string) {
 
 function login() {
   if (cooldown) clearInterval(cooldown);
+  clearTimeout(noticeTimer);
   // login 是另一个 UI 形态，再次登录前必须让 render() 重挂 chrome，
   // 否则同步提示条 / 顶栏副标题都查不到节点。
   mounted = false;
@@ -369,9 +369,10 @@ function overview() {
       typeof p.target === "number" ? p.target : null,
     ]),
   );
-  const cashAfter = a.cash_after_dca_raw ?? a.cash_after_dca;
+  const cashAfter = (typeof a.cash_after_dca_raw === "number" ? a.cash_after_dca_raw : null) ??
+    (typeof a.cash_after_dca === "number" ? a.cash_after_dca : null);
   const cashMinimum = d.positions.find((p) => p.ticker === "现金")?.target;
-  const cashBuffer =
+  const cashBufferDiff =
     typeof cashAfter === "number" && typeof cashMinimum === "number"
       ? cashAfter - cashMinimum
       : null;
@@ -380,12 +381,15 @@ function overview() {
     <p class="freshness">批次生成于 ${e(time(a.generated_at))} · ${e(elapsed(a.generated_at))}。刷新只读取已同步数据。行情阶段：${e(a.quote_status || "未确认")}。</p>
     <div class="data-note"><span>${a.data_mode === "demo" ? "本地演示 · 虚构数据" : Number(a.cash_age_days) > 14 ? "账户待核对" : "账户数据日期"}</span>持仓确认于 ${e(a.holdings_as_of)}；现金记录于 ${e(a.cash_as_of)}。行情更新不会改变账户确认日期。</div>
     <section class="surface attention"><div class="section-title"><h2>当前需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。以下报告保留当时判断。</p></section>
-    ${typeof cashAfter === "number" ? `<div class="data-note"><span>月投后现金缓冲估算</span>${typeof a.dca_amount_usd === "number" ? `按本批月投 ${money(a.dca_amount_usd)} 美元估算，` : "按本批月投假设估算，"}执行后现金占比约 ${pct(cashAfter)}，最低保留线 ${pct(cashMinimum)}${cashBuffer === null ? "" : `，相差 ${cashBuffer >= 0 ? "+" : ""}${(cashBuffer * 100).toFixed(1)} 个百分点`}。基于现金记录 ${e(a.cash_as_of)}；估算不表示可以下单，仍须核实买入通道及账户。</div>` : ""}
+    ${typeof cashAfter === "number" ? `<div class="data-note"><span>月投后现金缓冲估算</span>${typeof a.dca_amount_usd === "number" ? `按本批月投 ${money(a.dca_amount_usd)} 美元估算，` : "按本批月投假设估算，"}执行后现金占比约 ${pct(cashAfter)}，最低保留线 ${pct(cashMinimum)}${cashBufferDiff === null ? "" : `，相差 ${cashBufferDiff >= 0 ? "+" : ""}${(cashBufferDiff * 100).toFixed(1)} 个百分点`}。基于现金记录 ${e(a.cash_as_of)}；估算不表示可以下单，仍须核实买入通道及账户。</div>` : ""}
+    <section class="overview-graphics">${compositionBar(d.positions)}</section>
+    ${cashBuffer(cashAfter, typeof cashMinimum === "number" ? cashMinimum : null, typeof a.dca_amount_usd === "number" ? a.dca_amount_usd : null, typeof a.total_usd === "number" ? a.total_usd : null, a.cash_as_of)}
     <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight_raw ?? a.cash_weight)}</small></div></section>
     <section class="surface"><div class="section-title"><h2>配置缺口</h2><a href="#positions">查看持仓</a></div>${allocationGap(d.positions)}</section>
     <section class="brief"><div class="brief-label">最近一期报告 · 当时结论<span>${report ? e(reportCategory(report.kind)) : "尚无报告"}</span></div>
       <div><h2>${report ? e(reportAction(report.action)) : "等待第一份报告"}</h2><p>${report ? e(report.headline || "这份历史报告未填写摘要，可打开阅读全文。") : "同步后会在这里展示最新报告与行动。"}</p>
       ${report ? `<a class="text-link" href="#reports/${encodeURIComponent(String(report.id))}">阅读历史报告 <span>${e(report.date)} · 交易日 ${e(report.trading_date || "未记录")}</span></a>` : ""}</div></section>
+    ${calendar?.snapshot?.events?.length ? `<section class="surface timeline-card"><div class="section-title"><h2>投资事件</h2><span class="muted">${calendarFailed ? "日历暂时无法读取" : e((calendar?.state && String(calendar.state)) || "未连接")}</span></div>${eventTimeline(calendar.snapshot.events, calendar.last_success?.fetched_at)}</section>` : ""}
     <section class="surface"><div class="section-title"><h2>持仓变化</h2><span class="muted">按持仓档案逐次确认</span></div>${weightHistory(d.history ?? [], targets)}</section>
     <section class="surface market"><div class="section-title"><h2>市场一览</h2><span class="muted">按各标的最近行情展示</span></div>
     <div class="market-grid">${d.market.map((m) => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? e(humanizeQuoteError(m.error)) : `${e(m.date)} · ${e(m.quote_status || "阶段未确认")}`}</small></div>`).join("")}</div></section>`;
@@ -401,7 +405,7 @@ function positions() {
   const d = snapshot!.data;
   return `<div class="page-heading"><div><p class="muted">看清配置与边界</p><h1>持仓与风控</h1></div><span class="stamp">计算依据 ${e(d.account[0].framework)}</span></div>
     <section class="surface"><div class="section-title"><h2>当前持仓</h2><span class="muted">金额单位：美元</span></div><div class="table-scroll desktop-positions"><table><thead><tr><th>标的</th><th>股数</th><th>成本 / 现价</th><th>市值</th><th>浮盈亏</th><th>当前 / 配置依据</th><th>行情时间</th></tr></thead><tbody>
-    ${d.positions.map((p) => `<tr><td><strong>${e(p.ticker)}</strong><small>${e(p.name)}</small></td><td>${number(p.shares, 4)}</td><td>${number(p.avg_cost)} / ${number(p.price)}</td><td>${money(p.value_usd)}</td><td class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</td><td>${pct(weight(p))}<small>${p.ticker === "现金" ? "最低保留线" : "目标权重"} ${pct(p.target)}</small></td><td><small>${e(quoteInfo(p))}</small></td></tr>`).join("")}</tbody></table></div>
+    ${d.positions.map((p) => `<tr id="${e(positionAnchorId(String(p.ticker ?? "")))}" class="position-row" data-position="${e(String(p.ticker ?? ""))}"><td><strong>${e(p.ticker)}</strong><small>${e(p.name)}</small></td><td>${number(p.shares, 4)}</td><td>${number(p.avg_cost)} / ${number(p.price)}</td><td>${money(p.value_usd)}</td><td class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</td><td>${pct(weight(p))}<small>${p.ticker === "现金" ? "最低保留线" : "目标权重"} ${pct(p.target)}</small></td><td><small>${e(quoteInfo(p))}</small></td></tr>`).join("")}</tbody></table></div>
     <div class="mobile-positions">${d.positions
       .map(
         (
@@ -516,7 +520,7 @@ function statusPage() {
         .join("") || "<li>本批数据未提供额外提醒。</li>"
     }</ul></section>
     <div class="overview-grid"><section class="surface"><h2>等待核实</h2><p>港股股数、GOOGL 早期批次、现金更新和成本尾差，需券商凭证或成交确认。页面不会推算补齐。</p></section>
-    ${calendarPanel(calendar, calendarFailed, time)}</div>`;
+    <div id="calendar-slot">${calendarPanel(calendar, calendarFailed, time)}</div></div>`;
 }
 
 /**
@@ -548,8 +552,7 @@ function render() {
     ? `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`
     : "";
   syncChrome(active, subtitle);
-  const batch = snapshot?.batch_id ?? (loading ? "loading" : "empty");
-  const nextKey = `${batch}|${active}|${id}|${renderNonce}`;
+  const nextKey = JSON.stringify([dataRevision, active, id, snapshot ? "ready" : [dataState, loading, auth]]);
   if (nextKey === renderKey) return;
   renderKey = nextKey;
   if (!snapshot) {
@@ -573,6 +576,36 @@ function render() {
   );
 }
 
+/** 简单的 CSS.escape polyfill；workerd 测试环境不一定有。 */
+const cssEscape = (value: string) =>
+  window.CSS && typeof window.CSS.escape === "function"
+    ? window.CSS.escape(value)
+    : value.replace(
+        /([\\\"\'\:\;\,\.\#\@\$\(\)\[\]\{\}\*\+\=\<\>\!\?])/g,
+        "\\$1",
+      );
+
+/** 跳到持仓页后，滚动到指定 ticker 行并加 2.4s 高亮。 */
+function focusPositionRow(ticker: string) {
+  const id = positionAnchorId(ticker);
+  const row = document.getElementById(id);
+  if (!row) return;
+  document
+    .querySelectorAll<HTMLElement>(".position-row.is-active")
+    .forEach((el) => el.classList.remove("is-active"));
+  document
+    .querySelectorAll<HTMLElement>(
+      ".composition-segment.is-active, .composition-legend-item.is-active",
+    )
+    .forEach((el) => el.classList.remove("is-active"));
+  row.classList.add("is-active");
+  document
+    .querySelectorAll<HTMLElement>(`[data-position="${cssEscape(ticker)}"]`)
+    .forEach((el) => el.classList.add("is-active"));
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => row.classList.remove("is-active"), 2400);
+}
+
 /** 内容重绘后绑定事件处理器。挂载时（刷新 / 退出 / hashchange）会重新调用。 */
 function bindContentHandlers() {
   document
@@ -582,6 +615,17 @@ function bindContentHandlers() {
       document
         .querySelector<HTMLElement>("#content")
         ?.focus({ preventScroll: true });
+    });
+  // 资产构成 / 持仓联动：点段或图例项 → 跳到持仓页并高亮对应行
+  document
+    .querySelectorAll<HTMLElement>("[data-position]")
+    .forEach((el) => {
+      el.onclick = () => {
+        const ticker = el.dataset.position;
+        if (!ticker) return;
+        location.hash = "#positions";
+        requestAnimationFrame(() => focusPositionRow(ticker));
+      };
     });
   document
     .querySelectorAll<HTMLButtonElement>("[data-section]")
@@ -594,13 +638,13 @@ function bindContentHandlers() {
     });
   const historyDate =
     document.querySelector<HTMLSelectElement>("#history-date");
-  if (!historyDate) return;
+  if (historyDate) {
   if (
     selectedHistory &&
     snapshot?.data.history?.some((r) => r.source === selectedHistory)
   ) {
     historyDate.value = selectedHistory;
-    const row = snapshot!.data.history.find(
+    const row = snapshot!.data.history!.find(
       (r) => r.source === selectedHistory,
     )!;
     document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
@@ -613,6 +657,7 @@ function bindContentHandlers() {
     if (row)
       document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
   };
+  }
   const search = document.querySelector<HTMLInputElement>("#search");
   const kind = document.querySelector<HTMLSelectElement>("#kind");
   if (!search || !kind) return;
@@ -631,6 +676,7 @@ async function load() {
   const version = ++loadVersion;
   const previous = snapshot?.batch_id;
   notice = "";
+  clearTimeout(noticeTimer);
   render();
   try {
     if (ssoMode === undefined)
@@ -642,6 +688,7 @@ async function load() {
     if (version !== loadVersion) return;
     if (!next.data?.account?.length)
       throw new Error("数据批次不完整，请重新同步");
+    if (!snapshot || snapshot.batch_id !== next.batch_id || JSON.stringify(snapshot.data) !== JSON.stringify(next.data)) dataRevision++;
     snapshot = next;
     dataState = "ready";
     notice = previous
@@ -649,9 +696,6 @@ async function load() {
         ? "已检查，当前已是最新同步批次。未重新采集行情。"
         : "已载入新同步批次。"
       : "";
-    // load() 完成后下一轮 render() 必须重新画内容：同 batch_id 时 renderKey
-    // 记忆化会留下旧 innerHTML，导致刷新后看不到新警告 / 持仓更新。
-    renderNonce++;
     void loadCalendar(version);
   } catch (error) {
     if (version !== loadVersion) return;
@@ -664,8 +708,19 @@ async function load() {
     if (version === loadVersion) {
       loading = false;
       render();
+      if (notice.startsWith("已")) noticeTimer = setTimeout(() => {
+        notice = "";
+        if (auth === "authenticated") render();
+      }, 6000);
     }
   }
+}
+
+function syncCalendarPanel() {
+  const slot = document.querySelector<HTMLElement>("#calendar-slot");
+  if (!slot) return;
+  const html = calendarPanel(calendar, calendarFailed, time);
+  if (slot.innerHTML !== html) slot.innerHTML = html;
 }
 
 async function loadCalendar(version: number) {
@@ -679,7 +734,7 @@ async function loadCalendar(version: number) {
     if (version !== loadVersion) return;
     calendarFailed = true;
   }
-  if (version === loadVersion && location.hash === "#status") render();
+  if (version === loadVersion) syncCalendarPanel();
 }
 
 async function checkSession() {
