@@ -98,7 +98,16 @@ describe("fixed owner authentication", () => {
     expect(result.status).toBe(200);
     const sent = JSON.parse(String(fetch.mock.calls[0][1]?.body));
     expect(sent.to).toEqual([OWNER_EMAIL]);
-    expect(await result.text()).not.toContain("dev_otp");
+    const code = sent.text.match(/验证码是 (\d{6})/)[1];
+    expect(sent.html).toContain(`>${code}</span>`);
+    expect(sent.html).toContain('lang="zh-CN"');
+    expect(sent.html).toContain('name="viewport"');
+    expect(sent.html).toContain("8 分钟内有效，仅可使用一次");
+    expect(sent.text).toContain("请勿向他人提供验证码");
+    expect(sent.html).not.toMatch(/<script|<iframe|<img|https?:\/\//i);
+    const body = await result.text();
+    expect(body).not.toContain("dev_otp");
+    expect(body).not.toContain(code);
     expect(result.headers.get("Set-Cookie")).toContain("__Host-gu_challenge=");
     expect(result.headers.get("Set-Cookie")).toContain("Secure");
   });
@@ -107,9 +116,88 @@ describe("fixed owner authentication", () => {
     expect((await call(request("/api/auth/request-otp", { body: {} }), { ...env, RESEND_API_KEY: "mock" })).status).toBe(502);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes WHERE used_at IS NULL").first("n")).toBe(0);
   });
+  it("invalidates the challenge on a mail transport error without exposing details", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("private provider details"));
+    const result = await call(request("/api/auth/request-otp", { body: {} }), { ...env, RESEND_API_KEY: "mock" });
+    expect(result.status).toBe(502);
+    expect(await result.json()).toEqual({ error: "验证码发送失败，请稍后重试" });
+    expect(result.headers.get("Set-Cookie")).toBeNull();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes WHERE used_at IS NULL").first("n")).toBe(0);
+  });
+  it("reports the remaining cooldown after mail delivery instead of restarting the clock", async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      clock.mockReturnValue(now + 12_345);
+      return new Response("{}", { status: 200 });
+    });
+    const result = await call(request("/api/auth/request-otp", { body: {} }), { ...env, RESEND_API_KEY: "mock" });
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ ok: true, retry_after: 48 });
+  });
+  async function seedSends(now: number, ages: number[]) {
+    await env.DB.batch(ages.map((age, i) => env.DB.prepare(`INSERT INTO otp_codes
+      (id, code_hash, ip_hash, created_at, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(`quota-${i}`, "test-hash", "test-ip", now - age, now - age + 480_000, now - age)));
+  }
+  it.each([
+    { window: "cooldown", ages: [12_345], seconds: 48 },
+    { window: "15 minute", ages: [180_000, 120_000, 61_000], seconds: 720 },
+    { window: "daily", ages: [82_799_877, 78_000_000, 70_000_000, 60_000_000, 50_000_000, 40_000_000, 30_000_000, 20_000_000, 10_000_000, 1_000_000], seconds: 3601 },
+    { window: "overlapping", ages: [82_800_000, 78_000_000, 70_000_000, 60_000_000, 50_000_000, 40_000_000, 30_000_000, 180_000, 120_000, 10_000], seconds: 3600 },
+    { window: "15 minute with excess rows", ages: [890_000, 850_000, 200_000, 100_000], seconds: 50 },
+    { window: "daily with excess rows", ages: [86_390_000, 86_380_000, 80_000_000, 70_000_000, 60_000_000, 50_000_000, 40_000_000, 30_000_000, 20_000_000, 10_000_000, 1_000_000], seconds: 20 },
+  ])("returns the remaining $window wait, counting consumed and expired challenges", async ({ ages, seconds }) => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    await seedSends(now, ages);
+    const fetch = vi.spyOn(globalThis, "fetch");
+    const result = await call(request("/api/auth/request-otp", { body: {} }));
+    expect(result.status).toBe(429);
+    expect(await result.json()).toEqual({ error: "发送较频繁，请稍后再试", retry_after: seconds });
+    expect(result.headers.get("Retry-After")).toBe(String(seconds));
+    expect(result.headers.get("Set-Cookie")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes").first("n")).toBe(ages.length);
+  });
+  it.each([
+    { window: "cooldown", ages: [59_999] },
+    { window: "15 minute", ages: [899_999, 240_000, 120_000] },
+    { window: "daily", ages: [86_399_999, 78_000_000, 70_000_000, 60_000_000, 50_000_000, 40_000_000, 30_000_000, 20_000_000, 10_000_000, 1_000_000] },
+  ])("allows sending exactly at the $window boundary", async ({ ages }) => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    await seedSends(now, ages);
+    const blocked = await call(request("/api/auth/request-otp", { body: {} }));
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toMatchObject({ retry_after: 1 });
+    clock.mockReturnValue(now + 1);
+    expect((await call(request("/api/auth/request-otp", { body: {} }))).status).toBe(200);
+  });
+  it.each([
+    { window: "15 minute", ages: [180_000, 120_000], seconds: 720 },
+    { window: "daily", ages: [82_800_000, 78_000_000, 70_000_000, 60_000_000, 50_000_000, 40_000_000, 30_000_000, 20_000_000, 10_000_000], seconds: 3600 },
+  ])("reserves only the last $window slot under concurrent sends", async ({ ages, seconds }) => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    await seedSends(now, ages);
+    const results = await Promise.all([1, 2].map(() => call(request("/api/auth/request-otp", { body: {} }))));
+    expect(results.map(r => r.status).sort()).toEqual([200, 429]);
+    for (const result of results) expect(await result.json()).toMatchObject({ retry_after: seconds });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes").first("n")).toBe(ages.length + 1);
+  });
   it("allows exactly one concurrent send during cooldown", async () => {
     const results = await Promise.all([call(request("/api/auth/request-otp", { body: {} })), call(request("/api/auth/request-otp", { body: {} }))]);
     expect(results.map(r => r.status).sort()).toEqual([200, 429]);
+  });
+  it("sends only one real-provider request under concurrent production sends", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    const bindings = { ...env, ENVIRONMENT: "production", RESEND_API_KEY: "mock" };
+    const results = await Promise.all([1, 2].map(() =>
+      call(request("/api/auth/request-otp", { body: {}, host: "https://gu.kdp.cool" }), bindings)));
+    expect(results.map(r => r.status).sort()).toEqual([200, 429]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body)).to).toEqual([OWNER_EMAIL]);
   });
   it("logs in, reads empty state, logs out and revokes the session", async () => {
     const cookie = await login();
@@ -127,6 +215,15 @@ describe("fixed owner authentication", () => {
     const c = await challenge();
     const wrong = c.code === "111111" ? "222222" : "111111";
     for (let i = 0; i < 5; i++) expect((await call(request("/api/auth/verify-otp", { cookie: c.cookie, body: { code: wrong } }))).status).toBe(400);
+    expect((await call(request("/api/auth/verify-otp", { cookie: c.cookie, body: { code: c.code } }))).status).toBe(400);
+  });
+  it("reserves at most five attempts under concurrent failures", async () => {
+    const c = await challenge();
+    const wrong = c.code === "111111" ? "222222" : "111111";
+    const results = await Promise.all(Array.from({ length: 8 }, () =>
+      call(request("/api/auth/verify-otp", { cookie: c.cookie, body: { code: wrong } }))));
+    expect(results.every(r => r.status === 400)).toBe(true);
+    expect(await env.DB.prepare("SELECT attempts FROM otp_codes").first("attempts")).toBe(5);
     expect((await call(request("/api/auth/verify-otp", { cookie: c.cookie, body: { code: c.code } }))).status).toBe(400);
   });
   it("rejects expired OTP and session", async () => {

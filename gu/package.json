@@ -9,6 +9,7 @@
     "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
+    "test:scripts": "node --test scripts/check-deploy-regression.mjs scripts/check-sync-status.mjs",
     "db:local": "wrangler d1 migrations apply gu-production --local",
     "check:deploy": "node scripts/check-deploy.mjs"
   },

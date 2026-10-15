@@ -9,6 +9,16 @@ const numeric = (v: unknown) => typeof v === "number" && Number.isFinite(v);
 const text = (r: Row, keys: string[]) => keys.every(k => typeof r[k] === "string");
 const optionalNumber = (v: unknown) => v === null || numeric(v);
 const optionalText = (v: unknown) => v === null || typeof v === "string";
+const optionalRatio = (r: Row, key: string) => r[key] === undefined || r[key] === null ||
+  (numeric(r[key]) && Number(r[key]) >= 0 && Number(r[key]) <= 1);
+const optionalInstant = (r: Row, key: string) => r[key] === undefined || r[key] === null ||
+  (typeof r[key] === "string" && /(Z|[+-]\d{2}:\d{2})$/.test(r[key]) && Number.isFinite(Date.parse(r[key])));
+
+function quoteFields(row: Row) {
+  return ["quote_time", "market_time_iso", "bar_time"].every(k => optionalInstant(row, k))
+    && (row.quote_time_status === undefined || ["confirmed", "unconfirmed"].includes(String(row.quote_time_status)))
+    && (row.quote_session === undefined || ["unconfirmed", "pre", "regular", "post", "closed"].includes(String(row.quote_session)));
+}
 
 export function validateDashboard(value: unknown, schemaVersion = 2): asserts value is Dashboard {
   const keys = schemaVersion >= 2 ? KEYS_V2 : KEYS;
@@ -27,12 +37,19 @@ export function validateDashboard(value: unknown, schemaVersion = 2): asserts va
     Number(a.total_usd) <= 0 || !/(Z|[+-]\d{2}:\d{2})$/.test(String(a.generated_at)) ||
     !Number.isFinite(Date.parse(String(a.generated_at))) ||
     Date.parse(String(a.generated_at)) > Date.now() + 300_000) throw new ValidationError("账户数据或生成时间无效");
+  if (!optionalRatio(a, "cash_weight_raw") ||
+    (a.cash_after_dca_raw !== undefined && !numeric(a.cash_after_dca_raw)) ||
+    !["quote_time_min", "quote_time_max", "market_time_min", "market_time_max"].every(k => optionalInstant(a, k)) ||
+    (a.dca_amount_usd !== undefined && (!numeric(a.dca_amount_usd) || Number(a.dca_amount_usd) < 0))) {
+    throw new ValidationError("账户新增精度或时间字段无效");
+  }
   const unique = (rows: Row[], key: string) => new Set(rows.map(r => r[key])).size === rows.length;
   if (!unique(data.positions, "ticker") || !unique(data.risk, "rule_id") ||
     !unique(data.market, "symbol") || !unique(data.reports, "id")) throw new ValidationError("数据包含重复标识");
   for (const p of data.positions) {
     if (!text(p, ["ticker", "name", "quote_date"]) || !numeric(p.value_usd) || !numeric(p.weight) ||
       !["shares", "avg_cost", "price", "change_pct", "pnl_pct", "target"].every(k => optionalNumber(p[k]))) throw new ValidationError("持仓数据无效");
+    if (!optionalRatio(p, "weight_raw") || !quoteFields(p)) throw new ValidationError("持仓新增精度或时间字段无效");
     if (p.shares !== null && (!numeric(p.price) || Number(p.price) <= 0 || !day(p.quote_date))) throw new ValidationError("持仓行情缺失");
   }
   for (const r of data.risk) {
@@ -40,11 +57,14 @@ export function validateDashboard(value: unknown, schemaVersion = 2): asserts va
       !optionalText(r.action) || !(r.triggered === null || typeof r.triggered === "boolean") ||
       !optionalNumber(r.distance) ||
       (numeric(r.distance) && Number(r.distance) < 0)) throw new ValidationError("风控数据缺少明确规则状态，请重新生成");
+    if ((r.current_value !== undefined && !optionalNumber(r.current_value)) ||
+      (r.current_unit !== undefined && !["ratio", "USD"].includes(String(r.current_unit)))) throw new ValidationError("风控原始数值字段无效");
   }
   for (const m of data.market) {
     if (!text(m, ["symbol", "name", "group", "date"]) || !optionalNumber(m.close) ||
       !optionalNumber(m.change_pct) || !(m.error === null || typeof m.error === "string") ||
       (!m.error && (!numeric(m.close) || Number(m.close) <= 0 || !day(m.date)))) throw new ValidationError("行情缺失时必须记录错误");
+    if (!quoteFields(m)) throw new ValidationError("行情时间字段无效");
   }
   if (schemaVersion >= 2) {
     const history = data.history;
@@ -59,6 +79,12 @@ export function validateDashboard(value: unknown, schemaVersion = 2): asserts va
       for (const [ticker, value] of entries) {
         if (!ticker || !numeric(value) || !(Number(value) > 0 && Number(value) <= 1)) {
           throw new ValidationError("权重历史取值无效");
+        }
+      }
+      if (h.weights_raw !== undefined) {
+        if (!object(h.weights_raw) || Object.keys(h.weights_raw).sort().join() !== Object.keys(weights).sort().join() ||
+          !Object.keys(h.weights_raw).every(k => optionalRatio(h.weights_raw as Row, k) && numeric((h.weights_raw as Row)[k]))) {
+          throw new ValidationError("历史原始权重字段无效");
         }
       }
     }

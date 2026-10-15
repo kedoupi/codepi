@@ -1,6 +1,6 @@
 # GU 私人投资工作台
 
-Cloudflare Pages 项目 `kdp-gu`，当前访问地址 `https://kdp-gu.pages.dev`；预定自定义域名 `gu.kdp.cool`。域名状态以 Cloudflare 配置为准。
+Cloudflare Pages 项目 `kdp-gu`，访问地址 `https://gu.kdp.cool`，兼容入口 `https://kdp-gu.pages.dev`。2026-10-15 已核对自定义域名、验证和 HTTPS 为 active；两个域名的 Cookie 会话各自独立。
 
 固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产环境不会返回开发验证码，私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
@@ -16,6 +16,7 @@ Cloudflare Pages 项目 `kdp-gu`，当前访问地址 `https://kdp-gu.pages.dev`
 
 ```bash
 npm test
+npm run test:scripts
 npm run typecheck
 npm run build
 npm run dev
@@ -45,4 +46,17 @@ python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://
 
 ## 当前边界
 
-Google 投资日历尚未连接，页面明确显示此状态。现金、港股股数和早期成交批次仍需券商凭证核实。代码部署、数据同步、自定义域名启用是独立事项，应分别验收。
+金额隐藏覆盖报告标题、摘要、正文及自由文本提醒；结构化风控动作仍可读。空批次与读取失败不会误跳登录，明确的 401 会清空快照；重新登录恢复合法站内深链接。刷新按钮读取已同步数据，显示进行中、无新批次、新批次和失败；它不触发行情采集。手机端以持仓卡片显示市值、浮盈亏、权重和现金最低保留线，需处理规则在总览图表之前。
+
+新批次以 `weight_raw`、`cash_weight_raw`、`cash_after_dca_raw`、`current_value/current_unit`、历史当前点的 `weights_raw` 避免提前取整；旧字段保留。`quote_time` 仅用于确认的价格时刻。日线来源的 `regularMarketTime` 单独保存为 `market_time_iso`，bar 时间保存为 `bar_time`；二者不证明价格时刻或收盘阶段。缺失证据显示未确认。
+
+Google 投资日历尚未连接，已提供会话鉴权读取和令牌鉴权快照同步接口，前端区分未连接、查询为空、失败和过期。固定 ID 配置、迁移、真实快照、持续 Google 授权和调度分别验收。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
+
+GU CI 只运行测试、类型检查、构建及配置校验，不接触生产凭证。发布后分别检查：
+
+```bash
+npm run check:deploy -- --url https://gu.kdp.cool
+npm run check:deploy -- --url https://kdp-gu.pages.dev
+```
+
+检查会逐字节核对线上 JS/CSS 与本地构建，并检查未登录私有接口 401。验证码真实投递、登录后数据和日历需另行验收；只通过配置检查不代表发布完成。

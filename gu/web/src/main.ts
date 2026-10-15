@@ -1,20 +1,29 @@
 import "./style.css";
-import { marketChange } from "./format";
+import { marketChange, percent as pct, weight, ruleCurrent, elapsed } from "./format";
+import { privateWarning, reportAction, reportCategory, ruleAction } from "./privacy";
+import { calendarPanel, type CalendarView } from "./calendar";
 import { allocationGap, riskRail, weightHistory, historyDetail } from "./charts";
 import { applyChartStyles } from "./dom";
 import { accountAlerts, overviewRules, proximityRequirement } from "./risk-summary";
-import { escapeHtml as e, markdown } from "./markdown";
+import { escapeHtml as e, markdown, headings } from "./markdown";
 import type { Dashboard, Row } from "../../worker/dashboard-types";
 
 type Snapshot = { batch_id: string; received_at: string; data: Dashboard };
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let snapshot: Snapshot | null = null;
 let loadVersion = 0;
+let auth: "unknown" | "authenticated" | "anonymous" = "unknown";
+let dataState: "loading" | "ready" | "empty" | "failed" = "loading";
+let loading = false;
+let notice = "";
+let returnHash = "";
+let selectedHistory = "";
+let calendar: CalendarView | null = null;
+let calendarFailed = false;
 let hidden = sessionStorage.getItem("gu-hide") === "1";
 let reportQuery = "";
 let reportKind = "";
 let cooldown: ReturnType<typeof setInterval> | undefined;
-const pct = (v: unknown) => typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—";
 const number = (v: unknown, digits = 2) => typeof v === "number" ? v.toLocaleString("zh-CN", { maximumFractionDigits: digits }) : "—";
 const money = (v: unknown) => hidden ? "••••" : typeof v === "number" ? `${(v / 10000).toFixed(2)} 万` : "—";
 const price = (v: unknown) => hidden ? "••••" : number(v);
@@ -27,24 +36,36 @@ const tone = (v: unknown) => typeof v === "number" && v < 0 ? "negative" : "posi
 const brand = `<a class="brand" href="#overview"><span class="brand-mark">股</span><span>珂抖屁<small>个人投资工作台</small></span></a>`;
 
 async function api(path: string, body?: unknown, method?: string) {
+  const version = loadVersion;
   const response = await fetch(path, {
     method: method || (body === undefined ? "GET" : "POST"),
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     credentials: "same-origin",
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   if (response.status === 401) {
-    snapshot = null;
-    loadVersion++;
-    login();
+    if (version === loadVersion) {
+      returnHash = validHash(location.hash);
+      snapshot = null; calendar = null; auth = "anonymous"; loading = false; notice = "";
+      loadVersion++;
+      login();
+    }
     throw Object.assign(new Error("登录已过期，请重新登录"), { status: 401 });
   }
-  const result = await response.json() as Record<string, unknown>;
+  let result: Record<string, unknown>;
+  try { result = await response.json() as Record<string, unknown>; }
+  catch { throw Object.assign(new Error(`服务响应无效（HTTP ${response.status}），请稍后重试`), { status: response.status }); }
   if (!response.ok) {
-    throw Object.assign(new Error(String(result.error || "请求失败")), { status: response.status });
+    throw Object.assign(new Error(String(result.error || `请求失败（HTTP ${response.status}）`)),
+      { status: response.status, retryAfter: Number(result.retry_after || response.headers.get("Retry-After")) || 0 });
   }
   return result;
+}
+
+function validHash(hash: string) {
+  return /^#(?:overview|positions|status|reports(?:\/[^/#?]+)?)$/.test(hash) ? hash : "#overview";
 }
 
 function login() {
@@ -64,20 +85,30 @@ function login() {
     </div></section></main>`;
   const send = document.querySelector<HTMLButtonElement>("#send")!;
   const message = document.querySelector<HTMLParagraphElement>("#login-message")!;
+  const waitToResend = (seconds: number) => {
+    if (cooldown) clearInterval(cooldown);
+    const until = Date.now() + Math.max(1, seconds) * 1000;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      send.textContent = remaining ? `${remaining} 秒后重新发送` : "重新发送验证码";
+      send.disabled = remaining > 0;
+      if (!remaining) clearInterval(cooldown);
+    };
+    tick(); cooldown = setInterval(tick, 1000);
+  };
   send.onclick = async () => {
     send.disabled = true; send.textContent = "正在发送…"; message.textContent = "";
     try {
       const result = await api("/api/auth/request-otp", {});
       message.textContent = result.dev_otp ? `本地开发验证码：${result.dev_otp}` : "验证码已发送，请查看邮箱。";
       document.querySelector<HTMLInputElement>("#code")!.focus();
-      let seconds = 60;
-      send.textContent = `${seconds} 秒后重新发送`;
-      cooldown = setInterval(() => {
-        seconds--;
-        send.textContent = `${seconds} 秒后重新发送`;
-        if (!seconds) { clearInterval(cooldown); send.disabled = false; send.textContent = "重新发送验证码"; }
-      }, 1000);
-    } catch (error) { message.textContent = (error as Error).message; send.disabled = false; send.textContent = "重新发送验证码"; }
+      waitToResend(Number(result.retry_after) || 60);
+    } catch (error) {
+      message.textContent = (error as Error).message;
+      const retry = (error as { retryAfter?: number }).retryAfter;
+      if (retry) waitToResend(retry);
+      else { send.disabled = false; send.textContent = "重新发送验证码"; }
+    }
   };
   document.querySelector<HTMLFormElement>("#verify")!.onsubmit = async event => {
     event.preventDefault();
@@ -86,7 +117,9 @@ function login() {
     try {
       await api("/api/auth/verify-otp", { code: document.querySelector<HTMLInputElement>("#code")!.value });
       if (cooldown) clearInterval(cooldown);
-      history.replaceState(null, "", "/#overview");
+      auth = "authenticated";
+      history.replaceState(null, "", `/${returnHash || validHash(location.hash)}`);
+      returnHash = "";
       await load();
     } catch (error) { message.textContent = (error as Error).message; enter.disabled = false; }
   };
@@ -98,30 +131,33 @@ function shell(content: string, active = "overview", subtitle = "") {
       `<a href="#${id}" ${id === active ? 'aria-current="page"' : ""}><span class="nav-dot"></span>${title}</a>`).join("")}</nav>
     <div class="sidebar-bottom"><span class="private-dot"></span>私人投资记录<p>依据数据，不追逐噪音。</p></div></aside>
     <div class="main"><header class="topbar"><div><span class="site-name">投资工作台</span><span class="muted">${e(subtitle)}</span></div>
-    <div class="actions"><button id="hide">${hidden ? "显示金额" : "隐藏金额"}</button><button id="refresh">刷新</button><button id="logout">退出</button></div></header>
-    <main id="content">${content}</main><footer>行情与账户确认时间分别记录。账户及成交以券商凭证为准。</footer></div></div>`;
-  document.querySelector<HTMLButtonElement>("#hide")!.onclick = () => { hidden = !hidden; sessionStorage.setItem("gu-hide", hidden ? "1" : "0"); render(); };
+    <div class="actions"><button id="hide" aria-pressed="${hidden}">${hidden ? "显示金额" : "隐藏金额"}</button><button id="refresh" ${loading ? "disabled" : ""} title="重新读取网站已同步批次，不采集新行情">${loading ? "刷新中…" : "刷新数据"}</button><button id="logout">退出</button></div></header>
+    <main id="content" tabindex="-1" aria-busy="${loading}">${notice ? `<p id="notice" class="notice" role="status" aria-live="polite">${e(notice)}</p>` : ""}${content}</main><footer>刷新数据只读取网站已同步批次。行情与账户确认时间分别记录，成交以券商凭证为准。</footer></div></div>`;
+  document.querySelector<HTMLButtonElement>("#hide")!.onclick = () => {
+    const y = window.scrollY;
+    hidden = !hidden; sessionStorage.setItem("gu-hide", hidden ? "1" : "0");
+    render(); window.scrollTo(0, y);
+    document.querySelector<HTMLButtonElement>("#hide")!.focus({ preventScroll: true });
+  };
   document.querySelector<HTMLButtonElement>("#refresh")!.onclick = () => { void load(); };
   document.querySelector<HTMLButtonElement>("#logout")!.onclick = async () => {
-    try { await api("/api/auth/logout", {}); snapshot = null; loadVersion++; history.replaceState(null, "", "/login"); login(); }
-    catch (error) { showError((error as Error).message); }
+    loadVersion++;
+    try { await api("/api/auth/logout", {}); snapshot = null; calendar = null; auth = "anonymous"; loading = false; notice = ""; loadVersion++; returnHash = "#overview"; history.replaceState(null, "", "/login"); login(); }
+    catch { loading = false; showError("退出未完成，请检查连接后重试。"); }
   };
 }
 
 function showError(message: string) {
-  const old = document.querySelector("#notice");
-  old?.remove();
-  const node = document.createElement("p");
-  node.id = "notice"; node.className = "notice"; node.setAttribute("role", "alert"); node.textContent = message;
-  document.querySelector("#content")?.prepend(node);
+  notice = message;
+  render();
 }
 
 function riskCards(rows: Row[]) {
   return rows.map(r => {
     const state = r.triggered === null ? "不适用" : r.triggered ? "已触发" : e(r.level);
-    const action = r.action || (r.triggered === null ? "无对应阈值" : "未触发动作");
+    const action = ruleAction(r, hidden);
     return `<article class="risk-row ${r.triggered ? "triggered" : r.proximity === "critical" ? "near" : ""}">
-    <div><strong>${e(r.item)}</strong><span>${e(r.kind)} · 当前 ${e(r.current)} · 阈值 ${e(r.threshold)}</span></div>
+    <div><strong>${e(r.item)}</strong><span>${e(r.kind)} · 当前 ${e(ruleCurrent(r, hidden))} · 阈值 ${hidden && r.kind === "价格" ? "••••" : e(r.threshold)}</span></div>
     <div><b>${state}</b><span>相对距离 ${pct(r.distance)}</span></div>
     <p>${e(action)}${proximityRequirement(r.proximity) ? `；${e(proximityRequirement(r.proximity))}` : ""}</p></article>`;
   }).join("");
@@ -132,25 +168,35 @@ function overview() {
   const relevant = overviewRules(d.risk);
   const targets = Object.fromEntries(d.positions.map(p => [String(p.ticker), typeof p.target === "number" ? p.target : null]));
   return `<div class="page-heading"><div><p class="muted">守住节奏，持续记录</p><h1>投资总览</h1></div><span class="stamp">行情截至 ${e(a.quote_date)}</span></div>
-    ${accountAlerts(a.warnings)}
+    ${accountAlerts(a.warnings, hidden, d.risk)}
+    <p class="freshness">批次生成于 ${e(time(a.generated_at))} · ${e(elapsed(a.generated_at))}。刷新只读取已同步数据。行情阶段：${e(a.quote_status || "未确认")}。</p>
     <div class="data-note"><span>${a.data_mode === "demo" ? "本地演示 · 虚构数据" : Number(a.cash_age_days) > 14 ? "账户待核对" : "账户数据日期"}</span>持仓确认于 ${e(a.holdings_as_of)}；现金记录于 ${e(a.cash_as_of)}。行情更新不会改变账户确认日期。</div>
-    <section class="brief"><div class="brief-label">最近一期报告<span>${report ? e(report.kind) : "尚无报告"}</span></div>
-      <div><h2>${report ? e(report.action || "历史报告未记录行动") : "等待第一份报告"}</h2><p>${report ? e(report.headline || "这份历史报告未填写摘要，可打开阅读全文。") : "同步后会在这里展示最新报告与行动。"}</p>
-      ${report ? `<a class="text-link" href="#reports/${encodeURIComponent(String(report.id))}">阅读报告 <span>${e(report.date)} · 交易日 ${e(report.trading_date || "未记录")}</span></a>` : ""}</div></section>
-    <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight)}</small></div></section>
+    <section class="surface attention"><div class="section-title"><h2>当前需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。以下报告保留当时判断。</p></section>
+    ${typeof a.cash_after_dca === "number" ? `<div class="data-note"><span>月投后现金缓冲估算</span>执行本次月投后约 ${pct(a.cash_after_dca_raw ?? a.cash_after_dca)}，最低保留线 ${pct(d.positions.find(p => p.ticker === "现金")?.target)}。基于现金记录 ${e(a.cash_as_of)}；估算不表示可以下单，仍须核实买入通道及账户。</div>` : ""}
+    <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight_raw ?? a.cash_weight)}</small></div></section>
     <section class="surface"><div class="section-title"><h2>配置缺口</h2><a href="#positions">查看持仓</a></div>${allocationGap(d.positions)}</section>
+    <section class="brief"><div class="brief-label">最近一期报告 · 当时结论<span>${report ? e(reportCategory(report.kind)) : "尚无报告"}</span></div>
+      <div><h2>${report ? e(reportAction(report.action, hidden)) : "等待第一份报告"}</h2><p>${report ? hidden ? "隐私模式已隐藏报告摘要，显示金额后可阅读当时判断。" : e(report.headline || "这份历史报告未填写摘要，可打开阅读全文。") : "同步后会在这里展示最新报告与行动。"}</p>
+      ${report ? `<a class="text-link" href="#reports/${encodeURIComponent(String(report.id))}">阅读历史报告 <span>${e(report.date)} · 交易日 ${e(report.trading_date || "未记录")}</span></a>` : ""}</div></section>
     <section class="surface"><div class="section-title"><h2>持仓变化</h2><span class="muted">按持仓档案逐次确认</span></div>${weightHistory(d.history ?? [], targets)}</section>
-    <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section>
     <section class="surface market"><div class="section-title"><h2>市场一览</h2><span class="muted">按各标的最近行情展示</span></div>
-    <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? e(m.error) : e(m.date)}</small></div>`).join("")}</div></section>`;
+    <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? hidden ? "行情获取失败" : e(m.error) : `${e(m.date)} · ${e(m.quote_status || "阶段未确认")}`}</small></div>`).join("")}</div></section>`;
+}
+
+function quoteInfo(p: Row) {
+  if (p.quote_time) return `已确认价格时刻 ${time(p.quote_time)} · ${String(p.quote_session === "regular" ? "常规时段" : "阶段未确认")}`;
+  return `${String(p.quote_date || "估值，待核实")} · 价格时刻未确认${p.market_time_iso ? `；来源市场时间 ${time(p.market_time_iso)}（不等于价格时刻）` : ""}`;
 }
 
 function positions() {
   const d = snapshot!.data;
   return `<div class="page-heading"><div><p class="muted">看清配置与边界</p><h1>持仓与风控</h1></div><span class="stamp">计算依据 ${e(d.account[0].framework)}</span></div>
-    <section class="surface"><div class="section-title"><h2>当前持仓</h2><span class="muted">金额单位：美元</span></div><div class="table-scroll"><table><thead><tr><th>标的</th><th>股数</th><th>成本 / 现价</th><th>市值</th><th>浮盈亏</th><th>当前 / 目标</th><th>行情日期</th></tr></thead><tbody>
-    ${d.positions.map(p => `<tr><td><strong>${e(p.ticker)}</strong><small>${e(p.name)}</small></td><td>${hidden ? "••••" : number(p.shares, 4)}</td><td>${price(p.avg_cost)} / ${price(p.price)}</td><td>${money(p.value_usd)}</td><td class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</td><td>${pct(p.weight)} / ${pct(p.target)}</td><td>${e(p.quote_date || "估值，待核实")}</td></tr>`).join("")}</tbody></table></div></section>
-    <section class="surface"><div class="section-title"><h2>风控距离</h2><span class="muted">触发状态与距离分别计算</span></div>${riskRail(d.risk)}</section>
+    <section class="surface"><div class="section-title"><h2>当前持仓</h2><span class="muted">金额单位：美元</span></div><div class="table-scroll desktop-positions"><table><thead><tr><th>标的</th><th>股数</th><th>成本 / 现价</th><th>市值</th><th>浮盈亏</th><th>当前 / 配置依据</th><th>行情时间</th></tr></thead><tbody>
+    ${d.positions.map(p => `<tr><td><strong>${e(p.ticker)}</strong><small>${e(p.name)}</small></td><td>${hidden ? "••••" : number(p.shares, 4)}</td><td>${price(p.avg_cost)} / ${price(p.price)}</td><td>${money(p.value_usd)}</td><td class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</td><td>${pct(weight(p))}<small>${p.ticker === "现金" ? "最低保留线" : "目标权重"} ${pct(p.target)}</small></td><td><small>${e(quoteInfo(p))}</small></td></tr>`).join("")}</tbody></table></div>
+    <div class="mobile-positions">${d.positions.map(p => `<article class="position-card"><div class="position-heading"><strong>${e(p.ticker)}</strong><span>${e(p.name)}</span></div>
+      <dl class="position-metrics"><div><dt>市值 · 美元</dt><dd>${money(p.value_usd)}</dd></div><div><dt>浮盈亏</dt><dd class="${tone(p.pnl_pct)}">${signed(p.pnl_pct)}</dd></div><div><dt>当前权重</dt><dd>${pct(weight(p))}</dd></div><div><dt>${p.ticker === "现金" ? "最低保留线" : "目标权重"}</dt><dd>${pct(p.target)}</dd></div></dl>
+      <details><summary>持仓与行情详情</summary><p>股数 ${hidden ? "••••" : number(p.shares, 4)} · 成本 ${price(p.avg_cost)} · 现价 ${price(p.price)}</p><p>${e(quoteInfo(p))}</p></details></article>`).join("")}</div></section>
+    <section class="surface"><div class="section-title"><h2>风控距离</h2><span class="muted">触发状态与距离分别计算</span></div>${riskRail(d.risk, hidden)}</section>
     <div class="data-note"><span>未评估</span>完整账户历史尚未补齐，组合单日跌幅与持仓月度跌幅等条件不能据此判定安全。</div>`;
 }
 
@@ -159,8 +205,15 @@ function reportList() {
   const reports = all.filter(r => (!reportKind || r.kind === reportKind) &&
     `${r.kind} ${r.date} ${r.headline} ${r.body}`.toLowerCase().includes(reportQuery.toLowerCase()));
   return `<div class="report-list">${reports.length ? reports.map(r => `<a class="report-card" href="#reports/${encodeURIComponent(String(r.id))}">
-    <div><span class="report-kind">${e(r.kind)}</span><time>${e(r.date)}</time></div><h2>${e(r.headline || String(r.body).split("\n").find(l => l.startsWith("# "))?.replace(/^#+\s*/, "") || r.kind)}</h2>
-    <p>交易日 ${e(r.trading_date || "未记录")} <span>${e(r.action || "未填写行动")}</span></p></a>`).join("") : '<p class="empty">没有符合条件的报告。</p>'}</div>`;
+    <div><span class="report-kind">${e(reportCategory(r.kind))}</span><time>${e(r.date)}</time></div><h2>${hidden ? `${e(reportCategory(r.kind))} · 摘要已隐藏` : e(r.headline || String(r.body).split("\n").find(l => l.startsWith("# "))?.replace(/^#+\s*/, "") || r.kind)}</h2>
+    <p>交易日 ${e(r.trading_date || "未记录")} <span>当时：${e(reportAction(r.action, hidden))}</span></p></a>`).join("") : '<p class="empty">没有符合条件的报告。</p>'}</div>`;
+}
+
+function reportContents(body: string) {
+  const sections = headings(body);
+  if (sections.length < 3) return "";
+  return `<details class="report-contents"><summary>章节目录 · ${sections.length} 节</summary><nav aria-label="报告章节">${sections.map(s =>
+    `<button data-section="${s.id}">${e(s.title)}</button>`).join("")}</nav></details>`;
 }
 
 function reportsPage(id?: string) {
@@ -168,13 +221,15 @@ function reportsPage(id?: string) {
   if (id) {
     const r = reports.find(r => r.id === id);
     if (!r) return '<div class="empty"><h1>未找到这份报告</h1><a href="#reports">返回报告列表</a></div>';
-    return `<div class="report-heading"><a href="#reports">返回报告列表</a><span>${e(r.kind)} · ${e(r.date)}</span></div>
+    return `<div class="report-heading" id="report-top"><a href="#reports">返回报告列表</a><span>${e(reportCategory(r.kind))} · ${e(r.date)}</span></div>
+      <h1 class="report-title">${e(reportCategory(r.kind))}</h1>
       <div class="data-note">归档日 ${e(r.date)} · 对应交易日 ${e(r.trading_date || "未记录")} · 日期来源 ${e(({ front_matter: "报告元数据", generated_time: "生成时间", filename: "文件名" } as Record<string, string>)[String(r.date_source)] || "未记录")}</div>
-      <article class="report-body">${hidden ? '<p class="empty">金额隐藏期间暂停显示报告全文。点击顶部“显示金额”即可阅读。</p>' : markdown(String(r.body))}</article><p class="fine source">原始记录：${e(r.path)}。历史报告保留当时的依据与判断。</p>`;
+      ${hidden ? "" : reportContents(String(r.body))}
+      <article class="report-body">${hidden ? '<p class="empty">金额隐藏期间暂停显示报告全文。点击顶部“显示金额”即可阅读。</p>' : markdown(String(r.body))}</article><p class="fine source">${hidden ? "原始记录路径已隐藏。" : `原始记录：${e(r.path)}。`}历史报告保留当时的依据与判断。</p><button class="back-top" id="back-top">返回顶部</button>`;
   }
   return `<div class="page-heading"><div><p class="muted">把判断留在时间里</p><h1>研究与报告</h1></div><span class="stamp">${reports.length} 份已同步报告</span></div>
     <div class="filters"><label for="search">搜索报告<input id="search" type="search" placeholder="搜索标的、结论或正文" value="${e(reportQuery)}"></label>
-    <label for="kind">报告类型<select id="kind"><option value="">全部类型</option>${[...new Set(reports.map(r => String(r.kind)))].map(k => `<option ${k === reportKind ? "selected" : ""}>${e(k)}</option>`).join("")}</select></label></div><div id="report-results">${reportList()}</div>`;
+    <label for="kind">报告类型<select id="kind"><option value="">全部类型</option>${[...new Set(reports.map(r => String(r.kind)))].map(k => `<option value="${e(k)}" ${k === reportKind ? "selected" : ""}>${e(hidden ? reportCategory(k) : k)}</option>`).join("")}</select></label></div><div id="report-results">${reportList()}</div>`;
 }
 
 function statusPage() {
@@ -182,28 +237,50 @@ function statusPage() {
   const facts = [
     ["持仓确认日", a.holdings_as_of], ["现金记录时间", a.cash_as_of], ["行情截至", a.quote_date],
     ["本批数据生成时间", time(a.generated_at)], ["网站同步时间", time(snapshot!.received_at)],
+    ["批次经过时间", elapsed(a.generated_at)], ["价格时刻完整性", a.quote_time_complete === true ? "全部持仓有明确价格时刻" : "未完整记录，行情阶段未确认"],
+    ["来源市场时间范围", a.market_time_min ? `${time(a.market_time_min)} — ${time(a.market_time_max)}；不是价格时刻或收盘证明` : "旧批次未记录"],
+    ["各持仓行情日期", Array.isArray(a.quote_dates) ? `${a.quote_dates.join("、")}${a.quote_date_mixed ? "（日期不一致）" : ""}` : "旧批次未记录"],
     ["计算所用规范", a.framework], ["数据模式", a.data_mode === "live" ? "联网生成" : "未确认"],
     ["同步批次", snapshot!.batch_id],
   ];
   return `<div class="page-heading"><div><p class="muted">知道数据从哪里来</p><h1>数据状态</h1></div></div>
     <section class="surface"><div class="section-title"><h2>当前批次</h2><span class="muted">时间均以北京时间展示</span></div><dl class="facts">${facts.map(([k, v]) => `<div><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join("")}</dl></section>
-    <section class="surface"><h2>数据提醒</h2><ul class="warnings">${String(a.warnings || "").split(" / ").filter(Boolean).map(w => `<li>${e(w)}</li>`).join("") || "<li>本批数据未提供额外提醒。</li>"}</ul></section>
+    <section class="surface"><h2>数据提醒</h2><ul class="warnings">${String(a.warnings || "").split(" / ").filter(Boolean).map(w => `<li>${e(hidden ? privateWarning(w) : w)}</li>`).join("") || "<li>本批数据未提供额外提醒。</li>"}</ul></section>
     <div class="overview-grid"><section class="surface"><h2>等待核实</h2><p>港股股数、GOOGL 早期批次、现金更新和成本尾差，需券商凭证或成交确认。页面不会推算补齐。</p></section>
-    <section class="surface"><h2>投资日历</h2><span class="seal">尚未连接</span><p>完成授权后再展示实时日程。目前不使用历史日期列表代替当前安排。</p></section></div>`;
+    ${calendarPanel(calendar, hidden, calendarFailed, time)}</div>`;
 }
 
 function render() {
-  if (!snapshot) { login(); return; }
+  if (auth === "anonymous") { login(); return; }
   const [page, rawId] = location.hash.slice(1).split("/");
   let id = "";
   try { id = rawId ? decodeURIComponent(rawId) : ""; } catch { /* Unknown links return the list. */ }
   const active = ["positions", "reports", "status"].includes(page) ? page : "overview";
+  if (!snapshot) {
+    shell(`<div class="empty"><span class="seal">${auth === "authenticated" ? "登录成功" : "正在连接"}</span><h1>${dataState === "empty" ? "等待第一批投资数据" : dataState === "failed" ? "数据暂时无法读取" : "正在读取投资数据…"}</h1><p>可用“刷新数据”重试。账户、持仓和报告会在完整批次同步后显示。</p></div>`, active);
+    return;
+  }
   const content = active === "positions" ? positions() : active === "reports" ? reportsPage(id) : active === "status" ? statusPage() : overview();
   shell((snapshot.data.account[0].data_mode === "demo" ? '<div class="notice">本地演示：全部金额、行情和报告均为虚构数据，不代表真实账户。</div>' : "") + content, active, `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`);
   applyChartStyles(app);
+  document.querySelector<HTMLButtonElement>("#back-top")?.addEventListener("click", () => {
+    window.scrollTo(0, 0); document.querySelector<HTMLElement>("#content")?.focus({ preventScroll: true });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(button => {
+    button.onclick = () => {
+      const heading = document.getElementById(button.dataset.section!);
+      heading?.scrollIntoView({ block: "start" }); heading?.focus({ preventScroll: true });
+    };
+  });
   const historyDate = document.querySelector<HTMLSelectElement>("#history-date");
   if (historyDate) {
+    if (selectedHistory && snapshot.data.history?.some(r => r.source === selectedHistory)) {
+      historyDate.value = selectedHistory;
+      const row = snapshot.data.history.find(r => r.source === selectedHistory)!;
+      document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
+    }
     historyDate.onchange = () => {
+      selectedHistory = historyDate.value;
       const row = snapshot!.data.history?.find(r => r.source === historyDate.value);
       if (row) document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
     };
@@ -217,26 +294,46 @@ function render() {
 }
 
 async function load() {
+  if (loading) return;
+  loading = true;
   const version = ++loadVersion;
+  const previous = snapshot?.batch_id;
+  notice = "";
+  render();
   try {
     await api("/api/me");
     if (version !== loadVersion) return;
-  } catch (error) {
-    if (version !== loadVersion) return;
-    app.innerHTML = `<main class="empty"><h1>工作台暂时无法连接</h1><p>${e((error as Error).message)}</p><button id="retry">重新连接</button></main>`;
-    document.querySelector<HTMLButtonElement>("#retry")!.onclick = () => { void load(); }; return;
-  }
-  try {
+    auth = "authenticated";
     const next = await api("/api/dashboard") as unknown as Snapshot;
     if (version !== loadVersion) return;
+    if (!next.data?.account?.length) throw new Error("数据批次不完整，请重新同步");
     snapshot = next;
-    render();
+    dataState = "ready";
+    notice = previous ? next.batch_id === previous ? "已检查，当前已是最新同步批次。未重新采集行情。" : "已载入新同步批次。" : "";
+    void loadCalendar(version);
   } catch (error) {
     if (version !== loadVersion) return;
-    if (snapshot) { render(); showError(`刷新失败，仍展示上一批数据：${(error as Error).message}`); return; }
-    shell(`<div class="empty"><span class="seal">登录成功</span><h1>${(error as { status?: number }).status === 404 ? "等待第一批投资数据" : "数据暂时无法读取"}</h1><p>${e((error as Error).message)}</p><p>完成本地数据校验与同步后，持仓、风控和报告将显示在这里。</p></div>`);
+    dataState = (error as { status?: number }).status === 404 ? "empty" : "failed";
+    notice = snapshot ? "刷新失败，仍展示上一批数据。请检查连接后重试；原生成时间保持不变。" : (error as Error).message;
+  } finally {
+    if (version === loadVersion) { loading = false; render(); }
   }
 }
 
-window.addEventListener("hashchange", () => { render(); window.scrollTo(0, 0); });
+async function loadCalendar(version: number) {
+  try {
+    const next = await api("/api/calendar");
+    if (version !== loadVersion) return;
+    if (typeof next.state !== "string") throw new Error("日历状态无效");
+    calendar = next as unknown as CalendarView; calendarFailed = false;
+  } catch {
+    if (version !== loadVersion) return;
+    calendarFailed = true;
+  }
+  if (version === loadVersion && location.hash === "#status") render();
+}
+
+window.addEventListener("hashchange", () => {
+  render(); window.scrollTo(0, 0); document.querySelector<HTMLElement>("#content")?.focus({ preventScroll: true });
+});
 void load();

@@ -1,8 +1,25 @@
 import type { Env } from "./types";
 import { OWNER_EMAIL, bodyJson, cookie, equal, json, localDev, object, readCookie, secretHash, token } from "./lib";
+import { otpEmail } from "./mail";
 
 const OTP_TTL = 8 * 60 * 1000;
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
+const SEND_WINDOWS = [
+  { milliseconds: 60_000, limit: 1 },
+  { milliseconds: 900_000, limit: 3 },
+  { milliseconds: 86400_000, limit: 10 },
+] as const;
+
+async function retryAfter(env: Env) {
+  const { results } = await env.DB.prepare(`SELECT created_at FROM otp_codes
+    WHERE created_at > ? ORDER BY created_at DESC LIMIT 10`)
+    .bind(Date.now() - SEND_WINDOWS[2].milliseconds).all<{ created_at: number }>();
+  const now = Date.now();
+  // The Nth newest send must leave its window before another send fits.
+  const availableAt = Math.max(now, ...SEND_WINDOWS.map(({ milliseconds, limit }) =>
+    results[limit - 1] ? results[limit - 1].created_at + milliseconds : now));
+  return Math.max(1, Math.ceil((availableAt - now) / 1000));
+}
 
 export async function authenticated(request: Request, env: Env) {
   const raw = readCookie(request, "session");
@@ -34,8 +51,12 @@ export async function requestOtp(request: Request, env: Env) {
     WHERE NOT EXISTS (SELECT 1 FROM otp_codes WHERE created_at > ?)
       AND (SELECT COUNT(*) FROM otp_codes WHERE created_at > ?) < 3
       AND (SELECT COUNT(*) FROM otp_codes WHERE created_at > ?) < 10
-    RETURNING id`).bind(id, codeHash, ip, now, now + OTP_TTL, now - 60_000, now - 900_000, now - 86400_000).first();
-  if (!inserted) return json({ error: "发送较频繁，请稍后再试", retry_after: 60 }, 429, { "Retry-After": "60" });
+    RETURNING id`).bind(id, codeHash, ip, now, now + OTP_TTL,
+      ...SEND_WINDOWS.map(window => now - window.milliseconds)).first();
+  if (!inserted) {
+    const seconds = await retryAfter(env);
+    return json({ error: "发送较频繁，请稍后再试", retry_after: seconds }, 429, { "Retry-After": String(seconds) });
+  }
   if (env.RESEND_API_KEY) {
     try {
       const response = await fetch("https://api.resend.com/emails", {
@@ -46,7 +67,7 @@ export async function requestOtp(request: Request, env: Env) {
           from: env.OTP_FROM || "otp@kdp.cool",
           to: [OWNER_EMAIL],
           subject: "投资看板登录验证码",
-          text: `珂抖屁 · 投资\n\n您的验证码是 ${code}\n8 分钟内有效。请勿向他人提供验证码。\n\n若非本人操作，请忽略。`,
+          ...otpEmail(code),
         }),
       });
       if (!response.ok) throw new Error("mail_failed");
@@ -56,7 +77,7 @@ export async function requestOtp(request: Request, env: Env) {
     }
   }
   return json({
-    ok: true, retry_after: 60,
+    ok: true, retry_after: await retryAfter(env),
     ...(localDev(request, env) && !env.RESEND_API_KEY ? { dev_otp: code } : {}),
   }, 200, { "Set-Cookie": cookie(request, "challenge", id, OTP_TTL / 1000) });
 }

@@ -1,0 +1,47 @@
+name: GU CI
+
+on:
+  push:
+    paths:
+      - 'gu/**'
+      - '.github/workflows/gu-ci.yml'
+  pull_request:
+    paths:
+      - 'gu/**'
+      - '.github/workflows/gu-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gu-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: gu
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gu/package-lock.json
+      - run: npm ci
+      - name: Test with isolated local D1
+        run: npm test
+      - name: Test deployment and sync checks
+        run: npm run test:scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Check deployment configuration only
+        run: npm run check:deploy -- --mode config
