@@ -673,7 +673,7 @@ tr:last-child td {
 /* 顶栏 sticky 后约 88px，正文里的 [id] 锚点跳转要预留这个高度，否则标题会
    被顶栏遮住一行。 */
 .report-body [id] {
-  scroll-margin-top: 88px;
+  scroll-margin-top: 112px;
 }
 .report-body h2 {
   font-size: 26px;
@@ -1627,7 +1627,7 @@ summary {
   font-size: 13px;
 }
 .report-body [id] {
-  scroll-margin-top: 24px;
+  scroll-margin-top: 112px;
 }
 .back-top {
   display: block;

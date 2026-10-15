@@ -40,16 +40,11 @@ let notice = "";
 let returnHash = "";
 let mounted = false;
 let renderKey = "";
-// load() 完成会 bump 一次，让下一次 render() 跳过同 batch 的优化失效。
-let renderNonce = 0;
+let dataRevision = 0;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
 function focusContent() {
-  // hashchange / 返回顶部都会调用：保持 contentEl 可聚焦，并避免在测试 mock 里
-  // 碰到 #content.focus not a function（实测 vi.waitFor 会触发）。
-  const el = document.querySelector<HTMLElement>("#content");
-  if (el && typeof (el as HTMLElement).focus === "function") {
-    (el as HTMLElement).focus({ preventScroll: true });
-  }
+  document.querySelector<HTMLElement>("#content")?.focus({ preventScroll: true });
 }
 const NAV_ITEMS = [
   ["overview", "总览"],
@@ -69,11 +64,11 @@ let reportQuery = "";
 let reportKind = "";
 let cooldown: ReturnType<typeof setInterval> | undefined;
 const number = (v: unknown, digits = 2) =>
-  typeof v === "number"
+  typeof v === "number" && Number.isFinite(v)
     ? v.toLocaleString("zh-CN", { maximumFractionDigits: digits })
     : "—";
 const money = (v: unknown) =>
-  typeof v === "number" ? `${(v / 10000).toFixed(2)} 万` : "—";
+  typeof v === "number" && Number.isFinite(v) ? `${(v / 10000).toFixed(2)} 万` : "—";
 const time = (v: unknown) => {
   const date = new Date(String(v));
   return Number.isFinite(date.getTime())
@@ -91,7 +86,7 @@ const signed = (v: unknown) =>
 // 旧实现在缺失值时也落进 positive 绿色，会把「行情暂时取不到」伪装成上涨。
 const tone = (v: unknown) => {
   if (typeof v !== "number" || !Number.isFinite(v)) return "neutral";
-  return v < 0 ? "negative" : "positive";
+  return v < 0 ? "negative" : v > 0 ? "positive" : "neutral";
 };
 const brand = `<a class="brand" href="#overview" aria-label="${PRODUCT_BRAND} · GU"><span class="brand-mark">k</span><span>kedoupi<small>codepi · 个人投资工作台</small></span></a>`;
 
@@ -163,6 +158,7 @@ function validHash(hash: string) {
 
 function login() {
   if (cooldown) clearInterval(cooldown);
+  clearTimeout(noticeTimer);
   // login 是另一个 UI 形态，再次登录前必须让 render() 重挂 chrome，
   // 否则同步提示条 / 顶栏副标题都查不到节点。
   mounted = false;
@@ -516,7 +512,7 @@ function statusPage() {
         .join("") || "<li>本批数据未提供额外提醒。</li>"
     }</ul></section>
     <div class="overview-grid"><section class="surface"><h2>等待核实</h2><p>港股股数、GOOGL 早期批次、现金更新和成本尾差，需券商凭证或成交确认。页面不会推算补齐。</p></section>
-    ${calendarPanel(calendar, calendarFailed, time)}</div>`;
+    <div id="calendar-slot">${calendarPanel(calendar, calendarFailed, time)}</div></div>`;
 }
 
 /**
@@ -548,8 +544,7 @@ function render() {
     ? `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`
     : "";
   syncChrome(active, subtitle);
-  const batch = snapshot?.batch_id ?? (loading ? "loading" : "empty");
-  const nextKey = `${batch}|${active}|${id}|${renderNonce}`;
+  const nextKey = JSON.stringify([dataRevision, active, id, snapshot ? "ready" : [dataState, loading, auth]]);
   if (nextKey === renderKey) return;
   renderKey = nextKey;
   if (!snapshot) {
@@ -594,13 +589,13 @@ function bindContentHandlers() {
     });
   const historyDate =
     document.querySelector<HTMLSelectElement>("#history-date");
-  if (!historyDate) return;
+  if (historyDate) {
   if (
     selectedHistory &&
     snapshot?.data.history?.some((r) => r.source === selectedHistory)
   ) {
     historyDate.value = selectedHistory;
-    const row = snapshot!.data.history.find(
+    const row = snapshot!.data.history!.find(
       (r) => r.source === selectedHistory,
     )!;
     document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
@@ -613,6 +608,7 @@ function bindContentHandlers() {
     if (row)
       document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
   };
+  }
   const search = document.querySelector<HTMLInputElement>("#search");
   const kind = document.querySelector<HTMLSelectElement>("#kind");
   if (!search || !kind) return;
@@ -631,6 +627,7 @@ async function load() {
   const version = ++loadVersion;
   const previous = snapshot?.batch_id;
   notice = "";
+  clearTimeout(noticeTimer);
   render();
   try {
     if (ssoMode === undefined)
@@ -642,6 +639,7 @@ async function load() {
     if (version !== loadVersion) return;
     if (!next.data?.account?.length)
       throw new Error("数据批次不完整，请重新同步");
+    if (!snapshot || snapshot.batch_id !== next.batch_id || JSON.stringify(snapshot.data) !== JSON.stringify(next.data)) dataRevision++;
     snapshot = next;
     dataState = "ready";
     notice = previous
@@ -649,9 +647,6 @@ async function load() {
         ? "已检查，当前已是最新同步批次。未重新采集行情。"
         : "已载入新同步批次。"
       : "";
-    // load() 完成后下一轮 render() 必须重新画内容：同 batch_id 时 renderKey
-    // 记忆化会留下旧 innerHTML，导致刷新后看不到新警告 / 持仓更新。
-    renderNonce++;
     void loadCalendar(version);
   } catch (error) {
     if (version !== loadVersion) return;
@@ -664,8 +659,19 @@ async function load() {
     if (version === loadVersion) {
       loading = false;
       render();
+      if (notice.startsWith("已")) noticeTimer = setTimeout(() => {
+        notice = "";
+        if (auth === "authenticated") render();
+      }, 6000);
     }
   }
+}
+
+function syncCalendarPanel() {
+  const slot = document.querySelector<HTMLElement>("#calendar-slot");
+  if (!slot) return;
+  const html = calendarPanel(calendar, calendarFailed, time);
+  if (slot.innerHTML !== html) slot.innerHTML = html;
 }
 
 async function loadCalendar(version: number) {
@@ -679,7 +685,7 @@ async function loadCalendar(version: number) {
     if (version !== loadVersion) return;
     calendarFailed = true;
   }
-  if (version === loadVersion && location.hash === "#status") render();
+  if (version === loadVersion) syncCalendarPanel();
 }
 
 async function checkSession() {

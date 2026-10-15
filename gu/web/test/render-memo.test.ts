@@ -15,6 +15,7 @@ async function mount(initial = "#overview", batchId = "one") {
   let contentInner = "";
   let renderContentCalls = 0;
   const contentEl = {
+    focus: vi.fn(),
     get innerHTML() {
       return contentInner;
     },
