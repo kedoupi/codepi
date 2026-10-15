@@ -1781,3 +1781,292 @@ summary:focus-visible {
   border-radius: 8px;
   min-height: 46px;
 }
+
+/* ——— 资产构成堆叠条 ——— */
+.chart-composition .composition-bar {
+  display: flex;
+  align-items: stretch;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--kdp-line);
+  border: 1px solid var(--kdp-line-strong);
+}
+.chart-composition .composition-segment {
+  border: 0;
+  margin: 0;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 2px solid var(--kdp-surface);
+  transition: filter var(--kdp-motion), outline-color var(--kdp-motion);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chart-composition .composition-segment:last-child {
+  border-right: 0;
+}
+.chart-composition .composition-segment:hover,
+.chart-composition .composition-segment:focus-visible {
+  filter: brightness(1.08);
+  outline-color: var(--kdp-focus);
+}
+.chart-composition .composition-segment[data-color="GOOGL"] { background: #6d8f79; }
+.chart-composition .composition-segment[data-color="NVDA"] { background: #a3421c; }
+.chart-composition .composition-segment[data-color="VOO"] { background: #4a6b86; }
+.chart-composition .composition-segment[data-color="XLV"] { background: #8a8577; }
+.chart-composition .composition-segment[data-color="hk"] { background: #b9a58c; color: #1e2b3c; }
+.chart-composition .composition-segment[data-color="cash"] {
+  background: #d4dde8;
+  color: var(--kdp-ink);
+}
+.chart-composition .composition-legend {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 14px;
+}
+.chart-composition .composition-legend li {
+  margin: 0;
+}
+.chart-composition .composition-legend-item {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  display: grid;
+  grid-template-columns: 10px auto 1fr auto auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--kdp-motion), border-color var(--kdp-motion);
+}
+.chart-composition .composition-legend-item:hover,
+.chart-composition .composition-legend-item:focus-visible {
+  background: var(--kdp-accent-soft);
+  border-color: var(--kdp-line-strong);
+  outline: 0;
+}
+.chart-composition .composition-legend-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--kdp-success);
+  align-self: center;
+}
+.chart-composition .composition-legend-item .dot[data-color="GOOGL"] { background: #6d8f79; }
+.chart-composition .composition-legend-item .dot[data-color="NVDA"] { background: #a3421c; }
+.chart-composition .composition-legend-item .dot[data-color="VOO"] { background: #4a6b86; }
+.chart-composition .composition-legend-item .dot[data-color="XLV"] { background: #8a8577; }
+.chart-composition .composition-legend-item .dot[data-color="hk"] { background: #b9a58c; }
+.chart-composition .composition-legend-item .dot[data-color="cash"] { background: #d4dde8; border: 1px solid var(--kdp-line-strong); }
+.chart-composition .composition-legend-item strong {
+  font-size: 13px;
+  letter-spacing: -0.2px;
+}
+.chart-composition .composition-legend-item .muted {
+  font-size: 11px;
+  color: var(--kdp-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chart-composition .composition-legend-item b {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-composition .composition-legend-item small {
+  font-size: 11px;
+  color: var(--kdp-muted);
+  font-variant-numeric: tabular-nums;
+}
+.composition-segment.is-active,
+.composition-legend-item.is-active {
+  outline: 2px solid var(--kdp-focus);
+  outline-offset: 2px;
+  background: var(--kdp-accent-soft);
+}
+.position-row.is-active {
+  background: var(--kdp-accent-soft);
+  box-shadow: inset 3px 0 0 var(--kdp-focus);
+}
+
+/* ——— 现金缓冲 ——— */
+.chart-cash .cash-rows {
+  display: grid;
+  gap: 14px;
+  margin-top: 4px;
+}
+.chart-cash .cash-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.chart-cash .cash-row-head b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--kdp-ink);
+  letter-spacing: -0.3px;
+}
+.chart-cash .cash-track {
+  position: relative;
+  height: 16px;
+  background: var(--kdp-accent-soft);
+  border-radius: 4px;
+  border: 1px solid var(--kdp-line);
+  overflow: visible;
+}
+.chart-cash .cash-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(182, 61, 73, 0.12);
+  border-right: 1px dashed var(--kdp-danger);
+}
+.chart-cash .cash-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--kdp-success);
+}
+.chart-cash .cash-fill.warning { background: #b08d57; }
+.chart-cash .cash-fill.danger { background: var(--kdp-danger); }
+.chart-cash .cash-min-mark {
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--kdp-danger);
+  background: var(--kdp-surface);
+  border: 1px solid var(--kdp-danger);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.chart-cash .cash-row-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— 投资事件时间轴 ——— */
+.chart-timeline .timeline-axis {
+  position: relative;
+  height: 96px;
+  margin: 18px 8px 6px;
+  padding-top: 8px;
+}
+.chart-timeline .timeline-axis::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  height: 1px;
+  background: var(--kdp-line-strong);
+}
+.chart-timeline .timeline-event {
+  position: absolute;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 0;
+  padding: 4px 6px;
+  font: inherit;
+  color: var(--kdp-ink);
+  cursor: pointer;
+  max-width: 132px;
+}
+.chart-timeline .timeline-event .timeline-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--kdp-accent);
+  border: 2px solid var(--kdp-surface);
+  box-shadow: 0 0 0 1px var(--kdp-line-strong);
+}
+.chart-timeline .timeline-event.success .timeline-dot { background: var(--kdp-success); }
+.chart-timeline .timeline-event.muted .timeline-dot { background: var(--kdp-line-strong); }
+.chart-timeline .timeline-event.warning .timeline-dot { background: var(--kdp-warning); }
+.chart-timeline .timeline-event:hover .timeline-dot,
+.chart-timeline .timeline-event:focus-visible .timeline-dot {
+  transform: scale(1.2);
+  transition: transform var(--kdp-motion);
+}
+.chart-timeline .timeline-event:focus-visible {
+  outline: 2px solid var(--kdp-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.chart-timeline .timeline-time {
+  font-size: 11px;
+  color: var(--kdp-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chart-timeline .timeline-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--kdp-ink);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+@media (max-width: 640px) {
+  .chart-composition .composition-bar {
+    height: 44px;
+  }
+  .chart-composition .composition-segment {
+    font-size: 11px;
+    padding: 0 6px;
+  }
+  .chart-composition .composition-segment .composition-label {
+    font-size: 11px;
+  }
+  .chart-composition .composition-legend {
+    grid-template-columns: 1fr 1fr;
+  }
+  .chart-timeline .timeline-axis {
+    height: 110px;
+  }
+  .chart-timeline .timeline-event {
+    max-width: 100px;
+  }
+  .chart-timeline .timeline-title {
+    max-width: 96px;
+    font-size: 11px;
+  }
+}
+
