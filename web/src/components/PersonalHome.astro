@@ -56,6 +56,17 @@ import ProductList from './ProductList.astro';
   </article>
 </section>
 
+<section class="blog-teaser" aria-label="博客">
+  <div class="section-heading">
+    <h2>最近写下来的东西</h2>
+    <p>整理完成的公开表达，陆续更新。</p>
+  </div>
+  <div class="blog-teaser-body">
+    <p>博客已经开放。开始写作后，这里会展示最近的文章。</p>
+    <a class="kdp-button kdp-button--secondary" href="/blog/">进入博客</a>
+  </div>
+</section>
+
 <style>
   .personal-hero { display: grid; grid-template-columns: 1.45fr 1fr; align-items: center; gap: 28px; padding-block: 60px 64px; }
   h1 { margin: 0; color: var(--kdp-ink); font-size: clamp(34px, 3.55vw, 50px); font-weight: 650; line-height: 1.5; letter-spacing: -.045em; }
@@ -90,6 +101,10 @@ import ProductList from './ProductList.astro';
   .chapter--ai { background: linear-gradient(135deg, #e8f1ff, #edf5ff); }
   .chapter > p { min-height: 52px; margin: 14px 0 22px; font-size: 14px; line-height: 1.9; color: var(--kdp-text); }
   .chapter-status { display: flex; align-items: center; gap: 16px; padding-top: 20px; border-top: 1px solid var(--kdp-line); font-size: 13px; color: var(--kdp-muted); }
+  .blog-teaser { margin-top: 40px; padding: 32px; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-lg); background: var(--kdp-surface); box-shadow: var(--kdp-shadow); }
+  .blog-teaser .section-heading { margin-bottom: 18px; }
+  .blog-teaser-body { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+  .blog-teaser-body p { margin: 0; color: var(--kdp-text); font-size: 14px; line-height: 1.8; }
   @media (min-width: 721px) and (max-width: 1050px) {
     .personal-hero { grid-template-columns: 1.4fr 1fr; gap: 16px; }
     h1 { font-size: 34px; }
@@ -124,6 +139,8 @@ import ProductList from './ProductList.astro';
     .next-chapter { grid-template-columns: 1fr; gap: 16px; margin-top: 20px; }
     .chapter { padding: 24px; }
     .chapter > p { min-height: 0; }
+    .blog-teaser { margin-top: 28px; padding: 24px; }
+    .blog-teaser-body { align-items: flex-start; }
   }
   @media (max-width: 360px) {
     .map-person strong { font-size: 15px; }

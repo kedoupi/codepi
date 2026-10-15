@@ -1,0 +1,53 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import { articles } from '../../content/articles.js';
+
+const title = '博客';
+const description = '整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。';
+---
+<BaseLayout title={title} description={description} pathname="/blog/" schemaType="WebPage">
+  <article class="personal-article">
+    <h1>博客</h1>
+    <p class="lead">整理完成的公开表达。不写没有根据的内容，也不追求数量。</p>
+    <p>围绕自己的健康、投资与内容工作，把观察、决定和复盘留下来。文章都在主域名内，便于后续检索和对外连接。</p>
+  </article>
+
+  {articles.length === 0 ? (
+    <section class="blog-empty" aria-label="暂无文章">
+      <div class="kdp-card blog-empty-card">
+        <h2>文章正在整理中</h2>
+        <p>先把真实的想法留下来，再逐渐形成可以回看、连接和复用的内容。</p>
+        <p class="muted">开始写作后，这里会列出标题、摘要与更新时间。</p>
+      </div>
+    </section>
+  ) : (
+    <section class="blog-list" aria-label="文章列表">
+      {articles.map((article) => (
+        <a href={`/blog/${article.slug}/`} class="kdp-card blog-card">
+          <div class="blog-card-meta">
+            <time datetime={article.date}>{article.displayDate}</time>
+            {article.tag && <span class="blog-tag">{article.tag}</span>}
+          </div>
+          <h2>{article.title}</h2>
+          <p>{article.summary}</p>
+          <span class="kdp-link blog-read">阅读 →</span>
+        </a>
+      ))}
+    </section>
+  )}
+</BaseLayout>
+
+<style>
+  .blog-empty { margin-top: 12px; }
+  .blog-empty-card { max-width: 560px; padding: 32px 28px; }
+  .blog-empty-card h2 { margin: 0 0 12px; }
+  .blog-empty-card p { margin: 0 0 10px; }
+  .blog-empty-card .muted { color: var(--kdp-muted); font-size: 13px; }
+  .blog-list { display: grid; gap: 16px; margin-top: 12px; max-width: 760px; }
+  .blog-card { display: block; padding: 24px 28px; }
+  .blog-card-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 12px; color: var(--kdp-muted); }
+  .blog-tag { padding: 2px 8px; border-radius: 4px; background: var(--kdp-accent-soft); color: var(--kdp-accent); font-weight: 500; }
+  .blog-card h2 { margin: 0 0 10px; font-size: 22px; font-weight: 600; color: var(--kdp-ink); }
+  .blog-card p { margin: 0 0 14px; color: var(--kdp-text); font-size: 14px; line-height: 1.8; }
+  .blog-read { font-size: 13px; }
+</style>
