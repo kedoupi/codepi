@@ -8,6 +8,10 @@ export type HealthCollection = {
   earliest_day: string | null; latest_day: string | null; failed_windows: number;
   last_attempt: { synced_at: string | null; attempted_at: string; last_error: string | null } | null;
 };
+export type SyncFailure = {
+  collection: string; from: string; to: string;
+  code: string; requestId?: string; retryAt?: string;
+};
 export type SleepRecord = {
   id: string; day: string; type?: string;
   bedtime_start?: string; bedtime_end?: string;
@@ -57,12 +61,12 @@ export function sleepForDay(records: SleepRecord[], day: string) {
     .sort((a, b) => Number(b.type === "long_sleep") - Number(a.type === "long_sleep")
       || (finite(b.total_sleep_duration) ? b.total_sleep_duration : -1) - (finite(a.total_sleep_duration) ? a.total_sleep_duration : -1));
 }
-export async function readSleep(from: string, to: string): Promise<SleepResponse> {
+export async function readSleep(from: string, to: string, signal?: AbortSignal): Promise<SleepResponse> {
   const records: SleepRecord[] = [];
   let offset = 0;
   // The API caps both rows and bytes. Follow every page before presenting totals.
   for (let page = 0; page < 250; page++) {
-    const result = await api<SleepResponse>(`/api/me/health-records?${new URLSearchParams({ collection: "sleep", from, to, offset: String(offset) })}`);
+    const result = await api<SleepResponse>(`/api/me/health-records?${new URLSearchParams({ collection: "sleep", from, to, offset: String(offset) })}`, { signal });
     if (!Array.isArray(result.records)) throw new RequestError("invalid_response", 502);
     records.push(...result.records);
     if (result.next_offset === null) return { ...result, records };
@@ -83,6 +87,9 @@ export type AutomaticSyncStatus = {
   completed: number;
   failed: number;
   remaining: number;
+  scores: { status: "pending" | "completed" | "failed"; error: string | null };
+  details: { total: number; completed: number; failed: number; remaining: number };
+  current: { collection: string; from: string; to: string } | null;
   next_run_at: string;
   next_batch_at: string | null;
 };

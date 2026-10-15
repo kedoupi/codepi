@@ -151,6 +151,7 @@ const CONTRACT = [
   ['/api/me/insights/compare?mode=range', 401],
   ['/api/me/prefs', 405],
   ['/api/me/health-records/status', 401],
+  ['/api/me/health-records/automatic', 401],
   ['/api/me/health-records?collection=sleep', 401],
   ['/.well-known/oauth-protected-resource'],
   ['/.well-known/oauth-authorization-server'],

@@ -4,15 +4,18 @@
   import { fetchAi, stripMarkdown, type AiResponse } from "../lib/ai";
   import { t, type Locale } from "../lib/i18n";
   import { isDevLoginAllowed, type DailyResponse, type Day, type MeResponse, type SyncInfo } from "../lib/types";
-  import { dateWindow, duration, finite, readSleep, scoreDelta, type SleepRecord } from "../lib/health";
+  import { dateWindow, duration, finite, readSleep, scoreDelta, type SleepRecord, type AutomaticSyncStatus } from "../lib/health";
+  import { createAutomaticSync } from "../lib/automatic-sync";
   import { historicalHrvRange, journalColors, journalData, latestPoint, readinessColor, scoreKeys, scorePoints, type ScoreKey } from "../lib/journal";
   import AiDrawer from "./AiDrawer.svelte";
   import ChromeHeader from "./ChromeHeader.svelte";
   import JournalChart from "./JournalChart.svelte";
+  import AutomaticSync from "./AutomaticSync.svelte";
   import "../journal.css";
   import { watchCalendarDay } from "../lib/calendar";
 
   let { me, locale, onUnauthorized, onLogout }: { me: MeResponse; locale: Locale; onUnauthorized: () => void; onLogout: () => void } = $props();
+  const personal = $derived(me.capabilities?.personal === true && me.source !== "dev");
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   const label = (key: ScoreKey) => key === "sleep" ? text("睡眠", "Sleep") : key === "readiness" ? text("准备度", "Readiness") : text("活动", "Activity");
   let end = $state(dateWindow(1).to);
@@ -28,12 +31,42 @@
   let sleepSyncedAt = $state<string | null>(null);
   let syncState = $state<SyncInfo>();
   let syncBusy = $state(false);
+  let automatic = $state<AutomaticSyncStatus | null>(null);
+  let syncError = $state("");
+  let syncErrorCode = $state("");
+  const updating = $derived(syncBusy || automatic?.status === "running");
   let detailDays = $state(14);
   let rangeDays = $state(7);
   let selectedDate = $state("");
   let mounted = true;
   let sleepRevision = 0;
   let dailyRevision = 0;
+  let lastDetailRefresh = 0;
+  let detailRefreshPending = false;
+  const readRequest = new AbortController();
+  const sync = createAutomaticSync({
+    onStatus: (value, previous) => {
+      automatic = value;
+      syncError = "";
+      syncErrorCode = "";
+      if (value.scores.status === "completed" && (previous?.scores.status !== "completed" || previous.started_at !== value.started_at)) {
+        void load();
+      }
+      const detailChanged = value.details.completed > 0 && (value.details.completed !== previous?.details.completed || value.started_at !== previous?.started_at);
+      const finished = previous?.status === "running" && value.status !== "running";
+      detailRefreshPending ||= detailChanged;
+      if ((detailRefreshPending && Date.now() - lastDetailRefresh >= 30_000) || finished) {
+        detailRefreshPending = false;
+        lastDetailRefresh = Date.now();
+        void loadSleep();
+      }
+    },
+    onError: err => {
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
+      syncError = errorText(err, locale);
+      syncErrorCode = err instanceof RequestError ? err.code : "";
+    },
+  });
   const model = $derived(journalData(allDays, sleeps, end));
   const latest = $derived(model.latest);
   const lastSleep = $derived(latestPoint(model.sleep));
@@ -71,7 +104,7 @@
     error = "";
     errorCode = "";
     try {
-      const data = await api<DailyResponse>("/api/me/daily?days=90");
+      const data = await api<DailyResponse>("/api/me/daily?days=90", { signal: readRequest.signal });
       if (!data.ok || !Array.isArray(data.days)) throw new RequestError("invalid_response", 502);
       if (!mounted || revision !== dailyRevision) return;
       allDays = data.days;
@@ -80,13 +113,13 @@
     finally { if (mounted && revision === dailyRevision) loading = false; }
   }
   async function loadSleep() {
-    if (!me.capabilities?.personal) { sleepLoading = false; return; }
+    if (!personal) { sleepLoading = false; return; }
     const revision = ++sleepRevision;
     sleepLoading = true;
     sleepError = "";
     const { from, to } = dateWindow(30, end);
     try {
-      const result = await readSleep(from, to);
+      const result = await readSleep(from, to, readRequest.signal);
       if (!mounted || revision !== sleepRevision) return;
       sleeps = result.records;
       sleepVerified = result.sync.window_verified;
@@ -100,22 +133,27 @@
   }
   async function syncNow() {
     if (syncBusy) return;
+    if (!personal) { await syncScores(); return; }
+    syncBusy = true;
+    syncError = "";
+    syncErrorCode = "";
+    try { await sync.start(); }
+    finally { if (mounted) syncBusy = false; }
+  }
+  async function syncScores() {
     syncBusy = true;
     const revision = ++dailyRevision;
     error = "";
     errorCode = "";
     try {
-      const data = await api<DailyResponse>("/api/me/sync?days=90", { method: "POST" });
+      const data = await api<DailyResponse>("/api/me/sync?days=90", { method: "POST", signal: readRequest.signal });
       if (!data.ok || !Array.isArray(data.days)) throw new RequestError("invalid_response", 502);
       if (!mounted || revision !== dailyRevision) return;
       allDays = data.days;
       syncState = data.sync;
-      await loadSleep();
     } catch (err) { if (mounted && revision === dailyRevision) handleError(err); }
     finally {
       if (mounted) {
-        // A rollover read can finish against the old cache while this sync owns
-        // the server lease. Read the current window again after the sync settles.
         if (revision !== dailyRevision) await load();
         else loading = false;
         if (mounted) syncBusy = false;
@@ -123,14 +161,16 @@
     }
   }
   onMount(() => {
+    lastDetailRefresh = Date.now();
     void load();
     void loadSleep();
+    if (personal) void sync.refresh();
     const stop = watchCalendarDay(day => {
       end = day;
       void load();
       void loadSleep();
     });
-    return () => { stop(); mounted = false; sleepRevision++; dailyRevision++; };
+    return () => { stop(); mounted = false; sleepRevision++; dailyRevision++; readRequest.abort(); sync.dispose(); };
   });
 
   let aiOpen = $state(false);
@@ -166,6 +206,8 @@
     <div class="journal-meta"><span>{longDate(end)} · {text("北京时间", "Asia/Shanghai")}</span><span class="journal-edition">{text("我的每日简报", "Your daily journal")}</span></div>
     {#if error}<div class="journal-notice" role="alert"><span>{error}</span><button disabled={loading} onclick={load}>{text("重试", "Retry")}</button>{#if errorCode === "reconnect_required"}<a href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}</div>{/if}
     {#if syncState?.stale || (latest && latest.date !== end)}<div class="journal-notice" role="status">{text("正在显示最近可用评分", "Showing the latest available scores")} · {latest?.date ?? "—"}{#if syncState?.stale} · {text("同步暂未完成", "Sync is incomplete")}{/if}{#if syncState?.error === "reconnect_required"}<a href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}</div>{/if}
+    {#if syncError}<div class="journal-notice" role="alert"><span>{syncError}</span>{#if syncErrorCode === "reconnect_required"}<a href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}</div>{/if}
+    {#if personal && automatic}<AutomaticSync value={automatic} {locale} compact />{/if}
 
     <div class="journal-lead">
       <section class="journal-story" aria-labelledby="journal-title">
@@ -237,7 +279,7 @@
       <div class="journal-analysis-links"><a class="journal-link" href="/insights">{text("阅读近 7 天解读", "Read the 7-day review")}</a>{#if me.capabilities?.analysis}<button onclick={openAi}>{text("AI 分析", "AI analysis")} · {rangeDays} {text("天", "days")}</button>{/if}</div>
     </details>
 
-    <footer class="journal-footer"><div class="journal-sync-line" aria-live="polite"><span>{loading ? text("正在读取评分…", "Loading scores…") : text("评分同步于", "Scores synced")} {loading ? "" : time(syncState?.syncedAt)}</span><button disabled={syncBusy || loading} onclick={syncNow}>{syncBusy ? text("同步中…", "Syncing…") : text("刷新评分", "Refresh scores")}</button><a href="/settings">{text("数据与连接", "Data & connections")}</a></div><details><summary>{text("数据来源与覆盖情况", "Sources and coverage")}</summary><p>{text("Oura 官方评分", "Oura official scores")} · {syncState?.populatedDays ?? 0}/{syncState?.windowDays ?? 90} {text("天有记录", "recorded days")} · {text("详细睡眠读取已保存记录，同步于", "Sleep reads saved records, synced")} {time(sleepSyncedAt)}</p></details><p>{text("供个人观察与记录，不用于诊断。", "For personal observation and journaling, not diagnosis.")} · {t(locale, "company")}</p></footer>
+    <footer class="journal-footer"><div class="journal-sync-line" aria-live="polite"><span>{loading ? text("正在读取评分…", "Loading scores…") : text("评分同步于", "Scores synced")} {loading ? "" : time(syncState?.syncedAt)}</span><button disabled={updating || automatic?.enabled === false || automatic?.status === "blocked" || syncErrorCode === "reconnect_required"} onclick={syncNow}>{updating ? text("更新中…", "Updating…") : text("更新数据", "Update data")}</button><a href="/settings">{text("数据与连接", "Data & connections")}</a></div>{#if personal}<p>{text("刷新 90 天官方评分，刷新近 7 天详情并补齐近 90 天缺失；提交后关闭页面仍会继续。", "Refreshes 90 days of official scores, refreshes 7 days of details and fills missing details over 90 days. Updates continue after closing this page.")}</p>{/if}<details><summary>{text("数据来源与覆盖情况", "Sources and coverage")}</summary><p>{text("Oura 官方评分", "Oura official scores")} · {syncState?.populatedDays ?? 0}/{syncState?.windowDays ?? 90} {text("天有记录", "recorded days")} · {text("详细睡眠读取已保存记录，同步于", "Sleep reads saved records, synced")} {time(sleepSyncedAt)}</p></details><p>{text("供个人观察与记录，不用于诊断。", "For personal observation and journaling, not diagnosis.")} · {t(locale, "company")}</p></footer>
   </main>
   <AiDrawer {locale} open={aiOpen} {rangeDays} thinking={aiBusy} status={aiStatus} statusErr={aiStatusErr} report={aiReport} fallbackText={aiFallback} onClose={() => { aiOpen = false; }} />
 </div>

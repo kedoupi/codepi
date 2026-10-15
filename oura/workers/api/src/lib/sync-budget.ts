@@ -2,7 +2,7 @@ import type { Env } from "../env";
 import { ApiError } from "./errors.ts";
 
 // A conservative app budget, not the account-wide Cloudflare quota. This only
-// bounds our own automatic work; manual sync never reserves here.
+// bounds background work, whether started by the user or the daily schedule.
 // Workers Paid includes 50 million rows written per month (~1.6M/day) plus the
 // free daily allowance, so 400k estimated rows/day stays an order of magnitude
 // inside the plan and leaves room for other products on the account. The
