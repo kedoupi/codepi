@@ -58,8 +58,8 @@ export function planAutomaticSync(today: string, coverage: Coverage[]): Task[] {
 }
 
 async function cleanup(env: Env, now: number) {
-  // Small batches of expired temporary state only. Keep health history, coverage,
-  // billing idempotency and MCP revocation/reuse evidence.
+  // Small batches of expired temporary state only. Keep health history, coverage
+  // and MCP revocation/reuse evidence.
   const iso = new Date(now).toISOString();
   await env.DB.batch([
     env.DB.prepare("DELETE FROM sessions WHERE id IN (SELECT id FROM sessions WHERE expires_at<? LIMIT 500)").bind(iso),
@@ -136,6 +136,9 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     // delivery cannot accidentally start tomorrow's run.
     const today = date(scheduledTime + 8 * 3_600_000);
     const due = scheduledTime >= Date.parse(`${today}T01:00:00Z`);
+    // Between 00:00 and 09:00 Shanghai the previous run's queue pauses instead
+    // of being dropped: the daily start re-plans from health coverage, so every
+    // window that is still missing gets queued again.
     if (row.run_day && row.run_day < today && !due) {
       log({ action: "skip", reason: "before_daily_gate", run_day: row.run_day });
       return;

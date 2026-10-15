@@ -12,7 +12,6 @@ import {
 import { handleMeAi } from "./routes/ai";
 import { handleMeDaily } from "./routes/daily";
 import { handleHealthRecords } from "./routes/health-records";
-import { handleDevSubscription } from "./routes/dev-sub";
 import { handleCompareInsights, handleWeeklyInsights } from "./routes/insights";
 import { handleMe } from "./routes/me";
 import { handleMePrefs } from "./routes/prefs";
@@ -26,11 +25,6 @@ import {
   handleRevoke,
   handleToken,
 } from "./routes/mcp-oauth";
-import {
-  handleStripeCheckout,
-  handleStripePortal,
-  handleStripeWebhook,
-} from "./routes/stripe";
 
 function cors(req: Request, env: Env): HeadersInit {
   const origin = req.headers.get("Origin");
@@ -39,7 +33,7 @@ function cors(req: Request, env: Env): HeadersInit {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, Stripe-Signature",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
     Vary: "Origin",
   };
@@ -131,18 +125,6 @@ export default {
           break;
         case "/api/me/insights/compare":
           res = await handleCompareInsights(request, env);
-          break;
-        case "/api/stripe/checkout":
-          res = await handleStripeCheckout(request, env);
-          break;
-        case "/api/stripe/portal":
-          res = await handleStripePortal(request, env);
-          break;
-        case "/api/stripe/webhook":
-          res = await handleStripeWebhook(request, env);
-          break;
-        case "/api/dev/subscription":
-          res = await handleDevSubscription(request, env);
           break;
         case "/api/health":
           res = Response.json({

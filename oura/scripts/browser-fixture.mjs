@@ -8,7 +8,7 @@ import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
-// Owner runtime: test-user == PERSONAL_OWNER_ID (full reports, no billing).
+// Owner runtime: test-user == PERSONAL_OWNER_ID (full reports).
 let adaptiveBackfill = false;
 const ownerRuntime = createRuntime({
   autoSync: true,
@@ -23,8 +23,7 @@ const ownerRuntime = createRuntime({
 });
 await ownerRuntime.ready;
 await migrate(ownerRuntime);
-// Free runtime: no owner configured, so test-user is a regular account that
-// sees paywalls until subscribed.
+// Non-owner runtime: summaries are available; full reports require owner access.
 const freeRuntime = createRuntime({ bindings: {
   ALLOW_DEV_LOGIN: '0',
   FRONTEND_ORIGIN: 'https://oura.example',
@@ -138,9 +137,6 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/__test/login') {
       const runtime = url.searchParams.get('free') === '1' ? freeRuntime : ownerRuntime;
       const cookie = await login(runtime);
-      const db = await runtime.getD1Database('DB');
-      await db.prepare('INSERT OR REPLACE INTO subscriptions (user_id, status) VALUES (?, ?)')
-        .bind('test-user', url.searchParams.get('subscribed') === '1' ? 'active' : 'none').run();
       const jar = url.searchParams.get('free') === '1' ? 'free' : 'owner';
       res.writeHead(302, {
         'Set-Cookie': [

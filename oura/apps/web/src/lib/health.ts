@@ -22,6 +22,7 @@ type SleepResponse = {
 };
 
 export const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+export const validScore = (value: unknown): value is number => finite(value) && value >= 0 && value <= 100;
 export function duration(seconds: unknown, locale: string): string {
   if (!finite(seconds) || seconds < 0) return "—";
   const minutes = Math.round(seconds / 60);
@@ -47,9 +48,9 @@ export function scoreDelta(days: Day[], latest: Day, key: "sleep" | "readiness" 
   const score = latest[key]?.score;
   const start = dateWindow(8, latest.date).from;
   const values = days.filter(day => day.date >= start && day.date < latest.date)
-    .map(day => day[key]?.score).filter(finite);
+    .map(day => day[key]?.score).filter(validScore);
   // Sparse baselines should not masquerade as a full week of observations.
-  if (!finite(score) || values.length < 3) return null;
+  if (!validScore(score) || values.length < 3) return null;
   return { value: Math.round((score - values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10, count: values.length };
 }
 export function sleepForDay(records: SleepRecord[], day: string) {

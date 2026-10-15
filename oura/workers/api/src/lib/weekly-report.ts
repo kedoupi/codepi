@@ -288,30 +288,28 @@ export function buildCompareReport(
   };
 }
 
-export function paywallWeekly(report: WeeklyReport, subscribed: boolean) {
+export function weeklyForAccess(report: WeeklyReport, fullAccess: boolean) {
   return {
     ok: true as const,
-    subscribed,
-    locked: !subscribed,
+    locked: !fullAccess,
     disclaimer: report.disclaimer,
     thisPeriod: report.thisPeriod,
     lastPeriod: report.lastPeriod,
     summaries: report.summaries,
     teaser: report.teaser,
-    tips: subscribed ? report.tips : [],
-    avgs: subscribed ? report.avgs : null,
+    tips: fullAccess ? report.tips : [],
+    avgs: fullAccess ? report.avgs : null,
     bodyLocale: "zh" as const,
   };
 }
 
-export function paywallCompare(report: CompareReport, subscribed: boolean) {
+export function compareForAccess(report: CompareReport, fullAccess: boolean) {
   return {
     ok: true as const,
-    subscribed,
-    locked: !subscribed,
+    locked: !fullAccess,
     mode: report.mode,
-    left: subscribed ? report.left : null,
-    right: subscribed ? report.right : null,
+    left: fullAccess ? report.left : null,
+    right: fullAccess ? report.right : null,
     bodyLocale: "zh" as const,
   };
 }

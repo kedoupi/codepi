@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, errorText } from "../lib/api";
-  import { setDevSubscription, startCheckout, startPortal } from "../lib/billing";
   import { t, type Locale, type LocalePref } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
@@ -14,7 +13,6 @@
     localePref,
     prefSaving = false,
     onLocalePref,
-    onMeChange,
     onLogout,
   }: {
     me: MeResponse;
@@ -22,12 +20,8 @@
     localePref: LocalePref;
     prefSaving?: boolean;
     onLocalePref: (pref: LocalePref) => void;
-    onMeChange: (next: MeResponse) => void;
     onLogout: () => void;
   } = $props();
-
-  let busy = $state(false);
-  let error = $state("");
 
   const prefs: LocalePref[] = ["system", "zh", "en"];
 
@@ -37,50 +31,7 @@
     return t(locale, "followSystem");
   }
 
-  async function subscribe() {
-    busy = true;
-    error = "";
-    try {
-      window.location.href = await startCheckout(locale);
-    } catch (err) {
-      error = me.stripeConfigured ? t(locale, "apiUnreachable") : t(locale, "stripeMissing");
-      console.error(err);
-      busy = false;
-    }
-  }
-
-  async function portal() {
-    busy = true;
-    error = "";
-    try {
-      window.location.href = await startPortal();
-    } catch (err) {
-      error = t(locale, "apiUnreachable");
-      console.error(err);
-      busy = false;
-    }
-  }
-
-  async function grant(entitled: boolean) {
-    busy = true;
-    error = "";
-    try {
-      await setDevSubscription(entitled);
-      onMeChange({
-        ...me,
-        subscribed: entitled,
-        subscriptionStatus: entitled ? "dev_grant" : "none",
-      });
-    } catch (err) {
-      error = t(locale, "apiUnreachable");
-      console.error(err);
-    } finally {
-      busy = false;
-    }
-  }
-
   const personal = $derived(me.capabilities?.personal === true);
-  const canBill = $derived(me.capabilities?.billing === true);
 
   type Connection = { client_id: string; client_name: string | null; created_at: string };
   let connections = $state<Connection[]>([]);
@@ -143,14 +94,13 @@
     <section class="panel" id="preferences">
       <h2>{t(locale, "settingsLang")}</h2>
       <p class="hint">{t(locale, "settingsLangHint")}</p>
-      <div class="lang-pills" role="radiogroup" aria-label={t(locale, "settingsLang")}>
+      <div class="lang-pills" role="group" aria-label={t(locale, "settingsLang")}>
         {#each prefs as pref (pref)}
           <button
             type="button"
             class="ai-btn"
             class:on={localePref === pref}
-            role="radio"
-            aria-checked={localePref === pref}
+            aria-pressed={localePref === pref}
             disabled={prefSaving}
             onclick={() => onLocalePref(pref)}
           >{prefLabel(pref)}</button>
@@ -167,8 +117,8 @@
         <h2>{locale === "en" ? "Personal workspace" : "个人工作区"}</h2>
         <p class="hint">
           {locale === "en"
-            ? "This account is the designated personal owner: full reports unlocked, billing disabled."
-            : "当前账号被指定为个人专属：完整解读已解锁，不涉及付费订阅。"}
+            ? "This account is the designated personal owner: full reports and data sync are enabled."
+            : "当前账号被指定为个人专属：可使用完整解读与数据同步。"}
         </p>
         <p class="hint">
           {locale === "en" ? "Connection" : "连接状态"}：Oura OAuth
@@ -207,41 +157,10 @@
         {/if}
       </section>
     {:else}
-      <section class="panel">
-        <h2>{t(locale, "settingsBilling")}</h2>
-        <p class="takeaway">{me.priceLabel ?? t(locale, "settingsPrice")}</p>
-        <p class="hint">{t(locale, "settingsPriceHint")}</p>
-        <p class="hint">
-          {t(locale, "settingsStatus")}：
-          {me.subscribed ? t(locale, "settingsPaid") : t(locale, "settingsUnpaid")}
-          {#if me.subscriptionStatus}
-            · {me.subscriptionStatus}
-          {/if}
-        </p>
-        <div class="settings-actions">
-          <button class="landing-btn primary" type="button" disabled={busy || !canBill} onclick={subscribe}>
-            {t(locale, "settingsSubscribe")}
-          </button>
-          <button class="ai-btn" type="button" disabled={busy || !canBill} onclick={portal}>
-            {t(locale, "settingsManage")}
-          </button>
-        </div>
-        {#if !canBill}
-          <p class="hint">{locale === "en" ? "Billing is not configured on this deployment." : "当前部署未开启付费功能。"}</p>
-        {/if}
-        {#if me.allowDevLogin === true}
-          <div class="settings-actions">
-            <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(true)}>
-              {t(locale, "devGrantOn")}
-            </button>
-            <button class="ai-btn" type="button" disabled={busy} onclick={() => grant(false)}>
-              {t(locale, "devGrantOff")}
-            </button>
-          </div>
-        {/if}
-        {#if error}
-          <p class="status err" role="alert">{error}</p>
-        {/if}
+      <section class="panel" id="account">
+        <h2>{locale === "zh" ? "账号权限" : "Account access"}</h2>
+        <p class="hint">{locale === "zh" ? "当前账号可查看日汇总与周报摘要。完整解读、数据同步及应用连接仅向个人工作区所有者开放。" : "This account can view daily scores and weekly summaries. Full reports, data sync and app connections require personal owner access."}</p>
+        <p class="hint">{locale === "zh" ? "账号" : "Account"}：{me.userId ?? "—"}</p>
       </section>
     {/if}
 

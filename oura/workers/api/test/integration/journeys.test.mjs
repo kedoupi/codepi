@@ -35,8 +35,17 @@ test('all frontend data routes exist and reject anonymous requests', async () =>
     assert.equal(res.status, 401, path);
     assert.equal(typeof (await res.json()).error, 'string');
   }
-  for (const path of ['/api/me/prefs', '/api/stripe/checkout', '/api/stripe/portal']) {
+  for (const path of ['/api/me/prefs']) {
     assert.equal((await request(path, { method: 'POST' })).status, 401, path);
+  }
+});
+
+test('payment endpoints are removed and report 404 instead of a subscription flow', async () => {
+  // The product no longer sells access: the Stripe and DEV-grant routes are gone.
+  for (const path of ['/api/stripe/checkout', '/api/stripe/portal', '/api/stripe/webhook', '/api/dev/subscription']) {
+    const res = await request(path, { method: 'POST' });
+    assert.equal(res.status, 404, path);
+    assert.equal((await res.json()).error, 'not found');
   }
 });
 
@@ -44,11 +53,14 @@ test('production disables demo login and exposes frontend capability fields', as
   const me = await json('/api/me');
   assert.equal(me.authenticated, false);
   assert.equal(me.allowDevLogin, false);
-  assert.equal(me.stripeConfigured, false);
-  assert.equal(me.subscribed, false);
   assert.equal(me.localePref, null);
+  assert.equal(me.capabilities.personal, false);
+  assert.equal(me.capabilities.weeklyFull, false);
+  assert.equal('billing' in me.capabilities, false);
+  for (const field of ['subscribed', 'subscriptionStatus', 'stripeConfigured', 'priceLabel']) {
+    assert.equal(field in me, false, field);
+  }
   assert.equal((await request('/api/auth/dev/session')).status, 403);
-  assert.equal((await request('/api/dev/subscription', { method: 'POST' })).status, 404);
 });
 
 test('OAuth rejects an unknown state without creating a session', async () => {
@@ -84,9 +96,7 @@ test('OAuth callback, daily windows, weekly report, compare, preferences and log
   }
   const me = await json('/api/me', { cookie });
   assert.equal(me.capabilities.personal, true);
-  assert.equal(me.capabilities.billing, false);
-  const billing = await request('/api/stripe/checkout', { cookie, method: 'POST' });
-  assert.equal(billing.status, 403);
+  assert.equal(me.capabilities.weeklyFull, true);
   for (const locale of ['en', 'zh', 'system']) {
     await json('/api/me/prefs', {
       cookie, method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -104,14 +114,8 @@ test('OAuth callback, daily windows, weekly report, compare, preferences and log
   assert.equal((await request('/api/me/insights/weekly', { cookie })).status, 401);
 });
 
-test('personal owner gets template analysis without billing; AI is grounded and cached', async () => {
+test('personal owner gets template analysis; AI is grounded and cached', async () => {
   const cookie = await login(runtime);
-  const checkout = await request('/api/stripe/checkout', { cookie, method: 'POST' });
-  assert.equal(checkout.status, 403);
-  assert.equal((await checkout.json()).error, 'billing_disabled');
-  const portal = await request('/api/stripe/portal', { cookie, method: 'POST' });
-  assert.equal(portal.status, 403);
-
   const first = await json('/api/me/ai?days=7', { cookie });
   assert.equal(first.source, 'template');
   assert.equal(first.ok, true);
@@ -121,7 +125,7 @@ test('personal owner gets template analysis without billing; AI is grounded and 
   assert.equal(second.generatedAt, first.generatedAt);
 });
 
-test('non-owner without subscription sees locked reports and explicit unavailable errors', async () => {
+test('non-owner sees locked reports and stays locked even with a legacy subscription row', async () => {
   const other = createRuntime({
     bindings: {
       ALLOW_DEV_LOGIN: '0',
@@ -153,9 +157,13 @@ test('non-owner without subscription sees locked reports and explicit unavailabl
     const weekly = await other.dispatchFetch('https://oura.example/api/me/insights/weekly', { headers: { Cookie: cookie } });
     const weeklyBody = await weekly.json();
     assert.equal(weeklyBody.locked, true);
-    const checkout = await other.dispatchFetch('https://oura.example/api/stripe/checkout', { method: 'POST', headers: { Cookie: cookie } });
-    assert.equal(checkout.status, 503);
-    assert.equal((await checkout.json()).error, 'stripe_not_configured');
+    // The historical `subscriptions` table is still in the schema, but nothing
+    // reads it any more: access must come from PERSONAL_OWNER_ID alone.
+    const db = await other.getD1Database('DB');
+    await db.prepare("INSERT OR REPLACE INTO subscriptions (user_id, status) VALUES ('test-user', 'active')").run();
+    const stillLocked = await (await other.dispatchFetch('https://oura.example/api/me', { headers: { Cookie: cookie } })).json();
+    assert.equal(stillLocked.capabilities.weeklyFull, false);
+    assert.equal((await (await other.dispatchFetch('https://oura.example/api/me/insights/weekly', { headers: { Cookie: cookie } })).json()).locked, true);
     const ai = await other.dispatchFetch('https://oura.example/api/me/ai?days=7', { headers: { Cookie: cookie } });
     assert.equal(ai.status, 200);
     assert.equal((await ai.json()).source, 'template');

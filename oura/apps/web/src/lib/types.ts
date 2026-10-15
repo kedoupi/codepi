@@ -4,12 +4,8 @@ export type MeResponse = {
   userId: string | null;
   allowDevLogin: boolean;
   oauthConfigured: boolean;
-  subscribed?: boolean;
-  subscriptionStatus?: string | null;
   localePref?: "system" | "zh" | "en" | null;
-  stripeConfigured?: boolean;
-  priceLabel?: string;
-  capabilities?: { personal: boolean; weeklyFull: boolean; compare: boolean; analysis: boolean; ai: boolean; billing: boolean };
+  capabilities?: { personal: boolean; weeklyFull: boolean; compare: boolean; analysis: boolean; ai: boolean };
   release?: string;
   build?: string;
   apiContract?: number;

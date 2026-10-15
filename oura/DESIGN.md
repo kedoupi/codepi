@@ -62,7 +62,7 @@
 - **OAuth** 路径：Oura Cloud `daily_*` → `pickSleep` / `pickReadiness` / `pickActivity` → 同一套 `days[]`。
 - 看板 CSS 锁死为现网 `h5.xiaotaozi.cc/health/` `<style>` 原文（颜色/间距/组件），禁止另做皮肤。未登录营销页样式只挂在 `#landing-view`，登录后仍走原看板。
 - DEV `/api/me/ai` 代理现网 kedoupi AI；per-user OAuth AI 尚未落地（501）。
-- 二次解读 MVP：`/insights` 模板周报（中文正文）+ `/compare` 两列对照 + Stripe Checkout ¥39/月占位。不改官方分数算法。未订阅只开放周报前三行。
+- 二次解读 MVP：`/insights` 模板周报（中文正文）+ `/compare` 两列对照。不改官方分数算法。非所有者账号只开放周报前三行摘要；接入付费/Stripe 已按用户要求整体移除（2026-10-15）。
 
 ## 6. 验收清单
 

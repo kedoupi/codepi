@@ -37,7 +37,7 @@ export const READY_SHORT: Record<string, string> = {
 export const WDAY = ["一", "二", "三", "四", "五", "六", "日"];
 
 export function avg(nums: unknown[]): number | null {
-  const v = nums.filter((n): n is number => typeof n === "number" && !Number.isNaN(n));
+  const v = nums.filter((n): n is number => typeof n === "number" && Number.isFinite(n));
   if (!v.length) return null;
   return v.reduce((a, b) => a + b, 0) / v.length;
 }
@@ -127,31 +127,35 @@ export function readinessColor(score: number | null | undefined): string {
 }
 
 export function sparkPaths(series: unknown[]): { line: string; area: string } | null {
-  const vals = series.filter((n): n is number => typeof n === "number" && !Number.isNaN(n));
-  if (vals.length < 2) return null;
+  const pts = series
+    .map((n, i) => (typeof n === "number" && Number.isFinite(n) ? { v: n, i } : null))
+    .filter((p): p is { v: number; i: number } => p !== null);
+  if (pts.length < 2) return null;
   const w = 120;
   const h = 56;
-  let min = Math.min.apply(null, vals);
-  let max = Math.max.apply(null, vals);
+  let min = Math.min(...pts.map((p) => p.v));
+  let max = Math.max(...pts.map((p) => p.v));
   if (max === min) {
     min -= 1;
     max += 1;
   }
   const pad = 2;
-  const pts = vals.map((v, i) => {
-    const x = pad + (i / (vals.length - 1)) * (w - pad * 2);
-    const y = pad + (1 - (v - min) / (max - min)) * (h - pad * 2);
+  const lastIndex = Math.max(series.length - 1, 1);
+  const coords = pts.map((p) => {
+    // Keep the original sample index so gaps stay visible instead of being compressed away.
+    const x = pad + (p.i / lastIndex) * (w - pad * 2);
+    const y = pad + (1 - (p.v - min) / (max - min)) * (h - pad * 2);
     return [x, y] as const;
   });
-  const line = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const line = coords.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
   const area =
     line +
     " L" +
-    pts[pts.length - 1][0].toFixed(1) +
+    coords[coords.length - 1][0].toFixed(1) +
     " " +
     h +
     " L" +
-    pts[0][0].toFixed(1) +
+    coords[0][0].toFixed(1) +
     " " +
     h +
     " Z";

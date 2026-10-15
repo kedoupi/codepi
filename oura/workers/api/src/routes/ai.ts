@@ -2,7 +2,6 @@ import type { Env } from "../env";
 import { requireSession, isResponse } from "../lib/authz";
 import { capabilities } from "../lib/capabilities.ts";
 import { clampDays } from "../lib/daily";
-import { loadSubscription } from "../lib/subscription";
 import { loadDailyForSession, isDailyResponse } from "../lib/user-daily";
 import { buildWeeklyReport } from "../lib/weekly-report";
 
@@ -13,8 +12,7 @@ export async function handleMeAi(request: Request, env: Env): Promise<Response> 
   const days = clampDays(Number(new URL(request.url).searchParams.get("days") || 30));
   const daily = await loadDailyForSession(request, env, auth.session, days);
   if (!isDailyResponse(daily)) return daily;
-  const sub = await loadSubscription(env, auth.session.user_id);
-  const caps = capabilities(env, auth.session.user_id, sub?.status);
+  const caps = capabilities(env, auth.session.user_id);
   const weekly = buildWeeklyReport(daily.days);
   const evidence = weekly.summaries.map((detail, i) => ({ id: `metric-${i}`, title: ["睡眠", "准备度", "活动"][i], detail }));
   const report = {

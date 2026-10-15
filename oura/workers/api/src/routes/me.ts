@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { capabilities } from "../lib/capabilities.ts";
+import { loadLocalePref } from "../lib/preferences";
 import { readSyncState } from "../lib/sync-cache.ts";
 import { API_CONTRACT, RELEASE } from "../lib/version.ts";
 import {
@@ -9,15 +10,8 @@ import {
   resolveSessionSecret,
 } from "../lib/config";
 import { readSessionFromRequest } from "../lib/session";
-import {
-  isEntitled,
-  loadLocalePref,
-  loadSubscription,
-  PLACEHOLDER_PRICE_LABEL,
-  stripeConfigured,
-} from "../lib/subscription";
 
-/** GET /api/me — session status for the login gate + billing/locale extras. */
+/** GET /api/me — session status for the login gate + locale preferences. */
 export async function handleMe(request: Request, env: Env): Promise<Response> {
   const secret = resolveSessionSecret(request, env);
   if (!secret) {
@@ -25,7 +19,6 @@ export async function handleMe(request: Request, env: Env): Promise<Response> {
   }
 
   const session = await readSessionFromRequest(request, env, secret);
-  const sub = session ? await loadSubscription(env, session.user_id) : null;
   const localePref = session ? await loadLocalePref(env, session.user_id) : null;
 
   return Response.json({
@@ -34,12 +27,8 @@ export async function handleMe(request: Request, env: Env): Promise<Response> {
     userId: session?.user_id ?? null,
     allowDevLogin: allowDevLogin(request, env),
     oauthConfigured: oauthConfigured(env),
-    subscribed: isEntitled(sub?.status),
-    subscriptionStatus: sub?.status ?? null,
     localePref,
-    stripeConfigured: stripeConfigured(env),
-    priceLabel: PLACEHOLDER_PRICE_LABEL,
-    capabilities: capabilities(env, session?.user_id ?? null, sub?.status),
+    capabilities: capabilities(env, session?.user_id ?? null),
     sync: session ? await readSyncState(env, session.user_id) : null,
     apiContract: API_CONTRACT,
     release: RELEASE,

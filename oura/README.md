@@ -119,70 +119,25 @@ Oura 应用里的 Redirect URL 必须与 `OURA_REDIRECT_URI` 完全一致。
 
 前端只在 `/api/me` **明确返回** `allowDevLogin: true` 时显示 DEV 登录 / 「DEV 演示」徽章。纯静态 Pages（没有 Worker `/api`）时 `/api/me` 失败按未登录渲染营销页，不出现红色错误条，也不会出现 DEV 按钮。
 
-## Locked MVP — 本周解读 / 对比 / Stripe
+## 权限模型 — 摘要 vs 完整解读（无付费）
 
-锁定范围：已有 Oura 环 + 有效会员 + 已在本站 OAuth 的用户。产品是**中文二次解读层**，不改官方分数、不承诺无会员也能拉全量官方数据。
+本产品**不自带付费/订阅**：Stripe Checkout、Customer Portal、webhook 与 DEV 订阅开关
+已于 2026-10-15 全部移除，旧路由 `/api/stripe/*`、`/api/dev/subscription` 现在一律返回 `404`。
 
-| 页 | 行为 |
+| 账号 | 能看什么 |
 |---|---|
-| 看板 | 入口卡「本周解读」/ Weekly insights |
-| `/insights` | 本周 vs 上周睡眠/准备度/活动各一句模板摘要 + 最多 3 条建议；固定「非医疗建议 / Not medical advice」 |
-| `/compare` | 本周 vs 上周，或近 7 天 vs 近 30 天，两列关键指标 |
-| 付费墙 | 未订阅可看周报前 3 行；全文建议与对比页需订阅 |
-| `/settings` | 语言覆盖 + Stripe 开通 / Customer Portal 取消 |
+| 任意已登录 Oura 账号 | 日汇总（`/api/me/daily`）、周报摘要前三行、`/api/me/ai` 规则解读、语言偏好 |
+| `PERSONAL_OWNER_ID` 对应账号 | 以上全部 + 完整周报建议（`/insights`）+ 完整对比（`/compare`）+ 健康档案同步 + MCP 连接器 |
+
+- 权限只由 `PERSONAL_OWNER_ID` 决定（见 `workers/api/src/lib/capabilities.ts`）。
+  历史 `subscriptions` 表仍在库中，但**没有任何代码读它**：写入一行也不会解锁权限。
+- 前端 `/api/me` 不再返回 `subscribed` / `subscriptionStatus` / `stripeConfigured` / `priceLabel`，
+  `capabilities.billing` 也已删除。
+- 语言偏好仍写 D1 `user_prefs`（`workers/api/src/lib/preferences.ts`）+ `localStorage`。
+- `migrations/0002_subscriptions.sql` 作为历史 schema 保留（其中 `user_prefs` 仍在使用），
+  不要删除或改写；`subscriptions` / `stripe_events` 两张表已无运行时代码使用。
 
 **语言**：整站壳（落地页 + 看板导航 + 解读入口）跟 `navigator.language`：`zh*` → 中文，否则英文。设置里可覆盖并写入 D1 `user_prefs` + `localStorage`。Phase 1 解读**正文模板只有中文**；英文 UI 用壳 + 「Phase 1 insight body is Chinese-only」。
-
-### Stripe secrets（只走 wrangler，不要进 git）
-
-在 `workers/api`：
-
-```bash
-npx wrangler secret put STRIPE_SECRET_KEY
-npx wrangler secret put STRIPE_WEBHOOK_SECRET
-npx wrangler secret put STRIPE_PRICE_ID
-# 可选。托管 Checkout 跳转不需要 publishable key
-# npx wrangler secret put STRIPE_PUBLISHABLE_KEY
-```
-
-占位价 **¥39/月（B 档）**。在 Stripe Dashboard（test mode）建 recurring Price，把 `price_...` 写入 `STRIPE_PRICE_ID`。币种用 CNY 或你账户支持的币种，UI 文案仍显示 ¥39/月。
-
-Webhook **必须**是：
-
-```
-https://oura.kdp.cool/api/stripe/webhook
-```
-
-Preview 用对应 `*.workers.dev` / 预览域名的同一路径。Dashboard 里只订阅：`checkout.session.completed`、`customer.subscription.*`、`invoice.paid`、`invoice.payment_failed`。
-
-### 支付方式（哪些被 env 打开）
-
-默认 Checkout `mode=subscription` + `automatic_payment_methods[enabled]=true`：由 Stripe 账户 / Dashboard 已开通的方式决定，通常是 **card**。
-
-| 变量 | 作用 |
-|---|---|
-| （不设） | automatic payment methods，卡 + 账户已开通且 Checkout 订阅模式支持的方式 |
-| `STRIPE_PAYMENT_METHOD_TYPES=card,alipay,wechat_pay` | 改用显式 `payment_method_types[]` |
-| `STRIPE_ENABLE_ALIPAY=1` | 追加 `alipay`（还需 Dashboard 打开 Alipay） |
-| `STRIPE_ENABLE_WECHAT_PAY=1` | 追加 `wechat_pay`，并设 `payment_method_options[wechat_pay][client]=web` |
-
-**注意：** Alipay / WeChat Pay 一般**不支持** Checkout `mode=subscription`（钱包多为一次性支付；Alipay 循环扣款多为邀请制）。没开 Dashboard、或订阅模式拒收时，创建 Session 会失败。订阅主路径请先用 **card**。取消走 Stripe Customer Portal。
-
-订阅状态写 D1 `subscriptions`，按 session `user_id` 关联。`active` / `trialing` / 本地 `dev_grant` 视为已订阅。
-
-D1 迁移：`migrations/0002_subscriptions.sql`。本地 `pnpm dev:api` 会 `d1 migrations apply --local`。**不要**在人工 review 前对生产 `oura_kdp` 跑 `--remote`。
-
-### 本地 / Preview 测 Checkout（test mode）
-
-1. Stripe test mode 建 ¥39/月 Price，把 `sk_test_...`、`price_...`、webhook `whsec_...` 放进 Preview Worker secrets（或本地 `.dev.vars`）。
-2. 本地可用 [Stripe CLI](https://stripe.com/docs/stripe-cli)：`stripe listen --forward-to localhost:8787/api/stripe/webhook`，把 CLI 打印的 `whsec_` 写入 `STRIPE_WEBHOOK_SECRET`。
-3. `ALLOW_DEV_LOGIN=1` → DEV 演示登录 → 设置页「开通订阅」→ Checkout 用卡 `4242 4242 4242 4242`。
-4. 成功后应回到 `/insights?checkout=success`，webhook 把 D1 标成 `active`，周报建议与对比解锁。
-5. 「管理 / 取消订阅」打开 Customer Portal。
-6. **没有 Stripe 密钥的 Preview**：设置页 DEV「模拟已订阅 / 恢复未订阅」只点验付费墙，生产必须关 `ALLOW_DEV_LOGIN`。
-
-以上是当时的订阅功能评审记录。2026-10-13 按用户故障修复要求恢复 API 路由并同步
-已上线前端所需的 Worker；Stripe 实际支付仍未完成生产验收。
 
 ## Cloudflare Pages（`apps/web`）
 
@@ -206,6 +161,9 @@ PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitH
 已有路由下发布 API：`pnpm deploy:api`。脚本上传新版本并将该版本切到 100% 流量，
 保留现有 Worker secrets 和 zone 路由，不需要每次发布都具备 zone 路由写权限。
 首次配置或变更路由仍需 Cloudflare 控制台，或具备相应权限的 `wrangler triggers deploy`。
+发布前要求 `CLOUDFLARE_ACCOUNT_ID` 和 `CLOUDFLARE_API_TOKEN`，先完成本地 dry-run，
+再以只读请求校验目标 Worker 访问权限、读取现有 Cron 和活跃版本，成功后才应用迁移与切流。
+可用 `node scripts/deploy-api.mjs --preflight-only` 仅执行这些预检，不修改生产资源。
 
 发布后在 `oura/` 执行：
 
@@ -213,7 +171,7 @@ PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitH
 pnpm check:api
 ```
 
-这个检查要求 `/api/health` 和未登录的 `/api/me` 返回正确的 JSON（含订阅、语言等
+这个检查要求 `/api/health` 和未登录的 `/api/me` 返回正确的 JSON（含账号权限、语言等
 前端所需字段）、生产 OAuth 配置已启用且 DEV 登录关闭，并要求 `/api/auth/oura/start` 跳转到 Oura 授权页，
 回调指向当前域名的 `/api/auth/oura/callback`。它不会完成用户授权，也不会打印
 OAuth state 或密钥。可传入另一个部署域名：`pnpm check:api https://<domain>`。
@@ -222,7 +180,7 @@ OAuth state 或密钥。可传入另一个部署域名：`pnpm check:api https:/
 API Worker。先核对 Worker Route，不能只重新发布前端或修改错误文案。
 检查同时要求日报、AI、周报和两种对比模式在匿名请求下返回 401，
 设置接口 GET 返回 405；返回 404 会使检查失败，避免旧 Worker 漏掉新路由。
-这些检查不读取健康数据、不创建订阅；OAuth start 会生成短期授权 state。
+这些检查不读取健康数据；OAuth start 会生成短期授权 state。
 
 ### 自动化测试与覆盖边界
 
@@ -230,7 +188,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 | 命令 | 覆盖 |
 | --- | --- |
-| `pnpm test` | 28 项单元测试 + 34 项 Worker 集成测试（含 MCP 和完整数据采集流程） |
+| `pnpm test` | 部署脚本、前端逻辑、API 单元测试与 Worker 集成测试（含 MCP 授权轮转、同步并发和完整数据采集流程） |
 | `pnpm typecheck` | API TypeScript 与前端 Svelte 类型检查 |
 | `pnpm build` | 前端生产构建 + Worker 打包 |
 | `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
@@ -238,21 +196,22 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 集成测试使用 Wrangler 已锁定的 Miniflare，无新增依赖。执行真实构建后的 Worker、
 内存 D1、OAuth 回调、会话、加密令牌读写和报表逻辑，仅模拟外部 Oura 响应。
-覆盖 7/30/90 天数据、未登录拒绝访问、免费/订阅报表、设置持久化、退出及伪造会话。
-没有真实支付请求，也不使用生产密钥或真实健康数据。
+覆盖 7/30/90 天数据、未登录拒绝访问、非所有者与所有者报表权限、设置持久化、退出及伪造会话。
+所有上游数据均为测试数据，不使用生产密钥或真实健康数据。
 
 浏览器测试需本机已安装并连接 `ego-browser`，会自动启动仅监听
 `127.0.0.1:4178` 的隔离服务，加载真实前端构建与 Worker，结束后关闭服务。
-测试账号和订阅状态仅存在于临时 D1；`/__test/login` 只属于测试服务，不进入生产 Worker。
+测试账号与权限状态仅存在于临时 D1；`/__test/login` 只属于测试服务，不进入生产 Worker。
 脚本验证页面内容、错误横幅、API 失败和浏览器运行异常，不需要人工逐个点击。
+同时覆盖快速切换对比模式的响应竞争、睡眠缺失/空结果/请求失败、
+18 类数据补采、超大窗口自动拆分、后台同步状态和数据库额度耗尽后的恢复提示。
 GitHub CI 目前自动运行单元、集成、类型、构建和发布契约检查；
 浏览器脚本依赖本机 Ego 环境，尚未接入 GitHub runner。
 
-真实 Oura 登录/授权、账户会员资格及真实 Stripe Checkout 不属于模拟测试保证范围。
+真实 Oura 登录/授权与账户会员资格不属于模拟测试保证范围。
 `/api/me/ai` 始终返回可用的规则解读（`source: "template"`）；只有配置了
 AI provider 才可能返回 `source: "ai-ranked"`，且该模式仅对已验证结论排序，
-不生成文字或数字。`PERSONAL_OWNER_ID` 对应的账号解锁完整报表、关闭付费入口；
-未配置 Stripe 的其它账号在结算接口上得到 `503 stripe_not_configured`。
+不生成文字或数字。`PERSONAL_OWNER_ID` 对应的账号解锁完整报表与数据同步；其它账号只能看到日汇总与周报摘要。
 
 ## MCP 连接器（Claude / ChatGPT）
 
@@ -261,6 +220,13 @@ AI provider 才可能返回 `source: "ai-ranked"`，且该模式仅对已验证�
 ```
 https://oura.kdp.cool/mcp
 ```
+
+部署此版本需先应用 `0009_mcp_token_family.sql`（`pnpm deploy:api` 会自动执行）。
+授权码消费与凭证发行、refresh token 轮转都在 D1 事务内完成，失败可重试；
+重放已轮转的 refresh token 会撤销同一授权链，错误客户端不能触发该撤销。
+历史凭证缺少授权链关联，因此同一用户、同一客户端的旧授权会统一归组：
+它们保持可用，但其中一枚旧凭证被撤销或发生重放时，该组旧授权会一起失效。
+新授权各自独立，不受旧授权组撤销影响。
 
 接入步骤（两个平台相同）：添加自定义连接器 → 填上面的 URL → 平台自动完成
 注册与授权 → 浏览器打开同意页 → 先登录 Oura，再点「允许连接」。

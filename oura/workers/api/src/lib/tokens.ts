@@ -1,5 +1,10 @@
 import type { Env } from "../env";
-import { decryptJson, encryptJson, type EncryptedBlob } from "./crypto";
+import {
+  decryptJson,
+  encryptJson,
+  packEncryptedBlob,
+  unpackEncryptedBlob,
+} from "./crypto.ts";
 import type { OuraTokens } from "./oura";
 
 export type StoredTokens = {
@@ -7,6 +12,14 @@ export type StoredTokens = {
   access_token: string;
   expires_at: number;
 };
+
+/**
+ * AAD binding a token row to its owner: moving A's (ciphertext, iv) to B's row
+ * makes decryption fail instead of silently returning A's tokens.
+ */
+export function tokenAad(userId: string): string {
+  return `oura-oauth-tokens:${userId}`;
+}
 
 export function tokensFromOura(tokens: OuraTokens): StoredTokens {
   const skewMs = 60_000;
@@ -23,7 +36,9 @@ export async function upsertEncryptedTokens(
   encryptionKey: string,
   tokens: StoredTokens,
 ): Promise<void> {
-  const blob = await encryptJson(encryptionKey, tokens);
+  const blob = packEncryptedBlob(
+    await encryptJson(encryptionKey, tokens, tokenAad(userId)),
+  );
   await env.DB.prepare(
     `INSERT INTO encrypted_tokens (user_id, ciphertext, iv, updated_at)
      VALUES (?, ?, ?, datetime('now'))
@@ -47,8 +62,13 @@ export async function loadEncryptedTokens(
     .bind(userId)
     .first<{ ciphertext: string; iv: string }>();
   if (!row) return null;
-  const blob: EncryptedBlob = { ciphertext: row.ciphertext, iv: row.iv };
-  return decryptJson<StoredTokens>(encryptionKey, blob);
+  // Versioned blobs are AAD-bound; legacy (unversioned) rows decrypt without
+  // AAD so already-authorized users keep working without re-consent.
+  return decryptJson<StoredTokens>(
+    encryptionKey,
+    unpackEncryptedBlob(row),
+    tokenAad(userId),
+  );
 }
 
 export async function upsertUser(env: Env, args: {

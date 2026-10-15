@@ -297,9 +297,10 @@ export function computeViewModel(allDays: Day[], rangeDays: number): ViewModel {
     sraMsg += " · 本区间无周末样本";
   }
 
+  const readyScoreRaw = latest?.readiness?.score;
   const readyScore =
-    latest && latest.readiness && typeof latest.readiness.score === "number"
-      ? latest.readiness.score
+    readyScoreRaw != null && Number.isFinite(readyScoreRaw) && readyScoreRaw >= 0 && readyScoreRaw <= 100
+      ? readyScoreRaw
       : null;
   const rRef = rAvg;
   let gaugeMsg = "暂无准备度";
@@ -324,7 +325,7 @@ export function computeViewModel(allDays: Day[], rangeDays: number): ViewModel {
   let low = 0;
   days.forEach((d) => {
     const s = d.activity && d.activity.steps;
-    if (typeof s !== "number") return;
+    if (typeof s !== "number" || !Number.isFinite(s) || s < 0) return;
     if (s >= 8000) high++;
     else if (s >= 4000) mid++;
     else low++;
@@ -396,7 +397,7 @@ export function computeViewModel(allDays: Day[], rangeDays: number): ViewModel {
 
   const rScores = days
     .map((d) => d.readiness && d.readiness.score)
-    .filter((n): n is number => typeof n === "number");
+    .filter((n): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 100);
   const lowDays = rScores.filter((n) => n < 70).length;
   const highDays = rScores.filter((n) => n >= 85).length;
   let wdSum = 0;

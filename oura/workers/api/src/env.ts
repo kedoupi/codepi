@@ -15,11 +15,4 @@ export interface Env {
   AI_DAILY_LIMIT?: string;
   BUILD_SHA?: string;
   AUTO_SYNC_ENABLED?: string;
-  STRIPE_SECRET_KEY?: string;
-  STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_PRICE_ID?: string;
-  STRIPE_PUBLISHABLE_KEY?: string;
-  STRIPE_PAYMENT_METHOD_TYPES?: string;
-  STRIPE_ENABLE_ALIPAY?: string;
-  STRIPE_ENABLE_WECHAT_PAY?: string;
 }

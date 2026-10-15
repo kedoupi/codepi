@@ -2,12 +2,11 @@
   import { onMount } from "svelte";
   import { api, RequestError, errorText } from "../lib/api";
   import SyncStatus from "./SyncStatus.svelte";
-  import { startCheckout, type ComparePayload } from "../lib/billing";
+  import type { ComparePayload } from "../lib/reports";
   import { t, type Locale } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
   import ChromeHeader from "./ChromeHeader.svelte";
-  import PaywallCard from "./PaywallCard.svelte";
 
   let {
     me,
@@ -23,20 +22,25 @@
 
   let mode = $state<"week" | "range">("week");
   let payload = $state<ComparePayload | null>(null);
+  let payloadMode = $state<"week" | "range" | null>(null);
   let status = $state("");
   let statusErr = $state(false);
-  let busy = $state(false);
+  let revision = 0;
+  let disposed = false;
 
   async function load(next = mode) {
+    const requestRevision = ++revision;
     statusErr = false;
     status = t(locale, "loading");
+    if (next !== payloadMode) payload = null;
     try {
       const data = await api<ComparePayload>(`/api/me/insights/compare?mode=${next}`);
-      if (next !== mode) return;
+      if (disposed || requestRevision !== revision) return;
       payload = data;
+      payloadMode = next;
       status = "";
     } catch (err) {
-      if (next !== mode) return;
+      if (disposed || requestRevision !== revision) return;
       if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
       statusErr = true;
       status = errorText(err, locale);
@@ -48,18 +52,6 @@
     void load(next);
   }
 
-  async function subscribe() {
-    busy = true;
-    try {
-      window.location.href = await startCheckout(locale);
-    } catch (err) {
-      statusErr = true;
-      status = me.stripeConfigured ? t(locale, "apiUnreachable") : t(locale, "stripeMissing");
-      console.error(err);
-      busy = false;
-    }
-  }
-
   function fmt(n: number | null | undefined, steps = false): string {
     if (n == null) return "—";
     return steps ? String(Math.round(n)) : (Math.round(n * 10) / 10).toFixed(1).replace(/\.0$/, "");
@@ -67,6 +59,7 @@
 
   onMount(() => {
     void load();
+    return () => { disposed = true; revision++; };
   });
 </script>
 
@@ -91,17 +84,16 @@
       <span> / {t(locale, "notMedicalEn")}</span>
     </p>
     <div class="lang-pills" role="group" aria-label={t(locale, "compareTitle")}>
-      <button type="button" class="ai-btn" class:on={mode === "week"} onclick={() => setMode("week")}>{t(locale, "compareWeek")}</button>
-      <button type="button" class="ai-btn" class:on={mode === "range"} onclick={() => setMode("range")}>{t(locale, "compareRange")}</button>
+      <button type="button" class="ai-btn" class:on={mode === "week"} aria-pressed={mode === "week"} onclick={() => setMode("week")}>{t(locale, "compareWeek")}</button>
+      <button type="button" class="ai-btn" class:on={mode === "range"} aria-pressed={mode === "range"} onclick={() => setMode("range")}>{t(locale, "compareRange")}</button>
     </div>
     <div class="status" class:err={statusErr}>{status}</div>
     {#if statusErr}<button class="ai-btn" onclick={() => load()}>{locale === "zh" ? "重试" : "Retry"}</button>{/if}
     {#if payload?.sync}<SyncStatus sync={payload.sync} {locale} />{/if}
 
     {#if payload?.locked}
-      {#if me.capabilities?.billing}<PaywallCard {locale} priceLabel={me.priceLabel ?? t(locale, "settingsPrice")} {busy} onSubscribe={subscribe} />{/if}
       <p class="hint">{locale === "zh" ? "此账号尚未开放完整对比。" : "Full comparison is not enabled for this account."}</p>
-    {:else if payload?.left && payload?.right}
+    {:else if payloadMode === mode && payload?.left && payload?.right}
       <section class="compare-grid" aria-label={t(locale, "compareTitle")}>
         {#each [payload.left, payload.right] as col, i (`col-${i}`)}
           <article class="panel">
