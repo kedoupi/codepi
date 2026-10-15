@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { centralFixture, connectOura, createRuntime, login, loginSso, migrate } from '../workers/api/test/integration/runtime.mjs';
 import worker from '../workers/api/dist/index.js';
 import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
+import { calendarDay, calendarWindow, shiftDay, DISPLAY_TIME_ZONE } from '../shared/dates.ts';
 
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
@@ -55,6 +56,32 @@ let quotaSyncAttempts = 0;
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (url.pathname === '/__test/calendar') {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        today: calendarDay(), week: calendarWindow(7), timezone: DISPLAY_TIME_ZONE,
+      }));
+      return;
+    }
+    if (url.pathname === '/__test/report-scenario' && req.method === 'POST') {
+      const db = await ownerRuntime.getD1Database('DB');
+      const today = calendarDay();
+      await db.prepare("DELETE FROM daily_cache WHERE user_id='test-user'").run();
+      for (let back = 0; back < 30; back++) {
+        const day = shiftDay(today, -back);
+        const payload = {
+          date: day,
+          sleep: { score: back === 0 ? 0 : back === 2 ? 80 : back === 7 ? 70 : null },
+          readiness: { score: back === 7 ? 70 : null },
+          activity: { score: back < 3 ? 80 : null, steps: back === 0 ? 0 : null },
+        };
+        await db.prepare('INSERT INTO daily_cache (user_id,day,payload) VALUES (?,?,?)')
+          .bind('test-user', day, JSON.stringify(payload)).run();
+      }
+      await db.prepare("INSERT INTO sync_state (user_id,synced_at,window_to) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET synced_at=excluded.synced_at,window_to=excluded.window_to,last_error=NULL")
+        .bind('test-user', new Date().toISOString(), today).run();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     if (sso && url.pathname === '/__test/central' && req.method === 'POST') {
       central.state.unavailable = url.searchParams.get('unavailable') === '1';
       if (url.searchParams.get('revoke') === '1') for (const ref of central.refs.values()) ref.active = false;
@@ -83,7 +110,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/__test/automatic-sync' && req.method === 'POST') {
       const worker = await ownerRuntime.getWorker();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = calendarDay();
       const result = await worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
       res.writeHead(result.outcome === 'ok' ? 200 : 500, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
       return;
@@ -91,8 +118,8 @@ const server = createServer(async (req, res) => {
     if (url.pathname === '/__test/backfill-scenario' && req.method === 'POST') {
       adaptiveBackfill = true;
       const db = await ownerRuntime.getD1Database('DB');
-      const today = new Date().toISOString().slice(0, 10);
-      const from = new Date(Date.parse(today) - 6 * 86400000).toISOString().slice(0, 10);
+      const today = calendarDay();
+      const from = calendarWindow(7, today).from;
       await db.prepare(`INSERT OR REPLACE INTO health_sync_windows
         (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)`)
         .bind('test-user', 'heartrate', from, today, '2000-01-01T00:00:00Z', 'sync_window_too_large').run();
@@ -105,8 +132,8 @@ const server = createServer(async (req, res) => {
       sleepFailure = scenario === 'failure';
       await db.prepare("DELETE FROM health_records WHERE collection='sleep'").run();
       await db.prepare("DELETE FROM health_sync_windows WHERE collection='sleep'").run();
-      const today = new Date().toISOString().slice(0, 10);
-      const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
+      const today = calendarDay();
+      const date = back => shiftDay(today, -back);
       if (scenario === 'records' || scenario === 'journal') {
         const journal = scenario === 'journal';
         for (let back = 0; back < 30; back++) {

@@ -30,6 +30,7 @@ function reportHarness(component, request) {
       if (name === '../lib/api') return { api: (...args) => request(...args), RequestError, errorText };
       if (name === '../lib/i18n') return { t: (_locale, key) => key };
       if (name === '../lib/router.svelte') return { goto: () => {} };
+      if (name === '../lib/calendar') return { watchCalendarDay: () => () => {} };
       throw new Error(`Unexpected component import: ${name}`);
     },
   });

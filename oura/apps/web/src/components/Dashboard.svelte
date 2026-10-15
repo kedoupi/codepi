@@ -10,11 +10,12 @@
   import ChromeHeader from "./ChromeHeader.svelte";
   import JournalChart from "./JournalChart.svelte";
   import "../journal.css";
+  import { watchCalendarDay } from "../lib/calendar";
 
   let { me, locale, onUnauthorized, onLogout }: { me: MeResponse; locale: Locale; onUnauthorized: () => void; onLogout: () => void } = $props();
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   const label = (key: ScoreKey) => key === "sleep" ? text("睡眠", "Sleep") : key === "readiness" ? text("准备度", "Readiness") : text("活动", "Activity");
-  const end = dateWindow(1).to;
+  let end = $state(dateWindow(1).to);
   let allDays = $state<Day[]>([]);
   let sleeps = $state<SleepRecord[]>([]);
   let loading = $state(true);
@@ -32,6 +33,7 @@
   let selectedDate = $state("");
   let mounted = true;
   let sleepRevision = 0;
+  let dailyRevision = 0;
   const model = $derived(journalData(allDays, sleeps, end));
   const latest = $derived(model.latest);
   const lastSleep = $derived(latestPoint(model.sleep));
@@ -64,17 +66,18 @@
     errorCode = err instanceof RequestError ? err.code : "";
   }
   async function load() {
+    const revision = ++dailyRevision;
     loading = true;
     error = "";
     errorCode = "";
     try {
       const data = await api<DailyResponse>("/api/me/daily?days=90");
       if (!data.ok || !Array.isArray(data.days)) throw new RequestError("invalid_response", 502);
-      if (!mounted) return;
+      if (!mounted || revision !== dailyRevision) return;
       allDays = data.days;
       syncState = data.sync;
-    } catch (err) { if (mounted) handleError(err); }
-    finally { if (mounted) loading = false; }
+    } catch (err) { if (mounted && revision === dailyRevision) handleError(err); }
+    finally { if (mounted && revision === dailyRevision) loading = false; }
   }
   async function loadSleep() {
     if (!me.capabilities?.personal) { sleepLoading = false; return; }
@@ -98,22 +101,36 @@
   async function syncNow() {
     if (syncBusy) return;
     syncBusy = true;
+    const revision = ++dailyRevision;
     error = "";
     errorCode = "";
     try {
       const data = await api<DailyResponse>("/api/me/sync?days=90", { method: "POST" });
       if (!data.ok || !Array.isArray(data.days)) throw new RequestError("invalid_response", 502);
-      if (!mounted) return;
+      if (!mounted || revision !== dailyRevision) return;
       allDays = data.days;
       syncState = data.sync;
       await loadSleep();
-    } catch (err) { if (mounted) handleError(err); }
-    finally { if (mounted) syncBusy = false; }
+    } catch (err) { if (mounted && revision === dailyRevision) handleError(err); }
+    finally {
+      if (mounted) {
+        // A rollover read can finish against the old cache while this sync owns
+        // the server lease. Read the current window again after the sync settles.
+        if (revision !== dailyRevision) await load();
+        else loading = false;
+        if (mounted) syncBusy = false;
+      }
+    }
   }
   onMount(() => {
     void load();
     void loadSleep();
-    return () => { mounted = false; sleepRevision++; };
+    const stop = watchCalendarDay(day => {
+      end = day;
+      void load();
+      void loadSleep();
+    });
+    return () => { stop(); mounted = false; sleepRevision++; dailyRevision++; };
   });
 
   let aiOpen = $state(false);
@@ -146,7 +163,7 @@
     {onLogout} />
   <a class="journal-skip" href="#journal-main">{text("跳到每日简报", "Skip to daily journal")}</a>
   <main id="journal-main" class="journal-main" tabindex="-1">
-    <div class="journal-meta"><span>{longDate(end)}</span><span class="journal-edition">{text("我的每日简报", "Your daily journal")}</span></div>
+    <div class="journal-meta"><span>{longDate(end)} · {text("北京时间", "Asia/Shanghai")}</span><span class="journal-edition">{text("我的每日简报", "Your daily journal")}</span></div>
     {#if error}<div class="journal-notice" role="alert"><span>{error}</span><button disabled={loading} onclick={load}>{text("重试", "Retry")}</button>{#if errorCode === "reconnect_required"}<a href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}</div>{/if}
     {#if syncState?.stale || (latest && latest.date !== end)}<div class="journal-notice" role="status">{text("正在显示最近可用评分", "Showing the latest available scores")} · {latest?.date ?? "—"}{#if syncState?.stale} · {text("同步暂未完成", "Sync is incomplete")}{/if}{#if syncState?.error === "reconnect_required"}<a href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}</div>{/if}
 
@@ -188,7 +205,7 @@
     <div class="journal-history-grid">
       <section class="journal-sleep sleep-preview" aria-labelledby="sleep-history-title" aria-busy={sleepLoading}>
         <div class="journal-section-top"><h2 id="sleep-history-title">{text("睡眠，是否回到你的节奏？", "Finding your sleep rhythm")}</h2><div class="journal-metric"><strong>{lastSleep ? duration(lastSleep.value! * 3600, locale) : "—"}</strong><span>{lastSleep?.date ?? text("暂无睡眠记录", "No sleep records")}</span></div></div>
-        <p class="journal-description">{text(`近 ${detailDays} 天每日主要睡眠时长`, `Main sleep duration over ${detailDays} days`)}</p>
+        <p class="journal-description">{text(`近 ${detailDays} 天每日主要睡眠时长；优先主睡眠，否则取最长记录，不累加小睡。`, `Main sleep over ${detailDays} days; longest record when unmarked, excluding additional naps.`)}</p>
         {#if sleepError}<div class="journal-empty" role="alert"><p>{sleepError}</p><button onclick={loadSleep}>{text("重试", "Retry")}</button></div>
         {:else if !sleeps.length}<div class="journal-empty"><p>{sleepLoading ? text("正在读取睡眠记录…", "Loading sleep records…") : !me.capabilities?.personal ? text("详细睡眠仅向个人工作区开放。", "Detailed sleep requires personal access.") : sleepVerified ? text("已检查近 30 天，暂无睡眠记录。", "The last 30 days were checked; no sleep records.") : text("近 30 天还没有保存的详细睡眠记录。", "No detailed sleep records saved in the last 30 days.")}</p><a class="journal-link" href="/sleep">{text("查看睡眠与同步", "Open sleep and sync")}</a></div>
         {:else}<JournalChart {locale} label={text(`近 ${detailDays} 天主要睡眠时长`, `Main sleep duration over ${detailDays} days`)} kind="bar" unit={text("小时", "hours")} average series={[{ label: text("主要睡眠时长", "Main sleep duration"), color: journalColors.sleep, points: model.sleep.slice(-detailDays) }]} />{/if}
@@ -217,7 +234,7 @@
       <summary>{text("展开评分趋势与数据依据", "Explore score trends and evidence")}</summary>
       <div class="journal-trend-top"><div><h2>{text("睡眠 · 准备度 · 活动", "Sleep · Readiness · Activity")}</h2><p class="sub">{rangeDays} {text("天评分趋势", "days of scores")}</p></div><div class="range" role="group" aria-label={t(locale, "rangeAria")} data-on={String(rangeDays)}><span class="range-thumb" aria-hidden="true"></span>{#each [7, 30, 90] as n}<button aria-pressed={rangeDays === n} class:on={rangeDays === n} onclick={() => { rangeDays = n; }}>{n}</button>{/each}</div></div>
       <JournalChart {locale} label={text("官方评分趋势", "Official score history")} unit={text("分", "score")} height={240} series={scoreKeys.map(key => ({ label: label(key), color: journalColors[key], points: scorePoints(model.calendar.slice(-rangeDays), key) }))} />
-      <div class="journal-analysis-links"><a class="journal-link" href="/insights">{text("阅读本周解读", "Read this week's review")}</a>{#if me.capabilities?.analysis}<button onclick={openAi}>{text("AI 分析", "AI analysis")} · {rangeDays} {text("天", "days")}</button>{/if}</div>
+      <div class="journal-analysis-links"><a class="journal-link" href="/insights">{text("阅读近 7 天解读", "Read the 7-day review")}</a>{#if me.capabilities?.analysis}<button onclick={openAi}>{text("AI 分析", "AI analysis")} · {rangeDays} {text("天", "days")}</button>{/if}</div>
     </details>
 
     <footer class="journal-footer"><div class="journal-sync-line" aria-live="polite"><span>{loading ? text("正在读取评分…", "Loading scores…") : text("评分同步于", "Scores synced")} {loading ? "" : time(syncState?.syncedAt)}</span><button disabled={syncBusy || loading} onclick={syncNow}>{syncBusy ? text("同步中…", "Syncing…") : text("刷新评分", "Refresh scores")}</button><a href="/settings">{text("数据与连接", "Data & connections")}</a></div><details><summary>{text("数据来源与覆盖情况", "Sources and coverage")}</summary><p>{text("Oura 官方评分", "Oura official scores")} · {syncState?.populatedDays ?? 0}/{syncState?.windowDays ?? 90} {text("天有记录", "recorded days")} · {text("详细睡眠读取已保存记录，同步于", "Sleep reads saved records, synced")} {time(sleepSyncedAt)}</p></details><p>{text("供个人观察与记录，不用于诊断。", "For personal observation and journaling, not diagnosis.")} · {t(locale, "company")}</p></footer>

@@ -10,13 +10,18 @@ export type WeeklyPayload = {
   teaser?: string[];
   tips?: string[];
   bodyLocale?: string;
+  sampleCounts?: { thisWeek: SampleCounts; lastWeek: SampleCounts };
+  minComparisonDays?: number;
+  timezone?: string;
 };
 
+type SampleCounts = { sleep: number; readiness: number; activity: number; steps: number };
 export type CompareColumn = {
   label: string;
   from: string;
   to: string;
   days: number;
+  samples: SampleCounts;
   sleep: number | null;
   readiness: number | null;
   activity: number | null;

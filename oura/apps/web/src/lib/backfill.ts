@@ -1,10 +1,11 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 export type SyncWindow = { collection: string; from: string; to: string };
 export type SyncFailure = SyncWindow & { code: string; requestId?: string; retryAt?: string };
 export type BackfillResult = { failed: SyncFailure[]; remaining: SyncWindow[]; completed: number; total: number; splits: number };
 const DAY = 86400000;
 const date = (time: number) => new Date(time).toISOString().slice(0, 10);
 export const windowDays = (window: SyncWindow) => (Date.parse(window.to) - Date.parse(window.from)) / DAY + 1;
-export function planBackfill(collections: { name: string; mode: string }[], days: number, today = date(Date.now())) {
+export function planBackfill(collections: { name: string; mode: string }[], days: number, today = calendarDay()) {
   return collections.flatMap(row => {
     const snapshot = row.mode === "profile" || row.mode === "snapshot";
     const step = row.mode === "time" ? 1 : 30;

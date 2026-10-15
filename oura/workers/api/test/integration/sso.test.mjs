@@ -1,10 +1,11 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { centralFixture, connectOura, createRuntime, login, loginSso, migrate } from './runtime.mjs';
 
 const origin = 'https://oura.example';
-const today = new Date().toISOString().slice(0, 10);
+const today = calendarDay();
 async function fixture(t, options = {}) {
   const central = centralFixture();
   const runtime = createRuntime({ sso: true, serviceBindings: { AUTH: central.fetch }, ...options });

@@ -1,4 +1,4 @@
-// Executed by ego-browser nodejs, not plain Node.
+// Shared by the portable Chrome runner and the optional local ego-browser entry.
 const { default: assert } = await import('node:assert/strict');
 const options = globalThis.ouraSmokeOptions || {};
 const existingSpace = options.spaceId;
@@ -45,7 +45,7 @@ async function healthy(label) {
   const titles = {
     '/': ['健康看板', 'Health board'],
     '/sleep': ['睡眠与恢复', 'Sleep & recovery'],
-    '/insights': ['本周解读', 'Weekly insights'],
+    '/insights': ['近 7 天解读', 'Weekly insights'],
     '/compare': ['对比', 'Compare'],
     '/settings': ['设置', 'Settings'],
   };
@@ -63,6 +63,18 @@ async function healthy(label) {
 async function navigate(path) {
   await page.click(`loc=css:nav a[href="${path}"]`);
   await page.waitForURL(`${origin}${path}`);
+}
+
+async function press(key, code, value, text) {
+  await page.cdp('Input.dispatchKeyEvent', {
+    type: 'keyDown', key, code, windowsVirtualKeyCode: value, ...(text ? { text } : {}),
+  });
+  await page.cdp('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: value });
+}
+
+async function mobileFits(label) {
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth
+    && document.body.scrollWidth <= innerWidth), true, `${label} fits mobile viewport`);
 }
 
 // Delay one real Worker response to exercise loading states and out-of-order delivery.
@@ -143,7 +155,8 @@ try {
   await page.click('loc=css:button[aria-pressed]:text-is("中文")');
   await page.waitForFunction(async () => (await (await fetch('/api/me')).json()).localePref === 'zh');
   await page.reload();
-  await page.waitForFunction(() => document.documentElement.lang.startsWith('zh'));
+  await page.waitForFunction(() => document.documentElement.lang.startsWith('zh')
+    && document.querySelector('h1')?.textContent === '设置' && document.title === '设置');
   await healthy('language restored');
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.journal-main');
@@ -159,14 +172,14 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
   await healthy('7 vs 30 day comparison');
   await holdNextReport('/api/me/insights/compare?mode=week', 'STALE RESPONSE');
-  await page.click('loc=css:button:text-is("本周 vs 上周")');
+  await page.click('loc=css:button:text-is("近 7 天 vs 此前 7 天")');
   await page.waitForFunction(() => typeof window.__releaseReport === 'function');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.compare-grid').length), 0,
     'old range results must be hidden while loading another mode');
   await page.click('loc=css:button:text-is("近 7 天 vs 近 30 天")');
   await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
-  await page.click('loc=css:button:text-is("本周 vs 上周")');
-  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '上周');
+  await page.click('loc=css:button:text-is("近 7 天 vs 此前 7 天")');
+  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '此前 7 天');
   await releaseReport();
   assert.equal(await page.evaluate(() => document.body.textContent.includes('STALE RESPONSE')), false,
     'a late response must not replace the newer request for the same mode');
@@ -376,6 +389,122 @@ try {
   await page.waitForFunction(() => document.querySelector('#landing-view')?.textContent.includes('数据库写入额度'));
   console.log('PASS OAuth callback displays reset instead of a raw error code');
   await page.evaluate(async () => { await fetch('/__test/storage-quota?enabled=0', { method: 'POST' }); });
+
+  // Exercise real keyboard default actions, including focus movement into a chart table.
+  await page.goto(`${origin}/__test/login`);
+  await page.waitForSelector('.journal-main');
+  await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=journal', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '82');
+  await page.evaluate(() => document.querySelector('.journal-score-history > summary').focus());
+  await press('Enter', 'Enter', 13, '\r');
+  await page.waitForSelector('.journal-score-history[open]');
+  await press('Tab', 'Tab', 9);
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), '7');
+  await press('Tab', 'Tab', 9);
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), '30');
+  await press('Enter', 'Enter', 13, '\r');
+  await page.waitForSelector('.range[data-on="30"]');
+  await page.evaluate(() => document.querySelector('.journal-calendar-cells button').focus());
+  await press(' ', 'Space', 32, ' ');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-pressed')), 'true');
+  await page.evaluate(() => document.querySelector('.journal-sleep .chart-data > summary').focus());
+  await press('Enter', 'Enter', 13, '\r');
+  await page.waitForSelector('.journal-sleep .chart-data[open]');
+  await press('Tab', 'Tab', 9);
+  assert.equal(await page.evaluate(() => document.activeElement.matches('.journal-sleep .table-scroll')), true);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.journal-sleep .chart-data tbody tr').length), 14);
+  await page.screenshot({ path: '/tmp/oura-keyboard-chart-table.png' });
+  await healthy('keyboard opens disclosures, changes range, selects day and reaches data table');
+
+  await page.evaluate(async () => { await fetch('/__test/report-scenario', { method: 'POST' }); });
+  await navigate('/insights');
+  await page.waitForSelector('.insight-lines li');
+  const sparseWeekly = await page.evaluate(() => document.querySelector('.insight-lines').textContent);
+  assert.match(sparseWeekly, /有效样本 2\/7 天，此前 1\/7 天/);
+  assert.match(sparseWeekly, /睡眠均分 40/);
+  assert.match(sparseWeekly, /样本不足/);
+  assert.doesNotMatch(sparseWeekly, /基本持平|较此前 7 天升高|较此前 7 天下降/);
+  await healthy('weekly sparse samples preserve zero, exclude gaps and suppress unsupported trends');
+  await navigate('/compare');
+  await page.waitForSelector('.compare-grid');
+  const sparseCells = await page.evaluate(() => [...document.querySelectorAll('.compare-grid article:first-child tbody tr')]
+    .map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent)));
+  assert.deepEqual(sparseCells.map(row => row.slice(1)), [['40', '2'], ['—', '0'], ['80', '3'], ['0', '1']]);
+  await healthy('comparison displays each metric mean and valid sample count');
+
+  for (const width of [375, 390]) {
+    await page.cdp('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true });
+    for (const [route, selector, name] of [
+      ['/', '.today-scores', 'overview'],
+      ['/sleep', '[data-testid="sleep-detail"]', 'sleep'],
+      ['/insights', '.insight-lines', 'weekly'],
+      ['/compare', '.compare-grid', 'compare'],
+      ['/settings', '.health-data .collection', 'settings'],
+    ]) {
+      await navigate(route);
+      await page.waitForSelector(selector);
+      await mobileFits(`${name} at ${width}px`);
+      await page.screenshot({ path: `/tmp/oura-${name}-mobile-${width}.png` });
+      await healthy(`${name} mobile ${width}px`);
+    }
+  }
+  await page.cdp('Emulation.clearDeviceMetricsOverride');
+
+  // Cross from yesterday into the Worker's real today, so archive ranges stay valid.
+  const dates = await page.evaluate(async () => (await (await fetch('/__test/calendar')).json()));
+  const previousDay = new Date(Date.parse(`${dates.today}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+  for (const [route, selector, endpoint] of [
+    ['/', '.today-scores', '/api/me/daily'],
+    ['/insights', '.insight-lines', '/api/me/insights/weekly'],
+    ['/compare', '.compare-grid', '/api/me/insights/compare'],
+  ]) {
+    const clockInstrument = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
+      source: `(${(({ previousDay, endpoint }) => {
+      const NativeDate = window.Date;
+      let clock = NativeDate.parse(`${previousDay}T15:59:59Z`);
+      window.Date = class extends NativeDate {
+        constructor(...args) { super(...(args.length ? args : [clock])); }
+        static now() { return clock; }
+      };
+      window.__midnightRequests = 0;
+      const originalFetch = window.fetch;
+      window.fetch = (...args) => {
+        if (new URL(String(args[0]), location.origin).pathname === endpoint) window.__midnightRequests++;
+        return originalFetch(...args);
+      };
+      window.__advanceMidnight = () => { clock += 2000; window.dispatchEvent(new Event('focus')); };
+      window.__restoreMidnight = () => {
+        window.Date = NativeDate;
+        window.fetch = originalFetch;
+        window.dispatchEvent(new Event('focus'));
+      };
+      }).toString()})(${JSON.stringify({ previousDay, endpoint })});`,
+    });
+    try {
+      await page.goto(`${origin}${route}`);
+      await page.waitForSelector(selector);
+      if (route === '/') await page.waitForFunction(day =>
+        document.querySelector('.journal-calendar-scale span:last-child')?.textContent === day, previousDay);
+      await page.evaluate(() => { window.__midnightRequests = 0; window.__advanceMidnight(); });
+      await page.waitForFunction(() => window.__midnightRequests >= 1);
+      if (route === '/') {
+        await page.waitForFunction(day => document.querySelector('.journal-calendar-scale span:last-child')?.textContent === day, dates.today);
+        assert.equal(await page.evaluate(day => document.querySelector('.journal-meta span')?.textContent
+          .startsWith(new Date(`${day}T12:00:00Z`).toLocaleDateString('zh-CN', {
+            timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+          })), dates.today), true);
+        assert.ok(await page.evaluate(day => document.querySelector('.journal-calendar-cells button:last-child')
+          ?.getAttribute('aria-label').startsWith(day), dates.today));
+      }
+      await page.waitForSelector(selector);
+    } finally {
+      await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: clockInstrument.identifier });
+      await page.evaluate(() => window.__restoreMidnight());
+    }
+    await page.waitForSelector(selector);
+    await healthy(`${route} refreshes after Shanghai midnight focus`);
+  }
   console.log('PASS browser journey');
 } finally {
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: instrumentation.identifier });
