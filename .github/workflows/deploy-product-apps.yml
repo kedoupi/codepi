@@ -155,7 +155,9 @@ jobs:
           pnpm check:api
       - name: Publish frontend
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        run: pnpm --filter @oura-kdp/api exec wrangler pages deploy ../../apps/web/dist --project-name=oura-kdp --branch=main
+        # Wrangler discovers Pages Functions from process.cwd()/functions, so the
+        # deploy must run in apps/web (where functions/ lives), not workers/api.
+        run: pnpm --dir apps/web exec wrangler pages deploy dist --project-name=oura-kdp --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
