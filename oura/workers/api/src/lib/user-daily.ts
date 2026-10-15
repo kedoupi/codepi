@@ -41,13 +41,13 @@ export async function loadDailyForUser(
   }
 
   const selected = dateWindow(windowDays);
-  return cachedDaily(env, userId, windowDays, selected.startDate, selected.endDate, force, async () => {
+  return cachedDaily(env, userId, windowDays, selected.startDate, selected.endDate, force, async lease => {
   const { startDate, endDate, dates } = dateWindow(90);
   const raw = await withOuraAccess(request, env, userId, accessToken => fetchDailySummaries({
     accessToken,
     startDate,
     endDate,
-  }));
+  }), lease);
   return {
     ...mapOuraToDaily({
       dates,

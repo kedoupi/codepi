@@ -42,6 +42,9 @@ const ownerRuntime = createRuntime({
       return scoreGate ? scoreGate.then(respond) : respond();
     }
     if (syncScenario === 'permission' && url.pathname.endsWith('/daily_spo2')) return new Response('', { status: 403 });
+    if (syncScenario === 'access-denied' && /\/(daily_resilience|ring_configuration|ring_battery_level)$/.test(url.pathname)) {
+      return Response.json({ detail: 'Access denied' }, { status: 401 });
+    }
     if (syncScenario === 'rate-limit' && url.pathname.endsWith('/heartrate')) return new Response('', { status: 429 });
     if (syncScenario === 'oversized' && url.pathname.endsWith('/sleep')) {
       const from = url.searchParams.get('start_date');
@@ -97,7 +100,7 @@ const server = createServer(async (req, res) => {
         releaseScores = undefined;
         scoreGate = undefined;
         syncScenario = url.searchParams.get('mode') || 'success';
-        if (!['normal', 'success', 'permission', 'rate-limit', 'oversized', 'score-failure'].includes(syncScenario)) {
+        if (!['normal', 'success', 'permission', 'access-denied', 'rate-limit', 'oversized', 'score-failure'].includes(syncScenario)) {
           res.writeHead(400).end('Unknown sync scenario');
           return;
         }

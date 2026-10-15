@@ -6,6 +6,7 @@ import {
   unpackEncryptedBlob,
 } from "./crypto.ts";
 import type { OuraTokens } from "./oura";
+import { ApiError } from "./errors.ts";
 
 export type StoredTokens = {
   refresh_token: string;
@@ -35,10 +36,18 @@ export async function upsertEncryptedTokens(
   userId: string,
   encryptionKey: string,
   tokens: StoredTokens,
+  expectedRevision?: string,
 ): Promise<void> {
   const blob = packEncryptedBlob(
     await encryptJson(encryptionKey, tokens, tokenAad(userId)),
   );
+  if (expectedRevision !== undefined) {
+    // A refresh that finishes after fresh consent must not replace that grant.
+    const result = await env.DB.prepare(`UPDATE encrypted_tokens SET ciphertext=?,iv=?,updated_at=datetime('now')
+      WHERE user_id=? AND iv=?`).bind(blob.ciphertext, blob.iv, userId, expectedRevision).run();
+    if (result.meta.changes !== 1) throw new ApiError("sync_in_progress", 409);
+    return;
+  }
   await env.DB.prepare(
     `INSERT INTO encrypted_tokens (user_id, ciphertext, iv, updated_at)
      VALUES (?, ?, ?, datetime('now'))
@@ -56,6 +65,10 @@ export async function loadEncryptedTokens(
   userId: string,
   encryptionKey: string,
 ): Promise<StoredTokens | null> {
+  return (await loadEncryptedTokenRecord(env, userId, encryptionKey))?.tokens ?? null;
+}
+
+export async function loadEncryptedTokenRecord(env: Env, userId: string, encryptionKey: string) {
   const row = await env.DB.prepare(
     `SELECT ciphertext, iv FROM encrypted_tokens WHERE user_id = ?`,
   )
@@ -64,11 +77,12 @@ export async function loadEncryptedTokens(
   if (!row) return null;
   // Versioned blobs are AAD-bound; legacy (unversioned) rows decrypt without
   // AAD so already-authorized users keep working without re-consent.
-  return decryptJson<StoredTokens>(
+  const tokens = await decryptJson<StoredTokens>(
     encryptionKey,
     unpackEncryptedBlob(row),
     tokenAad(userId),
   );
+  return { tokens, revision: row.iv };
 }
 
 export async function upsertUser(env: Env, args: {

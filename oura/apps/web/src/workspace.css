@@ -1,4 +1,4 @@
-/* Shared application layout; colors and typography come from the personal site. */
+/* Shared application layout and typography; colors come from Health's theme. */
 .workspace {
   --surface: var(--kdp-surface);
   --radius: var(--kdp-radius);
@@ -79,7 +79,7 @@
 .workspace .page .sleep-detail { background: transparent; border-radius: var(--kdp-radius-sm); }
 .workspace .page .sleep-duration { background: var(--peach); }
 .workspace .page .sleep-duration h2 { font-size: 42px; }
-.workspace .page .bar-fill { background: #79909d; border-radius: 2px 2px 0 0; }
+.workspace .page .bar-fill { background: var(--health-chart-duration); border-radius: 2px 2px 0 0; }
 .workspace .page .chosen .bar-fill { background: var(--primary); }
 .workspace .page .sleep-empty { border-radius: var(--kdp-radius-sm); }
 .workspace #account { scroll-margin-top: 140px; }
