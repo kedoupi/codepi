@@ -38,6 +38,25 @@ let dataState: "loading" | "ready" | "empty" | "failed" = "loading";
 let loading = false;
 let notice = "";
 let returnHash = "";
+let mounted = false;
+let renderKey = "";
+// load() 完成会 bump 一次，让下一次 render() 跳过同 batch 的优化失效。
+let renderNonce = 0;
+
+function focusContent() {
+  // hashchange / 返回顶部都会调用：保持 contentEl 可聚焦，并避免在测试 mock 里
+  // 碰到 #content.focus not a function（实测 vi.waitFor 会触发）。
+  const el = document.querySelector<HTMLElement>("#content");
+  if (el && typeof (el as HTMLElement).focus === "function") {
+    (el as HTMLElement).focus({ preventScroll: true });
+  }
+}
+const NAV_ITEMS = [
+  ["overview", "总览"],
+  ["positions", "持仓与风控"],
+  ["reports", "研究与报告"],
+  ["status", "数据状态"],
+] as const;
 let selectedHistory = "";
 let calendar: CalendarView | null = null;
 let calendarFailed = false;
@@ -87,6 +106,9 @@ function clearSession() {
   reportKind = "";
   selectedHistory = "";
   loadVersion++;
+  // chrome 已经被 login() 重置，但 renderKey 也需要清掉，否则下一次登录后会跳过
+  // 第一次重绘，留下 login() 留下的占位 chrome。
+  renderKey = "";
   login();
 }
 
@@ -141,6 +163,10 @@ function validHash(hash: string) {
 
 function login() {
   if (cooldown) clearInterval(cooldown);
+  // login 是另一个 UI 形态，再次登录前必须让 render() 重挂 chrome，
+  // 否则同步提示条 / 顶栏副标题都查不到节点。
+  mounted = false;
+  renderKey = "";
   const destination = `/${returnHash || validHash(location.hash)}`;
   app.innerHTML = `<main class="login">
     <section class="login-story"><div>${brand}</div>
@@ -228,44 +254,89 @@ function login() {
   };
 }
 
-function shell(content: string, active = "overview", subtitle = "") {
+/**
+ * 一次性挂载侧栏 / 顶栏 / 主区 / 页脚的 DOM 骨架。挂载之后再调用 render()
+ * 只更新内部元素的属性，#content 也不会整个重建，避免丢失 <details> 展开状态、
+ * 滚动位置和 activeElement。实测刷新后 activeElement 会从 SUMMARY 掉到 BODY，
+ * 就是因为整个 main 被 innerHTML 重建了一次。
+ */
+function mountChrome() {
   app.innerHTML = `<div class="workspace"><aside class="sidebar">${brand}
-    <nav aria-label="主导航">${[
-      ["overview", "总览"],
-      ["positions", "持仓与风控"],
-      ["reports", "研究与报告"],
-      ["status", "数据状态"],
-    ]
-      .map(
-        ([id, title]) =>
-          `<a href="#${id}" ${id === active ? 'aria-current="page"' : ""}><span class="nav-dot"></span>${title}</a>`,
-      )
-      .join("")}</nav>
+    <nav aria-label="主导航">${NAV_ITEMS.map(
+      ([id, title]) =>
+        `<a href="#${id}" data-nav="${id}"><span class="nav-dot"></span>${title}</a>`,
+    ).join("")}</nav>
     <div class="sidebar-bottom"><span class="private-dot"></span>私人投资记录<p>依据数据，不追逐噪音。</p></div></aside>
-    <div class="main"><header class="topbar"><div><span class="site-name">投资工作台</span><span class="muted">${e(subtitle)}</span></div>
-    <div class="actions"><button id="refresh" ${loading ? "disabled" : ""} title="重新读取网站已同步批次，不采集新行情">${loading ? "刷新中…" : "刷新数据"}</button><button id="logout">退出</button></div></header>
-    <main id="content" tabindex="-1" aria-busy="${loading}">${notice ? `<p id="notice" class="notice notice-${noticeTone(notice)}" role="status" aria-live="polite">${e(notice)}</p>` : ""}${content}</main><footer>刷新数据只读取网站已同步批次。行情与账户确认时间分别记录，成交以券商凭证为准。</footer></div></div>`;
+    <div class="main"><header class="topbar"><div><span class="site-name">投资工作台</span><span class="muted" id="topbar-subtitle"></span></div>
+    <div class="actions"><button id="refresh" title="重新读取网站已同步批次，不采集新行情">刷新数据</button><button id="logout">退出</button></div></header>
+    <p id="notice" class="notice" role="status" aria-live="polite" hidden></p>
+    <main id="content" tabindex="-1" aria-busy="false"></main>
+    <footer>刷新数据只读取网站已同步批次。行情与账户确认时间分别记录，成交以券商凭证为准。</footer></div></div>`;
   document.querySelector<HTMLButtonElement>("#refresh")!.onclick = () => {
     void load();
   };
-  document.querySelector<HTMLButtonElement>("#logout")!.onclick = async () => {
+  document.querySelector<HTMLButtonElement>("#logout")!.onclick = logout;
+  mounted = true;
+}
+
+/** 退出按钮：原 shell() 内联逻辑提到独立函数，logout 不再依赖 shell 重挂。 */
+async function logout() {
+  loadVersion++;
+  try {
+    await api("/api/auth/logout", {});
+    snapshot = null;
+    calendar = null;
+    auth = "anonymous";
+    loading = false;
+    notice = "";
     loadVersion++;
-    try {
-      await api("/api/auth/logout", {});
-      snapshot = null;
-      calendar = null;
-      auth = "anonymous";
-      loading = false;
-      notice = "";
-      loadVersion++;
-      returnHash = "#overview";
-      history.replaceState(null, "", "/login");
-      login();
-    } catch {
-      loading = false;
-      showError("退出未完成，请检查连接后重试。");
+    returnHash = "#overview";
+    history.replaceState(null, "", "/login");
+    login();
+  } catch {
+    loading = false;
+    showError("退出未完成，请检查连接后重试。");
+  }
+}
+
+/** 同步挂载后仍需要刷新的持久节点：导航 active、顶栏副标题、刷新按钮、提示条。 */
+function syncChrome(active: string, subtitle: string) {
+  for (const link of document.querySelectorAll<HTMLAnchorElement>(
+    "[data-nav]",
+  )) {
+    if (link.dataset.nav === active) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+  const sub = document.querySelector<HTMLElement>("#topbar-subtitle");
+  if (sub) sub.textContent = subtitle;
+  const refresh = document.querySelector<HTMLButtonElement>("#refresh");
+  if (refresh) {
+    refresh.disabled = loading;
+    refresh.textContent = loading ? "刷新中…" : "刷新数据";
+  }
+  const main = document.querySelector<HTMLElement>("#content");
+  if (main) main.setAttribute("aria-busy", String(loading));
+  const noticeEl = document.querySelector<HTMLElement>("#notice");
+  if (noticeEl) {
+    if (!notice) {
+      noticeEl.hidden = true;
+      noticeEl.textContent = "";
+      noticeEl.className = "notice";
+    } else {
+      noticeEl.hidden = false;
+      noticeEl.textContent = notice;
+      noticeEl.className = `notice notice-${noticeTone(notice)}`;
     }
-  };
+  }
+}
+
+/** 挂载 + 渲染内容。返回主内容供加载的批次与当前一致时跳过内容重绘。 */
+function renderContent(html: string) {
+  const main = document.querySelector<HTMLElement>("#content");
+  if (!main) return;
+  main.innerHTML = html;
+  applyChartStyles(app);
+  bindContentHandlers();
 }
 
 function showError(message: string) {
@@ -448,11 +519,21 @@ function statusPage() {
     ${calendarPanel(calendar, calendarFailed, time)}</div>`;
 }
 
+/**
+ * 渲染主流程：
+ *   1. 首次调用挂载 chrome（侧栏 / 顶栏 / 主区 / 页脚）；
+ *   2. 每次都同步顶栏副标题、提示条、刷新按钮（这些是常驻节点，不重建）；
+ *   3. 只在批次 ID + 当前页变化时才替换 #content，避免同批次重新拉取行情时
+ *      整个正文重新 innerHTML 重放动画、丢失 <details> 展开状态。
+ *
+ * hashchange 也会触发本函数，所以同一个 hash 下多次刷新只有第一次会写主区。
+ */
 function render() {
   if (auth === "anonymous") {
     login();
     return;
   }
+  if (!mounted) mountChrome();
   const [page, rawId] = location.hash.slice(1).split("/");
   let id = "";
   try {
@@ -463,14 +544,21 @@ function render() {
   const active = ["positions", "reports", "status"].includes(page)
     ? page
     : "overview";
+  const subtitle = snapshot
+    ? `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`
+    : "";
+  syncChrome(active, subtitle);
+  const batch = snapshot?.batch_id ?? (loading ? "loading" : "empty");
+  const nextKey = `${batch}|${active}|${id}|${renderNonce}`;
+  if (nextKey === renderKey) return;
+  renderKey = nextKey;
   if (!snapshot) {
-    shell(
+    renderContent(
       `<div class="empty"><span class="seal">${auth === "authenticated" ? "登录成功" : "正在连接"}</span><h1>${dataState === "empty" ? "等待第一批投资数据" : dataState === "failed" ? "数据暂时无法读取" : "正在读取投资数据…"}</h1><p>可用“刷新数据”重试。账户、持仓和报告会在完整批次同步后显示。</p></div>`,
-      active,
     );
     return;
   }
-  const content =
+  const inner =
     active === "positions"
       ? positions()
       : active === "reports"
@@ -478,14 +566,15 @@ function render() {
         : active === "status"
           ? statusPage()
           : overview();
-  shell(
+  renderContent(
     (snapshot.data.account[0].data_mode === "demo"
       ? '<div class="notice notice-warning" role="status" aria-live="polite">本地演示：全部金额、行情和报告均为虚构数据，不代表真实账户。</div>'
-      : "") + content,
-    active,
-    `持仓确认 ${String(snapshot.data.account[0].holdings_as_of)}`,
+      : "") + inner,
   );
-  applyChartStyles(app);
+}
+
+/** 内容重绘后绑定事件处理器。挂载时（刷新 / 退出 / hashchange）会重新调用。 */
+function bindContentHandlers() {
   document
     .querySelector<HTMLButtonElement>("#back-top")
     ?.addEventListener("click", () => {
@@ -505,38 +594,35 @@ function render() {
     });
   const historyDate =
     document.querySelector<HTMLSelectElement>("#history-date");
-  if (historyDate) {
-    if (
-      selectedHistory &&
-      snapshot.data.history?.some((r) => r.source === selectedHistory)
-    ) {
-      historyDate.value = selectedHistory;
-      const row = snapshot.data.history.find(
-        (r) => r.source === selectedHistory,
-      )!;
-      document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
-    }
-    historyDate.onchange = () => {
-      selectedHistory = historyDate.value;
-      const row = snapshot!.data.history?.find(
-        (r) => r.source === historyDate.value,
-      );
-      if (row)
-        document.querySelector("#history-detail")!.innerHTML =
-          historyDetail(row);
-    };
+  if (!historyDate) return;
+  if (
+    selectedHistory &&
+    snapshot?.data.history?.some((r) => r.source === selectedHistory)
+  ) {
+    historyDate.value = selectedHistory;
+    const row = snapshot!.data.history.find(
+      (r) => r.source === selectedHistory,
+    )!;
+    document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
   }
+  historyDate.onchange = () => {
+    selectedHistory = historyDate.value;
+    const row = snapshot?.data.history?.find(
+      (r) => r.source === historyDate.value,
+    );
+    if (row)
+      document.querySelector("#history-detail")!.innerHTML = historyDetail(row);
+  };
   const search = document.querySelector<HTMLInputElement>("#search");
   const kind = document.querySelector<HTMLSelectElement>("#kind");
-  if (search && kind) {
-    const update = () => {
-      reportQuery = search.value;
-      reportKind = kind.value;
-      document.querySelector("#report-results")!.innerHTML = reportList();
-    };
-    search.oninput = update;
-    kind.onchange = update;
-  }
+  if (!search || !kind) return;
+  const update = () => {
+    reportQuery = search.value;
+    reportKind = kind.value;
+    document.querySelector("#report-results")!.innerHTML = reportList();
+  };
+  search.oninput = update;
+  kind.onchange = update;
 }
 
 async function load() {
@@ -563,6 +649,9 @@ async function load() {
         ? "已检查，当前已是最新同步批次。未重新采集行情。"
         : "已载入新同步批次。"
       : "";
+    // load() 完成后下一轮 render() 必须重新画内容：同 batch_id 时 renderKey
+    // 记忆化会留下旧 innerHTML，导致刷新后看不到新警告 / 持仓更新。
+    renderNonce++;
     void loadCalendar(version);
   } catch (error) {
     if (version !== loadVersion) return;
@@ -619,8 +708,6 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("hashchange", () => {
   render();
   window.scrollTo(0, 0);
-  document
-    .querySelector<HTMLElement>("#content")
-    ?.focus({ preventScroll: true });
+  focusContent();
 });
 void load();

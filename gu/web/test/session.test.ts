@@ -1,18 +1,54 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
 // Minimal DOM boundary: exercise the real entry point, fetch handling and route handlers.
 async function mount(initial = "#overview", firstStatus = 200, sso = false, legacyHide: string | null = null) {
   vi.resetModules();
-  const app = { innerHTML: "", querySelectorAll: () => [] };
+  // Track chrome separately so we can rebuild app.innerHTML on demand:
+  // session.test.ts 假设整个页面都在 #app 下，所以必须把 chrome + content + notice
+  // 拼回同一个 innerHTML 才能继续断言正文里的关键字。
+  let chrome = "";
+  // 真实的属性 map，让 setAttribute / getAttribute 一致；默认 aria-busy="false"。
+  const contentAttrs: Record<string, string> = { "aria-busy": "false" };
+  const contentEl = {
+    innerHTML: "",
+    setAttribute: vi.fn((name: string, value: string) => { contentAttrs[name] = value; }),
+    getAttribute: vi.fn((name: string) => contentAttrs[name] ?? null),
+  };
+  const refreshEl = { disabled: false, textContent: "刷新数据", setAttribute: vi.fn(), onclick: null };
+  const noticeEl = { hidden: true, textContent: "", className: "", setAttribute: vi.fn() };
+  const navLinks = new Map<string, { setAttribute: Mock; removeAttribute: Mock; getAttribute: Mock }>();
+  const app = {
+    set innerHTML(value: string) { chrome = value; },
+    get innerHTML() {
+      // Replace placeholders with current content + notice + 刷新按钮文本。
+      const noticeTag = noticeEl.hidden ? "" :
+        `<p id="notice" class="${noticeEl.className}" role="status" aria-live="polite">${noticeEl.textContent}</p>`;
+      const refreshTag = refreshEl.disabled ? `<button id="refresh" title="重新读取网站已同步批次，不采集新行情" disabled>${refreshEl.textContent}</button>` : `<button id="refresh" title="重新读取网站已同步批次，不采集新行情">${refreshEl.textContent}</button>`;
+      return chrome
+        .replace(/<p id="notice"[^>]*>[\s\S]*?<\/p>/, noticeTag)
+        .replace(/<button id="refresh"[^>]*>[\s\S]*?<\/button>/, refreshTag)
+        .replace(/<main id="content"[^>]*>[\s\S]*?<\/main>/, `<main id="content" tabindex="-1" aria-busy="${contentEl.getAttribute("aria-busy")}">${contentEl.innerHTML}</main>`);
+    },
+    querySelectorAll: () => [],
+  };
   const controls = new Map<string, any>();
+  controls.set("#refresh", refreshEl);
   const listeners: Record<string, () => void> = {};
   vi.stubGlobal("document", {
     addEventListener: (event: string, fn: () => void) => { listeners[event] = fn; },
     visibilityState: "visible",
-    querySelectorAll: () => [],
+    querySelectorAll: (selector: string) => {
+      if (selector === "[data-nav]") return [...navLinks.values()];
+      return [];
+    },
     querySelector: (selector: string) => {
       if (selector === "#app") return app;
+      if (selector === "#content") return contentEl;
+      if (selector === "#notice") return noticeEl;
+      if (selector === "#refresh") return refreshEl;
+      if (selector === "[data-nav]") return navLinks.values().next().value ?? null;
       if (["#history-date", "#search", "#kind", "#back-top"].includes(selector)) return null;
+      if (selector.startsWith("#") && selector.includes("[data-nav=")) return null;
       if (!controls.has(selector)) controls.set(selector, { focus: vi.fn(), value: "123456" });
       return controls.get(selector);
     },

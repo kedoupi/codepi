@@ -287,6 +287,12 @@ small {
   padding: 24px 40px;
   border-bottom: 1px solid var(--line);
   gap: 16px;
+  /* 滚动到长报告时把导航和刷新按钮固定在视口顶部，避免读完一段还要
+     滚回去找刷新。背景跟随 surface 让长正文滚上来时顶栏不会变透明。 */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
 }
 .topbar > div:first-child {
   display: flex;
@@ -639,6 +645,11 @@ tr:last-child td {
   overflow-wrap: anywhere;
   line-height: 1.9;
   font-size: 15px;
+}
+/* 顶栏 sticky 后约 88px，正文里的 [id] 锚点跳转要预留这个高度，否则标题会
+   被顶栏遮住一行。 */
+.report-body [id] {
+  scroll-margin-top: 88px;
 }
 .report-body h2 {
   font-size: 26px;
