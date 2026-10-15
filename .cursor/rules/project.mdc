@@ -1,0 +1,13 @@
+---
+description: Shared kedoupi project rules and multi-agent workflow
+alwaysApply: true
+---
+
+Read the repository root `AGENTS.md` and the target directory's `AGENTS.md`
+before editing. They are the canonical project rules.
+For implementation, review or handoff, read the matching
+`.agents/skills/kdp-dev/SKILL.md`, `.agents/skills/kdp-review/SKILL.md` or
+`.agents/skills/kdp-handoff/SKILL.md`.
+Read `docs/development/agent-workflow.md` for parallel task ownership,
+worktree isolation, validation and integration.
+Paths above are relative to the repository root.
