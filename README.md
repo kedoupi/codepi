@@ -2,7 +2,7 @@
 
 `kdp.cool` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-P1 已在本地代码实现个人首页、应用介绍、工具存档和去广告。应用仍使用当前域名，Health 和公众号域名迁移属于 P2。本地改动不代表已部署。
+P1 的个人首页、应用介绍、工具存档和去广告已上线。P2 的 Health 已迁移至 `health.kdp.cool`，并与主站共用设计规范；原 `oura.kdp.cool` 保留兼容。公众号工作台的名称和域名后续单独调整。
 
 整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
 
@@ -28,7 +28,7 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 | Path | Domain | CF project | Stack / deploy |
 | --- | --- | --- | --- |
 | `fagao/` | `fagao.kdp.cool` | `fagao` | Pages + D1 (ex-`publish-desk`). Root `fagao`, `npm run build`, output `dist` |
-| `oura/` | `oura.kdp.cool` | `oura-kdp` + worker `oura-kdp-api` | pnpm workspace. Web: root `oura`, build `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build`, output `apps/web/dist`. API: `cd oura/workers/api && npx wrangler deploy` |
+| `oura/` | `health.kdp.cool`（兼容 `oura.kdp.cool`） | `oura-kdp` + worker `oura-kdp-api` | pnpm workspace. Web: root `oura`, build `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build`, output `apps/web/dist`. API: `cd oura && pnpm deploy:api` |
 
 
 ## 广告与历史工具
@@ -102,6 +102,7 @@ Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watc
 | `dev`             | CNAME | `kdp-dev.pages.dev`          | yes |
 | `ai`              | CNAME | `kdp-ai.pages.dev`           | yes |
 | `fagao`           | CNAME | `fagao.pages.dev`            | yes |
+| `health`          | CNAME | `oura-kdp.pages.dev`         | yes |
 | `oura`            | CNAME | `oura-kdp.pages.dev`         | yes |
 | `kdp.cool` (apex) | MX/TXT | Cloudflare Email Routing — handles `hello@kdp.cool` (separate from web traffic) |
 
