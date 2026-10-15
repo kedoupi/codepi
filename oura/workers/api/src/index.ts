@@ -3,8 +3,11 @@ import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { allowDevLogin, oauthConfigured } from "./lib/config";
 import { normalizeApiError, storageQuotaResetAt } from "./lib/errors.ts";
 import { API_CONTRACT, RELEASE } from "./lib/version.ts";
+import { ssoEnabled } from "./lib/sso";
 import {
   handleDevSession,
+  handleLogin,
+  handleLoginCallback,
   handleLogout,
   handleOuraCallback,
   handleOuraStart,
@@ -64,6 +67,12 @@ export default {
     try {
       let res: Response;
       switch (url.pathname) {
+        case "/api/auth/login":
+          res = await handleLogin(request, env);
+          break;
+        case "/api/auth/callback":
+          res = await handleLoginCallback(request, env);
+          break;
         case "/api/auth/oura/start":
           res = await handleOuraStart(request, env);
           break;
@@ -132,6 +141,7 @@ export default {
             service: "oura-kdp-api",
             allowDevLogin: allowDevLogin(request, env),
             oauthConfigured: oauthConfigured(env),
+            ssoEnabled: ssoEnabled(env),
             apiContract: API_CONTRACT,
             release: RELEASE,
             build: env.BUILD_SHA ?? "local",

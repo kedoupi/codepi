@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { parseWranglerConfig, readWranglerConfig } from '../lib/wrangler-config.mjs';
+import { parseWranglerConfig, readWranglerConfig, withBuildSha } from '../lib/wrangler-config.mjs';
 
 const config = `name = "test-worker"
 main = "src/index.ts"
@@ -61,6 +61,28 @@ test('preflight tolerates comments and multiline schedules without selecting env
     .replace('crons = ["*/2 * * * *"]', '# scheduler\ncrons = [\n"*/2 * * * *"\n]')
     + '[env.preview.triggers]\ncrons = ["0 0 * * *"]\n';
   assert.deepEqual(parseWranglerConfig(text).crons, ['*/2 * * * *']);
+});
+
+test('build stamping preserves SSO flags, AUTH service binding and other environments', () => {
+  const settings = `[vars]
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "oura"
+AUTH_ORIGIN = "https://auth.kdp.cool"
+BUILD_SHA = "abcdef0"
+[[services]]
+binding = "AUTH"
+service = "test-auth"
+[env.preview.vars]
+SSO_ENABLED = "0"
+BUILD_SHA = "1111111"
+`;
+  const stamped = withBuildSha(config + settings, '5cedbe5123456');
+  assert.equal(stamped, (config + settings).replace('BUILD_SHA = "abcdef0"', 'BUILD_SHA = "5cedbe5123456"'));
+  assert.deepEqual(parseWranglerConfig(stamped), parseWranglerConfig(config));
+  const withoutSha = settings.replace('BUILD_SHA = "abcdef0"\n', '');
+  assert.ok(withBuildSha(config + withoutSha, '5cedbe5').includes('SSO_ENABLED = "1"'));
+  assert.ok(withBuildSha(config + withoutSha, '5cedbe5').includes('binding = "AUTH"\nservice = "test-auth"'));
+  assert.throws(() => withBuildSha(config, 'bad"sha'), /commit SHA/);
 });
 
 async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false } = {}) {

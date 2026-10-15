@@ -22,8 +22,9 @@ const edgeBlockMode = process.env.OURA_CHECK_EDGE_BLOCK || 'fail';
 const callbackOrigin = process.env.OURA_CHECK_PUBLIC_ORIGIN
   ? new URL(process.env.OURA_CHECK_PUBLIC_ORIGIN).origin
   : origin;
+const authOrigin = new URL(process.env.OURA_CHECK_AUTH_ORIGIN || 'https://auth.kdp.cool').origin;
 
-async function check(targetOrigin, path, expectedStatus = 200, blocked) {
+async function check(targetOrigin, path, expectedStatus = 200, blocked, ssoEnabled = false) {
   try {
     const response = await fetch(new URL(path, targetOrigin), {
       headers: { Accept: 'application/json' },
@@ -47,7 +48,22 @@ async function check(targetOrigin, path, expectedStatus = 200, blocked) {
       };
     }
 
-    if (path === '/api/auth/oura/start') {
+    if (path === '/api/auth/oura/start' && ssoEnabled) {
+      const payload = await response.json().catch(() => null);
+      return { path, ok: response.status === 401 && payload?.error === 'unauthorized',
+        detail: `HTTP ${response.status}; provider connection requires website login` };
+    }
+    if (path === '/api/auth/login' && ssoEnabled) {
+      const location = response.headers.get('location');
+      const target = location ? new URL(location, targetOrigin) : null;
+      const ok = response.status === 302 && target?.origin === authOrigin
+        && target.pathname === '/authorize' && target.searchParams.get('client_id') === 'oura'
+        && target.searchParams.get('code_challenge_method') === 'S256'
+        && Boolean(target.searchParams.get('code_challenge')) && Boolean(target.searchParams.get('state'))
+        && target.searchParams.get('redirect_uri') === `${targetOrigin}/api/auth/callback`;
+      return { path, ok, detail: `HTTP ${response.status}; SSO redirect host=${target?.hostname || 'none'}` };
+    }
+    if (path === '/api/auth/oura/start' || path === '/api/auth/login') {
       const location = response.headers.get('location');
       const target = location ? new URL(location, targetOrigin) : null;
       const expectedCallback = new URL('/api/auth/oura/callback', callbackOrigin).href;
@@ -87,9 +103,10 @@ async function check(targetOrigin, path, expectedStatus = 200, blocked) {
         && (!expectedBuild || payload?.build === expectedBuild)
       : payload?.authenticated === false && payload?.oauthConfigured === true && payload?.allowDevLogin === false
         && payload?.capabilities?.personal === false && payload?.capabilities?.weeklyFull === false
+        && (!ssoEnabled || (payload?.ssoEnabled === true && payload?.websiteAccount === null && payload?.ouraConnection === null))
         && Object.hasOwn(payload, 'localePref'));
     const buildNote = path === '/api/health' ? `; build=${payload?.build ?? 'missing'}` : '';
-    return { path, ok, detail: `HTTP ${response.status}; content-type=${contentType}${buildNote}` };
+    return { path, ok, ssoEnabled: payload?.ssoEnabled === true, detail: `HTTP ${response.status}; content-type=${contentType}${buildNote}` };
   } catch (error) {
     return { path, ok: false, detail: error instanceof Error ? error.message : 'Request failed' };
   }
@@ -126,6 +143,7 @@ async function checkMcp(targetOrigin, blocked) {
 const CONTRACT = [
   ['/api/me'],
   ['/api/auth/oura/start'],
+  ['/api/auth/login'],
   ['/api/me/daily?days=30', 401],
   ['/api/me/ai?days=7', 401],
   ['/api/me/insights/weekly', 401],
@@ -143,10 +161,11 @@ const CONTRACT = [
  * which carries the build SHA the deploy gate asserts.
  */
 async function contractFor(targetOrigin, blocked, { withHealth = false } = {}) {
+  const health = await check(targetOrigin, '/api/health', 200, blocked);
   const results = await Promise.all(
-    CONTRACT.map(([path, status]) => check(targetOrigin, path, status, blocked)),
+    CONTRACT.map(([path, status]) => check(targetOrigin, path, status, blocked, health.ssoEnabled)),
   );
-  if (withHealth) results.push(await check(targetOrigin, '/api/health', 200, blocked));
+  if (withHealth) results.push(health);
   results.push(await checkMcp(targetOrigin, blocked));
   return results;
 }

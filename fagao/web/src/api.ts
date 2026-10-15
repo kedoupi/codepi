@@ -1,3 +1,5 @@
+import { assertResponseSession, expireSession, sessionFetch, SessionExpiredError } from "./session";
+
 export interface Account {
   email: string;
   role: "owner" | "editor" | "reviewer";
@@ -25,16 +27,22 @@ export interface SlotRow {
 }
 
 async function parse<T>(res: Response): Promise<T> {
-  const data = (await res.json()) as T & { error?: string };
+  assertResponseSession(res);
+  const data = (await res.json()) as T & { error?: string; authenticated?: boolean };
+  assertResponseSession(res);
   if (!res.ok) {
     throw new Error(data.error || `请求失败 ${res.status}`);
+  }
+  if (data.authenticated === false) {
+    expireSession();
+    throw new SessionExpiredError();
   }
   return data;
 }
 
 export async function requestOtp(email: string) {
   return parse<{ ok: boolean; message: string; dev_otp?: string }>(
-    await fetch("/api/auth/request-otp", {
+    await sessionFetch("/api/auth/request-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email }),
@@ -44,7 +52,7 @@ export async function requestOtp(email: string) {
 
 export async function verifyOtp(email: string, code: string) {
   return parse<{ ok: boolean; account: Account }>(
-    await fetch("/api/auth/verify-otp", {
+    await sessionFetch("/api/auth/verify-otp", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ email, code }),
@@ -53,14 +61,22 @@ export async function verifyOtp(email: string, code: string) {
 }
 
 export async function logout() {
-  await fetch("/api/auth/logout", { method: "POST" });
+  await parse<{ ok: boolean }>(await sessionFetch("/api/auth/logout", { method: "POST" }));
+  expireSession();
 }
 
 export async function me() {
-  const res = await fetch("/api/me");
-  if (res.status === 401) return null;
-  const data = await parse<{ ok: boolean; account: Account }>(res);
-  return data.account;
+  try {
+    const data = await parse<{ ok: boolean; account: Account }>(await sessionFetch("/api/me"));
+    return data.account;
+  } catch (error) {
+    if (error instanceof SessionExpiredError) return null;
+    throw error;
+  }
+}
+
+export async function ssoEnabled() {
+  return (await parse<{ sso_enabled: boolean }>(await sessionFetch("/api/health"))).sso_enabled === true;
 }
 
 export interface BoardData {
@@ -73,12 +89,12 @@ export interface BoardData {
 }
 
 export async function board(date: string) {
-  return parse<BoardData>(await fetch(`/api/board?date=${encodeURIComponent(date)}`));
+  return parse<BoardData>(await sessionFetch(`/api/board?date=${encodeURIComponent(date)}`));
 }
 
 export async function getPost(slug: string) {
   return parse<{ ok: boolean; post: BoardPost; brand: string }>(
-    await fetch(`/api/posts/${encodeURIComponent(slug)}`),
+    await sessionFetch(`/api/posts/${encodeURIComponent(slug)}`),
   );
 }
 
@@ -96,7 +112,7 @@ export async function upsertPost(body: {
   mark_official?: boolean;
 }) {
   return parse<{ ok: boolean; post: BoardPost }>(
-    await fetch("/api/posts", {
+    await sessionFetch("/api/posts", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -116,7 +132,7 @@ export async function patchPost(
   },
 ) {
   return parse<{ ok: boolean; post: BoardPost }>(
-    await fetch(`/api/posts/${encodeURIComponent(slug)}`, {
+    await sessionFetch(`/api/posts/${encodeURIComponent(slug)}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -126,7 +142,7 @@ export async function patchPost(
 
 export async function review(slug: string, action: "过" | "要改" | "拒", note = "") {
   return parse<{ ok: boolean; post: BoardPost }>(
-    await fetch("/api/review", {
+    await sessionFetch("/api/review", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ slug, action, note }),
@@ -136,19 +152,19 @@ export async function review(slug: string, action: "过" | "要改" | "拒", not
 
 export async function markBoxed(slug: string) {
   return parse<{ ok: boolean; post: BoardPost }>(
-    await fetch(`/api/posts/${encodeURIComponent(slug)}/boxed`, { method: "POST" }),
+    await sessionFetch(`/api/posts/${encodeURIComponent(slug)}/boxed`, { method: "POST" }),
   );
 }
 
 export async function withdrawPost(slug: string) {
   return parse<{ ok: boolean; post: BoardPost }>(
-    await fetch(`/api/posts/${encodeURIComponent(slug)}/withdraw`, { method: "POST" }),
+    await sessionFetch(`/api/posts/${encodeURIComponent(slug)}/withdraw`, { method: "POST" }),
   );
 }
 
 export async function releaseDemo(slug: string) {
   return parse<{ ok: boolean; released: string }>(
-    await fetch(`/api/posts/${encodeURIComponent(slug)}/release-demo`, { method: "POST" }),
+    await sessionFetch(`/api/posts/${encodeURIComponent(slug)}/release-demo`, { method: "POST" }),
   );
 }
 

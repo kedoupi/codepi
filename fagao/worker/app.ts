@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { handleLogout, handleRequestOtp, handleVerifyOtp, mePayload, requireAccount } from "./auth";
+import { ssoEnabled, ssoErrorResponse } from "../../shared/auth/client";
 import {
   handleBoard,
   handleBoxed,
@@ -22,6 +23,7 @@ type AppEnv = {
 };
 
 export const api = new Hono<AppEnv>();
+api.onError((error) => ssoErrorResponse(error));
 
 api.use("*", async (c, next) => {
   if (["POST", "PATCH", "PUT", "DELETE"].includes(c.req.method) && !sameOrigin(c.req.raw)) {
@@ -30,7 +32,7 @@ api.use("*", async (c, next) => {
   await next();
 });
 
-api.get("/health", (c) => json({ ok: true, brand: c.env.ACCOUNT_BRAND || "珂抖屁" }));
+api.get("/health", (c) => json({ ok: true, brand: c.env.ACCOUNT_BRAND || "珂抖屁", sso_enabled: ssoEnabled(c.env) }));
 
 api.post("/auth/request-otp", (c) => handleRequestOtp(c.req.raw, c.env, createMailer(c.env)));
 api.post("/auth/verify-otp", (c) => handleVerifyOtp(c.req.raw, c.env));
@@ -39,13 +41,16 @@ api.post("/auth/logout", (c) => handleLogout(c.req.raw, c.env));
 api.use("*", async (c, next) => {
   const account = await requireAccount(c.env, c.req.raw);
   if (!account) {
-    return json({ ok: false, error: "未登录" }, 401);
+    return json({ ok: false, error: "未登录", authenticated: false, authMode: ssoEnabled(c.env) ? "sso" : "otp" }, 401);
   }
   c.set("account", account);
   await next();
 });
 
-api.get("/me", (c) => json({ ok: true, account: mePayload(c.get("account"), c.env) }));
+api.get("/me", (c) => json({
+  ok: true, authenticated: true, authMode: ssoEnabled(c.env) ? "sso" : "otp",
+  account: mePayload(c.get("account"), c.env),
+}));
 api.get("/board", (c) => handleBoard(c.req.raw, c.env));
 api.get("/posts/:slug", (c) => handleGetPost(c.env, c.req.param("slug")));
 api.post("/posts", (c) => handleUpsertPost(c.req.raw, c.env, c.get("account")));

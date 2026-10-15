@@ -11,6 +11,7 @@ import {
   review,
   verifyOtp,
   shiftDate,
+  ssoEnabled,
   todayShanghai,
   upsertPost,
   withdrawPost,
@@ -18,6 +19,7 @@ import {
   type BoardPost,
   type SlotRow,
 } from "./api";
+import { expireSession, isSessionCurrent, onSessionExpired, sessionFetch, sessionVersion, SessionExpiredError } from "./session";
 import { bindBrokenCovers, escapeHtml, formatZhDate, previewSrc, slotHint, statusChipClass, statusLabel, thumbHtml } from "./format";
 import {
   canInlinePreview,
@@ -38,6 +40,37 @@ function requireApp(): HTMLDivElement {
   return el;
 }
 const app = requireApp();
+let privateView = false;
+let checkingSession = false;
+const privateCleanups: Array<() => void> = [];
+
+function clearPrivateView() {
+  privateView = false;
+  for (const cleanup of privateCleanups.splice(0)) cleanup();
+  app.replaceChildren();
+  document.querySelector(".toast-host")?.remove();
+  if (route() !== "login") {
+    const next = location.pathname + location.search;
+    location.replace(`/login?next=${encodeURIComponent(next)}`);
+  }
+}
+onSessionExpired(clearPrivateView);
+
+function listenPrivate(target: EventTarget, type: string, listener: EventListener, options?: AddEventListenerOptions) {
+  target.addEventListener(type, listener, options);
+  privateCleanups.push(() => target.removeEventListener(type, listener, options));
+}
+
+async function checkSession() {
+  if (!privateView || checkingSession) return;
+  checkingSession = true;
+  try { await me(); }
+  catch { if (privateView) showToast("会话检查暂时失败，请稍后重试", "err"); }
+  finally { checkingSession = false; }
+}
+window.addEventListener("focus", () => { void checkSession(); });
+window.addEventListener("pageshow", () => { void checkSession(); });
+window.setInterval(() => { void checkSession(); }, 30_000);
 
 /* —— Toast + cross-reload flash —— */
 function showToast(text: string, kind: "ok" | "err" | "info" = "info") {
@@ -146,9 +179,23 @@ function masthead(account: Account | null, extra = "") {
 }
 
 async function renderLogin() {
-  const account = await me();
+  const retrying = new URLSearchParams(location.search).has("auth_error");
+  const account = retrying ? null : await me();
   if (account) {
     location.replace("/");
+    return;
+  }
+
+  if (await ssoEnabled()) {
+    const next = new URLSearchParams(location.search).get("next") || "/";
+    app.innerHTML = `${masthead(null)}
+      <section class="login-hero"><h2 class="login-title">登录后开始今日发稿</h2>
+        <p class="hint">内部工具 · 仅本人访问</p></section>
+      <section class="sheet login-pad login-card">
+        ${retrying ? '<p class="error" role="alert">登录未完成。请重新登录；服务暂时不可用时，可稍后重试。</p>' : ""}
+        <a class="btn-primary-block" href="/api/auth/login?return=${encodeURIComponent(next)}">统一登录</a>
+        <p class="hint">发稿台登录状态最多保留 7 天。退出将同步退出其他工具。</p>
+      </section>`;
     return;
   }
 
@@ -205,7 +252,7 @@ async function renderLogin() {
     send.disabled = true;
     try {
       const res = await requestOtp(email.value);
-      setMsg(res.dev_otp ? `本地开发码：${res.dev_otp}（无 Resend 时写入日志）` : res.message, "is-ok");
+      setMsg(res.dev_otp ? `本地开发码：${res.dev_otp}` : res.message, "is-ok");
       startResendCooldown();
       code.focus();
     } catch (error) {
@@ -356,11 +403,14 @@ function queueRow(post: BoardPost): string {
 }
 
 async function renderDesk() {
+  const version = sessionVersion();
   const account = await me();
   if (!account) {
     location.replace("/login");
     return;
   }
+  if (!isSessionCurrent(version)) return;
+  privateView = true;
 
   const params = new URLSearchParams(location.search);
   const date = params.get("date") && /^\d{4}-\d{2}-\d{2}$/.test(params.get("date")!)
@@ -382,7 +432,9 @@ async function renderDesk() {
   let data;
   try {
     data = await board(date);
+    if (!isSessionCurrent(version)) return;
   } catch (error) {
+    if (!isSessionCurrent(version)) return;
     app.className = "";
     app.innerHTML = `${masthead(account)}<p class="error">${escapeHtml(errText(error, "看板加载失败"))}</p>`;
     bindLogout();
@@ -496,8 +548,12 @@ function bindUpsert(date: string) {
 
 function bindLogout() {
   app.querySelector("[data-action=logout]")?.addEventListener("click", async () => {
-    await logout();
-    location.replace("/login");
+    try {
+      await logout();
+      location.replace("/login");
+    } catch (error) {
+      if (!(error instanceof SessionExpiredError)) showToast(errText(error, "退出失败，请重试"), "err");
+    }
   });
 }
 
@@ -571,12 +627,15 @@ function reviewDock(post: BoardPost): string {
 }
 
 async function renderPreview() {
+  const version = sessionVersion();
   const slug = previewSlug();
   const account = await me();
   if (!account) {
     location.replace(`/login?next=/p/${slug}/`);
     return;
   }
+  if (!isSessionCurrent(version)) return;
+  privateView = true;
   if (!slug) {
     app.className = "";
     app.innerHTML = `${masthead(account)}<p class="error">预览地址无效</p>`;
@@ -586,6 +645,7 @@ async function renderPreview() {
 
   try {
     const data = await getPost(slug);
+    if (!isSessionCurrent(version)) return;
     const src = previewSrc(data.post);
     const back = `/?date=${encodeURIComponent(data.post.publish_date)}`;
     app.className = "is-review";
@@ -603,6 +663,7 @@ async function renderPreview() {
       ${reviewDock(data.post)}
     `;
     const embed = await mountPreview(app.querySelector<HTMLElement>("#preview-article")!, src, slug);
+    if (!isSessionCurrent(version)) return;
     bindDockClearance();
     bindUpsert(data.post.publish_date);
     bindReview();
@@ -611,6 +672,7 @@ async function renderPreview() {
     bindReadGate(embed);
     drainFlash();
   } catch (error) {
+    if (!isSessionCurrent(version)) return;
     app.className = "";
     app.innerHTML = `${masthead(account)}<p class="error">${escapeHtml(error instanceof Error ? error.message : "预览失败")}</p>`;
     bindLogout();
@@ -627,8 +689,11 @@ async function mountPreview(host: HTMLElement, src: string | null, slug: string)
 
   const origin = location.origin;
   if (canInlinePreview(src, origin)) {
-    const fetched = await fetchSameOriginHtml(src);
+    const version = sessionVersion();
+    const fetched = await fetchSameOriginHtml(src, sessionFetch);
+    if (!isSessionCurrent(version)) return "empty";
     if (fetched.ok === false && fetched.reason === "login") {
+      expireSession();
       location.replace(`/login?next=/p/${encodeURIComponent(slug)}/`);
       return "empty";
     }
@@ -703,8 +768,12 @@ function bindDockClearance() {
     const offset = Number.parseFloat(getComputedStyle(dock).bottom) || 0;
     stage.style.paddingBottom = `${dock.offsetHeight + offset + bottomGap}px`;
   };
-  if ("ResizeObserver" in window) new ResizeObserver(apply).observe(dock);
-  window.addEventListener("resize", apply);
+  if ("ResizeObserver" in window) {
+    const observer = new ResizeObserver(apply);
+    observer.observe(dock);
+    privateCleanups.push(() => observer.disconnect());
+  }
+  listenPrivate(window, "resize", apply);
   apply();
 }
 
@@ -741,6 +810,7 @@ function bindReadGate(embed: EmbedMode) {
         { root: null, threshold: 0, rootMargin: `0px 0px ${READ_GATE_SLACK_PX}px 0px` },
       );
       io.observe(sentinel);
+      privateCleanups.push(() => io.disconnect());
     }
 
     const checkWindow = () => {
@@ -760,9 +830,10 @@ function bindReadGate(embed: EmbedMode) {
         unlock();
       }
     };
-    window.addEventListener("scroll", checkWindow, { passive: true });
-    window.addEventListener("resize", checkWindow);
-    requestAnimationFrame(checkWindow);
+    listenPrivate(window, "scroll", checkWindow, { passive: true });
+    listenPrivate(window, "resize", checkWindow);
+    const frame = requestAnimationFrame(checkWindow);
+    privateCleanups.push(() => cancelAnimationFrame(frame));
   }
 
   const iframe = app.querySelector<HTMLIFrameElement>(".preview-frame");
@@ -784,7 +855,7 @@ function bindReadGate(embed: EmbedMode) {
             unlock();
           }
         };
-        win.addEventListener("scroll", check, { passive: true });
+        listenPrivate(win, "scroll", check, { passive: true });
         check();
         return true;
       } catch {
@@ -872,4 +943,9 @@ async function boot() {
   else await renderDesk();
 }
 
-void boot();
+void boot().catch(error => {
+  if (error instanceof SessionExpiredError) return;
+  app.innerHTML = `${masthead(null)}<p class="error">${escapeHtml(errText(error, "服务暂时不可用"))}</p>
+    <button type="button" id="retry">重新连接</button>`;
+  app.querySelector("#retry")?.addEventListener("click", () => location.reload());
+});

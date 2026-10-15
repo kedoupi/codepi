@@ -16,7 +16,8 @@ try {
       if (chunk.toString().includes('Browser fixture ready:')) { clearTimeout(timeout); resolve(); }
     });
   });
-  const script = await readFile(new URL('./browser-smoke.mjs', import.meta.url), 'utf8');
+  const script = await readFile(new URL(process.env.OURA_BROWSER_SSO === '1'
+    ? './browser-sso-smoke.mjs' : './browser-smoke.mjs', import.meta.url), 'utf8');
   await new Promise((resolve, reject) => {
     const child = spawn('ego-browser', ['nodejs'], { cwd, stdio: ['pipe', 'inherit', 'inherit'] });
     child.once('error', reject);

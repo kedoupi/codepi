@@ -8,6 +8,10 @@ pages_build_output_dir = "./dist"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
 
+[[services]]
+binding = "AUTH"
+service = "kdp-auth"
+
 # 一期空库已建好，与 oura D1 隔离
 [[d1_databases]]
 binding = "DB"
@@ -16,6 +20,9 @@ database_id = "44beaaee-2cfb-4f04-8c5a-242c03ad816e"
 migrations_dir = "migrations"
 
 [vars]
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "fagao"
+AUTH_ORIGIN = "https://auth.kdp.cool"
 ALLOWLIST = "kedoupi@gmail.com"
 OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"
@@ -28,6 +35,10 @@ ENVIRONMENT = "production"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
 
+[[env.preview.services]]
+binding = "AUTH"
+service = "kdp-auth"
+
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "fagao"
@@ -35,6 +46,9 @@ database_id = "44beaaee-2cfb-4f04-8c5a-242c03ad816e"
 migrations_dir = "migrations"
 
 [env.preview.vars]
+SSO_ENABLED = "0"
+AUTH_CLIENT_ID = "fagao"
+AUTH_ORIGIN = "https://auth.kdp.cool"
 ALLOWLIST = "kedoupi@gmail.com"
 OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"

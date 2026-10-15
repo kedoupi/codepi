@@ -8,7 +8,7 @@ const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare, Response } = wranglerRequire('miniflare');
 
 export function createRuntime(options = {}) {
-  const { providerResponse, variedDailyData, autoSync = false, ...runtimeOptions } = options;
+  const { providerResponse, variedDailyData, autoSync = false, sso = false, bindings = {}, ...runtimeOptions } = options;
   return new Miniflare({
     modules: true,
     scriptPath: fileURLToPath(new URL('../../dist/index.js', import.meta.url)),
@@ -24,6 +24,11 @@ export function createRuntime(options = {}) {
       TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
       PERSONAL_OWNER_ID: 'test-user',
       AUTO_SYNC_ENABLED: autoSync ? '1' : '0',
+      ...(sso ? {
+        SSO_ENABLED: '1', AUTH_CLIENT_ID: 'oura', AUTH_CLIENT_SECRET: 'test-sso-secret',
+        AUTH_ORIGIN: 'https://auth.example',
+      } : {}),
+      ...bindings,
     },
     // Only the upstream provider is stubbed. Routing, crypto, sessions, D1,
     // token storage, daily mapping and reports execute the built Worker.
@@ -100,4 +105,66 @@ export async function login(runtime, origin = 'https://oura.example') {
     throw new Error('Test OAuth callback failed');
   }
   return callback.headers.get('set-cookie').split(';')[0];
+}
+
+/** Stub only the central service; shared client, cookies, crypto and D1 are real. */
+export function centralFixture() {
+  const refs = new Map();
+  const codes = new Set();
+  const state = { unavailable: false, subject: 'kdp-owner', calls: [] };
+  return {
+    state, refs,
+    async fetch(request) {
+      const path = new URL(request.url).pathname;
+      state.calls.push(path);
+      if (state.unavailable) return new Response('', { status: 503 });
+      if (request.headers.get('Authorization') !== `Basic ${btoa('oura:test-sso-secret')}`) {
+        return new Response('', { status: 401 });
+      }
+      const body = await request.json();
+      if (path === '/internal/exchange') {
+        if (codes.has(body.code)) return new Response('', { status: 400 });
+        codes.add(body.code);
+        const ref = `ref-${crypto.randomUUID()}`;
+        const entry = { active: true, subject: state.subject, expires_at: Date.now() + 60 * 86400000 };
+        refs.set(ref, entry);
+        return Response.json({ ...entry, session_ref: ref });
+      }
+      if (path === '/internal/session') return Response.json(refs.get(body.session_ref) ?? { active: false });
+      if (path === '/internal/logout') {
+        const ref = refs.get(body.session_ref);
+        if (ref) ref.active = false;
+        return Response.json({ ok: true });
+      }
+      return new Response('', { status: 404 });
+    },
+  };
+}
+
+export async function loginSso(runtime, origin = 'https://oura.example', returnTo = '/') {
+  const start = await runtime.dispatchFetch(`${origin}/api/auth/login?return=${encodeURIComponent(returnTo)}`, { redirect: 'manual' });
+  assertResponse(start, 302, 'SSO start');
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const cookie = start.headers.get('set-cookie').split(';')[0];
+  const callback = await runtime.dispatchFetch(`${origin}/api/auth/callback?code=${crypto.randomUUID()}&state=${state}`, {
+    headers: { Cookie: cookie }, redirect: 'manual',
+  });
+  assertResponse(callback, 303, 'SSO callback');
+  return callback.headers.getSetCookie().find(c => /kdp_oura_session=/.test(c)).split(';')[0];
+}
+
+function assertResponse(response, expected, context) {
+  if (response.status !== expected) throw new Error(`${context}: HTTP ${response.status}`);
+}
+
+export async function connectOura(runtime, cookie, origin = 'https://oura.example', returnTo = '') {
+  const start = await runtime.dispatchFetch(`${origin}/api/auth/oura/start?return=${encodeURIComponent(returnTo)}`, {
+    headers: { Cookie: cookie }, redirect: 'manual',
+  });
+  assertResponse(start, 302, 'Provider start');
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const stateCookie = start.headers.get('set-cookie').split(';')[0];
+  return runtime.dispatchFetch(`${origin}/api/auth/oura/callback?code=test-code&state=${state}`, {
+    headers: { Cookie: `${cookie}; ${stateCookie}` }, redirect: 'manual',
+  });
 }

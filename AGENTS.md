@@ -4,6 +4,11 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## What this repo is
 
+Product brand: **kedoupi（codepi）**. Use this exact brand for shared login,
+transactional email and cross-product identity. KDP is a technical abbreviation;
+existing domains, service names and cookie identifiers do not need renaming.
+Reuse `shared/brand.ts` and `shared/email/otp.ts` for brand and OTP mail content.
+
 Monorepo for the `kdp.cool` family of static, ad-supported web tools. Five independent Astro projects share a `shared/` source folder via Vite aliases. Each project deploys to its own Cloudflare Pages project on its own (sub)domain. Read `README.md` for the full domain table, AdSense status, DNS records, and per-project CF settings — do not duplicate that content here.
 
 ## Architecture in one screen

@@ -10,12 +10,14 @@
 
   let {
     allowDevLogin = false,
+    ssoEnabled = false,
     error,
     locale,
     localePref,
     onLocalePref,
   }: {
     allowDevLogin?: boolean;
+    ssoEnabled?: boolean;
     error: string;
     locale: Locale;
     localePref: LocalePref;
@@ -83,12 +85,12 @@
   async function loginOura() {
     actionError = "";
     try {
-      const res = await fetch("/api/auth/oura/start", {
+      const res = await fetch("/api/auth/login", {
         credentials: "include",
         redirect: "manual",
       });
       if (res.status === 302 || res.status === 303 || res.type === "opaqueredirect") {
-        window.location.href = res.headers.get("Location") || "/api/auth/oura/start";
+        window.location.href = res.headers.get("Location") || "/api/auth/login";
         return;
       }
       const body = await res.json().catch(() => null);
@@ -156,7 +158,7 @@
         </p>
         <div class="landing-actions" in:introFly={{ y: 10, delay: 180 }}>
           <button class="landing-btn primary" type="button" onclick={loginOura}>
-            {t(locale, "loginOura")}
+            {ssoEnabled ? (locale === "zh" ? "登录 KDP 账号" : "Sign in with KDP") : t(locale, "loginOura")}
           </button>
         </div>
         {#if shownError}

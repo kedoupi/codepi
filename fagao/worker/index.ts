@@ -1,5 +1,6 @@
 import { api } from "./app";
-import { requireAccount } from "./auth";
+import { handleSsoCallback, handleSsoLogin, requireAccount } from "./auth";
+import { ssoErrorResponse } from "../../shared/auth/client";
 import { isSpaPath, needsSession } from "./gate";
 
 async function fetchStatic(env: Env, url: URL): Promise<Response> {
@@ -26,25 +27,52 @@ async function serveAsset(request: Request, env: Env, pathname: string): Promise
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    const { pathname } = url;
-
-    if (pathname.startsWith("/api/")) {
-      const apiPath = pathname.slice("/api".length) || "/";
-      const rewritten = new URL(request.url);
-      rewritten.pathname = apiPath;
-      return api.fetch(new Request(rewritten, request), env, ctx);
-    }
-
-    if (needsSession(pathname)) {
-      const account = await requireAccount(env, request);
-      if (!account) {
-        const login = new URL("/login", request.url);
-        login.searchParams.set("next", pathname);
-        return Response.redirect(login.toString(), 302);
+    try {
+      const response = await route(request, env, ctx);
+      const pathname = new URL(request.url).pathname;
+      if (pathname.startsWith("/api/") || pathname.startsWith("/login") || needsSession(pathname)) {
+        const secured = new Response(response.body, response);
+        secured.headers.set("Cache-Control", "no-store");
+        secured.headers.set("Referrer-Policy", "no-referrer");
+        return secured;
       }
+      return response;
+    } catch (error) {
+      return ssoErrorResponse(error);
     }
-
-    return serveAsset(request, env, pathname);
   },
 } satisfies ExportedHandler<Env>;
+
+async function route(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const url = new URL(request.url);
+  const { pathname } = url;
+
+  if (request.method === "GET" && pathname === "/api/auth/login") return handleSsoLogin(request, env);
+  if (request.method === "GET" && pathname === "/api/auth/callback") return handleSsoCallback(request, env);
+  if (pathname.startsWith("/api/")) {
+    const apiPath = pathname.slice("/api".length) || "/";
+    const rewritten = new URL(request.url);
+    rewritten.pathname = apiPath;
+    return api.fetch(new Request(rewritten, request), env, ctx);
+  }
+
+  if (needsSession(pathname)) {
+    const account = await requireAccount(env, request);
+    if (!account) {
+      const login = new URL("/login", request.url);
+      login.searchParams.set("next", pathname + url.search);
+      return Response.redirect(login.toString(), 302);
+    }
+  }
+
+  const response = await serveAsset(request, env, pathname);
+  if (pathname.startsWith("/previews/") && needsSession(pathname) && response.ok
+    && response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() === "text/html") {
+    return new HTMLRewriter().on("head", {
+      element(head) {
+        head.append('<script src="/assets/preview-session.js" defer></script>', { html: true });
+      },
+    }).transform(response);
+  }
+  return response;
+}

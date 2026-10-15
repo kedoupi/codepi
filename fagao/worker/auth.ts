@@ -1,4 +1,5 @@
 import { hashSecret, randomDigits, randomToken, timingSafeEqual } from "./crypto";
+import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "../../shared/auth/client";
 import {
   brandName,
   clientIp,
@@ -40,6 +41,11 @@ export async function findAccountByEmail(env: Env, email: string): Promise<Accou
 }
 
 export async function requireAccount(env: Env, request: Request): Promise<AuthedAccount | null> {
+  if (ssoEnabled(env)) {
+    const session = await readSsoSession(request, env);
+    if (!session || session.subject !== "kdp-owner" || session.userId !== "acc_owner_kdp") return null;
+    return activeOwner(env);
+  }
   const token = readCookie(request, SESSION_COOKIE);
   if (!token || !env.SESSION_SECRET) return null;
   const sessionId = await hashSecret(token, env.SESSION_SECRET);
@@ -100,6 +106,7 @@ export async function handleRequestOtp(
   env: Env,
   mailer: Mailer = createMailer(env),
 ): Promise<Response> {
+  if (ssoEnabled(env)) return json({ ok: false, error: "请使用统一登录" }, 404);
   let body: RequestOtpBody;
   try {
     body = (await request.json()) as RequestOtpBody;
@@ -186,6 +193,7 @@ export async function handleRequestOtp(
 }
 
 export async function handleVerifyOtp(request: Request, env: Env): Promise<Response> {
+  if (ssoEnabled(env)) return json({ ok: false, error: "请使用统一登录" }, 404);
   let body: VerifyOtpBody;
   try {
     body = (await request.json()) as VerifyOtpBody;
@@ -285,12 +293,38 @@ export async function handleVerifyOtp(request: Request, env: Env): Promise<Respo
 }
 
 export async function handleLogout(request: Request, env: Env): Promise<Response> {
+  if (ssoEnabled(env)) return logoutSso(request, env);
   const token = readCookie(request, SESSION_COOKIE);
   if (token && env.SESSION_SECRET) {
     const sessionId = await hashSecret(token, env.SESSION_SECRET);
     await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sessionId).run();
   }
   return json({ ok: true }, 200, { "Set-Cookie": cookieHeader("", request, 0) });
+}
+
+async function activeOwner(env: Env): Promise<AuthedAccount | null> {
+  return env.DB.prepare(
+    `SELECT id, email, display_name, role, active FROM accounts
+     WHERE id = 'acc_owner_kdp' AND active = 1 AND role = 'owner'`,
+  ).first<AuthedAccount>();
+}
+
+export function handleSsoLogin(request: Request, env: Env) {
+  return ssoEnabled(env) ? beginLogin(request, env) : Response.redirect(new URL("/login", request.url).href, 302);
+}
+
+export async function handleSsoCallback(request: Request, env: Env) {
+  if (!ssoEnabled(env)) return json({ ok: false, error: "统一登录尚未启用" }, 404);
+  try {
+    if (!await activeOwner(env)) throw new SsoError("owner_unavailable", 403);
+    return await finishLogin(request, env, { userId: "acc_owner_kdp", ttlSeconds: SESSION_TTL_SECONDS });
+  } catch (error) {
+    const target = new URL("/login", request.url);
+    target.searchParams.set("auth_error", error instanceof SsoError && error.status < 500 ? "retry" : "unavailable");
+    return new Response(null, { status: 302, headers: {
+      Location: target.href, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+    } });
+  }
 }
 
 export function mePayload(account: AuthedAccount, env: Env) {

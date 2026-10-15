@@ -1,5 +1,24 @@
 import { existsSync, readFileSync } from 'node:fs';
 
+/** Stamp a full config, preserving all production vars and service bindings. */
+export function withBuildSha(text, sha) {
+  if (!/^[a-f0-9]{7,40}$/i.test(sha)) throw new Error('BUILD_SHA must be a Git commit SHA');
+  const tables = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
+  const vars = tables.filter(match => match[1] === '[vars]');
+  if (vars.length > 1) throw new Error('wrangler.toml has ambiguous [vars] tables');
+  if (!vars.length) return `${text}\n[vars]\nBUILD_SHA = ${JSON.stringify(sha)}\n`;
+  const index = tables.indexOf(vars[0]);
+  const start = vars[0].index + vars[0][0].length;
+  const end = tables[index + 1]?.index ?? text.length;
+  const body = text.slice(start, end);
+  const key = /^[ \t]*BUILD_SHA[ \t]*=.*$/gm;
+  const entries = [...body.matchAll(key)];
+  if (entries.length > 1) throw new Error('wrangler.toml has ambiguous BUILD_SHA values');
+  const stamped = entries.length ? body.replace(key, `BUILD_SHA = ${JSON.stringify(sha)}`)
+    : `\nBUILD_SHA = ${JSON.stringify(sha)}` + body;
+  return text.slice(0, start) + stamped + text.slice(end);
+}
+
 /**
  * Reads the Worker settings the deploy script depends on and fails loudly on
  * anything ambiguous, so a deploy can stop before it touches production.

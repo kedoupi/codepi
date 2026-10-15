@@ -2,15 +2,20 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRuntime, login, migrate } from '../workers/api/test/integration/runtime.mjs';
+import { centralFixture, connectOura, createRuntime, login, loginSso, migrate } from '../workers/api/test/integration/runtime.mjs';
 import worker from '../workers/api/dist/index.js';
 import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
+const sso = process.env.OURA_BROWSER_SSO === '1';
+const central = centralFixture();
+const workerOrigin = sso ? origin : 'https://oura.example';
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports).
 let adaptiveBackfill = false;
 const ownerRuntime = createRuntime({
+  sso,
+  ...(sso ? { serviceBindings: { AUTH: central.fetch } } : {}),
   autoSync: true,
   providerResponse(url) {
     if (!adaptiveBackfill || !url.pathname.endsWith('/heartrate')) return undefined;
@@ -23,6 +28,11 @@ const ownerRuntime = createRuntime({
 });
 await ownerRuntime.ready;
 await migrate(ownerRuntime);
+if (sso) {
+  const db = await ownerRuntime.getD1Database('DB');
+  await db.prepare("INSERT INTO users(id,oura_user_id) VALUES ('test-user','test-user')").run();
+  await db.prepare("INSERT INTO user_prefs(user_id,locale) VALUES ('test-user','zh')").run();
+}
 // Non-owner runtime: summaries are available; full reports require owner access.
 const freeRuntime = createRuntime({ bindings: {
   ALLOW_DEV_LOGIN: '0',
@@ -45,6 +55,17 @@ let quotaSyncAttempts = 0;
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, origin);
+    if (sso && url.pathname === '/__test/central' && req.method === 'POST') {
+      central.state.unavailable = url.searchParams.get('unavailable') === '1';
+      if (url.searchParams.get('revoke') === '1') for (const ref of central.refs.values()) ref.active = false;
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
+    if (sso && url.pathname === '/__test/connect' && req.method === 'POST') {
+      const callback = await connectOura(ownerRuntime, req.headers.cookie || '', workerOrigin);
+      res.writeHead(callback.status === 302 ? 200 : 500, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     if (url.pathname === '/__test/storage-quota') {
       if (req.method === 'POST') {
         storageQuota = url.searchParams.get('enabled') === '1';
@@ -136,7 +157,7 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/__test/login') {
       const runtime = url.searchParams.get('free') === '1' ? freeRuntime : ownerRuntime;
-      const cookie = await login(runtime);
+      const cookie = sso ? await loginSso(runtime, workerOrigin) : await login(runtime);
       const jar = url.searchParams.get('free') === '1' ? 'free' : 'owner';
       res.writeHead(302, {
         'Set-Cookie': [
@@ -163,11 +184,11 @@ const server = createServer(async (req, res) => {
       for await (const chunk of req) chunks.push(chunk);
       // The Worker whitelists its own origin + FRONTEND_ORIGIN. The fixture
       // impersonates the trusted frontend origin for browser requests.
-      const requestHeaders = { ...req.headers, origin: 'https://oura.example', referer: 'https://oura.example/' };
+      const requestHeaders = { ...req.headers, origin: workerOrigin, referer: `${workerOrigin}/` };
       if (storageQuota) {
         if (req.method === 'POST' && url.pathname === '/api/me/health-records') quotaSyncAttempts++;
         const bindings = await jar.getBindings();
-        const response = await worker.fetch(new Request(`https://oura.example${url.pathname}${url.search}`, {
+        const response = await worker.fetch(new Request(`${workerOrigin}${url.pathname}${url.search}`, {
           method: req.method, headers: requestHeaders,
           body: chunks.length ? Buffer.concat(chunks) : undefined,
         }), { ...bindings, DB: failingDb(bindings.DB) });
@@ -176,7 +197,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       // Public hostname exercises production auth gates, while data stays local.
-      const response = await jar.dispatchFetch(`https://oura.example${url.pathname}${url.search}`, {
+      const response = await jar.dispatchFetch(`${workerOrigin}${url.pathname}${url.search}`, {
         method: req.method, headers: requestHeaders, redirect: 'manual',
         body: chunks.length ? Buffer.concat(chunks) : undefined,
       });

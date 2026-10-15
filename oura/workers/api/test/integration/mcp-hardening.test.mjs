@@ -411,6 +411,9 @@ test('legacy migration groups historical credentials, preserves usability and is
   for (const name of (await readdir(directory)).filter(n => n.endsWith('.sql') && n < migrationName).sort()) {
     await applyMigration(name);
   }
+  // Current auth code needs its additive state columns; keep the MCP tables
+  // pre-0009 so this test still exercises the historical family migration.
+  await applyMigration('0010_shared_sso.sql');
   const cookie = await login(legacy);
   const client = { client_id: 'legacy:client' };
   await db.prepare('INSERT INTO oauth_clients (client_id, redirect_uris) VALUES (?, ?)')

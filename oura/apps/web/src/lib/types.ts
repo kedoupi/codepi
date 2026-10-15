@@ -1,9 +1,12 @@
 export type MeResponse = {
   authenticated: boolean;
-  source: "oauth" | "dev" | null;
+  source: "oauth" | "dev" | "sso" | null;
   userId: string | null;
   allowDevLogin: boolean;
   oauthConfigured: boolean;
+  ssoEnabled?: boolean;
+  websiteAccount?: { userId: string; source: "oauth" | "dev" | "sso" } | null;
+  ouraConnection?: { status: "connected" | "disconnected" | "reconnect_required" | "demo"; ouraUserId: string | null; hasCachedHistory?: boolean } | null;
   localePref?: "system" | "zh" | "en" | null;
   capabilities?: { personal: boolean; weeklyFull: boolean; compare: boolean; analysis: boolean; ai: boolean };
   release?: string;

@@ -1,0 +1,10 @@
+name = "gu-test"
+main = "worker/index.ts"
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gu-test"
+database_id = "00000000-0000-0000-0000-000000000002"
+migrations_dir = "migrations"
