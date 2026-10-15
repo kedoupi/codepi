@@ -11,7 +11,7 @@
     "preview": "astro preview",
     "test": "npm --prefix ../auth run build && node --test test/*.test.mjs",
     "typecheck:desk": "node ../auth/node_modules/typescript/bin/tsc -p tsconfig.desk.json && node ../auth/node_modules/typescript/bin/tsc -p tsconfig.desk-web.json",
-    "build:functions": "node ../auth/node_modules/wrangler/bin/wrangler.js pages functions build --outdir=.wrangler/desk-functions",
+    "build:functions": "wrangler pages functions build --outdir=.wrangler/desk-functions",
     "build:pages": "npm run build && npm run build:functions && cp .wrangler/desk-functions/index.js dist/_worker.js",
     "test:browser:desk": "node scripts/browser-desk.mjs",
     "astro": "astro"
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/tailwind": "^6.0.2",
-    "tailwindcss": "^3.4.19"
+    "tailwindcss": "^3.4.19",
+    "wrangler": "^4.151.0"
   }
 }
