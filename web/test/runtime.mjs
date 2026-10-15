@@ -13,7 +13,7 @@ const deskScript = await bundle(`import {handleDeskRequest} from './web/server/d
 const providers = {
   health: 'oura/workers/api/src/index.ts',
   gu: 'gu/worker/index.ts',
-  wechat: 'fagao/worker/index.ts',
+  wechat: 'gzh/worker/index.ts',
 };
 export const sourceTokens = Object.fromEntries(Object.keys(providers).map(id => [id, `synthetic-${id}-` + 'x'.repeat(32)]));
 export async function sourceFixture(t) {
@@ -52,7 +52,7 @@ export async function deskFixture(t, options = {}) {
   const sources = await sourceFixture(t);
   const calls = [];
   const faults = {};
-  const hostSources = { 'health.kdp.cool': 'health', 'gu.kdp.cool': 'gu', 'fagao.kdp.cool': 'wechat' };
+  const hostSources = { 'health.codepi.app': 'health', 'gu.codepi.app': 'gu', 'gzh.codepi.app': 'wechat' };
   let beforeReply;
   const f = await authFixture(t, {}, {
     scripts: { desk: deskScript },

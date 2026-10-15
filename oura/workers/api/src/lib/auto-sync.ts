@@ -274,7 +274,7 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     }
     // This request supplies origin-dependent configuration only; it is never
     // routed through an authenticated HTTP endpoint or given a session.
-    const request = new Request(env.FRONTEND_ORIGIN || "https://health.kdp.cool");
+    const request = new Request(env.FRONTEND_ORIGIN || "https://health.codepi.app");
     let blocked = false;
     try {
       if (item.collection === "__scores") {

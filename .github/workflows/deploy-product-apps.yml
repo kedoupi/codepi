@@ -1,10 +1,10 @@
-name: Deploy product apps (fagao / oura)
+name: Deploy product apps (gzh / oura)
 
 on:
   push:
     branches: [main]
     paths:
-      - 'fagao/**'
+      - 'gzh/**'
       - 'oura/**'
       - 'shared/auth/**'
       - 'shared/styles/**'
@@ -13,7 +13,7 @@ on:
       - '.github/workflows/deploy-product-apps.yml'
   pull_request:
     paths:
-      - 'fagao/**'
+      - 'gzh/**'
       - 'oura/**'
       - 'shared/auth/**'
       - 'shared/styles/**'
@@ -27,25 +27,25 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, fagao, oura]
+        options: [all, gzh, oura]
 
 jobs:
-  fagao:
-    # Push: runs but skips internally unless fagao/ changed. Dispatch: explicit selector.
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.app == 'all' || inputs.app == 'fagao' }}
+  gzh:
+    # Push: runs but skips internally unless gzh/ changed. Dispatch: explicit selector.
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.app == 'all' || inputs.app == 'gzh' }}
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: fagao
+        working-directory: gzh
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Skip when this push did not touch fagao
+      - name: Skip when this push did not touch gzh
         if: github.event_name == 'push'
         id: changed
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qE '^(fagao/|shared/auth/|shared/email/|shared/brand\.ts$|\.github/workflows/deploy-product-apps\.yml$)'; then
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(gzh/|shared/auth/|shared/email/|shared/brand\.ts$|\.github/workflows/deploy-product-apps\.yml$)'; then
             echo "touched=yes" >> "$GITHUB_OUTPUT"
           else
             echo "touched=no" >> "$GITHUB_OUTPUT"
@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: fagao/package-lock.json
+          cache-dependency-path: gzh/package-lock.json
       - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         run: npm ci
       - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
@@ -66,13 +66,13 @@ jobs:
         run: npm run build
       - name: Apply database migrations before deploying
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        run: npx wrangler d1 migrations apply fagao --remote
+        run: npx wrangler d1 migrations apply gzh --remote
         env:
           CI: 'true'
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
-        run: npx wrangler@4 pages deploy dist --project-name=fagao --branch=main
+        run: npx wrangler@4 pages deploy dist --project-name=gzh --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -164,6 +164,4 @@ jobs:
         run: |
           OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
           pnpm check:branding
-          pnpm check:api https://oura.kdp.cool
-          pnpm check:branding https://oura.kdp.cool
 

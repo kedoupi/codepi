@@ -1,6 +1,6 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Pages 项目 `kdp-gu`，访问地址 `https://gu.kdp.cool`，兼容入口 `https://kdp-gu.pages.dev`。两个入口均通过 `auth.kdp.cool` 统一登录，各自持有独立的本地会话；退出会撤销对应的中心会话。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Pages 项目 `kdp-gu`，访问地址 `https://gu.codepi.app`，兼容入口 `https://kdp-gu.pages.dev`。两个入口均通过 `auth.codepi.app` 统一登录，各自持有独立的本地会话；退出会撤销对应的中心会话。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
@@ -55,7 +55,7 @@ Google 投资日历已于 2026-10-15 完成生产迁移、固定 ID 配置和首
 GU CI 只运行测试、类型检查、构建及配置校验，不接触生产凭证。发布后分别检查：
 
 ```bash
-npm run check:deploy -- --url https://gu.kdp.cool
+npm run check:deploy -- --url https://gu.codepi.app
 npm run check:deploy -- --url https://kdp-gu.pages.dev
 ```
 

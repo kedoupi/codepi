@@ -59,7 +59,7 @@
       {#if journal}
         <details class="journal-account">
           <summary>{locale === "zh" ? "账号" : "Account"}</summary>
-          <div><a href="https://kdp.cool/">{locale === "zh" ? "返回个人空间" : "Personal home"}</a><a href="/settings#account">{locale === "zh" ? "账号与连接" : "Account & connections"}</a><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
+          <div><a href="https://codepi.app/">{locale === "zh" ? "返回个人空间" : "Personal home"}</a><a href="/settings#account">{locale === "zh" ? "账号与连接" : "Account & connections"}</a><button type="button" onclick={onLogout}>{t(locale, "logout")}</button></div>
         </details>
       {:else}
         <button type="button" class="ai-btn" onclick={onLogout}>{t(locale, "logout")}</button>

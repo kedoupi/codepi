@@ -49,6 +49,6 @@ export async function handleDeskSummary(request: Request, env: Env): Promise<Res
       result.facts.push(`${field.label}：${last.date} 比 ${first.date} ${change > 0 ? "增加" : change < 0 ? "减少" : "变化"} ${Math.abs(change)} ${field.unit}（窗口内首末有效记录对比）。`);
     }
   }
-  if (result.stale) result.attention.push({ label: "检查健康数据同步", href: "https://health.kdp.cool/" });
+  if (result.stale) result.attention.push({ label: "检查健康数据同步", href: "https://health.codepi.app/" });
   return deskJson(result);
 }

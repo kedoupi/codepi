@@ -1,15 +1,15 @@
 # 健康 Health
 
-kedoupi（codepi）的个人健康空间，主入口为 `health.kdp.cool`，`oura.kdp.cool` 保留兼容访问。当前数据来源为 Oura；内部目录、Worker、Pages、D1 和 client ID 保留原技术名称。
+kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`，`health.codepi.app` 保留兼容访问。当前数据来源为 Oura；内部目录、Worker、Pages、D1 和 client ID 保留原技术名称。
 
 未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../docs/architecture/health-domain-migration.md)。
 
 ## 当前生产登录与授权
 
-- 网页登录：`/api/auth/login` → `auth.kdp.cool` → 当前域名 `/api/auth/callback`。
-- Oura 提供方回调继续使用已登记的 `https://oura.kdp.cool/api/auth/oura/callback`。
+- 网页登录：`/api/auth/login` → `auth.codepi.app` → 当前域名 `/api/auth/callback`。
+- Oura 提供方回调继续使用已登记的 `https://health.codepi.app/api/auth/oura/callback`。
 - 从 Health 发起设备连接时，先通过 SSO 在旧域建立独立会话，再进入 Oura 授权；完成后回到 Health 设置页。不跨域复制 Cookie，也不改变加密令牌或用户身份。
-- 新旧域保留独立的 MCP 发现与授权路径，原有 MCP 凭证继续有效。新连接使用 `https://health.kdp.cool/mcp`。
+- 新旧域保留独立的 MCP 发现与授权路径，原有 MCP 凭证继续有效。新连接使用 `https://health.codepi.app/mcp`。
 - 以下 DEV / 非 SSO 说明属于本地调试或历史模式；生产已启用 SSO，网页登录与设备授权分开。
 
 ## Quick start
@@ -98,7 +98,7 @@ pnpm dev
 - `/api/me` 不可达时仍渲染营销页，不出现首屏红色 API 错误，也不提示 pnpm
 - 不要把真实 Client ID / Secret 写进 git
 
-## Production secrets（oura.kdp.cool）
+## Production secrets（health.codepi.app）
 
 在 `workers/api` 里用 [wrangler secret put](https://developers.cloudflare.com/workers/configuration/secrets/) 写入密钥，**不要**写进仓库或 `wrangler.toml`：
 
@@ -113,14 +113,14 @@ npx wrangler secret put SESSION_SECRET
 生产 URL（Dashboard 变量或同样 `secret put`，仍不要提交真值）：
 
 ```
-OURA_REDIRECT_URI=https://oura.kdp.cool/api/auth/oura/callback
-FRONTEND_ORIGIN=https://oura.kdp.cool
+OURA_REDIRECT_URI=https://health.codepi.app/api/auth/oura/callback
+FRONTEND_ORIGIN=https://health.codepi.app
 ```
 
 `ALLOW_DEV_LOGIN`：
 
 - **预览 / 测试 Worker**（`*.pages.dev` 若挂了 `/api`）：必须设 `ALLOW_DEV_LOGIN=1`，落地页才会出现「DEV 演示登录」，点击后走 `/api/auth/dev/session` 跳过 OAuth 进看板。
-- **生产 oura.kdp.cool**：必须 unset 或 `0`。落地页只保留「用 Oura 登录」。
+- **生产 health.codepi.app**：必须 unset 或 `0`。落地页只保留「用 Oura 登录」。
 - 本地 `.dev.vars` 设 `ALLOW_DEV_LOGIN=1`。
 
 Oura 应用里的 Redirect URL 必须与 `OURA_REDIRECT_URI` 完全一致。
@@ -159,7 +159,7 @@ pnpm --filter @oura-kdp/web build
 
 ### API 路由与登录检查
 
-Pages 只托管前端。`oura.kdp.cool/api/*` 必须通过同一 Cloudflare zone 的
+Pages 只托管前端。`health.codepi.app/api/*` 必须通过同一 Cloudflare zone 的
 Worker Route 指向 `oura-kdp-api`；API 路由、生产回调地址和关闭 DEV 登录的变量
 已声明在 `workers/api/wrangler.toml`。前端与 API Worker 分别发布；
 `.github/workflows/deploy-product-apps.yml` 现在先测试、检查类型并构建，
@@ -247,7 +247,7 @@ AI provider 才可能返回 `source: "ai-ranked"`，且该模式仅对已验证�
 看板数据以只读远端 MCP 服务暴露给 Claude 与 ChatGPT：
 
 ```
-https://oura.kdp.cool/mcp
+https://health.codepi.app/mcp
 ```
 
 部署此版本需先应用 `0009_mcp_token_family.sql`（`pnpm deploy:api` 会自动执行）。
@@ -261,13 +261,13 @@ https://oura.kdp.cool/mcp
 注册与授权 → 浏览器打开同意页 → 先登录 Oura，再点「允许连接」。
 
 `oura-kdp-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
-OAuth 登录回调固定在 `oura.kdp.cool`，跨域名浏览器会话无法完成授权。
+OAuth 登录回调固定在 `health.codepi.app`，跨域名浏览器会话无法完成授权。
 
 连接器图标沿用看板的原创橙色仪表圆环：
 
-- `https://oura.kdp.cool/icon.png`：512 × 512 PNG，可用于平台手动上传。
-- `https://oura.kdp.cool/icon.svg`：矢量图；网站和授权页也使用此图标。
-- `https://oura.kdp.cool/favicon.ico`：32 × 32 浏览器兼容图标。
+- `https://health.codepi.app/icon.png`：512 × 512 PNG，可用于平台手动上传。
+- `https://health.codepi.app/icon.svg`：矢量图；网站和授权页也使用此图标。
+- `https://health.codepi.app/favicon.ico`：32 × 32 浏览器兼容图标。
 
 MCP `initialize` 的 `serverInfo.icons` 返回同源 PNG 和 SVG 地址，并提供
 `websiteUrl`；保留现有协议版本协商，不为图标改动升级整个协议。
@@ -306,7 +306,7 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 
 ### 详细数据与长期保存
 
-新增授权入口：`https://oura.kdp.cool/api/auth/oura/start?sync_health=1`。
+新增授权入口：`https://health.codepi.app/api/auth/oura/start?sync_health=1`。
 申请 `daily personal email heartrate workout tag session spo2 heart_health stress ring_configuration`；
 授权后回到固定的 `/settings?sync=90`，自动启动最近 90 天分批补齐。
 页面消费此标记一次并提交后台任务；收到任务确认后，关闭或离开页面仍由服务端继续。
@@ -324,7 +324,7 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 但已通过线上响应核实：缺失时 Oura 返回 401 及明确的 scope 名称。
 增加请求 scope 后需要用户重新同意授权，刷新已有 token 不会扩大权限。
 设置页重新连接 Oura，并允许请求的全部权限即可；回调继续使用原有
-`https://oura.kdp.cool/api/auth/oura/callback`，无需改域名、创建新应用或重置密钥。
+`https://health.codepi.app/api/auth/oura/callback`，无需改域名、创建新应用或重置密钥。
 授权完成后自动恢复暂停任务；不能仅凭 401 告知用户授权已过期。
 
 `health_records` 按用户、类型、记录 ID 保存完整官方文档，包括睡眠 HRV/心率序列、
@@ -408,8 +408,8 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 
 ### 区域边缘说明
 
-`oura.kdp.cool` 曾对部分数据中心来源间歇返回 `cf-mitigated: challenge` 的 403。
-当前已针对 `oura.kdp.cool` 的 `/mcp`、`/oauth/*`、`/.well-known/*` 添加
+`health.codepi.app` 曾对部分数据中心来源间歇返回 `cf-mitigated: challenge` 的 403。
+当前已针对 `health.codepi.app` 的 `/mcp`、`/oauth/*`、`/.well-known/*` 添加
 浏览器完整性检查豁免；`pnpm check:api` 严格验证这些路径已真实到达 Worker，
 不再把边缘 403 记为警告通过。
 

@@ -4,7 +4,7 @@
 
 ## 本地检查
 
-主站沿用既有 Astro 依赖；工作台测试复用 `auth/` 已有 esbuild、TypeScript、Wrangler/Miniflare，未新增依赖种类。先在 web、auth 安装各自锁文件的依赖。跨应用集成测试还需要 gu、fagao 和 oura 的既有依赖。
+主站沿用既有 Astro 依赖；工作台测试复用 `auth/` 已有 esbuild、TypeScript、Wrangler/Miniflare，未新增依赖种类。先在 web、auth 安装各自锁文件的依赖。跨应用集成测试还需要 gu、gzh 和 oura 的既有依赖。
 
 在 web 运行：
 
@@ -35,7 +35,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 
 ## 上线顺序（本轮尚未执行）
 
-1. 先部署支持 `desk` 的 auth 中心代码，保留原三个客户端注册。为新客户端生成独立 secret，在现有 `SSO_CLIENTS` 中增加 `desk`，精确回调为 `https://kdp.cool/api/auth/callback`。不要覆盖原客户端配置或把 secret 写进仓库。
+1. 先部署支持 `desk` 的 auth 中心代码，保留原三个客户端注册。为新客户端生成独立 secret，在现有 `SSO_CLIENTS` 中增加 `desk`，精确回调为 `https://codepi.app/api/auth/callback`。不要覆盖原客户端配置或把 secret 写进仓库。
 2. 为三个应用分别生成独立 `DESK_SUMMARY_TOKEN`，部署只读接口。Health 是 Worker，GU/公众号是 Pages 应用，各自在其实际运行环境设置 secret。禁止复用 SSO、Oura、上传或 MCP token。Preview 不继承生产凭证。
 3. 创建工作台专用 D1（建议名 `kdp-desk`），仅存 SSO 事务与会话。应用 `web/migrations/0001_desk_sso.sql`；不绑定三个业务库。
 4. 在 `kdp-portal` Production 的 Pages Functions 设置以下绑定和变量：
@@ -44,7 +44,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 | --- | --- |
 | `DB` | 新工作台 D1 |
 | `AUTH` | service binding → `kdp-auth` |
-| `AUTH_ORIGIN` | `https://auth.kdp.cool` |
+| `AUTH_ORIGIN` | `https://auth.codepi.app` |
 | `AUTH_CLIENT_ID` | `desk` |
 | `SSO_ENABLED` | `1` |
 | `AUTH_CLIENT_SECRET` | 与中心新 desk 注册一致的独立 secret |

@@ -38,7 +38,7 @@ export function ssoEnabled(env: SsoEnv): boolean {
 
 function config(env: SsoEnv): Config {
   if (!env.AUTH || !env.AUTH_ORIGIN || !env.AUTH_CLIENT_SECRET
-    || !["gu", "oura", "fagao", "desk"].includes(env.AUTH_CLIENT_ID ?? "")) {
+    || !["gu", "oura", "gzh", "desk"].includes(env.AUTH_CLIENT_ID ?? "")) {
     throw new SsoError("auth_not_configured", 503);
   }
   let origin: URL;
@@ -216,7 +216,7 @@ export async function finishLogin(
   headers.set("Location", localReturn(tx.return_to, url.origin));
   headers.append("Set-Cookie", cookie(request, cfg.clientId, "session", rawSession, Math.floor((expires - now) / 1000)));
   // This cookie is never accepted for authentication. It only retains the
-  // revocation handle after a shorter (GU/fagao) login cookie has expired.
+  // revocation handle after a shorter (GU/gzh) login cookie has expired.
   headers.append("Set-Cookie", cookie(request, cfg.clientId, "logout", rawSession,
     Math.floor((Math.min(result.expires_at, now + 30 * 86400_000) - now) / 1000)));
   headers.append("Set-Cookie", cookie(request, cfg.clientId, "transaction", "", 0));

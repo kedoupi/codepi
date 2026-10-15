@@ -7,10 +7,10 @@ import { calendarDay, shiftDay } from '../../shared/desk/contract.ts';
 test('private endpoints require a real owner session; login returns to desk; requests never forward cookies', async t => {
   const f = await deskFixture(t);
   const worker = await f.runtime.getWorker('desk');
-  const canonical = await worker.fetch('https://www.kdp.cool/api/auth/login', { redirect: 'manual' });
+  const canonical = await worker.fetch('https://www.codepi.app/api/auth/login', { redirect: 'manual' });
   assert.equal(canonical.status, 302);
-  assert.equal(canonical.headers.get('Location'), 'https://kdp.cool/api/auth/login');
-  assert.equal((await worker.fetch('https://www.kdp.cool/api/desk/summary', { method: 'POST' })).status, 403);
+  assert.equal(canonical.headers.get('Location'), 'https://codepi.app/api/auth/login');
+  assert.equal((await worker.fetch('https://www.codepi.app/api/desk/summary', { method: 'POST' })).status, 403);
   const denied = await f.call('/api/desk/overview');
   assert.equal(denied.status, 401);
   assert.equal(denied.headers.get('Cache-Control'), 'no-store');
@@ -156,7 +156,7 @@ test('WeChat excludes demos and distinguishes boxed from published, with valid a
   }
   const result = await (await f.request('wechat', 'week')).json();
   assert.deepEqual(result.metrics.map(metric => metric.value), ['1', '0', '0']);
-  assert.equal(result.attention[0].href, 'https://fagao.kdp.cool/p/real-post');
+  assert.equal(result.attention[0].href, 'https://gzh.codepi.app/p/real-post');
   assert.match(result.notes.join(' '), /已进箱不等于已发布/);
   await db.prepare('UPDATE accounts SET active=0').run();
   assert.equal((await f.request('wechat')).status, 503);

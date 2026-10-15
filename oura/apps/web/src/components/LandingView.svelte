@@ -47,7 +47,7 @@
   <header class="landing-top">
     <ProductBrand name={t(locale, "dashTitle")} />
     <div class="landing-nav">
-      <a class="home-link" href="https://kdp.cool/">{text("个人空间", "Personal home")}</a>
+      <a class="home-link" href="https://codepi.app/">{text("个人空间", "Personal home")}</a>
       <div class="lang-pills landing-lang" role="group" aria-label={t(locale, "settingsLang")}>
         {#each ["system", "zh", "en"] as pref}
           <button type="button" class="ai-btn" class:on={localePref === pref} aria-pressed={localePref === pref}
@@ -63,7 +63,7 @@
         <p class="landing-lead">{text("这里是我的个人健康空间。把睡眠、恢复与活动的记录放在一起，慢慢认识自己的长期变化。", "My personal health space brings sleep, recovery and activity together, to understand the changes that unfold over time.")}</p>
         <div class="landing-actions">
           <button class="landing-btn primary" type="button" onclick={loginOura}>{ssoEnabled ? text("登录健康空间", "Sign in to Health") : t(locale, "loginOura")}</button>
-          <a class="landing-btn secondary" href="https://kdp.cool/apps/#health">{text("关于这个应用", "About this app")}</a>
+          <a class="landing-btn secondary" href="https://codepi.app/apps/#health">{text("关于这个应用", "About this app")}</a>
         </div>
         <p class="landing-hint">{text(`使用 ${PRODUCT_BRAND} 统一账号，健康记录仅本人可见。`, `Uses the ${PRODUCT_BRAND} account. Health records are private.`)}</p>
         {#if shownError}<p class="status err landing-error" role="alert">{shownError}</p>{/if}
@@ -78,7 +78,7 @@
     </section>
     <aside class="health-continuity"><h2>{text("记录可以积累，生活慢慢连接。", "A history that grows with you.")}</h2><p>{text("日常看板、睡眠回顾、阶段对比与 AI 解读，沿用同一份记录。需要时，也可以授权 AI 应用只读访问，并随时撤销连接。", "Daily overview, sleep history, comparisons and insights use the same records. You can grant AI apps read-only access and revoke it whenever needed.")}</p></aside>
   </main>
-  <footer class="landing-foot"><a href="https://kdp.cool/">{PRODUCT_BRAND}</a><p>{text("数据来源：Oura · 个人记录与回顾", "Data from Oura · Personal records and reflection")}</p>{#if allowDevLogin === true}<button class="landing-dev" type="button" onclick={loginDev}>{t(locale, "devLogin")}</button>{/if}</footer>
+  <footer class="landing-foot"><a href="https://codepi.app/">{PRODUCT_BRAND}</a><p>{text("数据来源：Oura · 个人记录与回顾", "Data from Oura · Personal records and reflection")}</p>{#if allowDevLogin === true}<button class="landing-dev" type="button" onclick={loginDev}>{t(locale, "devLogin")}</button>{/if}</footer>
 </div>
 
 <style>

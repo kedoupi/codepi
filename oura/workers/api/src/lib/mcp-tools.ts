@@ -321,7 +321,7 @@ async function errorFrom(res: Response): Promise<ToolResult> {
   const code = body.error ?? `http_${res.status}`;
   const hint =
     code === "reconnect_required"
-      ? "The Oura token expired. Open https://oura.kdp.cool and log in again."
+      ? "The Oura token expired. Open https://health.codepi.app and log in again."
       : code === "sync_in_progress"
         ? "A sync is already running; retry shortly."
         : undefined;

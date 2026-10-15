@@ -1,17 +1,17 @@
 # KDP unified login
 
-`kdp-auth` is the first-party login Worker for Oura, GU, fagao and the personal desk. It accepts no
+`kdp-auth` is the first-party login Worker for Oura, GU, gzh and the personal desk. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `shared/brand.ts`.
 `shared/email/otp.ts` supplies the shared HTML/text OTP template for the center
-and GU/fagao legacy mail paths. It retains the configured verified sender address
+and GU/gzh legacy mail paths. It retains the configured verified sender address
 and sets the common brand as its display name. Never duplicate OTP templates per app.
 
 ## Configuration
 
 The committed Wrangler configuration declares the independent D1 database and
-`auth.kdp.cool`. Configure these secrets through Cloudflare:
+`auth.codepi.app`. Configure these secrets through Cloudflare:
 
 - `OWNER_EMAIL`: the fixed owner used by GU.
 - `OTP_FROM`, `RESEND_API_KEY`: the verified sender and mail API credential.
@@ -22,7 +22,7 @@ The committed Wrangler configuration declares the independent D1 database and
 `SSO_EXTRA_REDIRECT_URIS` is an optional public JSON map of already registered
 client IDs to additional exact callback URLs. It follows the same validation as
 the secret registry and never accepts browser-supplied registrations. GU's verified
-custom domain `gu.kdp.cool` is registered here alongside its original Pages URL,
+custom domain `gu.codepi.app` is registered here alongside its original Pages URL,
 so adding the domain does not require rotating unrelated clients' credentials.
 
 Applications bind `AUTH` to this Worker and configure their own `AUTH_CLIENT_ID`,

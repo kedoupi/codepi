@@ -9,7 +9,7 @@ test('deployment recovery retries only the explicit Oura migration quota failure
   assert.equal(shouldRetryQuotaDeployment({ ...run, status: 'in_progress' }, message), false);
   assert.equal(shouldRetryQuotaDeployment({ ...run, conclusion: 'success' }, message), false);
   assert.equal(shouldRetryQuotaDeployment({ ...run, headBranch: 'feature' }, message), false);
-  assert.equal(shouldRetryQuotaDeployment(run, message.replace('oura', 'fagao')), false);
+  assert.equal(shouldRetryQuotaDeployment(run, message.replace('oura', 'gzh')), false);
   assert.equal(shouldRetryQuotaDeployment(run, message.replace('Deploy API before publishing its frontend', 'Run pnpm test')), false);
   assert.equal(shouldRetryQuotaDeployment(run, 'Migration failed: SQL syntax error'), false);
   assert.equal(shouldRetryQuotaDeployment(undefined, message), false);

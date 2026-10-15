@@ -75,7 +75,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("fixed owner authentication", () => {
   it("requires login for every private API and hides static JSON paths", async () => {
-    for (const host of ["https://gu.kdp.cool", "https://kdp-gu.pages.dev", "https://preview.kdp-gu.pages.dev"]) {
+    for (const host of ["https://gu.codepi.app", "https://kdp-gu.pages.dev", "https://preview.kdp-gu.pages.dev"]) {
       expect((await call(request("/api/dashboard", { host }))).status).toBe(401);
       expect((await call(request("/dashboard/account.json", { host }))).status).toBe(404);
       expect((await call(request("/", { host }))).status).toBe(302);
@@ -86,14 +86,14 @@ describe("fixed owner authentication", () => {
   });
   it("fails closed in production without mail configuration", async () => {
     const spy = vi.spyOn(console, "log");
-    const result = await call(request("/api/auth/request-otp", { body: {}, host: "https://gu.kdp.cool" }), { ...env, ENVIRONMENT: "production" });
+    const result = await call(request("/api/auth/request-otp", { body: {}, host: "https://gu.codepi.app" }), { ...env, ENVIRONMENT: "production" });
     expect(result.status).toBe(503);
     expect(spy).not.toHaveBeenCalled();
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM otp_codes").first("n")).toBe(0);
   });
   it("ignores supplied recipient and sends only to the fixed owner", async () => {
     const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
-    const result = await call(request("/api/auth/request-otp", { body: { email: "attacker@example.com" }, host: "https://gu.kdp.cool" }),
+    const result = await call(request("/api/auth/request-otp", { body: { email: "attacker@example.com" }, host: "https://gu.codepi.app" }),
       { ...env, ENVIRONMENT: "production", RESEND_API_KEY: "mock-key" });
     expect(result.status).toBe(200);
     const sent = JSON.parse(String(fetch.mock.calls[0][1]?.body));

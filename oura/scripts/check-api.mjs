@@ -1,4 +1,4 @@
-const origin = new URL(process.argv[2] || 'https://health.kdp.cool').origin;
+const origin = new URL(process.argv[2] || 'https://health.codepi.app').origin;
 // Expected build SHA for the just-deployed Worker. When provided, /api/health
 // must report it; this turns the smoke check into a real deploy gate.
 const expectedBuild = process.env.OURA_EXPECT_BUILD || '';
@@ -22,7 +22,7 @@ const edgeBlockMode = process.env.OURA_CHECK_EDGE_BLOCK || 'fail';
 const callbackOrigin = process.env.OURA_CHECK_PUBLIC_ORIGIN
   ? new URL(process.env.OURA_CHECK_PUBLIC_ORIGIN).origin
   : origin;
-const authOrigin = new URL(process.env.OURA_CHECK_AUTH_ORIGIN || 'https://auth.kdp.cool').origin;
+const authOrigin = new URL(process.env.OURA_CHECK_AUTH_ORIGIN || 'https://auth.codepi.app').origin;
 
 async function check(targetOrigin, path, expectedStatus = 200, blocked, ssoEnabled = false) {
   try {

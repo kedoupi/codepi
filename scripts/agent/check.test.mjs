@@ -35,18 +35,15 @@ function fixture(t) {
   return { cwd, git, write, commit, base };
 }
 
-test('single static app stays isolated; calculator includes math tests', () => {
+test('single static app stays isolated; retired paths validate remaining consumers', () => {
   assert.deepEqual(makePlan(['web/src/pages/index.astro']).apps, ['web']);
-  assert.deepEqual(makePlan(['calc/src/lib/mortgage.js']).checks, [
-    { cwd: 'calc', argv: ['npm', 'test'] },
-    { cwd: 'calc', argv: ['npm', 'run', 'build'] },
-  ]);
+  assert.deepEqual(makePlan(['calc/src/lib/mortgage.js']).apps, [...staticApps, ...privateApps]);
 });
 
-test('static shared code covers all six consumers', () => {
+test('static shared code covers the remaining homepage', () => {
   const plan = makePlan(['shared/lib/url-state.js', 'shared/layouts/BaseLayout.astro']);
   assert.deepEqual(plan.apps, staticApps);
-  assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 2);
+  assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 1);
 });
 
 test('SSO changes cover center, all four clients and shared client tests', () => {
@@ -127,10 +124,10 @@ test('task base includes committed, staged, unstaged and untracked files without
   f.write('gu/staged.txt');
   f.git('add', 'gu/staged.txt');
   f.write('README.md', 'modified\n');
-  f.write('fagao/untracked file.txt');
+  f.write('gzh/untracked file.txt');
   f.write('fixture.secret');
   assert.deepEqual(changedFiles(f.cwd, f.base).files, [
-    '.gitignore', 'README.md', 'fagao/untracked file.txt', 'gu/staged.txt', 'web/committed.txt',
+    '.gitignore', 'README.md', 'gu/staged.txt', 'gzh/untracked file.txt', 'web/committed.txt',
   ]);
   assert.ok(!changedFiles(f.cwd).files.includes('web/committed.txt'));
 });
@@ -188,7 +185,7 @@ appendFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join(' ') + '\\n
 process.exit(${status});
 `);
   chmodSync(path.join(bin, 'npm'), 0o755);
-  f.write('calc/change.js');
+  f.write('gzh/change.js');
   const source = `import { main } from ${JSON.stringify(pathToFileURL(script).href)};
 process.exitCode = main(JSON.parse(process.argv[1]), process.argv[2]);`;
   const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source, JSON.stringify(args), f.cwd], {
@@ -204,7 +201,7 @@ test('preview executes nothing; run executes selected local checks', t => {
   assert.equal(existsSync(preview.marker), false);
   const run = runFixture(fixture(t), ['--run']);
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(readFileSync(run.marker, 'utf8'), 'test\nrun build\n');
+  assert.equal(readFileSync(run.marker, 'utf8'), 'test\nrun typecheck\nrun build\n');
 });
 
 test('a failed check returns nonzero and stops subsequent commands', t => {

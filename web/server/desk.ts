@@ -8,7 +8,7 @@ export interface DeskEnv extends SsoEnv {
 }
 type Upstream = (request: Request) => Promise<Response>;
 const origins: Record<DeskSource, string> = {
-  health: "https://health.kdp.cool", gu: "https://gu.kdp.cool", wechat: "https://fagao.kdp.cool",
+  health: "https://health.codepi.app", gu: "https://gu.codepi.app", wechat: "https://gzh.codepi.app",
 };
 const text = (value: unknown): value is string => typeof value === "string" && value.length <= 600;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -92,9 +92,9 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (url.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
     return deskJson({ error: "https_required" }, 403);
   }
-  if (url.hostname === "www.kdp.cool") {
+  if (url.hostname === "www.codepi.app") {
     if (request.method !== "GET") return deskJson({ error: "canonical_origin_required" }, 403);
-    url.hostname = "kdp.cool";
+    url.hostname = "codepi.app";
     url.protocol = "https:";
     url.port = "";
     return new Response(null, { status: 302, headers: { Location: url.href } });

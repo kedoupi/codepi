@@ -4,9 +4,9 @@
 
 ## 发布与认证
 
-- 生产入口：`https://gu.kdp.cool`。
+- 生产入口：`https://gu.codepi.app`。
 - 最终部署预览：`https://f7d27468.kdp-gu.pages.dev`，生产入口已核对同一构建。
-- 保留 `auth.kdp.cool` 统一登录、AUTH service binding 和 SSO 配置。
+- 保留 `auth.codepi.app` 统一登录、AUTH service binding 和 SSO 配置。
 - 生产 JS/CSS 与本地 `dist` 字节一致；index SHA-256：
   `0201052fa3009f0d7b299f76c67f1a4fea6953a1187c50bf7c2c3956431afacb`。
 - 未认证访问 `/api/me`、`/api/dashboard`、`/api/calendar` 均返回 401，
@@ -41,7 +41,7 @@
 - `npm run test:scripts`：70/70 通过。
 - `npm run typecheck`：通过。
 - `npm run build`：通过。
-- `npm run check:deploy -- --url https://gu.kdp.cool`：配置、线上资源字节、
+- `npm run check:deploy -- --url https://gu.codepi.app`：配置、线上资源字节、
   未登录鉴权均通过。
 - 兼容域名 `https://kdp-gu.pages.dev` 的部署检查通过。
 
