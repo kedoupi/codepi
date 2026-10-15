@@ -1,3 +1,4 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import worker from '../../dist/index.js';
@@ -63,7 +64,7 @@ test('quota-blocked sync and score refresh preserve readable history and report 
   const cookie = await login(runtime);
   const bindings = await runtime.getBindings();
   const env = { ...bindings, DB: failingDb(bindings.DB) };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = calendarDay();
   for (const path of [
     `/api/me/health-records?collection=sleep&from=${today}&to=${today}`,
     '/api/me/sync',

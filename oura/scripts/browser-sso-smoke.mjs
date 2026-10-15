@@ -1,4 +1,4 @@
-// Executed by ego-browser nodejs; all data and central/provider services are local fixtures.
+// Shared Chrome/ego journey; central/provider services and data are local fixtures.
 const { default: assert } = await import('node:assert/strict');
 const options = globalThis.ouraSmokeOptions || {};
 const task = await taskSpace(options.spaceId || 'Oura SSO regression');

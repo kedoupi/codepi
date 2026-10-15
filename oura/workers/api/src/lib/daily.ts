@@ -1,6 +1,7 @@
 import { KEDOUPI_BOARD_SAMPLE as kedoupiBoardJson } from "../data/kedoupi-board.ts";
 import type { SyncInfo } from "./sync-cache.ts";
 import type { OuraDailyDoc } from "./oura.ts";
+import { calendarDay, shiftDay } from "../../../../shared/dates.ts";
 import {
   indexByDay,
   pickActivity,
@@ -64,10 +65,6 @@ export const DEV_BOARD_LABEL =
 export const DEV_BOARD_LIVE_LABEL =
   "DEV · 现网个人看板实时数据（kedoupi / api.xiaotaozi.cc）· 待 per-user OAuth";
 
-function utcDateString(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
 export function dateWindow(
   days: number,
   now = new Date(),
@@ -76,14 +73,10 @@ export function dateWindow(
   endDate: string;
   dates: string[];
 } {
-  const end = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
+  const end = calendarDay(now);
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(end);
-    d.setUTCDate(end.getUTCDate() - i);
-    dates.push(utcDateString(d));
+    dates.push(shiftDay(end, -i));
   }
   return {
     startDate: dates[0]!,

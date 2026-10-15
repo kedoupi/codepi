@@ -1,4 +1,5 @@
 /** Template-generated Chinese secondary interpretation. Does not change official scores. */
+import { calendarDay, calendarWindow, shiftDay, DISPLAY_TIME_ZONE } from "../../../../shared/dates.ts";
 
 export type InsightDay = {
   date: string;
@@ -22,6 +23,8 @@ export type PeriodAvgs = {
   activity: number | null;
   steps: number | null;
 };
+export type SampleCounts = Record<keyof PeriodAvgs, number>;
+export const MIN_COMPARISON_DAYS = 3;
 
 export type DateRange = { from: string; to: string };
 
@@ -33,6 +36,7 @@ export type WeeklyReport = {
   lastPeriod: DateRange;
   disclaimer: string;
   avgs: { thisWeek: PeriodAvgs; lastWeek: PeriodAvgs };
+  sampleCounts: { thisWeek: SampleCounts; lastWeek: SampleCounts };
 };
 
 export type CompareColumn = PeriodAvgs & {
@@ -40,6 +44,7 @@ export type CompareColumn = PeriodAvgs & {
   from: string;
   to: string;
   days: number;
+  samples: SampleCounts;
 };
 
 export type CompareReport = {
@@ -92,71 +97,64 @@ export function sortDays<T extends { date: string }>(days: T[]): T[] {
 
 export function splitRollingWeeks<T extends { date: string }>(
   days: T[],
+  end = calendarDay(),
 ): { thisWeek: T[]; lastWeek: T[] } {
-  const sorted = sortDays(days);
-  const end = Date.parse(sorted.at(-1)?.date ?? "");
-  const recent = sorted.filter(day => Date.parse(day.date) > end - 7 * 86400000);
-  const previous = sorted.filter(day => Date.parse(day.date) > end - 14 * 86400000 && Date.parse(day.date) <= end - 7 * 86400000);
   return {
-    thisWeek: recent,
-    lastWeek: previous,
+    thisWeek: daysInWindow(days, calendarWindow(7, end)),
+    lastWeek: daysInWindow(days, calendarWindow(7, shiftDay(end, -7))),
   };
 }
 
-export function sliceLast<T>(days: T[], n: number): T[] {
-  if (!days.length) return [];
-  return days.slice(Math.max(0, days.length - n));
+export function daysInWindow<T extends { date: string }>(days: T[], range: DateRange): T[] {
+  // Count calendar days once, even when a caller supplies duplicate records.
+  return sortDays([...new Map(days.filter(day => day.date >= range.from && day.date <= range.to)
+    .map(day => [day.date, day])).values()]);
+}
+
+function metricValues(days: InsightDay[], key: keyof PeriodAvgs): number[] {
+  return days.map(day => key === "steps" ? day.activity?.steps : day[key]?.score)
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value)
+      && value >= 0 && (key === "steps" || value <= 100));
+}
+
+export function sampleCounts(days: InsightDay[]): SampleCounts {
+  return {
+    sleep: metricValues(days, "sleep").length,
+    readiness: metricValues(days, "readiness").length,
+    activity: metricValues(days, "activity").length,
+    steps: metricValues(days, "steps").length,
+  };
 }
 
 export function windowAverages(days: InsightDay[]): PeriodAvgs {
   return {
-    sleep: avg(days.map((d) => d.sleep?.score)),
-    readiness: avg(days.map((d) => d.readiness?.score)),
-    activity: avg(days.map((d) => d.activity?.score)),
-    steps: avg(days.map((d) => d.activity?.steps)),
+    sleep: avg(metricValues(days, "sleep")),
+    readiness: avg(metricValues(days, "readiness")),
+    activity: avg(metricValues(days, "activity")),
+    steps: avg(metricValues(days, "steps")),
   };
 }
 
-export function rangeOf(days: InsightDay[]): DateRange {
-  const sorted = sortDays(days);
-  return { from: sorted[0]?.date ?? "", to: sorted[sorted.length - 1]?.date ?? "" };
-}
-
-function phraseScore(name: string, cur: number | null, prev: number | null): string {
-  if (cur == null) return `本周${name}数据不足，暂无法对照上周。`;
-  if (prev == null) {
-    return `本周${name}均分 ${round1(cur)}，上周样本不足，先看本周官方分数即可。`;
-  }
+function phraseScore(name: string, cur: number | null, prev: number | null, n: number, previousN: number): string {
+  const coverage = `有效样本 ${n}/7 天，此前 ${previousN}/7 天`;
+  const value = cur == null ? `近 7 天${name}暂无有效分数` : `近 7 天${name}均分 ${round1(cur)}`;
+  if (n < MIN_COMPARISON_DAYS || previousN < MIN_COMPARISON_DAYS || cur == null || prev == null)
+    return `${value}（${coverage}）；样本不足，两期各至少 ${MIN_COMPARISON_DAYS} 天才比较。`;
   const d = cur - prev;
-  if (Math.abs(d) < 0.5) return `本周${name}均分 ${round1(cur)}，与上周基本持平。`;
-  if (d > 0) return `本周${name}均分 ${round1(cur)}，较上周升高 ${round1(d)} 分。`;
-  return `本周${name}均分 ${round1(cur)}，较上周下降 ${round1(Math.abs(d))} 分。`;
+  const change = Math.abs(d) < 0.5 ? "与此前 7 天基本持平"
+    : `较此前 7 天${d > 0 ? "升高" : "下降"} ${round1(Math.abs(d))} 分`;
+  return `${value}（${coverage}），${change}。`;
 }
 
-function phraseActivity(cur: PeriodAvgs, prev: PeriodAvgs): string {
-  if (cur.activity == null && cur.steps == null) {
-    return "本周活动数据不足，暂无法对照上周。";
-  }
-  const scoreBit =
-    cur.activity == null ? "活动分数不足" : `活动均分 ${round1(cur.activity)}`;
-  const stepBit = cur.steps == null ? "" : `、日均步数约 ${round0(cur.steps)}`;
-  if (prev.activity == null && prev.steps == null) {
-    return `本周${scoreBit}${stepBit}，上周样本不足。`;
-  }
-  const parts: string[] = [`本周${scoreBit}${stepBit}`];
-  if (cur.activity != null && prev.activity != null) {
-    const d = cur.activity - prev.activity;
-    if (Math.abs(d) < 0.5) parts.push("活动分与上周基本持平");
-    else if (d > 0) parts.push(`活动分较上周升高 ${round1(d)}`);
-    else parts.push(`活动分较上周下降 ${round1(Math.abs(d))}`);
-  }
-  if (cur.steps != null && prev.steps != null) {
+function phraseActivity(cur: PeriodAvgs, prev: PeriodAvgs, n: SampleCounts, previousN: SampleCounts): string {
+  const score = phraseScore("活动", cur.activity, prev.activity, n.activity, previousN.activity);
+  const steps = cur.steps == null ? "日均步数暂无数据" : `日均步数约 ${round0(cur.steps)}`;
+  const parts = [`${steps}（有效样本 ${n.steps}/7 天，此前 ${previousN.steps}/7 天）`];
+  if (n.steps >= MIN_COMPARISON_DAYS && previousN.steps >= MIN_COMPARISON_DAYS && cur.steps != null && prev.steps != null) {
     const d = cur.steps - prev.steps;
-    if (Math.abs(d) >= 300) {
-      parts.push(d > 0 ? `步数多了约 ${round0(d)}` : `步数少了约 ${round0(Math.abs(d))}`);
-    }
-  }
-  return `${parts.join("，")}。`;
+    parts.push(Math.abs(d) < 300 ? "步数与此前 7 天接近" : `较此前 7 天${d > 0 ? "多" : "少"}约 ${round0(Math.abs(d))} 步`);
+  } else parts.push("步数样本不足，暂不比较");
+  return `${score}${parts.join("，")}。`;
 }
 
 function weakestContributor(
@@ -169,7 +167,7 @@ function weakestContributor(
     const c = kind === "sleep" ? day.sleep?.contributors : day.readiness?.contributors;
     if (!c) continue;
     for (const [k, v] of Object.entries(c)) {
-      if (typeof v !== "number") continue;
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100) continue;
       const cur = sums.get(k) ?? { sum: 0, n: 0 };
       cur.sum += v;
       cur.n += 1;
@@ -178,7 +176,7 @@ function weakestContributor(
   }
   let best: { key: string; label: string; val: number } | null = null;
   for (const [key, { sum, n }] of sums) {
-    if (!n) continue;
+    if (n < MIN_COMPARISON_DAYS) continue;
     const val = sum / n;
     if (!best || val < best.val) {
       best = { key, label: labels[key] ?? key, val };
@@ -191,34 +189,37 @@ export function buildTips(
   thisWeek: InsightDay[],
   cur: PeriodAvgs,
   prev: PeriodAvgs,
+  counts: { thisWeek: SampleCounts; lastWeek: SampleCounts },
 ): string[] {
   const tips: string[] = [];
   if (cur.sleep == null && cur.readiness == null && cur.activity == null && cur.steps == null) {
     return ["当前区间没有足够的官方数据，请先同步 Oura，再查看变化。"];
   }
-  const sleepDrop = cur.sleep != null && prev.sleep != null ? cur.sleep - prev.sleep : 0;
-  const readyDrop =
-    cur.readiness != null && prev.readiness != null ? cur.readiness - prev.readiness : 0;
-  const stepDrop = cur.steps != null && prev.steps != null ? cur.steps - prev.steps : 0;
+  const comparable = (key: keyof PeriodAvgs) => counts.thisWeek[key] >= MIN_COMPARISON_DAYS
+    && counts.lastWeek[key] >= MIN_COMPARISON_DAYS && cur[key] != null && prev[key] != null;
+  const difference = (key: keyof PeriodAvgs) => comparable(key) ? cur[key]! - prev[key]! : null;
+  const sleepDrop = difference("sleep");
+  const readyDrop = difference("readiness");
+  const stepDrop = difference("steps");
 
-  if (sleepDrop <= -2) {
-    tips.push("本周睡眠均分低于上周，建议固定入睡时间，睡前一小时减弱光与咖啡因。");
-  } else if (sleepDrop >= 2) {
-    tips.push("本周睡眠好于上周，把当前作息再保持几天，对照官方睡眠分即可。");
+  if (sleepDrop != null && sleepDrop <= -2) {
+    tips.push("近 7 天睡眠均分低于此前 7 天，可以查看逐日睡眠与作息记录，了解变化发生在哪几天。");
+  } else if (sleepDrop != null && sleepDrop >= 2) {
+    tips.push("近 7 天睡眠均分高于此前 7 天，可结合睡眠时长与作息记录继续观察。");
   }
 
-  if (readyDrop <= -2) {
-    tips.push("准备度走弱，优先保证前夜睡眠与体温稳定，暂缓把高强度训练叠在低分日。");
+  if (readyDrop != null && readyDrop <= -2) {
+    tips.push("近 7 天准备度均分低于此前 7 天，可回看低分日的睡眠和官方贡献项。");
   }
 
-  if (stepDrop <= -800) {
-    tips.push("活动量低于上周，可用通勤或饭后步行做保底，不必一次补齐官方活动分。");
+  if (stepDrop != null && stepDrop <= -800) {
+    tips.push("近 7 天日均步数低于此前 7 天，可结合逐日步数查看活动量的变化。");
   }
 
   const weakSleep = weakestContributor(thisWeek, "sleep", SLEEP_LABELS);
   if (weakSleep && weakSleep.val < 70 && tips.length < 3) {
     tips.push(
-      `本周睡眠较弱项是「${weakSleep.label}」（均 ${round0(weakSleep.val)}），对照官方贡献项调整即可。`,
+      `近 7 天睡眠较弱项是「${weakSleep.label}」（均 ${round0(weakSleep.val)}），可查看官方贡献项记录。`,
     );
   }
 
@@ -230,61 +231,65 @@ export function buildTips(
   }
 
   if (!tips.length) {
-    tips.push("三项官方分数本周与上周接近，保持作息即可；本解读只是对照说明，不是诊断。");
+    const scores = ["sleep", "readiness", "activity"] as const;
+    tips.push(scores.every(key => comparable(key) && Math.abs(difference(key)!) < 2)
+      ? "三项官方分数近 7 天与此前 7 天接近，可继续观察逐日变化；本解读不是诊断。"
+      : scores.some(key => !comparable(key))
+        ? "部分指标的两期样本不足，先查看已有记录；两期各积累至少 3 天有效数据后再比较。"
+        : "各项指标的变化不同，可分别查看逐日记录和官方贡献项。");
   }
 
   return tips.slice(0, 3);
 }
 
-export function buildWeeklyReport(days: InsightDay[]): WeeklyReport {
-  const { thisWeek, lastWeek } = splitRollingWeeks(days);
+export function buildWeeklyReport(days: InsightDay[], end = calendarDay()): WeeklyReport {
+  const { thisWeek, lastWeek } = splitRollingWeeks(days, end);
   const thisAvgs = windowAverages(thisWeek);
   const lastAvgs = windowAverages(lastWeek);
+  const counts = { thisWeek: sampleCounts(thisWeek), lastWeek: sampleCounts(lastWeek) };
   const summaries = [
-    phraseScore("睡眠", thisAvgs.sleep, lastAvgs.sleep),
-    phraseScore("准备度", thisAvgs.readiness, lastAvgs.readiness),
-    phraseActivity(thisAvgs, lastAvgs),
+    phraseScore("睡眠", thisAvgs.sleep, lastAvgs.sleep, counts.thisWeek.sleep, counts.lastWeek.sleep),
+    phraseScore("准备度", thisAvgs.readiness, lastAvgs.readiness, counts.thisWeek.readiness, counts.lastWeek.readiness),
+    phraseActivity(thisAvgs, lastAvgs, counts.thisWeek, counts.lastWeek),
   ];
   return {
     summaries,
-    tips: buildTips(thisWeek, thisAvgs, lastAvgs),
+    tips: buildTips(thisWeek, thisAvgs, lastAvgs, counts),
     teaser: summaries.slice(0, TEASER_LINE_COUNT),
-    thisPeriod: rangeOf(thisWeek),
-    lastPeriod: rangeOf(lastWeek),
+    thisPeriod: calendarWindow(7, end),
+    lastPeriod: calendarWindow(7, shiftDay(end, -7)),
     disclaimer: DISCLAIMER_ZH,
     avgs: { thisWeek: thisAvgs, lastWeek: lastAvgs },
+    sampleCounts: counts,
+  };
+}
+
+export function comparisonColumn(days: InsightDay[], label: string, count: number, end: string): CompareColumn {
+  const range = calendarWindow(count, end);
+  const rows = daysInWindow(days, range);
+  return {
+    label, ...range,
+    days: rows.filter(day => Object.values(windowAverages([day])).some(value => value != null)).length,
+    ...windowAverages(rows), samples: sampleCounts(rows),
   };
 }
 
 export function buildCompareReport(
   days: InsightDay[],
   mode: "week" | "range",
+  end = calendarDay(),
 ): CompareReport {
-  const sorted = sortDays(days);
   if (mode === "range") {
-    const d7 = sliceLast(sorted, 7);
-    const d30 = sliceLast(sorted, 30);
     return {
       mode,
-      left: { label: "近 7 天", ...rangeOf(d7), days: d7.length, ...windowAverages(d7) },
-      right: { label: "近 30 天", ...rangeOf(d30), days: d30.length, ...windowAverages(d30) },
+      left: comparisonColumn(days, "近 7 天", 7, end),
+      right: comparisonColumn(days, "近 30 天", 30, end),
     };
   }
-  const { thisWeek, lastWeek } = splitRollingWeeks(sorted);
   return {
     mode,
-    left: {
-      label: "本周",
-      ...rangeOf(thisWeek),
-      days: thisWeek.length,
-      ...windowAverages(thisWeek),
-    },
-    right: {
-      label: "上周",
-      ...rangeOf(lastWeek),
-      days: lastWeek.length,
-      ...windowAverages(lastWeek),
-    },
+    left: comparisonColumn(days, "近 7 天", 7, end),
+    right: comparisonColumn(days, "此前 7 天", 7, shiftDay(end, -7)),
   };
 }
 
@@ -299,6 +304,9 @@ export function weeklyForAccess(report: WeeklyReport, fullAccess: boolean) {
     teaser: report.teaser,
     tips: fullAccess ? report.tips : [],
     avgs: fullAccess ? report.avgs : null,
+    sampleCounts: report.sampleCounts,
+    minComparisonDays: MIN_COMPARISON_DAYS,
+    timezone: DISPLAY_TIME_ZONE,
     bodyLocale: "zh" as const,
   };
 }
@@ -310,6 +318,7 @@ export function compareForAccess(report: CompareReport, fullAccess: boolean) {
     mode: report.mode,
     left: fullAccess ? report.left : null,
     right: fullAccess ? report.right : null,
+    timezone: DISPLAY_TIME_ZONE,
     bodyLocale: "zh" as const,
   };
 }

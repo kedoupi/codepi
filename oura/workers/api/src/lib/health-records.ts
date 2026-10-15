@@ -3,6 +3,7 @@ import { ApiError, normalizeApiError, ouraResourceError } from "./errors.ts";
 import { OURA_API_BASE } from "./oura";
 import { withOuraAccess } from "./oura-access.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
+import { calendarDay } from "../../../../shared/dates.ts";
 
 type Collection = { name: string; label: string; mode: "date" | "time" | "snapshot" | "profile" };
 export const HEALTH_COLLECTIONS: Collection[] = [
@@ -33,7 +34,7 @@ const DAY = 86_400_000;
 export function healthWindow(collection: unknown, from?: unknown, to?: unknown) {
   const spec = HEALTH_COLLECTIONS.find(item => item.name === collection);
   if (!spec) throw new ApiError("invalid_collection", 400);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = calendarDay();
   const end = to ?? today;
   for (const value of [end, from ?? end]) {
     if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)

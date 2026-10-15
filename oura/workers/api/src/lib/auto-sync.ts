@@ -3,6 +3,7 @@ import { ApiError, normalizeApiError } from "./errors.ts";
 import { HEALTH_COLLECTIONS, healthWindow, syncHealthWindow } from "./health-records.ts";
 import { loadDailyForUser } from "./user-daily.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
+import { calendarDay } from "../../../../shared/dates.ts";
 
 const DAY = 86_400_000;
 const CRON = "*/2 * * * *";
@@ -77,7 +78,7 @@ export async function automaticSyncStatus(env: Env, userId: string) {
   const active = tasks.filter(t => t.state !== "split");
   const pending = active.filter(t => t.state === "pending");
   const now = Date.now();
-  const shanghaiDay = date(now + 8 * 3_600_000);
+  const shanghaiDay = calendarDay(new Date(now));
   let next = Date.parse(`${shanghaiDay}T01:00:00Z`);
   if (next <= now) {
     next = !row?.run_day || row.run_day < shanghaiDay
@@ -134,7 +135,7 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
     let tasks: Task[] = JSON.parse(row.payload);
     // Cron is UTC; the daily gate is 09:00 Shanghai. Use event time so delayed
     // delivery cannot accidentally start tomorrow's run.
-    const today = date(scheduledTime + 8 * 3_600_000);
+    const today = calendarDay(new Date(scheduledTime));
     const due = scheduledTime >= Date.parse(`${today}T01:00:00Z`);
     // Between 00:00 and 09:00 Shanghai the previous run's queue pauses instead
     // of being dropped: the daily start re-plans from health coverage, so every

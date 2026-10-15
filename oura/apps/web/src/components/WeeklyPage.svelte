@@ -7,6 +7,7 @@
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
   import ChromeHeader from "./ChromeHeader.svelte";
+  import { watchCalendarDay } from "../lib/calendar";
 
   let {
     me,
@@ -26,33 +27,36 @@
   let statusErr = $state(false);
   let needsReconnect = $state(false);
   let disposed = false;
+  let revision = 0;
 
   async function load() {
+    const current = ++revision;
     loading = true;
     statusErr = false;
     needsReconnect = false;
     status = t(locale, "loading");
     try {
       const data = await api<WeeklyPayload>("/api/me/insights/weekly");
-      if (disposed) return;
+      if (disposed || current !== revision) return;
       payload = data;
       status = payload.thisPeriod
         ? `${payload.thisPeriod.from} → ${payload.thisPeriod.to}`
         : "";
     } catch (err) {
-      if (disposed) return;
+      if (disposed || current !== revision) return;
       if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
       needsReconnect = err instanceof RequestError && err.code === "reconnect_required";
       statusErr = true;
       status = errorText(err, locale);
     } finally {
-      if (!disposed) loading = false;
+      if (!disposed && current === revision) loading = false;
     }
   }
 
   onMount(() => {
     void load();
-    return () => { disposed = true; };
+    const stop = watchCalendarDay(() => { payload = null; void load(); });
+    return () => { stop(); disposed = true; revision++; };
   });
 </script>
 
@@ -68,7 +72,7 @@
     <div class="hero-row">
       <div>
         <h1>{t(locale, "weeklyTitle")}</h1>
-        <p class="sub">{locale === "zh" ? "回看一周的记录，理解自己的节奏。" : "Look back over your week and understand your rhythm."}</p>
+        <p class="sub">{locale === "zh" ? "近 7 天与此前 7 天对照，理解自己的节奏。" : "Compare the last 7 days with the preceding 7 days."}</p>
       </div>
       <button class="ai-btn" type="button" onclick={() => goto("/")}>{t(locale, "backDash")}</button>
     </div>
@@ -76,6 +80,9 @@
       <strong>{t(locale, "notMedical")}</strong>
       <span> / {t(locale, "notMedicalEn")}</span>
     </p>
+    <p class="hint">{locale === "zh"
+      ? "滚动窗口截至北京时间今天，包含今天；不是周一至周日的自然周。保留 Oura 原始归属日，缺失不计为零；各指标两期均至少 3 天有效样本才比较。"
+      : "Rolling windows include today in Asia/Shanghai, not calendar weeks. Oura dates are preserved; missing values are not zero. Each metric needs at least 3 valid days in both periods."}</p>
     {#if locale === "en"}
       <p class="hint">{t(locale, "bodyZhOnly")}</p>
     {/if}
@@ -90,9 +97,10 @@
       <section class="panel">
         <h2>{t(locale, "weeklyTitle")}</h2>
         <p class="hint">
-          {payload.lastPeriod?.from ?? ""} → {payload.lastPeriod?.to ?? ""}
-          · vs
+          {locale === "zh" ? "近 7 天" : "Last 7 days"}：
           {payload.thisPeriod?.from ?? ""} → {payload.thisPeriod?.to ?? ""}
+          · {locale === "zh" ? "此前 7 天" : "Preceding 7 days"}：
+          {payload.lastPeriod?.from ?? ""} → {payload.lastPeriod?.to ?? ""}
         </p>
         <ul class="insight-lines">
           {#each payload.summaries as line, i (`sum-${i}`)}

@@ -1,9 +1,10 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
 
 const origin = 'https://oura.example';
-const today = new Date().toISOString().slice(0, 10);
+const today = calendarDay();
 
 async function fixture(t, providerResponse) {
   const runtime = createRuntime({ autoSync: true, providerResponse });
