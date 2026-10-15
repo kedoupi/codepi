@@ -1,7 +1,7 @@
 import type { Env } from "../env";
-import { ApiError, normalizeApiError } from "./errors.ts";
+import { ApiError, normalizeApiError, ouraResourceError } from "./errors.ts";
 import { OURA_API_BASE } from "./oura";
-import { ouraAccessToken } from "./oura-access.ts";
+import { withOuraAccess } from "./oura-access.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
 
 type Collection = { name: string; label: string; mode: "date" | "time" | "snapshot" | "profile" };
@@ -93,10 +93,7 @@ async function fetchRecords(token: string, w: Window, signal: AbortSignal): Prom
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
     if (!res.ok) {
       await res.body?.cancel();
-      if (res.status === 403) throw new ApiError("permission_or_membership_required", 403);
-      if (res.status === 401) throw new ApiError("reconnect_required", 401);
-      if (res.status === 429) throw new ApiError("rate_limited", 429);
-      throw new ApiError("upstream_unavailable", 502);
+      throw ouraResourceError(res.status);
     }
     const body = await res.json() as { data?: unknown; next_token?: unknown };
     const data = w.spec.mode === "profile" ? [body] : body.data;
@@ -156,8 +153,7 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
   if (!acquired) throw new ApiError("sync_in_progress", 409);
   try {
     const signal = AbortSignal.timeout(20_000);
-    const token = await ouraAccessToken(request, env, userId);
-    const records = await fetchRecords(token, w, signal);
+    const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w, signal));
     const fetchedAt = new Date().toISOString();
     const unique = new Map<string, { day: string; payload: string }>();
     let totalBytes = 0;
