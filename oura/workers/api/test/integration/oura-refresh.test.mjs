@@ -151,6 +151,33 @@ test('missing scopes pause all three resources without rotating a valid token an
   assert.ok(JSON.parse(resumed.payload).every(task => task.state === 'done'));
 });
 
+test('fresh consent preserves successful empty coverage and unrelated failures', async t => {
+  const f = await fixture(t);
+  const checked = '2026-07-01T01:00:00Z';
+  for (const [collection, success, error] of [
+    ['session', checked, null],
+    ['daily_resilience', null, 'oura_scope_required'],
+    ['ring_configuration', null, 'upstream_access_denied'],
+    ['ring_battery_level', null, 'permission_or_membership_required'],
+    ['daily_spo2', null, 'reconnect_required'],
+    ['sleep', null, 'upstream_unavailable'],
+  ]) {
+    await f.db.prepare(`INSERT INTO health_sync_windows
+      (user_id,collection,window_from,window_to,synced_at,attempted_at,last_error)
+      VALUES ('test-user',?,?,?,?,?,?)`).bind(collection, today, today, success, checked, error).run();
+  }
+  await login(f.runtime);
+  const rows = await f.db.prepare('SELECT collection,synced_at,attempted_at,last_error FROM health_sync_windows').all();
+  const byName = Object.fromEntries(rows.results.map(row => [row.collection, row]));
+  assert.equal(byName.session.synced_at, checked, 'an empty successful response remains valid coverage');
+  assert.equal(byName.session.attempted_at, checked);
+  assert.equal(byName.sleep.last_error, 'upstream_unavailable', 'consent does not resolve a provider outage');
+  for (const name of ['daily_resilience', 'ring_configuration', 'ring_battery_level', 'daily_spo2']) {
+    assert.equal(byName[name].last_error, null);
+    assert.equal(byName[name].synced_at, null, 'an authorization failure still needs a real sync');
+  }
+});
+
 test('revoked refresh credentials preserve the last snapshot and the website session', async t => {
   let revoked = false, refreshes = 0;
   const f = await fixture(t, url => {
