@@ -2,7 +2,7 @@ import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
-import builtWorker from '../../dist/index.js';
+import builtWorker from './node-worker.mjs';
 
 const origin = 'https://oura.example';
 const today = calendarDay();
