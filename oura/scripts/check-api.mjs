@@ -72,7 +72,7 @@ async function check(targetOrigin, path, expectedStatus = 200, blocked, ssoEnabl
         && target.pathname === '/oauth/authorize'
         && Boolean(target.searchParams.get('client_id'))
         && Boolean(target.searchParams.get('state'))
-        && ['heartrate', 'workout', 'tag', 'session', 'spo2', 'heart_health'].every(scope =>
+        && ['heartrate', 'workout', 'tag', 'session', 'spo2', 'heart_health', 'stress', 'ring_configuration'].every(scope =>
           target.searchParams.get('scope')?.split(' ').includes(scope))
         && target.searchParams.get('redirect_uri') === expectedCallback;
       // Do not print the authorize URL: it includes an OAuth state token.
