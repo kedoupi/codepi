@@ -10,6 +10,7 @@ async function mount(initial = "#overview", firstStatus = 200, sso = false, lega
   // 真实的属性 map，让 setAttribute / getAttribute 一致；默认 aria-busy="false"。
   const contentAttrs: Record<string, string> = { "aria-busy": "false" };
   const contentEl = {
+    focus: vi.fn(),
     innerHTML: "",
     setAttribute: vi.fn((name: string, value: string) => { contentAttrs[name] = value; }),
     getAttribute: vi.fn((name: string) => contentAttrs[name] ?? null),
