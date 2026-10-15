@@ -1,0 +1,19 @@
+name = "codepi-www"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-desk"
+database_id = "adfb0f6e-b776-471b-9f25-71982b53cbc4"
+
+[vars]
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "desk"
+AUTH_ORIGIN = "https://auth.codepi.app"
+ENVIRONMENT = "production"
