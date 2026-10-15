@@ -16,7 +16,7 @@ service = "codepi-auth"
 [[d1_databases]]
 binding = "DB"
 database_name = "codepi-gzh"
-database_id = "346f7627-3365-47df-ba40-6762072c5613"
+database_id = "acedb64c-d374-4e40-b61e-7df7f0766694"
 migrations_dir = "migrations"
 
 [vars]
