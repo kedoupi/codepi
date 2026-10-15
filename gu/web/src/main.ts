@@ -167,12 +167,15 @@ function overview() {
   const d = snapshot!.data, a = d.account[0], report = d.reports[0];
   const relevant = overviewRules(d.risk);
   const targets = Object.fromEntries(d.positions.map(p => [String(p.ticker), typeof p.target === "number" ? p.target : null]));
+  const cashAfter = a.cash_after_dca_raw ?? a.cash_after_dca;
+  const cashMinimum = d.positions.find(p => p.ticker === "现金")?.target;
+  const cashBuffer = typeof cashAfter === "number" && typeof cashMinimum === "number" ? cashAfter - cashMinimum : null;
   return `<div class="page-heading"><div><p class="muted">守住节奏，持续记录</p><h1>投资总览</h1></div><span class="stamp">行情截至 ${e(a.quote_date)}</span></div>
     ${accountAlerts(a.warnings, hidden, d.risk)}
     <p class="freshness">批次生成于 ${e(time(a.generated_at))} · ${e(elapsed(a.generated_at))}。刷新只读取已同步数据。行情阶段：${e(a.quote_status || "未确认")}。</p>
     <div class="data-note"><span>${a.data_mode === "demo" ? "本地演示 · 虚构数据" : Number(a.cash_age_days) > 14 ? "账户待核对" : "账户数据日期"}</span>持仓确认于 ${e(a.holdings_as_of)}；现金记录于 ${e(a.cash_as_of)}。行情更新不会改变账户确认日期。</div>
     <section class="surface attention"><div class="section-title"><h2>当前需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。以下报告保留当时判断。</p></section>
-    ${typeof a.cash_after_dca === "number" ? `<div class="data-note"><span>月投后现金缓冲估算</span>执行本次月投后约 ${pct(a.cash_after_dca_raw ?? a.cash_after_dca)}，最低保留线 ${pct(d.positions.find(p => p.ticker === "现金")?.target)}。基于现金记录 ${e(a.cash_as_of)}；估算不表示可以下单，仍须核实买入通道及账户。</div>` : ""}
+    ${typeof cashAfter === "number" ? `<div class="data-note"><span>月投后现金缓冲估算</span>${typeof a.dca_amount_usd === "number" ? `按本批月投 ${money(a.dca_amount_usd)} 美元估算，` : "按本批月投假设估算，"}执行后现金占比约 ${pct(cashAfter)}，最低保留线 ${pct(cashMinimum)}${cashBuffer === null ? "" : `，相差 ${cashBuffer >= 0 ? "+" : ""}${(cashBuffer * 100).toFixed(1)} 个百分点`}。基于现金记录 ${e(a.cash_as_of)}；估算不表示可以下单，仍须核实买入通道及账户。</div>` : ""}
     <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight_raw ?? a.cash_weight)}</small></div></section>
     <section class="surface"><div class="section-title"><h2>配置缺口</h2><a href="#positions">查看持仓</a></div>${allocationGap(d.positions)}</section>
     <section class="brief"><div class="brief-label">最近一期报告 · 当时结论<span>${report ? e(reportCategory(report.kind)) : "尚无报告"}</span></div>

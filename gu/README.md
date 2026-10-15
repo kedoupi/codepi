@@ -50,7 +50,7 @@ python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://
 
 新批次以 `weight_raw`、`cash_weight_raw`、`cash_after_dca_raw`、`current_value/current_unit`、历史当前点的 `weights_raw` 避免提前取整；旧字段保留。`quote_time` 仅用于确认的价格时刻。日线来源的 `regularMarketTime` 单独保存为 `market_time_iso`，bar 时间保存为 `bar_time`；二者不证明价格时刻或收盘阶段。缺失证据显示未确认。
 
-Google 投资日历尚未连接，已提供会话鉴权读取和令牌鉴权快照同步接口，前端区分未连接、查询为空、失败和过期。固定 ID 配置、迁移、真实快照、持续 Google 授权和调度分别验收。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
+Google 投资日历已于 2026-10-15 完成生产迁移、固定 ID 配置和首份真实只读快照同步；长期 Google 授权和自动调度尚未接入。前端区分未连接、查询为空、失败和过期。快照同步不代表持续连接，过期后须重新实时查询。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
 
 GU CI 只运行测试、类型检查、构建及配置校验，不接触生产凭证。发布后分别检查：
 
