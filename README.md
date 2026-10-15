@@ -2,7 +2,7 @@
 
 `kdp.cool` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-P1 的个人首页、应用介绍、工具存档和去广告已上线。P2 的 Health 已迁移至 `health.kdp.cool`，并与主站共用设计规范；原 `oura.kdp.cool` 保留兼容。公众号工作台的名称和域名后续单独调整。
+P1 的个人首页、应用介绍、工具存档和去广告已上线。P2 的 Health 已迁移至 `health.kdp.cool`，并与主站共用设计规范；原 `oura.kdp.cool` 保留兼容。P3 的 GU 投资工作台已统一视觉风格，域名仍为 `gu.kdp.cool`。P4 的公众号工作台已统一视觉风格并正式改名为「珂抖屁公众号」，域名仍为 `fagao.kdp.cool`，后续随 P4 迁移到正式子域。
 
 整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
 
@@ -27,7 +27,7 @@ Page totals: 5 + 10 + 8 + 7 + 7 + 10 = **47 indexable pages**.
 
 | Path | Domain | CF project | Stack / deploy |
 | --- | --- | --- | --- |
-| `fagao/` | `fagao.kdp.cool` | `fagao` | Pages + D1 (ex-`publish-desk`). Root `fagao`, `npm run build`, output `dist` |
+| `fagao/` | `fagao.kdp.cool`（公众号） | `fagao` | Pages + D1。Root `fagao`, `npm run build`, output `dist` |
 | `oura/` | `health.kdp.cool`（兼容 `oura.kdp.cool`） | `oura-kdp` + worker `oura-kdp-api` | pnpm workspace. Web: root `oura`, build `corepack enable && pnpm i && pnpm --filter @oura-kdp/web build`, output `apps/web/dist`. API: `cd oura && pnpm deploy:api` |
 
 
@@ -161,11 +161,13 @@ Tested recipe (used for `convert/`, `text/`, `dev/`):
 
 | 阶段 | 范围 | 状态 |
 | --- | --- | --- |
-| P1 | 个人首页、应用介绍、工具存档、六站去广告、共享视觉基础 | 本地实现，待验收与发布 |
-| P2 | Health 域名迁移、GU 表达、公众号名称和入口 | 待实施 |
-| P3 | 博客、公开笔记与内容发布 | 待实施 |
-| P4 | 本人工作台与按需摘要 | 待实施 |
-| P5 | 公开内容 MCP | 待实施 |
-| P6 | 私人应用的授权 AI 能力 | 按实际使用逐步接入 |
+| P1 | 个人首页、应用介绍、工具存档、六站去广告、共享视觉基础 | 已上线 |
+| P2 | Health 域名迁移、Health 视觉统一 | 已上线 |
+| P3 | GU 视觉统一，域名保持 gu.kdp.cool | 已上线 |
+| P4 | 公众号视觉统一 + 改名「珂抖屁公众号」、域名保持 fagao.kdp.cool | 已上线 |
+| P5 | 博客、公开笔记与内容发布 | 待实施 |
+| P6 | 本人工作台与按需摘要 | 待实施 |
+| P7 | 公开内容 MCP | 待实施 |
+| P8 | 私人应用的授权 AI 能力 | 按实际使用逐步接入 |
 
 私人应用全面换肤在各自迁移阶段执行，须沿用共享设计规范并单独验证业务状态。

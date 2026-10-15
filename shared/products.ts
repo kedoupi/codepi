@@ -25,14 +25,14 @@ export const products = [
   },
   {
     id: "wechat",
-    name: "公众号工作台",
+    name: "珂抖屁公众号",
     shortName: "公众号",
-    description: "让选题、稿件、审核与发布，在一个地方衔接。",
+    description: "稿件、预览与审核，收在同一个工作台。",
     detail: "围绕珂抖屁公众号整理稿件、预览和审核进度。审核完成后，再到微信后台人工发布。",
     href: "https://fagao.kdp.cool/",
     hostname: "fagao.kdp.cool",
     icon: "writing",
     access: "授权使用",
-    note: "目前保留发稿台入口，名称和域名将在后续单独调整。",
+    note: "正式名称珂抖屁公众号；域名后续随 P4 调整。",
   },
 ] as const;

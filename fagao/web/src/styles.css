@@ -1,35 +1,38 @@
-/* Fagao Desk — kdp.cool warm paper design system (mobile-first) */
+@import "../../../shared/styles/tokens.css";
 
+/* Fagao Desk — kdp.cool shared design system (mobile-first) */
 :root {
-  --ink: #171412;
-  --ink-2: #3d362f;
-  --muted: #6f675e;
-  --line: #e6d9c8;
-  --line-strong: #d7c7b5;
-  --page: #fbf7ef;
-  --page-deep: #f3eadc;
-  --card: #ffffff;
-  --primary: #b45309;
-  --primary-press: #92400e;
-  --primary-soft: #f8ead8;
-  --ok: #0f766e;
-  --ok-press: #115e59;
-  --ok-soft: #e2f1ef;
-  --change: #c2410c;
-  --change-soft: #fdeee0;
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --danger-line: #efc5c0;
-  --warm-shadow: 0 14px 30px rgba(92, 64, 36, 0.1);
-  --warm-shadow-sm: 0 1px 0 rgba(23, 20, 18, 0.04);
+  /* Keep the existing component class names; the values resolve to the shared
+     design tokens so fagao reads as the same family as the main site, health
+     and gu. */
+  --ink: var(--kdp-ink);
+  --ink-2: var(--kdp-text);
+  --muted: var(--kdp-muted);
+  --line: var(--kdp-line);
+  --line-strong: var(--kdp-line-strong);
+  --page: var(--kdp-canvas);
+  --page-deep: var(--kdp-accent-soft);
+  --card: var(--kdp-surface);
+  --primary: var(--kdp-accent);
+  --primary-press: var(--kdp-accent-strong);
+  --primary-soft: var(--kdp-accent-soft);
+  --ok: var(--kdp-success);
+  --ok-press: var(--kdp-success);
+  --ok-soft: #e6f1ec;
+  --change: var(--kdp-warning);
+  --change-soft: #fbf1dd;
+  --danger: var(--kdp-danger);
+  --danger-soft: #f6dedb;
+  --danger-line: #e2b6b0;
+  --warm-shadow: var(--kdp-shadow);
+  --warm-shadow-sm: 0 1px 0 rgba(30, 43, 60, 0.04);
   --tap: 44px;
   --wb: 42rem;
-  --radius: 14px;
-  --radius-sm: 8px;
-  --ease: 180ms ease;
-  --sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --serif: Georgia, "Times New Roman", "Songti SC", serif;
+  --radius: var(--kdp-radius);
+  --radius-sm: var(--kdp-radius-sm);
+  --ease: var(--kdp-motion);
+  --sans: var(--kdp-font);
+  --serif: var(--kdp-font);
   color-scheme: light;
 }
 
@@ -44,7 +47,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: linear-gradient(180deg, var(--page) 0%, #fffdf8 46%, #ffffff 100%);
+  background: radial-gradient(ellipse at 88% 10%, rgb(220 234 255 / 70%), transparent 36rem), var(--kdp-canvas);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 16px;
@@ -101,7 +104,7 @@ body {
 .brand,
 .wb-head h1 {
   margin: 0 0 2px;
-  font-family: var(--serif);
+  font-family: var(--kdp-font);
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -157,7 +160,7 @@ body {
 
 .day-title {
   margin: 0;
-  font-family: var(--serif);
+  font-family: var(--kdp-font);
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0;
@@ -435,7 +438,7 @@ textarea {
 
 .login-title {
   margin: 0 0 8px;
-  font-family: var(--serif);
+  font-family: var(--kdp-font);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--ink);
@@ -577,15 +580,15 @@ textarea {
 }
 
 .slot-board .article-row:nth-child(1)::before {
-  background: #d97706;
+  background: var(--kdp-accent);
 }
 
 .slot-board .article-row:nth-child(2)::before {
-  background: #0f766e;
+  background: var(--kdp-success);
 }
 
 .slot-board .article-row:nth-child(3)::before {
-  background: #9a3412;
+  background: var(--kdp-warning);
 }
 
 .slot-board .article-main {
@@ -671,10 +674,10 @@ textarea {
 .thumb.is-empty {
   background: repeating-linear-gradient(
     -45deg,
-    #fbf7ef,
-    #fbf7ef 6px,
-    #f3eadc 6px,
-    #f3eadc 12px
+    var(--kdp-canvas),
+    var(--kdp-canvas) 6px,
+    var(--kdp-accent-soft) 6px,
+    var(--kdp-accent-soft) 12px
   );
 }
 
@@ -696,7 +699,7 @@ textarea {
   letter-spacing: 0.04em;
   color: var(--primary-press);
   background: var(--primary-soft);
-  border: 1px solid #ecd9b8;
+  border: 1px solid var(--kdp-line);
   padding: 1px 6px;
   border-radius: 4px;
   text-transform: uppercase;
@@ -738,8 +741,8 @@ textarea {
 
 .stamp.s-已进箱,
 .st.st-已进箱 {
-  background: #ece7dd;
-  color: #57534e;
+  background: var(--kdp-line);
+  color: var(--kdp-muted);
 }
 
 .article-actions {
@@ -772,7 +775,7 @@ textarea {
 }
 
 .section-head h2 {
-  font-family: var(--serif);
+  font-family: var(--kdp-font);
   font-size: 1.0625rem;
   font-weight: 700;
   margin: 0;
@@ -810,7 +813,7 @@ textarea {
   margin: 0;
   padding: 0 16px 14px;
   border-bottom: 1px solid var(--line);
-  background: #fffdf8;
+  background: var(--kdp-canvas);
 }
 
 .compose summary {
@@ -958,12 +961,12 @@ textarea {
   z-index: 20;
   margin: 0;
   padding: 12px max(16px, calc((100% - 42rem) / 2)) calc(12px + env(safe-area-inset-bottom, 0px));
-  background: color-mix(in srgb, #fffdf8 95%, transparent);
+  background: color-mix(in srgb, var(--kdp-canvas) 95%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--line);
   border-radius: 16px 16px 0 0;
-  box-shadow: 0 -8px 30px rgba(92, 64, 36, 0.1);
+  box-shadow: 0 -8px 30px rgba(49, 80, 126, 0.05);
   max-height: 62dvh;
   overflow-y: auto;
 }
@@ -979,7 +982,7 @@ textarea {
     padding: 14px 16px;
     border: 1px solid var(--line);
     border-radius: var(--radius);
-    box-shadow: 0 18px 48px rgba(92, 64, 36, 0.16);
+    box-shadow: 0 18px 48px rgba(49, 80, 126, 0.08);
   }
 }
 
@@ -989,7 +992,7 @@ textarea {
   padding: 16px;
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
-  background: #fffdf8;
+  background: var(--kdp-canvas);
 }
 
 .post-tools .eyebrow {
@@ -1144,7 +1147,7 @@ textarea {
 
 .skel {
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--page-deep) 25%, #faf3e6 50%, var(--page-deep) 75%);
+  background: linear-gradient(90deg, var(--page-deep) 25%, var(--kdp-accent-soft) 50%, var(--page-deep) 75%);
   background-size: 200% 100%;
   animation: skel-shimmer 1.2s ease infinite;
 }

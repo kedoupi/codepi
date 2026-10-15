@@ -163,8 +163,8 @@ function masthead(account: Account | null, extra = "") {
     <header class="masthead wb-head">
       <div class="brand-block">
         <p class="brand-kicker">${brand}</p>
-        <h1 class="brand">发稿台</h1>
-        <p class="sub">今日三档 · 通读后审 · 过了才进箱${extra}</p>
+        <h1 class="brand">珂抖屁公众号</h1>
+        <p class="sub">稿件、预览与审核 · 过稿后人工进箱${extra}</p>
       </div>
       ${
         account
@@ -194,7 +194,7 @@ async function renderLogin() {
       <section class="sheet login-pad login-card">
         ${retrying ? '<p class="error" role="alert">登录未完成。请重新登录；服务暂时不可用时，可稍后重试。</p>' : ""}
         <a class="btn-primary-block" href="/api/auth/login?return=${encodeURIComponent(next)}">统一登录</a>
-        <p class="hint">发稿台登录状态最多保留 7 天。退出将同步退出其他工具。</p>
+        <p class="hint">公众号工作台登录状态最多保留 7 天。退出将同步退出其他工具。</p>
       </section>`;
     return;
   }
