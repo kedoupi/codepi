@@ -30,3 +30,4 @@
 @media(max-width:700px){.chart-legend{gap:10px;font-size:11px;flex-wrap:wrap}.chart-unit{display:none}.gap-axis-row{display:none}.mobile-chart-hint{display:block;margin-top:10px}.history-picker{flex-wrap:wrap}.history-values{gap:16px 24px}
 .gap-row{grid-template-columns:1fr auto;gap:9px 12px;padding:14px 0}.gap-name{grid-row:1}.gap-number{grid-row:1;display:flex;justify-content:flex-end;align-items:baseline;gap:10px}.gap-track{grid-column:1/-1;grid-row:2}.gap-delta{grid-column:1/-1;grid-row:3;text-align:left}
 .rail-head{grid-template-columns:1fr;gap:0}.rail-head>div:first-child,.rail-head-end{display:none}.rail-ticks{font-size:9px}.rail-row{grid-template-columns:1fr auto;gap:9px 12px;padding:15px 0}.rail-name{grid-row:1}.rail-state{grid-row:1}.rail-track{grid-column:1/-1;grid-row:2}.rail-row p{grid-row:3}}
+.report-body a{color:var(--forest);text-decoration:underline;text-underline-offset:3px;overflow-wrap:anywhere}

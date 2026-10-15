@@ -1,4 +1,5 @@
 import { escapeHtml as e } from "./markdown";
+import { proximityRequirement } from "./risk-summary";
 import type { Row } from "../../worker/dashboard-types";
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -103,7 +104,7 @@ export function riskRail(rows: Row[]) {
   const near = railPos(.15) * 100;
   return `<div class="chart chart-rail">
     <div class="chart-legend">
-      <span class="key key-critical">≤${pct(.05, 0)} 需三日内书面决策</span>
+      <span class="key key-critical">≤${pct(.05, 0)} 需 3 个交易日内书面决策</span>
       <span class="key key-near">≤${pct(.15, 0)} 需当天临近分析</span>
       <span class="chart-unit">距离：占阈值的百分比</span>
     </div>
@@ -118,12 +119,14 @@ export function riskRail(rows: Row[]) {
         : rule.distance === null ? "na"
         : rule.proximity === "critical" ? "critical"
         : rule.proximity === "near" ? "near" : "clear";
-      const label = rule.triggered ? "已触发"
-        : rule.distance === null ? "不适用"
-        : rule.proximity === "critical" ? "需三日内决策"
+      const proximityLabel = rule.proximity === "critical" ? "需 3 个交易日内决策"
         : rule.proximity === "near" ? "需当天分析" : "未临近";
+      const label = rule.distance === null ? "不适用"
+        : rule.triggered ? `已触发${proximityRequirement(rule.proximity) ? ` · ${proximityLabel}` : ""}`
+        : proximityLabel;
+      const requirement = proximityRequirement(rule.proximity);
       const caption = rule.triggered || rule.proximity === "near" || rule.proximity === "critical"
-        ? `<p>${e(rule.action || rule.level)}</p>` : "";
+        ? `<p>${e([rule.action || rule.level, requirement].filter(Boolean).join("；"))}</p>` : "";
       return `<div class="rail-row ${state}" data-i="${i}">
         <div class="rail-name"><strong>${e(rule.item)}</strong>
           <small>${e(rule.kind)} · 当前 ${e(rule.current)} · 阈值 ${e(rule.threshold)}</small></div>

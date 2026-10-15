@@ -2,11 +2,29 @@ export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
-function inline(text: string) {
-  // Escape first. Raw HTML and executable links never enter the document.
-  return escapeHtml(text)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+function inline(text: string, allowLinks = true): string {
+  // Tokenize source once so markup inside code or generated attributes is never re-parsed.
+  const tokens = /`([^`]+)`|\[([^\]\n]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\)|\*\*([^*]+)\*\*/g;
+  let html = "", end = 0;
+  for (const match of text.matchAll(tokens)) {
+    html += escapeHtml(text.slice(end, match.index));
+    const [, code, label, destination, strong] = match;
+    if (code !== undefined) html += `<code>${escapeHtml(code)}</code>`;
+    else if (strong !== undefined) html += `<strong>${inline(strong, allowLinks)}</strong>`;
+    else {
+      let safe = false;
+      try {
+        const url = new URL(destination);
+        safe = /^https?:\/\//i.test(destination) && ["http:", "https:"].includes(url.protocol)
+          && !/[\u0000-\u0020\u007f]/.test(destination);
+      } catch { /* Unsupported destinations remain literal text. */ }
+      html += safe && allowLinks
+        ? `<a href="${escapeHtml(destination)}" target="_blank" rel="noopener noreferrer">${inline(label, false)}</a>`
+        : escapeHtml(match[0]);
+    }
+    end = match.index + match[0].length;
+  }
+  return html + escapeHtml(text.slice(end));
 }
 
 export function markdown(text: string): string {

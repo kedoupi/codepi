@@ -6,6 +6,7 @@ import type { Dashboard, Env } from "../worker/types";
 import { markdown } from "../web/src/markdown";
 import { marketChange } from "../web/src/format";
 import { allocationGap, riskRail, weightHistory, historyDetail } from "../web/src/charts";
+import { accountAlerts, overviewRules } from "../web/src/risk-summary";
 
 function request(path: string, options: { method?: string; body?: unknown; cookie?: string; bearer?: string; origin?: string; host?: string } = {}) {
   const host = options.host || "http://localhost";
@@ -257,6 +258,42 @@ describe("complete dashboard batches", () => {
 });
 
 describe("charts", () => {
+  it("surfaces fatigue locks, cash brakes and severe account warnings safely", () => {
+    const html = accountAlerts("现金记录待更新 / ⚠️ 情绪疲劳锁：48 小时禁止卖出/调仓 / 触发硬刹车，需减额或暂停 / ⚠️ <img onerror=x>");
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("48 小时禁止卖出/调仓");
+    expect(html).toContain("触发硬刹车");
+    expect(html).not.toContain("现金记录待更新");
+    expect(html).not.toContain("<img");
+    expect(accountAlerts(null)).toBe("");
+    expect(accountAlerts("历史条件未评估")).toBe("");
+  });
+  it("prioritizes GOOGL force in the overview without removing either detailed rule", () => {
+    const rows = [
+      { rule_id: "GOOGL_trim", triggered: true, action: "减到约 18%" },
+      { rule_id: "GOOGL_force", triggered: true, action: "减到 20%" },
+      { rule_id: "NVDA_stop", triggered: true, action: "不再加仓" },
+    ];
+    expect(overviewRules(rows).map(r => r.rule_id)).toEqual(["GOOGL_force", "NVDA_stop"]);
+    expect(rows).toHaveLength(3);
+    expect(riskRail(rows)).toContain("减到约 18%");
+    expect(riskRail(rows)).toContain("减到 20%");
+    expect(overviewRules([{ ...rows[1], triggered: false }, rows[0]])).toEqual([rows[0]]);
+  });
+  it("keeps all triggered rules visible ahead of approaching rules", () => {
+    const rows = [{ rule_id: "near", triggered: false, proximity: "near" },
+      ...Array.from({ length: 6 }, (_, i) => ({ rule_id: `trigger-${i}`, triggered: true }))];
+    expect(overviewRules(rows)).toHaveLength(7);
+    expect(overviewRules(rows)[0].rule_id).toBe("trigger-0");
+  });
+  it.each(["near", "critical"])("retains analysis deadlines alongside triggered %s actions", proximity => {
+    const html = riskRail([{ item: "NVDA", triggered: true, distance: .04, proximity,
+      action: "不再加仓（不是卖出信号）" }]);
+    expect(html).toContain("已触发 ·");
+    expect(html).toContain("当天出书面临近分析");
+    expect(html).toContain("不是卖出信号");
+    if (proximity === "critical") expect(html).toContain("3 个交易日内出书面决策");
+  });
   const positions = [
     { ticker: "VOO", weight: .056, target: .6 },
     { ticker: "现金", weight: .698, target: .14 },
@@ -352,5 +389,24 @@ describe("charts", () => {
     expect(detail).toContain("历史档案约值");
     expect(detail).toContain("&lt;img");
     expect(detail).not.toContain("<img");
+  });
+});
+
+describe("safe report links", () => {
+  it("renders adjacent HTTP links with formatting, query strings and parentheses", () => {
+    const html = markdown('[**SEC**](https://www.sec.gov/a_(b)?x=1&y=2)[新闻](http://example.com/news)');
+    expect(html).toContain('href="https://www.sec.gov/a_(b)?x=1&amp;y=2"');
+    expect(html).toContain("<strong>SEC</strong></a>");
+    expect(html.match(/target="_blank" rel="noopener noreferrer"/g)).toHaveLength(2);
+  });
+  it.each(["javascript:alert(1)", "data:text/html,test", "//evil.example", "/api/auth/logout", "https://", "java&#x73;cript:alert(1)"])("rejects %s destinations", url => {
+    expect(markdown(`[link](${url})`)).not.toContain("<a ");
+  });
+  it("escapes labels and attributes, and never interprets code as links", () => {
+    const html = markdown('[<img src=x onerror=x>](https://example.com/"onclick="x)\n`[code](https://example.com)`\n```\n[code](https://example.com)\n```');
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&quot;onclick=&quot;x");
+    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html).toContain("<code>[code](https://example.com)</code>");
   });
 });

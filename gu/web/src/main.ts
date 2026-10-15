@@ -2,12 +2,14 @@ import "./style.css";
 import { marketChange } from "./format";
 import { allocationGap, riskRail, weightHistory, historyDetail } from "./charts";
 import { applyChartStyles } from "./dom";
+import { accountAlerts, overviewRules, proximityRequirement } from "./risk-summary";
 import { escapeHtml as e, markdown } from "./markdown";
 import type { Dashboard, Row } from "../../worker/dashboard-types";
 
 type Snapshot = { batch_id: string; received_at: string; data: Dashboard };
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let snapshot: Snapshot | null = null;
+let loadVersion = 0;
 let hidden = sessionStorage.getItem("gu-hide") === "1";
 let reportQuery = "";
 let reportKind = "";
@@ -32,9 +34,14 @@ async function api(path: string, body?: unknown, method?: string) {
     credentials: "same-origin",
     cache: "no-store",
   });
+  if (response.status === 401) {
+    snapshot = null;
+    loadVersion++;
+    login();
+    throw Object.assign(new Error("登录已过期，请重新登录"), { status: 401 });
+  }
   const result = await response.json() as Record<string, unknown>;
   if (!response.ok) {
-    if (response.status === 401 && path !== "/api/me") { snapshot = null; login(); }
     throw Object.assign(new Error(String(result.error || "请求失败")), { status: response.status });
   }
   return result;
@@ -96,7 +103,7 @@ function shell(content: string, active = "overview", subtitle = "") {
   document.querySelector<HTMLButtonElement>("#hide")!.onclick = () => { hidden = !hidden; sessionStorage.setItem("gu-hide", hidden ? "1" : "0"); render(); };
   document.querySelector<HTMLButtonElement>("#refresh")!.onclick = () => { void load(); };
   document.querySelector<HTMLButtonElement>("#logout")!.onclick = async () => {
-    try { await api("/api/auth/logout", {}); snapshot = null; history.replaceState(null, "", "/login"); login(); }
+    try { await api("/api/auth/logout", {}); snapshot = null; loadVersion++; history.replaceState(null, "", "/login"); login(); }
     catch (error) { showError((error as Error).message); }
   };
 }
@@ -116,15 +123,16 @@ function riskCards(rows: Row[]) {
     return `<article class="risk-row ${r.triggered ? "triggered" : r.proximity === "critical" ? "near" : ""}">
     <div><strong>${e(r.item)}</strong><span>${e(r.kind)} · 当前 ${e(r.current)} · 阈值 ${e(r.threshold)}</span></div>
     <div><b>${state}</b><span>相对距离 ${pct(r.distance)}</span></div>
-    <p>${e(action)}</p></article>`;
+    <p>${e(action)}${proximityRequirement(r.proximity) ? `；${e(proximityRequirement(r.proximity))}` : ""}</p></article>`;
   }).join("");
 }
 
 function overview() {
   const d = snapshot!.data, a = d.account[0], report = d.reports[0];
-  const relevant = d.risk.filter(r => r.triggered || ["critical", "near"].includes(String(r.proximity)));
+  const relevant = overviewRules(d.risk);
   const targets = Object.fromEntries(d.positions.map(p => [String(p.ticker), typeof p.target === "number" ? p.target : null]));
   return `<div class="page-heading"><div><p class="muted">守住节奏，持续记录</p><h1>投资总览</h1></div><span class="stamp">行情截至 ${e(a.quote_date)}</span></div>
+    ${accountAlerts(a.warnings)}
     <div class="data-note"><span>${a.data_mode === "demo" ? "本地演示 · 虚构数据" : Number(a.cash_age_days) > 14 ? "账户待核对" : "账户数据日期"}</span>持仓确认于 ${e(a.holdings_as_of)}；现金记录于 ${e(a.cash_as_of)}。行情更新不会改变账户确认日期。</div>
     <section class="brief"><div class="brief-label">最近一期报告<span>${report ? e(report.kind) : "尚无报告"}</span></div>
       <div><h2>${report ? e(report.action || "历史报告未记录行动") : "等待第一份报告"}</h2><p>${report ? e(report.headline || "这份历史报告未填写摘要，可打开阅读全文。") : "同步后会在这里展示最新报告与行动。"}</p>
@@ -132,7 +140,7 @@ function overview() {
     <section class="account-strip"><div><span>估算总资产 · 美元</span><strong>${money(a.total_usd)}</strong></div><div><span>股票市值 · 美元</span><strong>${money(Number(a.stocks_usd) + Number(a.hk_usd))}</strong></div><div><span>现金与基金 · 美元</span><strong>${money(a.cash_usd)}</strong><small>占比 ${pct(a.cash_weight)}</small></div></section>
     <section class="surface"><div class="section-title"><h2>配置缺口</h2><a href="#positions">查看持仓</a></div>${allocationGap(d.positions)}</section>
     <section class="surface"><div class="section-title"><h2>持仓变化</h2><span class="muted">按持仓档案逐次确认</span></div>${weightHistory(d.history ?? [], targets)}</section>
-    <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant.slice(0, 4)) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section>
+    <section class="surface"><div class="section-title"><h2>需要关注</h2><a href="#positions">全部规则</a></div>${relevant.length ? riskCards(relevant) : '<p class="muted">已计算的规则暂无触发或临近状态。</p>'}<p class="fine">组合单日与月度跌幅等历史条件未评估。</p></section>
     <section class="surface market"><div class="section-title"><h2>市场一览</h2><span class="muted">按各标的最近行情展示</span></div>
     <div class="market-grid">${d.market.map(m => `<div><span>${e(m.name)}</span><strong>${number(m.close)}</strong><b class="${tone(m.change_pct)}">${marketChange(m.change_pct)}</b><small>${m.error ? e(m.error) : e(m.date)}</small></div>`).join("")}</div></section>`;
 }
@@ -185,7 +193,7 @@ function statusPage() {
 }
 
 function render() {
-  if (!snapshot) return;
+  if (!snapshot) { login(); return; }
   const [page, rawId] = location.hash.slice(1).split("/");
   let id = "";
   try { id = rawId ? decodeURIComponent(rawId) : ""; } catch { /* Unknown links return the list. */ }
@@ -209,18 +217,22 @@ function render() {
 }
 
 async function load() {
+  const version = ++loadVersion;
   try {
     await api("/api/me");
+    if (version !== loadVersion) return;
   } catch (error) {
-    if ((error as { status?: number }).status === 401) { login(); return; }
+    if (version !== loadVersion) return;
     app.innerHTML = `<main class="empty"><h1>工作台暂时无法连接</h1><p>${e((error as Error).message)}</p><button id="retry">重新连接</button></main>`;
     document.querySelector<HTMLButtonElement>("#retry")!.onclick = () => { void load(); }; return;
   }
   try {
-    snapshot = await api("/api/dashboard") as unknown as Snapshot;
+    const next = await api("/api/dashboard") as unknown as Snapshot;
+    if (version !== loadVersion) return;
+    snapshot = next;
     render();
   } catch (error) {
-    if ((error as { status?: number }).status === 401) return;
+    if (version !== loadVersion) return;
     if (snapshot) { render(); showError(`刷新失败，仍展示上一批数据：${(error as Error).message}`); return; }
     shell(`<div class="empty"><span class="seal">登录成功</span><h1>${(error as { status?: number }).status === 404 ? "等待第一批投资数据" : "数据暂时无法读取"}</h1><p>${e((error as Error).message)}</p><p>完成本地数据校验与同步后，持仓、风控和报告将显示在这里。</p></div>`);
   }
