@@ -94,13 +94,15 @@ test('an individual endpoint rejecting a refreshed token does not block every co
   await tick();
   const row = await f.db.prepare('SELECT status,last_error FROM auto_sync_state').first();
   assert.equal(row.status, 'running');
-  assert.equal(row.last_error, 'upstream_access_denied');
+  assert.equal(row.last_error, null, 'a paused resource must not masquerade as a retryable job failure');
   assert.equal(rejectedCalls, 2, 'retry the endpoint only once');
   assert.equal(exchanges, 2, 'login plus one refresh');
   await tick();
   const queue = JSON.parse((await f.db.prepare('SELECT payload FROM auto_sync_state').first()).payload);
+  assert.equal(queue[0].state, 'unavailable');
+  assert.equal(queue[0].error, 'upstream_access_denied', 'the original refusal remains inspectable');
   assert.equal(queue[1].state, 'done', 'unaffected data must continue syncing');
-  assert.equal(rejectedCalls, 2, 'failed collection should respect its backoff');
+  assert.equal(rejectedCalls, 2, 'unavailable collection must not be retried');
   assert.equal((await (await f.me()).json()).authenticated, true);
 });
 

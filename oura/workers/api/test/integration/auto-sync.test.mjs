@@ -170,8 +170,9 @@ test('large windows split durably; one failed permission collection does not sto
   assert.equal((await f.tasks())[0].state, 'split');
   for (let i = 0; i < 4; i++) await f.tick();
   const status = await f.status();
-  assert.equal(status.status, 'partial');
-  assert.equal(status.failed, 2);
+  assert.equal(status.status, 'completed');
+  assert.equal(status.failed, 0);
+  assert.equal(status.unavailable.length, 1);
   assert.equal(status.completed, 3);
   assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM health_sync_windows WHERE last_error='sync_window_too_large'").first()).n, 0);
 });

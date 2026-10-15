@@ -3,7 +3,7 @@ import type { Day } from "./types.ts";
 
 export type JournalPoint = { date: string; value: number | null };
 export type JournalSeries = { label: string; color: string; points: JournalPoint[] };
-export const journalColors = { sleep: "#3568c7", readiness: "#32745e", activity: "#498fbc", hrv: "#3568c7" };
+export const journalColors = { sleep: "#52758b", readiness: "#60765c", activity: "#ad491e", hrv: "#ad491e" };
 export const scoreKeys = ["sleep", "readiness", "activity"] as const;
 export type ScoreKey = typeof scoreKeys[number];
 

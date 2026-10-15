@@ -7,7 +7,9 @@
   let error = $state("");
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   const saved = $derived(collections?.filter(c => c.records > 0).length ?? 0);
-  const failed = $derived(collections?.filter(c => c.failed_windows > 0 || c.last_attempt?.last_error).length ?? 0);
+  const paused = $derived(collections?.filter(c => c.access?.status === "unavailable").length ?? 0);
+  const failed = $derived(collections?.filter(c => c.access?.status !== "unavailable"
+    && (c.failed_windows > 0 || c.last_attempt?.last_error)).length ?? 0);
   const checked = $derived(collections?.filter(c => c.last_attempt?.synced_at && !c.last_attempt.last_error).length ?? 0);
   async function load() {
     error = "";
@@ -28,6 +30,7 @@
     {:else if !collections}<p>{text("正在读取采集状态…", "Checking saved data…")}</p>
     {:else}
       <p>{saved}/{collections.length} {text("类已有记录", "collections contain records")}
+        {#if paused} · {paused} {text("类访问暂停", "collections paused due to access restrictions")}{/if}
         {#if failed} · {failed} {text("类存在未完成批次", "collections have failed batches")}
         {:else if checked === 0} · {saved ? text("等待重新同步", "Awaiting a fresh sync") : text("尚未开始补齐", "Backfill has not started")}
         {:else} · {text("覆盖日期与更新状态见数据管理", "See data settings for coverage and freshness")}{/if}

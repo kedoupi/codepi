@@ -31,6 +31,29 @@ type RecordData = Record<string, unknown>;
 type WindowState = { synced_at: string | null; attempted_at: string; last_error: string | null };
 const DAY = 86_400_000;
 
+export const isCollectionAccessDenied = (code: string | null | undefined) =>
+  code === "upstream_access_denied" || code === "permission_or_membership_required";
+
+// Access refusals belong to a collection, not a date window. Keep the evidence
+// in coverage history; the OAuth callback clears it after fresh consent.
+export function collectionAccess(windows: (WindowState & { collection: string })[]) {
+  const latest = new Map<string, WindowState & { collection: string }>();
+  for (const row of windows) {
+    const previous = latest.get(row.collection);
+    if (!previous || row.attempted_at > previous.attempted_at
+      || row.attempted_at === previous.attempted_at && !row.last_error) latest.set(row.collection, row);
+  }
+  return [...latest.values()].filter(row => isCollectionAccessDenied(row.last_error))
+    .map(row => ({ collection: row.collection, code: row.last_error!, checked_at: row.attempted_at }));
+}
+
+export async function deniedHealthCollections(env: Env, userId: string) {
+  const windows = await env.DB.prepare(`SELECT collection, synced_at, attempted_at, last_error
+    FROM health_sync_windows WHERE user_id=?`).bind(userId)
+    .all<WindowState & { collection: string }>();
+  return collectionAccess(windows.results);
+}
+
 export function healthWindow(collection: unknown, from?: unknown, to?: unknown) {
   const spec = HEALTH_COLLECTIONS.find(item => item.name === collection);
   if (!spec) throw new ApiError("invalid_collection", 400);
@@ -113,7 +136,7 @@ async function fetchRecords(token: string, w: Window, signal: AbortSignal): Prom
   throw new ApiError("sync_window_too_large", 422);
 }
 
-async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedAt: string) {
+async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedAt: string, lease: string) {
   const parents = await env.DB.prepare(`SELECT window_from, window_to, attempted_at FROM health_sync_windows
     WHERE user_id=? AND collection=? AND last_error='sync_window_too_large'
       AND window_from<=? AND window_to>=?`)
@@ -134,12 +157,15 @@ async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedA
     if (coveredUntil <= Date.parse(parent.window_to)) continue;
     await env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
       WHERE user_id=? AND collection=? AND window_from=? AND window_to=?
-        AND attempted_at=? AND last_error='sync_window_too_large'`)
-      .bind(fetchedAt, userId, w.spec.name, parent.window_from, parent.window_to, parent.attempted_at).run();
+        AND attempted_at=? AND last_error='sync_window_too_large'
+        AND EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)`)
+      .bind(fetchedAt, userId, w.spec.name, parent.window_from, parent.window_to, parent.attempted_at, userId, lease).run();
   }
 }
 
 export async function syncHealthWindow(request: Request, env: Env, userId: string, w: Window, force = false, automatic = false) {
+  const denied = (await deniedHealthCollections(env, userId)).find(row => row.collection === w.spec.name);
+  if (denied) throw new ApiError(denied.code, 403);
   const state = await windowState(env, userId, w);
   const now = Date.now();
   if (state?.synced_at && !state.last_error && now - Date.parse(state.synced_at) < (force ? 30_000 : 600_000)) return;
@@ -152,8 +178,14 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     WHERE sync_state.lease_until < ? RETURNING lease_id`)
     .bind(userId, lease, now + 120_000, now).first();
   if (!acquired) throw new ApiError("sync_in_progress", 409);
+  let providerStarted = false;
   try {
+    // Another import may have established a pause between the fast check and
+    // lease acquisition. Recheck under the same lease that serializes access.
+    const paused = (await deniedHealthCollections(env, userId)).find(row => row.collection === w.spec.name);
+    if (paused) throw new ApiError(paused.code, 403);
     const signal = AbortSignal.timeout(20_000);
+    providerStarted = true;
     const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w, signal));
     const fetchedAt = new Date().toISOString();
     const unique = new Map<string, { day: string; payload: string }>();
@@ -196,10 +228,10 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
       // query and 100-bind limits. Bound each JSON parameter to 512 KB.
       inserts.push(env.DB.prepare(`INSERT INTO health_records (user_id, collection, record_id, day, payload, fetched_at)
         SELECT ?, ?, json_extract(value,'$[0]'), json_extract(value,'$[1]'), json_extract(value,'$[2]'), ?
-        FROM json_each(?) WHERE 1
+        FROM json_each(?) WHERE EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)
         ON CONFLICT(user_id, collection, record_id)
         DO UPDATE SET day=excluded.day, payload=excluded.payload, fetched_at=excluded.fetched_at`)
-        .bind(userId, w.spec.name, fetchedAt, `[${chunk.join(",")}]`));
+        .bind(userId, w.spec.name, fetchedAt, `[${chunk.join(",")}]`, userId, lease));
       chunk = [];
       chunkBytes = 2;
     };
@@ -212,29 +244,34 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     }
     flush();
     // Replace only a fully fetched window atomically; preserve all other history.
-    await env.DB.batch([
+    const results = await env.DB.batch([
       env.DB.prepare(`DELETE FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))
-        AND record_id NOT IN (SELECT value FROM json_each(?))`)
-        .bind(userId, w.spec.name, w.from, w.to, JSON.stringify([...unique.keys()])),
+        AND record_id NOT IN (SELECT value FROM json_each(?))
+        AND EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)`)
+        .bind(userId, w.spec.name, w.from, w.to, JSON.stringify([...unique.keys()]), userId, lease),
       ...inserts,
       env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
-        WHERE user_id=? AND collection=? AND window_from>=? AND window_to<=? AND last_error IS NOT NULL`)
-        .bind(fetchedAt, userId, w.spec.name, w.from, w.to),
+        WHERE user_id=? AND collection=? AND window_from>=? AND window_to<=? AND last_error IS NOT NULL
+        AND EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)`)
+        .bind(fetchedAt, userId, w.spec.name, w.from, w.to, userId, lease),
       env.DB.prepare(`INSERT INTO health_sync_windows
-        (user_id, collection, window_from, window_to, synced_at, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?, NULL)
+        (user_id, collection, window_from, window_to, synced_at, attempted_at, last_error)
+        SELECT ?, ?, ?, ?, ?, ?, NULL WHERE EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)
         ON CONFLICT(user_id, collection, window_from, window_to)
         DO UPDATE SET synced_at=excluded.synced_at, attempted_at=excluded.attempted_at, last_error=NULL`)
-        .bind(userId, w.spec.name, w.from, w.to, fetchedAt, fetchedAt),
+        .bind(userId, w.spec.name, w.from, w.to, fetchedAt, fetchedAt, userId, lease),
     ]);
-    await resolveSplitWindows(env, userId, w, fetchedAt);
+    if (!results.at(-1)?.meta.changes) throw new ApiError("sync_in_progress", 409);
+    await resolveSplitWindows(env, userId, w, fetchedAt, lease);
   } catch (err) {
     const error = normalizeApiError(err, "upstream_unavailable", 502);
-    if (["daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(error.code)) throw error;
+    if (!providerStarted || ["sync_in_progress", "daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(error.code)) throw error;
     await env.DB.prepare(`INSERT INTO health_sync_windows
-      (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)
+      (user_id, collection, window_from, window_to, attempted_at, last_error)
+      SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sync_state WHERE user_id=? AND lease_id=?)
       ON CONFLICT(user_id, collection, window_from, window_to)
       DO UPDATE SET attempted_at=excluded.attempted_at, last_error=excluded.last_error`)
-      .bind(userId, w.spec.name, w.from, w.to, new Date().toISOString(), error.code).run();
+      .bind(userId, w.spec.name, w.from, w.to, new Date().toISOString(), error.code, userId, lease).run();
     throw error;
   } finally {
     await env.DB.prepare("UPDATE sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
@@ -252,6 +289,7 @@ export async function readHealthRecords(env: Env, userId: string, w: Window, off
     .bind(...args, offset).all<{ payload: string }>();
   const count = await env.DB.prepare(`SELECT COUNT(*) AS n ${query}`).bind(...args).first<{ n: number }>();
   const state = await windowState(env, userId, w);
+  const refusal = (await deniedHealthCollections(env, userId)).find(row => row.collection === w.spec.name);
   const records: RecordData[] = [];
   let responseBytes = 0;
   for (const row of rows.results.slice(0, 20)) {
@@ -268,6 +306,10 @@ export async function readHealthRecords(env: Env, userId: string, w: Window, off
     records,
     total: count?.n ?? 0, next_offset: rows.results.length > records.length ? offset + records.length : null,
     series_included: includeSeries,
+    access: {
+      status: refusal ? "unavailable" : state?.synced_at ? "available" : "unknown",
+      automatic_retry: !refusal, code: refusal?.code ?? null, checked_at: refusal?.checked_at ?? null,
+    },
     sync: {
       synced_at: state?.synced_at ?? null, error: state?.last_error ?? null,
       stale: !state?.synced_at || Boolean(state.last_error) || Date.now() - Date.parse(state.synced_at) >= 600_000,
@@ -283,12 +325,21 @@ export async function healthStatus(env: Env, userId: string) {
   const windows = await env.DB.prepare(`SELECT collection, window_from, window_to, synced_at, attempted_at, last_error
     FROM health_sync_windows WHERE user_id=? ORDER BY attempted_at DESC`).bind(userId)
     .all<WindowState & { collection: string; window_from: string; window_to: string }>();
-  return HEALTH_COLLECTIONS.map(spec => ({
-    ...spec, records: 0, earliest_day: null, latest_day: null,
-    ...rows.results.find(row => row.collection === spec.name),
-    last_attempt: windows.results.find(row => row.collection === spec.name) ?? null,
-    failed_windows: windows.results.filter(row => row.collection === spec.name && row.last_error).length,
-    failed_ranges: windows.results.filter(row => row.collection === spec.name && row.last_error)
-      .map(row => ({ collection: spec.name, from: row.window_from, to: row.window_to, code: row.last_error })),
-  }));
+  const denied = collectionAccess(windows.results);
+  return HEALTH_COLLECTIONS.map(spec => {
+    const refusal = denied.find(row => row.collection === spec.name);
+    const failures = refusal ? [] : windows.results.filter(row => row.collection === spec.name && row.last_error);
+    return {
+      ...spec, records: 0, earliest_day: null, latest_day: null,
+      ...rows.results.find(row => row.collection === spec.name),
+      last_attempt: windows.results.find(row => row.collection === spec.name) ?? null,
+      access: {
+        status: refusal ? "unavailable" : windows.results.some(row => row.collection === spec.name && row.synced_at) ? "available" : "unknown",
+        automatic_retry: !refusal, code: refusal?.code ?? null, checked_at: refusal?.checked_at ?? null,
+      },
+      failed_windows: failures.length,
+      failed_ranges: failures
+        .map(row => ({ collection: spec.name, from: row.window_from, to: row.window_to, code: row.last_error })),
+    };
+  });
 }

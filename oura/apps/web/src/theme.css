@@ -1,0 +1,19 @@
+/* Health owns its palette; typography, spacing and component geometry stay shared. */
+:root {
+  --kdp-canvas: #fbf8f3;
+  --kdp-surface: #fffdf9;
+  --kdp-ink: #202927;
+  --kdp-text: #4f5551;
+  --kdp-muted: #626a68;
+  --kdp-line: #dcd8d0;
+  --kdp-line-strong: #b7aca0;
+  --kdp-accent: #a3421c;
+  --kdp-accent-strong: #813719;
+  --kdp-accent-soft: #f4e9df;
+  --kdp-focus: #a3421c;
+  --kdp-shadow: 0 8px 32px rgb(91 64 40 / 5%);
+  --health-chrome: rgb(251 248 243 / 94%);
+  --health-glow: #f4e9df88;
+  --health-chart-grid: rgba(120, 104, 86, .18);
+  --health-chart-duration: #a87950;
+}

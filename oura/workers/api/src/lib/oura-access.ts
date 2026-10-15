@@ -2,7 +2,7 @@ import type { Env } from "../env";
 import { resolveEncryptionKey, oauthConfigured } from "./config";
 import { ApiError } from "./errors.ts";
 import { refreshAccessToken } from "./oura";
-import { loadEncryptedTokens, tokensFromOura, upsertEncryptedTokens } from "./tokens";
+import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens";
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
 export async function ouraAccessToken(
@@ -10,8 +10,9 @@ export async function ouraAccessToken(
 ): Promise<string> {
   const key = resolveEncryptionKey(request, env);
   if (!key || !oauthConfigured(env)) throw new ApiError("oura_not_configured", 503);
-  let stored = await loadEncryptedTokens(env, userId, key);
-  if (!stored) throw new ApiError("reconnect_required", 401);
+  const record = await loadEncryptedTokenRecord(env, userId, key);
+  if (!record) throw new ApiError("reconnect_required", 401);
+  let stored = record.tokens;
   if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
     || stored.access_token === rejectedToken) {
     stored = tokensFromOura(await refreshAccessToken({
@@ -19,7 +20,7 @@ export async function ouraAccessToken(
       clientId: env.OURA_CLIENT_ID!,
       clientSecret: env.OURA_CLIENT_SECRET!,
     }));
-    await upsertEncryptedTokens(env, userId, key, stored);
+    await upsertEncryptedTokens(env, userId, key, stored, record.revision);
   }
   return stored.access_token;
 }
