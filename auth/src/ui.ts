@@ -1,4 +1,5 @@
 import { PRODUCT_BRAND } from "../../shared/brand";
+import tokens from "../../shared/styles/tokens.css";
 
 const escape = (text: string) => text.replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -9,12 +10,13 @@ export function loginPage(name: string, email: string, nonce: string): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${PRODUCT_BRAND} · 登录</title>
 <style nonce="${nonce}">
-:root{color-scheme:light;--ink:#1d302c;--muted:#62716a;--line:#d6ddd5;--accent:#275b46}
-*{box-sizing:border-box}body{margin:0;min-height:100svh;color:var(--ink);font:16px/1.7 Georgia,"Noto Serif SC",serif;background:radial-gradient(ellipse at 12% 5%,#dfe8dc,transparent 55%),#f5f3eb;display:grid;place-items:center;padding:28px}
-main{width:min(100%,460px)}.brand{letter-spacing:.2em;font-size:13px;margin-bottom:40px}.card{background:#fffdf7;border:1px solid var(--line);border-radius:20px;padding:36px;box-shadow:0 18px 65px #263e2e0b}
-.eyebrow{font:12px/1.5 sans-serif;letter-spacing:.14em;color:var(--muted)}h1{font-size:32px;line-height:1.3;margin:14px 0}p{color:var(--muted);margin:16px 0}label{display:block;font-size:14px;margin-bottom:8px}
+${tokens}
+:root{--ink:var(--kdp-ink);--muted:var(--kdp-muted);--line:var(--kdp-line);--accent:var(--kdp-accent)}
+*{box-sizing:border-box}body{margin:0;min-height:100svh;color:var(--ink);font:16px/1.7 var(--kdp-font);background:radial-gradient(ellipse at 80% 0%,var(--kdp-accent-soft),transparent 55%),var(--kdp-canvas);display:grid;place-items:center;padding:28px}
+main{width:min(100%,460px)}.brand{font-size:16px;font-weight:600;margin-bottom:32px}.card{background:var(--kdp-surface);border:1px solid var(--line);border-radius:var(--kdp-radius-lg);padding:36px;box-shadow:var(--kdp-shadow)}
+.eyebrow{font-size:13px;color:var(--muted)}h1{font-size:32px;font-weight:650;line-height:1.3;margin:14px 0}p{color:var(--muted);margin:16px 0}label{display:block;font-size:14px;margin-bottom:8px}
 button,input{font:inherit;width:100%;border-radius:8px;padding:12px 16px}button{cursor:pointer;background:var(--accent);color:white;border:1px solid var(--accent);margin-top:16px}button:disabled{opacity:.55;cursor:wait}input{border:1px solid var(--line);background:#fff;font:24px/1.5 monospace;letter-spacing:.3em;color:var(--ink)}
-button:focus-visible,input:focus-visible{outline:3px solid #94b8a4;outline-offset:3px}.secondary{background:transparent;color:var(--accent)}.foot{font-size:12px;text-align:center;margin-top:24px}.status{font-size:14px;min-height:24px;color:var(--muted)}.status[data-kind="error"]{color:#9c3c25}form{margin-top:16px}a{color:var(--accent)}[hidden]{display:none!important}@media(max-width:440px){body{padding:20px}.card{padding:26px}.brand{margin-bottom:28px}h1{font-size:28px}}
+button:focus-visible,input:focus-visible{outline:2px solid var(--kdp-focus);outline-offset:3px}button:hover:not(:disabled){background:var(--kdp-accent-strong)}.secondary{background:transparent;color:var(--accent)}.secondary:hover:not(:disabled){background:var(--kdp-accent-soft)}.foot{font-size:12px;text-align:center;margin-top:24px}.status{font-size:14px;min-height:24px;color:var(--muted)}.status[data-kind="error"]{color:var(--kdp-danger)}form{margin-top:16px}a{color:var(--accent)}[hidden]{display:none!important}@media(max-width:440px){body{padding:20px}.card{padding:26px}.brand{margin-bottom:28px}h1{font-size:28px}}
 </style></head><body><main><div class="brand">${PRODUCT_BRAND}</div><section class="card">
 <div class="eyebrow">继续访问 ${escape(name)}</div><h1>欢迎回来。</h1>
 <p>使用你的专属邮箱登录。一次登录，连接你的工作空间。</p>

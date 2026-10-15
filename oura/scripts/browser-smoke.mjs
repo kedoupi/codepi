@@ -5,7 +5,7 @@ const existingSpace = options.spaceId;
 const task = await taskSpace(existingSpace || 'Oura browser regression');
 console.log({ spaceId: task.spaceId });
 const page = task.page(options.page || 'p1');
-const origin = 'http://127.0.0.1:4178';
+const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
 await page.cdp('Emulation.clearDeviceMetricsOverride');
 const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__smokeFailures = [];
@@ -43,7 +43,7 @@ async function healthy(label) {
   }));
   assert.equal(result.origin, origin, label);
   const titles = {
-    '/': ['健康看板', 'Health board'],
+    '/': ['健康 Health', 'Health'],
     '/sleep': ['睡眠与恢复', 'Sleep & recovery'],
     '/insights': ['近 7 天解读', 'Weekly insights'],
     '/compare': ['对比', 'Compare'],
@@ -51,7 +51,7 @@ async function healthy(label) {
   };
   const english = result.lang === 'en';
   assert.equal(result.title, result.landing
-    ? english ? 'Oura health board' : 'Oura 健康看板'
+    ? english ? 'Health · kedoupi（codepi）' : '健康 Health · kedoupi（codepi）'
     : titles[result.path]?.[english ? 1 : 0], label);
   assert.equal(result.meaningfulContent, true, label);
   assert.equal(result.frameworkOverlay, false, label);

@@ -7,6 +7,7 @@
  * logged-in site user, so only the account owner can authorize a connector.
  */
 import type { Env } from "../env";
+import tokens from "../../../../../shared/styles/tokens.css";
 import { jsonError, resolveSessionSecret } from "../lib/config";
 import { ssoEnabled } from "../lib/sso";
 import { readSessionFromRequest } from "../lib/session";
@@ -124,24 +125,25 @@ export async function handleRegister(request: Request, env: Env): Promise<Respon
 }
 
 const CONSENT_CSS = `
-  :root { color-scheme: light; }
-  body { margin:0; min-height:100vh; display:grid; place-items:center;
-    background:#fdf8f3; color:#1f2937;
-    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
-  .card { width:min(560px,92vw); background:#fff; border:1px solid #f0e2d4;
-    border-radius:20px; padding:28px; box-shadow:0 14px 40px rgba(120,72,30,.10); }
-  .kicker { font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#a16207; }
+  ${tokens}
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100svh; display:grid; place-items:center; padding:24px;
+    background:var(--kdp-canvas); color:var(--kdp-ink); font:16px/1.7 var(--kdp-font); }
+  .card { width:min(560px,100%); background:var(--kdp-surface); border:1px solid var(--kdp-line);
+    border-radius:var(--kdp-radius-lg); padding:28px; box-shadow:var(--kdp-shadow); }
+  .kicker { font-size:14px; color:var(--kdp-muted); }
   .brand { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
-  .brand img { width:48px; height:48px; flex-shrink:0; }
-  h1 { margin:.35rem 0 .5rem; font-size:1.5rem; }
-  p { margin:.5rem 0; color:#4b5563; }
-  ul { margin:.75rem 0; padding-left:1.1rem; color:#4b5563; }
+  .brand img { width:40px; height:40px; flex-shrink:0; }
+  h1 { margin:.5rem 0; font-size:1.5rem; font-weight:650; }
+  p, ul { color:var(--kdp-text); }
   .row { display:flex; gap:12px; margin-top:1.25rem; flex-wrap:wrap; }
-  button { font:inherit; border-radius:999px; padding:11px 22px; cursor:pointer; border:1px solid transparent; }
-  .approve { background:#f97316; color:#fff; }
-  .deny { background:#fff; color:#9a3412; border-color:#f6d3b4; }
-  dl { margin:1rem 0 0; display:grid; grid-template-columns:auto 1fr; gap:.35rem .9rem; font-size:14px; }
-  dt { color:#9a3412; } dd { margin:0; overflow-wrap:anywhere; }
+  button { font:inherit; border-radius:var(--kdp-radius-sm); min-height:44px; padding:10px 22px; cursor:pointer; border:1px solid transparent; }
+  button:focus-visible { outline:2px solid var(--kdp-focus); outline-offset:3px; }
+  .approve { background:var(--kdp-accent); color:white; }
+  .approve:hover { background:var(--kdp-accent-strong); }
+  .deny { background:var(--kdp-surface); color:var(--kdp-accent); border-color:var(--kdp-line); }
+  dl { margin:1rem 0 0; display:grid; grid-template-columns:auto minmax(0,1fr); gap:.35rem .9rem; font-size:14px; }
+  dt { color:var(--kdp-muted); } dd { margin:0; overflow-wrap:anywhere; }
 `;
 
 function consentPage(request: Request, env: Env, fields: Record<string, string>, message?: string): Response {
@@ -153,10 +155,10 @@ function consentPage(request: Request, env: Env, fields: Record<string, string>,
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/icon.svg" type="image/svg+xml" sizes="any">
-<title>授权连接 · Oura 健康看板</title><style>${CONSENT_CSS}</style></head><body>
+<title>授权连接 · 健康 Health</title><style>${CONSENT_CSS}</style></head><body>
 <div class="card">
   <div class="brand"><img src="/icon.svg" width="48" height="48" alt="">
-    <div class="kicker">Oura 健康看板 · ${escapeHtml(RELEASE)}</div>
+    <div class="kicker">健康 Health · ${escapeHtml(RELEASE)}</div>
   </div>
   <h1>允许这个应用读取你的 Oura 数据？</h1>
   ${message ? `<p style="color:#b45309">${escapeHtml(message)}</p>` : ""}

@@ -8,6 +8,7 @@ export interface Env extends SsoEnv {
   SESSION_SECRET?: string;
   ALLOW_DEV_LOGIN?: string;
   FRONTEND_ORIGIN?: string;
+  FRONTEND_ORIGINS?: string;
   PERSONAL_OWNER_ID?: string;
   AI_ENABLED?: string;
   AI_BASE_URL?: string;

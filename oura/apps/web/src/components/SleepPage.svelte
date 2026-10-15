@@ -29,7 +29,7 @@
     { label: text("深睡", "Deep"), value: selected?.deep_sleep_duration, color: "#36465f" },
     { label: "REM", value: selected?.rem_sleep_duration, color: "#9d739b" },
     { label: text("浅睡", "Light"), value: selected?.light_sleep_duration, color: "#f4aa69" },
-    { label: text("清醒", "Awake"), value: selected?.awake_time, color: "#eadfd4" },
+    { label: text("清醒", "Awake"), value: selected?.awake_time, color: "#dce4ee" },
   ]);
   const stageTotal = $derived(stages.reduce((sum, s) => sum + (finite(s.value) && s.value >= 0 ? s.value : 0), 0));
   const calendar = $derived.by(() => {

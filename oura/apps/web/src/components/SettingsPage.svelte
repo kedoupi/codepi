@@ -67,7 +67,17 @@
     }
   }
 
-  onMount(() => { if (personal) void loadConnections(); });
+  onMount(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connect_oura") === "1") {
+      const target = new URL("/api/auth/oura/start", window.location.origin);
+      const healthReturn = params.get("health_return");
+      if (healthReturn) target.searchParams.set("health_return", healthReturn);
+      window.location.replace(target.href);
+      return;
+    }
+    if (personal) void loadConnections();
+  });
 </script>
 
 <div id="dash-view">
@@ -78,7 +88,7 @@
     {onLogout}
   />
   <main class="wrap page insight-page">
-    <div class="kicker">OURA · SETTINGS</div>
+    <div class="kicker">{locale === "zh" ? "健康空间" : "Health"}</div>
     <div class="hero-row">
       <div>
         <h1>{t(locale, "settingsTitle")}</h1>

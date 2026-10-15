@@ -3,12 +3,12 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { centralFixture, connectOura, createRuntime, login, loginSso, migrate } from '../workers/api/test/integration/runtime.mjs';
-import worker from '../workers/api/dist/index.js';
+import worker from '../workers/api/test/integration/node-worker.mjs';
 import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 import { calendarDay, calendarWindow, shiftDay, DISPLAY_TIME_ZONE } from '../shared/dates.ts';
 import { shortAutomaticQueue } from './browser-sync-fixture.mjs';
 
-const origin = 'http://127.0.0.1:4178';
+const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
 const sso = process.env.OURA_BROWSER_SSO === '1';
 const central = centralFixture();
@@ -22,6 +22,10 @@ let scoreGate;
 const ownerRuntime = createRuntime({
   sso,
   ...(sso ? { serviceBindings: { AUTH: central.fetch } } : {}),
+  ...(sso ? { bindings: {
+    FRONTEND_ORIGIN: origin,
+    OURA_REDIRECT_URI: `${origin}/api/auth/oura/callback`,
+  } } : {}),
   autoSync: true,
   providerResponse(url) {
     providerCalls.push(url.pathname);
@@ -349,7 +353,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(500).end('Fixture server failed');
   }
 });
-server.listen(4178, '127.0.0.1', () => console.log(`Browser fixture ready: ${origin}`));
+server.listen(Number(new URL(origin).port), '127.0.0.1', () => console.log(`Browser fixture ready: ${origin}`));
 async function stop() {
   releaseScores?.();
   server.close();
