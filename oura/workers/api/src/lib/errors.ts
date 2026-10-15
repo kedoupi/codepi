@@ -28,18 +28,30 @@ export function storageQuotaResetAt(now = Date.now()): string {
   return new Date(Date.parse(new Date(now).toISOString().slice(0, 10)) + 86_400_000).toISOString();
 }
 
-export async function upstreamFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
+export async function upstreamRequest(url: string | URL, init: RequestInit = {}): Promise<Response> {
   try {
-    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(12_000) });
-    if (!response.ok) {
-      await response.body?.cancel();
-      if (response.status === 401 || response.status === 400) throw new ApiError("reconnect_required", 401);
-      if (response.status === 429) throw new ApiError("rate_limited", 429);
-      throw new ApiError("upstream_unavailable", 502);
-    }
-    return response;
+    return await fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(12_000) });
   } catch (error) {
     if (error instanceof ApiError) throw error;
     throw new ApiError("upstream_unavailable", 502);
   }
+}
+
+export function ouraResourceError(status: number): ApiError {
+  // A rejected access token is recoverable; only the refresh endpoint can
+  // confirm that the grant itself is no longer usable.
+  if (status === 401) return new ApiError("oura_access_token_rejected", 502);
+  if (status === 403) return new ApiError("permission_or_membership_required", 403);
+  if (status === 400 || status === 422) return new ApiError("upstream_request_rejected", 502);
+  if (status === 429) return new ApiError("rate_limited", 429);
+  return new ApiError("upstream_unavailable", 502);
+}
+
+export async function upstreamFetch(url: string | URL, init: RequestInit = {}): Promise<Response> {
+  const response = await upstreamRequest(url, init);
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw ouraResourceError(response.status);
+  }
+  return response;
 }

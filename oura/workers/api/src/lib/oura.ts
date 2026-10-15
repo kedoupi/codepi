@@ -4,7 +4,7 @@
  *       https://cloud.ouraring.com/v2/docs
  */
 
-import { upstreamFetch } from "./errors.ts";
+import { ApiError, upstreamFetch, upstreamRequest } from "./errors.ts";
 export const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 export const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 export const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
@@ -67,23 +67,35 @@ export function buildAuthorizeUrl(opts: {
 }
 
 async function postToken(body: URLSearchParams): Promise<OuraTokens> {
-  const res = await upstreamFetch(OURA_TOKEN_URL, {
+  const res = await upstreamRequest(OURA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
-  const text = await res.text();
+  const json = await res.json().catch(() => null) as (Partial<OuraTokens> & { error?: string }) | null;
   if (!res.ok) {
-    throw new Error("token_exchange_failed");
+    if (res.status === 429) throw new ApiError("rate_limited", 429);
+    if (res.status >= 500) throw new ApiError("upstream_unavailable", 502);
+    if (res.status === 400 || res.status === 401) {
+      if (json?.error === "invalid_client" || json?.error === "unauthorized_client") {
+        throw new ApiError("oura_not_configured", 503);
+      }
+      if (json?.error === "invalid_grant") {
+        throw new ApiError(body.get("grant_type") === "refresh_token" ? "reconnect_required" : "token_exchange_failed", 401);
+      }
+    }
+    throw new ApiError("upstream_request_rejected", 502);
   }
-  const json = JSON.parse(text) as Partial<OuraTokens> & { error?: string };
-  if (!json.access_token || !json.refresh_token) {
-    throw new Error(json.error ?? "Oura token response missing tokens");
+  const expiresIn = Number(json?.expires_in);
+  if (typeof json?.access_token !== "string" || !json.access_token
+    || typeof json.refresh_token !== "string" || !json.refresh_token
+    || !Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw new ApiError("invalid_upstream_response", 502);
   }
   return {
     access_token: json.access_token,
     refresh_token: json.refresh_token,
-    expires_in: Number(json.expires_in ?? 86400),
+    expires_in: expiresIn,
   };
 }
 

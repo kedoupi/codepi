@@ -247,6 +247,33 @@ try {
   await page.waitForSelector('.compare-grid');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
   await healthy('owner compare without paywall');
+  for (const [route, endpoint, ready] of [
+    ['/insights', '/api/me/insights/weekly', '.insight-lines'],
+    ['/compare', '/api/me/insights/compare', '.compare-grid'],
+  ]) {
+    await navigate('/settings');
+    await page.evaluate(endpoint => {
+      const original = window.fetch;
+      window.fetch = async (...args) => {
+        if (new URL(String(args[0]), location.origin).pathname === endpoint) {
+          window.fetch = original;
+          return Response.json({ error: 'reconnect_required' }, { status: 401 });
+        }
+        return original(...args);
+      };
+    }, endpoint);
+    await navigate(route);
+    await page.waitForSelector('.status.err');
+    assert.equal(await page.evaluate(() => Boolean(document.querySelector('#landing-view'))), false,
+      `${route}: provider authorization must not log the user out`);
+    assert.equal(await page.evaluate(() => document.querySelector('main a[href="/api/auth/oura/start"]')?.textContent), '重新连接 Oura');
+    assert.equal(await page.evaluate(async () => (await (await fetch('/api/me')).json()).authenticated), true);
+    await page.click('loc=css:main button:text-is("重试")');
+    await page.waitForSelector(ready);
+    assert.equal(await page.evaluate(() => Boolean(document.querySelector('main a[href="/api/auth/oura/start"]'))), false,
+      'successful retry clears the obsolete reconnect action');
+    await healthy(`${route} keeps the session and recovers from an Oura reconnect error`);
+  }
   await navigate('/settings');
   await page.waitForFunction(() => document.body.textContent.includes('个人工作区'));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);

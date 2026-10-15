@@ -24,11 +24,13 @@
   let loading = $state(true);
   let status = $state("");
   let statusErr = $state(false);
+  let needsReconnect = $state(false);
   let disposed = false;
 
   async function load() {
     loading = true;
     statusErr = false;
+    needsReconnect = false;
     status = t(locale, "loading");
     try {
       const data = await api<WeeklyPayload>("/api/me/insights/weekly");
@@ -39,7 +41,8 @@
         : "";
     } catch (err) {
       if (disposed) return;
-      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
+      needsReconnect = err instanceof RequestError && err.code === "reconnect_required";
       statusErr = true;
       status = errorText(err, locale);
     } finally {
@@ -77,7 +80,10 @@
       <p class="hint">{t(locale, "bodyZhOnly")}</p>
     {/if}
     <div class="status" class:err={statusErr}>{status}</div>
-    {#if statusErr}<button class="ai-btn" onclick={load}>{locale === "zh" ? "重试" : "Retry"}</button>{/if}
+    {#if statusErr}
+      <button class="ai-btn" onclick={load}>{locale === "zh" ? "重试" : "Retry"}</button>
+      {#if needsReconnect}<a class="ai-btn" href="/api/auth/oura/start">{locale === "zh" ? "重新连接 Oura" : "Reconnect Oura"}</a>{/if}
+    {/if}
     {#if payload?.sync}<SyncStatus sync={payload.sync} {locale} />{/if}
 
     {#if payload?.summaries?.length}

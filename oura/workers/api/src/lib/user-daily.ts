@@ -8,7 +8,7 @@ import { clampDays, dateWindow, loadDevDaily, mapOuraToDaily, type DailyResponse
 import { fetchDailySummaries } from "./oura";
 import type { SessionRow } from "./session";
 import { cachedDaily } from "./sync-cache.ts";
-import { ouraAccessToken } from "./oura-access.ts";
+import { withOuraAccess } from "./oura-access.ts";
 
 export async function loadDailyForSession(
   request: Request,
@@ -42,14 +42,12 @@ export async function loadDailyForUser(
 
   const selected = dateWindow(windowDays);
   return cachedDaily(env, userId, windowDays, selected.startDate, selected.endDate, force, async () => {
-  const accessToken = await ouraAccessToken(request, env, userId);
-
   const { startDate, endDate, dates } = dateWindow(90);
-  const raw = await fetchDailySummaries({
+  const raw = await withOuraAccess(request, env, userId, accessToken => fetchDailySummaries({
     accessToken,
     startDate,
     endDate,
-  });
+  }));
   return {
     ...mapOuraToDaily({
       dates,

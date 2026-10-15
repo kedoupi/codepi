@@ -25,12 +25,14 @@
   let payloadMode = $state<"week" | "range" | null>(null);
   let status = $state("");
   let statusErr = $state(false);
+  let needsReconnect = $state(false);
   let revision = 0;
   let disposed = false;
 
   async function load(next = mode) {
     const requestRevision = ++revision;
     statusErr = false;
+    needsReconnect = false;
     status = t(locale, "loading");
     if (next !== payloadMode) payload = null;
     try {
@@ -41,7 +43,8 @@
       status = "";
     } catch (err) {
       if (disposed || requestRevision !== revision) return;
-      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
+      needsReconnect = err instanceof RequestError && err.code === "reconnect_required";
       statusErr = true;
       status = errorText(err, locale);
     }
@@ -88,7 +91,10 @@
       <button type="button" class="ai-btn" class:on={mode === "range"} aria-pressed={mode === "range"} onclick={() => setMode("range")}>{t(locale, "compareRange")}</button>
     </div>
     <div class="status" class:err={statusErr}>{status}</div>
-    {#if statusErr}<button class="ai-btn" onclick={() => load()}>{locale === "zh" ? "重试" : "Retry"}</button>{/if}
+    {#if statusErr}
+      <button class="ai-btn" onclick={() => load()}>{locale === "zh" ? "重试" : "Retry"}</button>
+      {#if needsReconnect}<a class="ai-btn" href="/api/auth/oura/start">{locale === "zh" ? "重新连接 Oura" : "Reconnect Oura"}</a>{/if}
+    {/if}
     {#if payload?.sync}<SyncStatus sync={payload.sync} {locale} />{/if}
 
     {#if payload?.locked}

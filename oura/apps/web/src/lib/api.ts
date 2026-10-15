@@ -74,8 +74,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 export function errorText(error: unknown, locale: Locale): string {
   const code = error instanceof RequestError ? error.code : "service_unavailable";
   const messages: Record<string, [string, string]> = {
-    unauthorized: ["登录已过期，请重新连接 Oura。", "Your session expired. Reconnect Oura."],
+    unauthorized: ["网站登录已过期，请重新登录。", "Your website session expired. Sign in again."],
     reconnect_required: ["Oura 授权已失效，请重新连接。", "Your Oura authorization expired. Reconnect Oura."],
+    oura_not_configured: ["Oura 连接配置异常，请联系维护者检查。", "The Oura connection configuration needs attention. Contact the site maintainer."],
+    upstream_request_rejected: ["Oura 拒绝了此次数据请求，请稍后重试；这不代表授权已失效。", "Oura rejected this data request. Retry later; this does not indicate expired authorization."],
+    upstream_access_denied: ["已刷新 Oura 连接，但此类数据仍无法访问，请稍后重试或检查授权范围。", "The Oura connection was refreshed, but this data is still unavailable. Retry later or check the granted permissions."],
+    invalid_upstream_response: ["Oura 返回的数据格式异常，请稍后重试。", "Oura returned an unexpected response. Retry later."],
     rate_limited: ["Oura 请求较多，请稍后重试。", "Oura is rate limiting requests. Retry shortly."],
     sync_in_progress: ["数据正在同步，请稍后刷新。", "Sync is in progress. Retry shortly."],
     daily_sync_budget_reached: ["今日自动同步写入预算已用完，将在北京时间次日 09:00 后继续，已保存的数据保留。", "Today's automatic write budget is used. Background sync resumes after 01:00 UTC tomorrow; saved data is retained."],

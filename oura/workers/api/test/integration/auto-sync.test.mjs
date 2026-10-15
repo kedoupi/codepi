@@ -127,6 +127,9 @@ test('rate limits delay the entire queue; retryable failures have a bounded retr
 test('authorization failure pauses without repeated requests; a real OAuth callback resumes the job', async t => {
   let reject = true, calls = 0;
   const f = await fixture(t, url => {
+    if (url.pathname === '/oauth/token' && calls > 0 && reject) {
+      return Response.json({ error: 'invalid_grant' }, { status: 400 });
+    }
     if (url.pathname.endsWith('/heartrate')) {
       calls++;
       return reject ? new Response('', { status: 401 }) : Response.json({ data: [], next_token: null });
