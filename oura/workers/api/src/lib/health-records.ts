@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { ApiError, normalizeApiError, ouraResourceError } from "./errors.ts";
+import { ApiError, normalizeApiError, ouraResponseError } from "./errors.ts";
 import { OURA_API_BASE } from "./oura";
 import { withOuraAccess } from "./oura-access.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
@@ -32,7 +32,7 @@ type WindowState = { synced_at: string | null; attempted_at: string; last_error:
 const DAY = 86_400_000;
 
 export const isCollectionAccessDenied = (code: string | null | undefined) =>
-  code === "upstream_access_denied" || code === "permission_or_membership_required";
+  code === "upstream_access_denied" || code === "permission_or_membership_required" || code === "oura_scope_required";
 
 // Access refusals belong to a collection, not a date window. Keep the evidence
 // in coverage history; the OAuth callback clears it after fresh consent.
@@ -116,8 +116,7 @@ async function fetchRecords(token: string, w: Window, signal: AbortSignal): Prom
   for (let page = 0; page < 20; page++) {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
     if (!res.ok) {
-      await res.body?.cancel();
-      throw ouraResourceError(res.status);
+      throw await ouraResponseError(res);
     }
     const body = await res.json() as { data?: unknown; next_token?: unknown };
     const data = w.spec.mode === "profile" ? [body] : body.data;
@@ -170,7 +169,7 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
   const now = Date.now();
   if (state?.synced_at && !state.last_error && now - Date.parse(state.synced_at) < (force ? 30_000 : 600_000)) return;
   if (state?.last_error && now - Date.parse(state.attempted_at) < 30_000) {
-    throw new ApiError(state.last_error, state.last_error === "permission_or_membership_required" ? 403 : 503);
+    throw new ApiError(state.last_error, isCollectionAccessDenied(state.last_error) ? 403 : 503);
   }
   const lease = crypto.randomUUID();
   const acquired = await env.DB.prepare(`INSERT INTO sync_state (user_id, lease_id, lease_until) VALUES (?, ?, ?)

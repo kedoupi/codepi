@@ -59,6 +59,10 @@ describe("Oura authorize URL", () => {
       "http://localhost:5173/api/auth/oura/callback",
     );
     assert.equal(url.searchParams.get("scope"), DEFAULT_SCOPES);
+    assert.ok(url.searchParams.get("scope")?.split(" ").includes("stress"),
+      "resilience requires the provider's stress scope");
+    assert.ok(url.searchParams.get("scope")?.split(" ").includes("ring_configuration"),
+      "both ring configuration and battery require the ring_configuration scope");
     assert.equal(url.searchParams.get("state"), "csrf-state-1");
   });
 });

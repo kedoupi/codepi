@@ -307,7 +307,7 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 ### 详细数据与长期保存
 
 新增授权入口：`https://oura.kdp.cool/api/auth/oura/start?sync_health=1`。
-申请 `daily personal email heartrate workout tag session spo2 heart_health`；
+申请 `daily personal email heartrate workout tag session spo2 heart_health stress ring_configuration`；
 授权后回到固定的 `/settings?sync=90`，自动启动最近 90 天分批补齐。
 页面消费此标记一次并提交后台任务；收到任务确认后，关闭或离开页面仍由服务端继续。
 首页与 `/settings` 共用「更新数据」入口。无需分享密码、令牌或重新创建 Oura 应用。
@@ -318,6 +318,14 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 已核验的历史窗口跳过，失败或从未尝试的日期会重新规划。子批次全部成功后才解除原大窗口的失败状态，
 旧成功记录或部分覆盖不能冒充本次重试成功。
 如果官方拒绝某类数据，先检查该类别授权和会员访问资格；不把 403 当成空数据。
+
+韧性 `daily_resilience` 需要 `stress` scope；戒指信息和戒指电量均需要
+`ring_configuration` scope。这两项未列入当前公开 OpenAPI 的 scope 清单，
+但已通过线上响应核实：缺失时 Oura 返回 401 及明确的 scope 名称。
+增加请求 scope 后需要用户重新同意授权，刷新已有 token 不会扩大权限。
+设置页重新连接 Oura，并允许请求的全部权限即可；回调继续使用原有
+`https://oura.kdp.cool/api/auth/oura/callback`，无需改域名、创建新应用或重置密钥。
+授权完成后自动恢复暂停任务；不能仅凭 401 告知用户授权已过期。
 
 `health_records` 按用户、类型、记录 ID 保存完整官方文档，包括睡眠 HRV/心率序列、
 活动详情与 `sleep_regularity`；同一天的多个睡眠片段分别保存。

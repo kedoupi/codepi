@@ -106,6 +106,51 @@ test('an individual endpoint rejecting a refreshed token does not block every co
   assert.equal((await (await f.me()).json()).authenticated, true);
 });
 
+test('missing scopes pause all three resources without rotating a valid token and resume after consent', async t => {
+  let exchanges = 0;
+  let missing = true;
+  const calls = new Map();
+  const scopes = {
+    daily_resilience: 'stress',
+    ring_configuration: 'ring_configuration',
+    ring_battery_level: 'ring_configuration',
+  };
+  const f = await fixture(t, url => {
+    if (url.pathname === '/oauth/token') exchanges++;
+    const name = url.pathname.split('/').at(-1);
+    if (name in scopes) {
+      calls.set(name, (calls.get(name) ?? 0) + 1);
+      if (missing) return Response.json({
+        detail: `Token is not authorized access ${scopes[name]} scope.`,
+      }, { status: 401 });
+    }
+  });
+  const tasks = [...Object.keys(scopes), 'sleep'].map(collection => ({
+    collection, from: today, to: today, state: 'pending', attempts: 0, after: 0,
+  }));
+  await f.db.prepare(`INSERT INTO auto_sync_state (user_id,run_day,status,payload)
+    VALUES ('test-user',?,'running',?)`).bind(today, JSON.stringify(tasks)).run();
+  const worker = await f.runtime.getWorker();
+  const tick = () => worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(exchanges, 1, 'missing scopes cannot be repaired by rotating a healthy token');
+  assert.deepEqual(Object.fromEntries(calls), Object.fromEntries(Object.keys(scopes).map(name => [name, 1])));
+  const row = await f.db.prepare('SELECT status,last_error,payload FROM auto_sync_state').first();
+  assert.equal(row.status, 'completed');
+  assert.equal(row.last_error, null);
+  assert.ok(JSON.parse(row.payload).filter(task => task.collection in scopes)
+    .every(task => task.state === 'unavailable' && task.error === 'oura_scope_required'));
+  const windows = await f.db.prepare("SELECT last_error FROM health_sync_windows WHERE collection IN ('daily_resilience','ring_configuration','ring_battery_level')").all();
+  assert.ok(windows.results.every(window => window.last_error === 'oura_scope_required'));
+  assert.equal((await (await f.me()).json()).authenticated, true);
+  missing = false;
+  await login(f.runtime);
+  for (let i = 0; i < 3; i++) await tick();
+  const resumed = await f.db.prepare('SELECT status,payload FROM auto_sync_state').first();
+  assert.equal(resumed.status, 'completed');
+  assert.ok(JSON.parse(resumed.payload).every(task => task.state === 'done'));
+});
+
 test('revoked refresh credentials preserve the last snapshot and the website session', async t => {
   let revoked = false, refreshes = 0;
   const f = await fixture(t, url => {

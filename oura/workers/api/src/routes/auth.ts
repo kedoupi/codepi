@@ -242,12 +242,12 @@ export async function handleOuraCallback(
       env.DB.prepare(`UPDATE auto_sync_state SET status='running',last_error=NULL,finished_at=NULL,
         payload=(SELECT json_group_array(json(CASE
           WHEN json_extract(value,'$.state')='unavailable'
-            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required')
+            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required','oura_scope_required')
           THEN json_remove(json_set(value,'$.state','pending','$.attempts',0,'$.after',0),'$.error')
           ELSE value END)) FROM json_each(payload))
         WHERE user_id=? AND (status='blocked' OR EXISTS (
           SELECT 1 FROM json_each(payload) WHERE json_extract(value,'$.state')='unavailable'
-            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required')
+            OR json_extract(value,'$.error') IN ('upstream_access_denied','permission_or_membership_required','oura_scope_required')
         ))`).bind(userId),
     ]);
     const headers = new Headers();
