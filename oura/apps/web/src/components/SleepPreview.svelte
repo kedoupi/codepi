@@ -14,7 +14,7 @@
       const day = result.records.map(r => r.day).sort().at(-1);
       latest = day ? sleepForDay(result.records, day)[0] : null;
     }).catch(err => {
-      if (err instanceof RequestError && err.status === 401) onUnauthorized();
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") onUnauthorized();
       else error = errorText(err, locale);
     }).finally(() => { loading = false; });
   });

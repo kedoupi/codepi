@@ -92,12 +92,13 @@ export async function saveOauthState(
   env: Env,
   state: string,
   returnTo?: string | null,
+  initiator?: { userId: string; sessionId: string },
 ): Promise<void> {
   const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await env.DB.prepare(
-    `INSERT OR REPLACE INTO oauth_states (state, expires_at, return_to) VALUES (?, ?, ?)`,
+    `INSERT OR REPLACE INTO oauth_states (state, expires_at, return_to, initiator_user_id, initiator_session_id) VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(state, expires, returnTo ?? null)
+    .bind(state, expires, returnTo ?? null, initiator?.userId ?? null, initiator?.sessionId ?? null)
     .run();
 }
 
@@ -105,16 +106,18 @@ export async function saveOauthState(
 export async function takeOauthState(
   env: Env,
   state: string,
-): Promise<{ ok: boolean; returnTo: string | null }> {
+): Promise<{ ok: boolean; returnTo: string | null; userId?: string | null; sessionId?: string | null }> {
   const row = await env.DB.prepare(
-    `DELETE FROM oauth_states WHERE state = ? RETURNING state, expires_at, return_to`,
+    `DELETE FROM oauth_states WHERE state = ? RETURNING state, expires_at, return_to, initiator_user_id, initiator_session_id`,
   )
     .bind(state)
-    .first<{ state: string; expires_at: string; return_to: string | null }>();
+    .first<{ state: string; expires_at: string; return_to: string | null; initiator_user_id: string | null; initiator_session_id: string | null }>();
   if (!row) return { ok: false, returnTo: null };
   return {
     ok: Date.parse(row.expires_at) >= Date.now(),
     returnTo: row.return_to ?? null,
+    userId: row.initiator_user_id,
+    sessionId: row.initiator_session_id,
   };
 }
 

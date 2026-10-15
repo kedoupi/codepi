@@ -12,5 +12,5 @@
     "noUnusedParameters": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["web/src/**/*.ts"]
+  "include": ["web/src/**/*.ts", "web/test/**/*.ts"]
 }

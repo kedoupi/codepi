@@ -8,6 +8,7 @@
  */
 import type { Env } from "../env";
 import { jsonError, resolveSessionSecret } from "../lib/config";
+import { ssoEnabled } from "../lib/sso";
 import { readSessionFromRequest } from "../lib/session";
 import { hmacSign, hmacVerify } from "../lib/crypto.ts";
 import {
@@ -282,7 +283,7 @@ export async function handleAuthorize(request: Request, env: Env): Promise<Respo
   if (!session) {
     // Send the browser through the existing Oura login, then come back here.
     const back = new URL(request.url);
-    const start = new URL("/api/auth/oura/start", request.url);
+    const start = new URL(ssoEnabled(env) ? "/api/auth/login" : "/api/auth/oura/start", request.url);
     start.searchParams.set("return", back.pathname + back.search);
     return new Response(null, { status: 302, headers: { Location: start.toString(), "Cache-Control": "no-store" } });
   }

@@ -13,7 +13,7 @@
     error = "";
     try { collections = (await api<{ collections: HealthCollection[] }>("/api/me/health-records/status")).collections; }
     catch (err) {
-      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
       error = errorText(err, locale);
     }
   }

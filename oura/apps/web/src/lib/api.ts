@@ -14,6 +14,13 @@ export class RequestError extends Error {
   }
 }
 
+function reportExpiredSession(error: RequestError): RequestError {
+  if (error.status === 401 && error.code === "unauthorized" && typeof window !== "undefined") {
+    window.dispatchEvent(new Event("oura:session-expired"));
+  }
+  return error;
+}
+
 // AbortSignal.any is not part of ES2022's lib; combine signals without relying on it.
 function mergeSignals(...signals: (AbortSignal | null | undefined)[]) {
   const defined = signals.filter((s): s is AbortSignal => !!s);
@@ -50,8 +57,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       const cancelled = abortFailure();
       if (cancelled) throw cancelled;
       if (!response.ok) {
-        throw new RequestError(response.status === 401 ? "unauthorized" : "service_unavailable", response.status,
-          response.headers.get("X-Request-ID") || "");
+        throw reportExpiredSession(new RequestError(response.status === 401 ? "unauthorized" : "service_unavailable", response.status,
+          response.headers.get("X-Request-ID") || ""));
       }
       throw new RequestError("invalid_response", 502,
         response.headers.get("X-Request-ID") || "");
@@ -61,9 +68,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       const code = typeof errorBody.error === "string"
         ? errorBody.error
         : response.status === 401 ? "unauthorized" : "service_unavailable";
-      throw new RequestError(code, response.status,
+      throw reportExpiredSession(new RequestError(code, response.status,
         response.headers.get("X-Request-ID") || "",
-        typeof errorBody.retryAt === "string" ? errorBody.retryAt : "");
+        typeof errorBody.retryAt === "string" ? errorBody.retryAt : ""));
     }
     if (!body || typeof body !== "object") throw new RequestError("invalid_response", 502);
     return body as T;

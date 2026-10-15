@@ -1,16 +1,17 @@
 import type { Env } from "../env";
 import { jsonError, resolveSessionSecret } from "./config";
 import { readSessionFromRequest, type SessionRow } from "./session";
+import { ssoEnabled } from "./sso";
 
 export async function requireSession(
   request: Request,
   env: Env,
 ): Promise<{ session: SessionRow } | Response> {
   const secret = resolveSessionSecret(request, env);
-  if (!secret) {
+  if (!secret && !ssoEnabled(env)) {
     return jsonError("SESSION_SECRET not configured", 503);
   }
-  const session = await readSessionFromRequest(request, env, secret);
+  const session = await readSessionFromRequest(request, env, secret ?? "");
   if (!session) {
     return jsonError("unauthorized", 401, {
       hint: "Login with Oura, or GET /api/auth/dev/session on localhost",

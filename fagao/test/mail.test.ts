@@ -1,3 +1,4 @@
+import { PRODUCT_BRAND } from "../../shared/brand";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { buildOtpHtml, buildOtpText, createMailer } from "../worker/mail";
 
@@ -53,9 +54,9 @@ describe("createMailer Resend payload", () => {
       text: string;
       html: string;
     };
-    expect(body.from).toBe("otp@kdp.cool");
+    expect(body.from).toBe(`${PRODUCT_BRAND} <otp@kdp.cool>`);
     expect(body.to).toEqual(["codepi@example.invalid"]);
-    expect(body.subject).toBe("发稿台验证码");
+    expect(body.subject).toBe(`${PRODUCT_BRAND} 登录验证码`);
     expect(body.text).toBe(buildOtpText("123456"));
     expect(body.html).toBe(buildOtpHtml("123456"));
     expect(body.html).toContain("123456");

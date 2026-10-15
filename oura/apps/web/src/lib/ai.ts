@@ -1,3 +1,5 @@
+import { api, RequestError } from "./api.ts";
+
 export type AiFinding = {
   title?: string;
   detail?: string;
@@ -48,12 +50,10 @@ export const AI_THINK_LINES = [
 
 export async function fetchAi(rangeDays: number): Promise<AiResponse> {
   const url = "/api/me/ai?days=" + encodeURIComponent(String(rangeDays));
-  const res = await fetch(url, { cache: "no-store", credentials: "include" });
-  const data = (await res.json().catch(() => ({}))) as AiResponse;
+  const data = await api<AiResponse>(url);
   const hasReport = data && data.report && typeof data.report === "object";
-  if (!res.ok || !data || !data.ok || (!hasReport && !data.text)) {
-    const err = data && data.error ? data.error : "HTTP " + res.status;
-    throw new Error(err);
+  if (!data.ok || (!hasReport && !data.text)) {
+    throw new RequestError(data.error || "invalid_response", 502);
   }
   return data;
 }

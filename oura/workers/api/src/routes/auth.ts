@@ -1,4 +1,6 @@
 import type { Env } from "../env";
+import { beginLogin, finishLogin, logoutSso, personalOwner, SsoError, ssoEnabled } from "../lib/sso";
+import { requireSession, isResponse } from "../lib/authz";
 import { normalizeApiError, storageQuotaResetAt } from "../lib/errors.ts";
 import {
   allowDevLogin,
@@ -37,6 +39,28 @@ import {
   upsertUser,
 } from "../lib/tokens";
 
+export async function handleLogin(request: Request, env: Env): Promise<Response> {
+  if (ssoEnabled(env)) {
+    personalOwner(env);
+    return beginLogin(request, env);
+  }
+  return handleOuraStart(request, env);
+}
+
+export async function handleLoginCallback(request: Request, env: Env): Promise<Response> {
+  if (!ssoEnabled(env)) return jsonError("sso_disabled", 404);
+  try {
+    const userId = personalOwner(env);
+    const existing = await env.DB.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
+    if (!existing) throw new SsoError("owner_not_configured", 503);
+    return await finishLogin(request, env, { userId, ttlSeconds: 30 * 86400 });
+  } catch (error) {
+    return redirectToApp(request, env, {
+      auth_error: normalizeApiError(error).status < 500 ? "retry" : "unavailable",
+    });
+  }
+}
+
 function redirectToApp(
   request: Request,
   env: Env,
@@ -56,6 +80,9 @@ export async function handleOuraStart(
   request: Request,
   env: Env,
 ): Promise<Response> {
+  if (request.method !== "GET") return jsonError("method_not_allowed", 405);
+  const auth = ssoEnabled(env) ? await requireSession(request, env) : null;
+  if (isResponse(auth)) return auth;
   const clientId = resolveClientId(request, env);
   if (!clientId) {
     return jsonError("OURA_CLIENT_ID not configured", 503, {
@@ -80,7 +107,9 @@ export async function handleOuraStart(
       && parsedReturn?.pathname === "/oauth/authorize"
     ? parsedReturn.pathname + parsedReturn.search
     : new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null;
-  await saveOauthState(env, state, returnTo);
+  await saveOauthState(env, state, returnTo, auth ? {
+    userId: auth.session.user_id, sessionId: auth.session.id,
+  } : undefined);
 
   const headers = new Headers();
   await attachStateCookie(headers, request, secret, state);
@@ -101,6 +130,9 @@ export async function handleOuraCallback(
   request: Request,
   env: Env,
 ): Promise<Response> {
+  if (request.method !== "GET") return jsonError("method_not_allowed", 405);
+  const auth = ssoEnabled(env) ? await requireSession(request, env) : null;
+  if (isResponse(auth)) return auth;
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -128,6 +160,9 @@ export async function handleOuraCallback(
     const taken = await takeOauthState(env, state);
     dbOk = taken.ok;
     returnTo = taken.returnTo;
+    if (auth && (taken.userId !== auth.session.user_id || taken.sessionId !== auth.session.id)) {
+      dbOk = false;
+    }
   } catch (error) {
     if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
       return redirectToApp(request, env, { error: "storage_write_quota_exceeded", retry_at: storageQuotaResetAt() });
@@ -160,19 +195,35 @@ export async function handleOuraCallback(
       redirectUri: redirectUri(request, env),
     });
     const me = await fetchPersonalInfo(tokens.access_token);
+    const userId = auth ? auth.session.user_id : me.id;
+    if (auth) {
+      const existing = await env.DB.prepare("SELECT oura_user_id FROM users WHERE id=?")
+        .bind(userId).first<{ oura_user_id: string | null }>();
+      if (!existing) return redirectToApp(request, env, { auth_error: "unavailable" });
+      // Legacy owners used their provider id as their primary key. Also guard
+      // unconnected migrated rows so consent cannot silently switch accounts.
+      const expectedId = existing.oura_user_id ?? personalOwner(env);
+      if (me.id !== expectedId) {
+        return redirectToApp(request, env, { error: "oura_account_mismatch" });
+      }
+    }
     await upsertUser(env, {
-      id: me.id,
+      id: userId,
       email: me.email,
       ouraUserId: me.id,
     });
-    await upsertEncryptedTokens(env, me.id, encKey, tokensFromOura(tokens));
+    await upsertEncryptedTokens(env, userId, encKey, tokensFromOura(tokens));
     await env.DB.prepare("UPDATE auto_sync_state SET status='running',last_error=NULL WHERE user_id=? AND status='blocked'")
-      .bind(me.id).run();
+      .bind(userId).run();
     await env.DB.prepare("UPDATE health_sync_windows SET synced_at=NULL, last_error=NULL WHERE user_id=?")
-      .bind(me.id).run();
-    const sessionId = await createSession(env, me.id, "oauth");
+      .bind(userId).run();
+    await env.DB.prepare("UPDATE sync_state SET last_error=NULL WHERE user_id=? AND last_error='reconnect_required'")
+      .bind(userId).run();
     const headers = new Headers();
-    await attachSessionCookie(headers, request, secret, sessionId);
+    if (!auth) {
+      const sessionId = await createSession(env, userId, "oauth");
+      await attachSessionCookie(headers, request, secret, sessionId);
+    }
     clearCookie(headers, request, OAUTH_STATE_COOKIE);
     if (returnTo) {
       headers.set("Location", returnTo);
@@ -220,6 +271,7 @@ export async function handleLogout(
   request: Request,
   env: Env,
 ): Promise<Response> {
+  if (ssoEnabled(env)) return logoutSso(request, env);
   const secret = resolveSessionSecret(request, env);
   const headers = new Headers();
   if (secret) {

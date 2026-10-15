@@ -11,7 +11,7 @@
   import JournalChart from "./JournalChart.svelte";
   import "../journal.css";
 
-  let { me, locale, onUnauthorized }: { me: MeResponse; locale: Locale; onUnauthorized: () => void } = $props();
+  let { me, locale, onUnauthorized, onLogout }: { me: MeResponse; locale: Locale; onUnauthorized: () => void; onLogout: () => void } = $props();
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   const label = (key: ScoreKey) => key === "sleep" ? text("睡眠", "Sleep") : key === "readiness" ? text("准备度", "Readiness") : text("活动", "Activity");
   const end = dateWindow(1).to;
@@ -143,7 +143,7 @@
 
 <div id="dash-view" class="journal">
   <ChromeHeader journal {locale} active="/" isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"}
-    onLogout={() => { location.href = "/api/auth/logout"; }} />
+    {onLogout} />
   <a class="journal-skip" href="#journal-main">{text("跳到每日简报", "Skip to daily journal")}</a>
   <main id="journal-main" class="journal-main" tabindex="-1">
     <div class="journal-meta"><span>{longDate(end)}</span><span class="journal-edition">{text("我的每日简报", "Your daily journal")}</span></div>

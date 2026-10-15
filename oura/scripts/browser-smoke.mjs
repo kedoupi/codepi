@@ -233,7 +233,7 @@ try {
   await page.click('loc=css:button:text-is("重试")');
   await page.waitForSelector('[data-testid="sleep-detail"]');
   await healthy('sleep recovers from failed archive request');
-  await page.evaluate(async () => { await fetch('/api/auth/logout'); });
+  await page.evaluate(async () => { await fetch('/api/auth/logout', { method: 'POST' }); });
   await page.click('loc=css:.sleep-controls button:text-is("同步此区间")');
   await page.waitForSelector('#landing-view');
   console.log('PASS sleep returns to login when session expires');

@@ -7,7 +7,7 @@ import { automaticSyncStatus } from "../lib/auto-sync.ts";
 export async function handleHealthRecords(request: Request, env: Env): Promise<Response> {
   const auth = await requireSession(request, env);
   if (isResponse(auth)) return auth;
-  if (auth.session.kind !== "oauth" || !env.PERSONAL_OWNER_ID || auth.session.user_id !== env.PERSONAL_OWNER_ID) {
+  if (!["oauth", "sso"].includes(auth.session.kind) || !env.PERSONAL_OWNER_ID || auth.session.user_id !== env.PERSONAL_OWNER_ID) {
     throw new ApiError("not_owner", 403);
   }
   const url = new URL(request.url);

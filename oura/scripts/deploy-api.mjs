@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { readWranglerConfig } from './lib/wrangler-config.mjs';
+import { readWranglerConfig, withBuildSha } from './lib/wrangler-config.mjs';
 
 const cwd = fileURLToPath(new URL('../workers/api', import.meta.url));
 const preflightOnly = process.argv.includes('--preflight-only');
@@ -101,7 +101,16 @@ async function main() {
 
     // Version deployment keeps the existing zone route. Tokens need Worker edit
     // permissions, but not zone route write permissions for every release.
-    const output = wrangler(['versions', 'upload', '--var', `BUILD_SHA:${buildSha}`]);
+    // CLI --var can replace the entire vars map. Stamp the complete config in
+    // the same directory so SSO flags, AUTH binding and relative paths survive.
+    const stampedConfig = '.deploy-build.toml';
+    let output;
+    try {
+      writeFileSync(`${cwd}/${stampedConfig}`, withBuildSha(readFileSync(`${cwd}/wrangler.toml`, 'utf8'), buildSha));
+      output = wrangler(['versions', 'upload', '--config', stampedConfig]);
+    } finally {
+      rmSync(`${cwd}/${stampedConfig}`, { force: true });
+    }
     const version = output.match(/Worker Version ID:\s*([a-f0-9-]{36})/i)?.[1];
     if (!version) throw new Error('Upload did not return a Worker version ID; refusing to deploy');
     completed = `version ${version} uploaded (not serving traffic yet)`;

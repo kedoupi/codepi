@@ -112,7 +112,7 @@
     </section>
 
     {#if personal}
-      <HealthDataPanel {locale} />
+      {#if me.ouraConnection?.status !== "disconnected"}<HealthDataPanel {locale} />{/if}
       <section class="panel" id="account">
         <h2>{locale === "en" ? "Personal workspace" : "个人工作区"}</h2>
         <p class="hint">
@@ -121,9 +121,16 @@
             : "当前账号被指定为个人专属：可使用完整解读与数据同步。"}
         </p>
         <p class="hint">
-          {locale === "en" ? "Connection" : "连接状态"}：Oura OAuth
-          · {locale === "en" ? "Account" : "账号"}：{me.userId ?? "—"}
+          {locale === "en" ? "Website account" : "网站账号"}：{me.userId ?? "—"} · {me.source === "sso" ? "KDP SSO" : me.source}
         </p>
+        <p class="hint">
+          Oura：{me.ouraConnection?.status === "disconnected" ? (locale === "zh" ? "尚未连接" : "Not connected")
+            : me.ouraConnection?.status === "reconnect_required" ? (locale === "zh" ? "需要重新连接" : "Reconnect required")
+            : (locale === "zh" ? "已连接" : "Connected")}
+          {me.ouraConnection?.ouraUserId ? ` · ${me.ouraConnection.ouraUserId}` : ""}
+        </p>
+        <a class="ai-btn" href="/api/auth/oura/start">{me.ouraConnection?.status === "disconnected"
+          ? (locale === "zh" ? "连接 Oura" : "Connect Oura") : (locale === "zh" ? "重新连接 Oura" : "Reconnect Oura")}</a>
         {#if me.release}
           <p class="hint">{locale === "en" ? "API" : "接口版本"}：{me.release}{me.build ? ` · ${me.build.slice(0, 7)}` : ""}</p>
         {/if}

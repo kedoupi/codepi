@@ -17,24 +17,18 @@
   } from "./lib/i18n";
   import { goto, initRouter, router } from "./lib/router.svelte";
   import { isDevLoginAllowed, type MeResponse } from "./lib/types";
+  import { loggedOutMe } from "./lib/session";
 
   let me = $state<MeResponse | null>(null);
   let loginError = $state("");
   let booted = $state(false);
+  let sessionError = $state("");
+  let checkingSession = false;
+  let sessionRevision = 0;
   let prefSaving = $state(false);
   let prefError = $state("");
   let localePref = $state<LocalePref>("system");
   const locale = $derived(resolveLocale(localePref));
-
-  function loggedOutMe(): MeResponse {
-    return {
-      authenticated: false,
-      source: null,
-      userId: null,
-      allowDevLogin: false,
-      oauthConfigured: false,
-    };
-  }
 
   function withExplicitDevLogin(data: MeResponse): MeResponse {
     return { ...data, allowDevLogin: isDevLoginAllowed(data.allowDevLogin) };
@@ -49,9 +43,22 @@
 
   function urlLoginError(): string {
     const params = new URLSearchParams(location.search);
+    if (params.get("auth_error") === "retry") {
+      return locale === "zh" ? "登录未完成或链接已过期，请重新登录。" : "Sign-in was incomplete or expired. Sign in again.";
+    }
+    if (params.get("auth_error") === "unavailable") {
+      return locale === "zh" ? "登录服务暂时不可用，请稍后重新登录。" : "Sign-in is temporarily unavailable. Try signing in again shortly.";
+    }
     const error = params.get("error");
     if (!error) return "";
     if (error === "storage_write_quota_exceeded") return errorText(new RequestError(error, 503, "", params.get("retry_at") || ""), locale);
+    if (error === "oura_account_mismatch") {
+      return locale === "zh" ? "此 Oura 账号与已有连接不一致，请使用原来的 Oura 账号重试。" : "This Oura account does not match the existing connection. Retry with your original Oura account.";
+    }
+    if (["access_denied", "invalid_state", "missing_code_or_state", "token_exchange_failed"].includes(error)) {
+      return locale === "zh" ? "Oura 连接未完成或链接已过期，请重新连接。" : "The Oura connection was incomplete or expired. Reconnect Oura.";
+    }
+    if (error === "oauth_not_configured") return errorText(new RequestError("oura_not_configured", 503), locale);
     const hint = params.get("hint") ?? params.get("detail") ?? "";
     return publicLoginError(hint ? `${error} — ${hint}` : error);
   }
@@ -60,7 +67,7 @@
     if (!value || typeof value !== "object") return null;
     const rec = value as Record<string, unknown>;
     if (typeof rec.authenticated !== "boolean") return null;
-    const source = rec.source === "oauth" || rec.source === "dev" ? rec.source : null;
+    const source = rec.source === "oauth" || rec.source === "dev" || rec.source === "sso" ? rec.source : null;
     const localeFromApi =
       rec.localePref === "system" || rec.localePref === "zh" || rec.localePref === "en"
         ? rec.localePref
@@ -71,6 +78,9 @@
       userId: typeof rec.userId === "string" ? rec.userId : null,
       allowDevLogin: rec.allowDevLogin === true,
       oauthConfigured: rec.oauthConfigured === true,
+      ssoEnabled: rec.ssoEnabled === true,
+      websiteAccount: rec.websiteAccount as MeResponse["websiteAccount"],
+      ouraConnection: rec.ouraConnection as MeResponse["ouraConnection"],
       localePref: localeFromApi,
       capabilities: rec.capabilities as MeResponse["capabilities"],
       release: typeof rec.release === "string" ? rec.release : undefined,
@@ -79,18 +89,10 @@
     });
   }
 
-  async function readMeResponse(res: Response): Promise<MeResponse | null> {
-    try {
-      const text = await res.text();
-      if (!text || text.trimStart().startsWith("<")) return null;
-      return asMeResponse(JSON.parse(text) as unknown);
-    } catch {
-      return null;
-    }
-  }
-
   function showLogin(next?: MeResponse, extraError = "") {
-    me = next ? withExplicitDevLogin(next) : loggedOutMe();
+    sessionRevision++;
+    sessionError = "";
+    me = next ? withExplicitDevLogin(next) : loggedOutMe(me);
     loginError = extraError ? publicLoginError(extraError) : urlLoginError();
     if (router.path !== "/") goto("/", true);
   }
@@ -114,13 +116,24 @@
     writeStoredLocalePref(pref);
   }
 
-  async function boot() {
-    localePref = readStoredLocalePref() ?? "system";
+  async function logout() {
     try {
-      const res = await fetch("/api/me", { credentials: "include" });
-      const data = await readMeResponse(res);
-      if (!data || !data.authenticated) {
-        showLogin(data ?? loggedOutMe(), !res.ok || !data ? t(locale, "apiUnreachable") : "");
+      await api("/api/auth/logout", { method: "POST" });
+      showLogin();
+    } catch (error) { sessionError = errorText(error, locale); }
+  }
+
+  async function boot() {
+    if (checkingSession) return;
+    checkingSession = true;
+    const revision = sessionRevision;
+    try {
+      const data = asMeResponse(await api<MeResponse>("/api/me"));
+      if (revision !== sessionRevision) return;
+      if (!data) throw new RequestError("invalid_response", 502);
+      sessionError = "";
+      if (!data.authenticated) {
+        showLogin(data);
         return;
       }
       me = data;
@@ -133,18 +146,30 @@
           localePref = stored;
         }
       }
-      loginError = "";
-    } catch {
-      showLogin(loggedOutMe(), t(locale, "apiUnreachable"));
+      loginError = urlLoginError();
+    } catch (error) {
+      if (revision !== sessionRevision) return;
+      if (error instanceof RequestError && error.status === 401 && error.code === "unauthorized") showLogin();
+      else sessionError = errorText(error, locale);
     } finally {
       booted = true;
+      checkingSession = false;
     }
   }
 
   onMount(() => {
     const stop = initRouter();
+    localePref = readStoredLocalePref() ?? "system";
     void boot();
-    return stop;
+    const check = () => { void boot(); };
+    const expired = () => showLogin();
+    const timer = setInterval(check, 30_000);
+    window.addEventListener("focus", check);
+    window.addEventListener("oura:session-expired", expired);
+    return () => {
+      stop(); clearInterval(timer); window.removeEventListener("focus", check);
+      window.removeEventListener("oura:session-expired", expired);
+    };
   });
 
   $effect(() => {
@@ -164,16 +189,26 @@
 </script>
 
 {#if prefError}<div class="global-feedback" role="alert">{prefError}</div>{/if}
+{#if me?.authenticated && loginError}<div class="global-feedback auth-feedback" role="alert">{loginError}</div>{/if}
+{#if sessionError}<div class="global-feedback" role="alert">{sessionError} <button class="ai-btn" onclick={() => void boot()}>{locale === "zh" ? "重试" : "Retry"}</button></div>{/if}
 {#if !booted}
   <div class="status" style="padding:24px">{t(locale, "loading")}</div>
 {:else if me?.authenticated}
   <div class="journal workspace">
-  {#if router.path === "/sleep"}
-    <SleepPage {me} {locale} onUnauthorized={() => showLogin()} />
+  {#if me.ouraConnection?.status === "disconnected" && !me.ouraConnection.hasCachedHistory && router.path !== "/settings"}
+    <main class="wrap page">
+      <h1>{locale === "zh" ? "连接你的 Oura" : "Connect your Oura"}</h1>
+      <p>{locale === "zh" ? "网站账号已登录。连接 Oura 后即可同步健康记录。" : "You are signed in. Connect Oura to sync your health records."}</p>
+      <a class="ai-btn" href="/api/auth/oura/start">{locale === "zh" ? "连接 Oura" : "Connect Oura"}</a>
+      <button class="ai-btn" onclick={() => goto("/settings")}>{t(locale, "settingsTitle")}</button>
+      <button class="ai-btn" onclick={() => void logout()}>{locale === "zh" ? "退出登录" : "Sign out"}</button>
+    </main>
+  {:else if router.path === "/sleep"}
+    <SleepPage {me} {locale} onLogout={() => void logout()} onUnauthorized={() => showLogin()} />
   {:else if router.path === "/insights"}
-    <WeeklyPage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => (window.location.href = "/api/auth/logout")} />
+    <WeeklyPage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => void logout()} />
   {:else if router.path === "/compare"}
-    <ComparePage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => (window.location.href = "/api/auth/logout")} />
+    <ComparePage {me} {locale} onUnauthorized={() => showLogin()} onLogout={() => void logout()} />
   {:else if router.path === "/settings"}
     <SettingsPage
       {me}
@@ -181,14 +216,15 @@
       {localePref}
       {prefSaving}
       onLocalePref={(pref) => applyLocalePref(pref, true)}
-      onLogout={() => (window.location.href = "/api/auth/logout")}
+      onLogout={() => void logout()}
     />
   {:else}
-    <Dashboard {me} {locale} onUnauthorized={() => showLogin()} />
+    <Dashboard {me} {locale} onLogout={() => void logout()} onUnauthorized={() => showLogin()} />
   {/if}
   </div>
-{:else}
+{:else if me}
   <LandingView
+    ssoEnabled={me?.ssoEnabled === true}
     allowDevLogin={isDevLoginAllowed(me?.allowDevLogin)}
     error={loginError}
     {locale}

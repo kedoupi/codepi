@@ -10,4 +10,9 @@ interface Env {
   RESEND_API_KEY?: string;
   SESSION_SECRET: string;
   OTP_PEPPER: string;
+  AUTH?: Fetcher;
+  AUTH_ORIGIN?: string;
+  AUTH_CLIENT_ID?: string;
+  AUTH_CLIENT_SECRET?: string;
+  SSO_ENABLED?: string;
 }

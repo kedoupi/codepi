@@ -1,3 +1,5 @@
+import { SsoError } from "./sso.ts";
+
 export class ApiError extends Error {
   code: string;
   status: number;
@@ -9,6 +11,7 @@ export class ApiError extends Error {
 }
 
 export function normalizeApiError(error: unknown, fallback = "internal_error", status = 500): ApiError {
+  if (error instanceof SsoError) return new ApiError(error.code, error.status);
   let current = error;
   let isD1 = false;
   // D1 may put the provider's quota message on a nested cause.

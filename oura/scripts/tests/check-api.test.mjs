@@ -30,19 +30,28 @@ function json(res, status, body) {
 }
 
 /** A healthy Worker: every path the contract probes answers correctly. */
-async function healthyWorker() {
+async function healthyWorker({ sso = false } = {}) {
   return listen((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     // The script probes each origin in turn; the mock reflects its own origin
     // in discovery documents, exactly like the Worker derives issuer(request).
     const selfOrigin = `http://${req.headers.host}`;
     if (url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, oauthConfigured: true, allowDevLogin: false, release: 'test-release', build: process.env.OURA_EXPECT_BUILD || 'local' });
+      return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured: true, allowDevLogin: false, release: 'test-release', build: process.env.OURA_EXPECT_BUILD || 'local' });
     }
     if (url.pathname === '/api/me') {
-      return json(res, 200, { authenticated: false, oauthConfigured: true, allowDevLogin: false, localePref: null, capabilities: { personal: false, weeklyFull: false, compare: false } });
+      return json(res, 200, { authenticated: false, ssoEnabled: sso, websiteAccount: null, ouraConnection: null, oauthConfigured: true, allowDevLogin: false, localePref: null, capabilities: { personal: false, weeklyFull: false, compare: false } });
     }
-    if (url.pathname === '/api/auth/oura/start') {
+    if (sso && url.pathname === '/api/auth/oura/start') return json(res, 401, { error: 'unauthorized' });
+    if (sso && url.pathname === '/api/auth/login') {
+      const target = new URL('https://auth.kdp.cool/authorize');
+      target.search = new URLSearchParams({
+        client_id: 'oura', redirect_uri: `${selfOrigin}/api/auth/callback`,
+        state: 'test-state', code_challenge: 'test-challenge', code_challenge_method: 'S256',
+      }).toString();
+      return res.writeHead(302, { Location: target.href }).end();
+    }
+    if (url.pathname === '/api/auth/oura/start' || url.pathname === '/api/auth/login') {
       const target = new URL('https://cloud.ouraring.com/oauth/authorize');
       target.searchParams.set('client_id', 'test-client');
       target.searchParams.set('state', 'state');
@@ -101,6 +110,15 @@ test('a reachable Worker passes the contract in strict mode', async t => {
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, /PASS \/api\/me/);
   assert.match(run.output, /PASS \/mcp/);
+});
+
+test('SSO contract uses central login and rejects unauthenticated provider linking', async t => {
+  const worker = await healthyWorker({ sso: true });
+  t.after(() => worker.close());
+  const run = await runCheck(worker.origin);
+  assert.equal(run.status, 0, run.output);
+  assert.match(run.output, /PASS \/api\/auth\/login: HTTP 302; SSO redirect/);
+  assert.match(run.output, /PASS \/api\/auth\/oura\/start: HTTP 401/);
 });
 
 test('strict mode fails when the edge answers instead of the Worker', async t => {

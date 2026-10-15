@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { personalOwner, readSsoSession, ssoEnabled } from "./sso";
 import {
   cookieSecure,
   DEV_USER_ID,
@@ -12,7 +13,7 @@ import {
   parseSignedCookie,
 } from "./crypto";
 
-export type SessionKind = "oauth" | "dev";
+export type SessionKind = "oauth" | "dev" | "sso";
 
 export type SessionRow = {
   id: string;
@@ -116,8 +117,14 @@ export async function deleteSession(env: Env, sessionId: string): Promise<void> 
 export async function readSessionFromRequest(
   request: Request,
   env: Env,
-  secret: string,
+  secret = "",
 ): Promise<SessionRow | null> {
+  if (ssoEnabled(env)) {
+    const owner = personalOwner(env);
+    const session = await readSsoSession(request, env);
+    if (!session || session.userId !== owner) return null;
+    return { id: session.id, user_id: owner, kind: "sso", expires_at: new Date(session.expiresAt).toISOString() };
+  }
   const sid = await verifySigned(secret, readCookie(request, SESSION_COOKIE));
   if (!sid) return null;
   return loadSession(env, sid);

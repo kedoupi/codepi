@@ -7,7 +7,7 @@
   import ChromeHeader from "./ChromeHeader.svelte";
   import ArchiveStatus from "./ArchiveStatus.svelte";
 
-  let { me, locale, onUnauthorized }: { me: MeResponse; locale: Locale; onUnauthorized: () => void } = $props();
+  let { me, locale, onUnauthorized, onLogout }: { me: MeResponse; locale: Locale; onUnauthorized: () => void; onLogout: () => void } = $props();
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   let range = $state(7);
   let records = $state<SleepRecord[]>([]);
@@ -72,7 +72,7 @@
       selectedDay = records.some(r => r.day === selectedDay) ? selectedDay : [...records.map(r => r.day)].sort().at(-1) ?? "";
     } catch (err) {
       if (current !== revision) return;
-      if (err instanceof RequestError && err.status === 401) { onUnauthorized(); return; }
+      if (err instanceof RequestError && err.status === 401 && err.code === "unauthorized") { onUnauthorized(); return; }
       error = errorText(err, locale);
     } finally { if (current === revision) loading = false; }
   }
@@ -92,7 +92,7 @@
   onMount(() => { if (me.capabilities?.personal) void load(); else loading = false; return () => { revision++; }; });
 </script>
 
-<ChromeHeader {locale} active="/sleep" isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"} onLogout={() => { location.href = "/api/auth/logout"; }} />
+<ChromeHeader {locale} active="/sleep" isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"} {onLogout} />
 <main class="wrap page sleep-page">
   <header class="sleep-heading">
     <div><h1>{text("睡眠与恢复", "Sleep & recovery")}</h1><p class="sub">{text("看见每一次睡眠，也看见恢复的变化。", "Every sleep period, with room to see what changes.")}</p></div>

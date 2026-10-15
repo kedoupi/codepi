@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { ssoEnabled } from "./sso.ts";
 
 /** Documented mock client_id for local / DEV authorize URL shape (not a real Oura app). */
 export const DEV_PLACEHOLDER_CLIENT_ID = "oura_dev_placeholder_client_id";
@@ -24,6 +25,7 @@ export function isLocalHost(request: Request): boolean {
 
 /** DEV demo paths: explicit flag, or local wrangler (tonight verify without secrets). */
 export function allowDevLogin(request: Request, env: Env): boolean {
+  if (ssoEnabled(env)) return false;
   const flag = (env.ALLOW_DEV_LOGIN ?? "").toLowerCase();
   return flag === "1" || flag === "true" || isLocalHost(request);
 }

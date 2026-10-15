@@ -1,0 +1,46 @@
+name: Validate SSO and GU
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'auth/**'
+      - 'gu/**'
+      - 'shared/auth/**'
+      - 'shared/email/**'
+      - 'shared/brand.ts'
+      - '.github/workflows/validate-sso.yml'
+  pull_request:
+    paths:
+      - 'auth/**'
+      - 'gu/**'
+      - 'shared/auth/**'
+      - 'shared/email/**'
+      - 'shared/brand.ts'
+      - '.github/workflows/validate-sso.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [auth, gu]
+    defaults:
+      run:
+        working-directory: ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
