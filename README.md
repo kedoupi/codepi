@@ -58,6 +58,8 @@ To submit to Google Search Console (next step, manual): add each domain as a pro
 
 ## Local development
 
+多 agent 开发入口见 [开发工作流](docs/development/agent-workflow.md) 和 [工具兼容说明](docs/development/agent-compatibility.md)：Codex、Claude Code、Cursor、Gemini CLI、Copilot 及其他 agent 共用根与局部 `AGENTS.md`、`.agents/skills/` 下的开发/审查/交接流程，以及 `node scripts/agent/check.mjs --base <基线SHA>` 检查入口。按任务隔离 worktree，明确写入范围与集成负责人。
+
 Each site is an independent Astro project that imports from `shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`.
 
 ```bash
