@@ -1,0 +1,4 @@
+interface:
+  display_name: "kedoupi 项目审查"
+  short_description: "审查完整任务改动，检查行为回归、共享契约、数据边界与验证缺口"
+  default_prompt: "使用 $kdp-review 只读审查当前任务的全部改动，先报告具体问题。"

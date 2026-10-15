@@ -1,0 +1,4 @@
+interface:
+  display_name: "kedoupi 项目开发"
+  short_description: "实现项目功能与修复，管理任务隔离、跨应用影响和本地验证证据"
+  default_prompt: "使用 $kdp-dev 完成当前开发任务，先确认范围和基线，再实现并验证。"
