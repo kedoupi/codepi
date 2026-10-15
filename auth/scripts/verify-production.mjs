@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises';
 const owner = (await readFile(new URL('../../gu/worker/lib.ts', import.meta.url), 'utf8'))
   .match(/OWNER_EMAIL\s*=\s*"([^"]+)"/)?.[1];
 if (!owner || !process.env.RESEND_API_KEY) throw Error('Owner/mail test configuration unavailable');
-const origins = { gu: 'https://gu.codepi.app', gu_pages: 'https://kdp-gu.pages.dev', oura: 'https://health.codepi.app', gzh: 'https://gzh.codepi.app' };
+const origins = { gu: 'https://gu.codepi.app', gu_pages: 'https://codepi-gu.pages.dev', oura: 'https://health.codepi.app', gzh: 'https://gzh.codepi.app' };
 const authOrigin = 'https://auth.codepi.app';
 const jars = new Map();
 async function request(url, data) {

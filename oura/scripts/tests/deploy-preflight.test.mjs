@@ -21,7 +21,7 @@ const activeVersion = '00000000-0000-4000-8000-000000000001';
 test('deployment reads the checked-in Worker, D1 binding and schedule', () => {
   const dir = fileURLToPath(new URL('../../workers/api/', import.meta.url));
   assert.deepEqual(readWranglerConfig(join(dir, 'wrangler.toml'), { dir }), {
-    name: 'oura-kdp-api', main: 'src/index.ts', databaseName: 'oura_kdp', crons: ['*/2 * * * *'],
+    name: 'codepi-health-api', main: 'src/index.ts', databaseName: 'codepi-health', crons: ['*/2 * * * *'],
   });
 });
 

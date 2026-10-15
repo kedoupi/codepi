@@ -57,5 +57,5 @@ const temp = await mkdtemp(join(tmpdir(), "gu-demo-"));
 try {
   const file = join(temp, "seed.sql");
   await writeFile(file, sql, { mode: 0o600 });
-  execFileSync("node_modules/.bin/wrangler", ["d1", "execute", "gu-production", "--local", "--file", file], { stdio: "inherit" });
+  execFileSync("node_modules/.bin/wrangler", ["d1", "execute", "codepi-gu", "--local", "--file", file], { stdio: "inherit" });
 } finally { await rm(temp, { recursive: true }); }

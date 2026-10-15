@@ -14,12 +14,12 @@ function requireCheck(condition, message) {
 export function validateConfig(config) {
   const production = config.d1_databases?.find(db => db.binding === "DB");
   const preview = config.env?.preview?.d1_databases?.find(db => db.binding === "DB");
-  requireCheck(config.name === "kdp-gu" && config.pages_build_output_dir, "GU Pages project/output configuration is missing.");
+  requireCheck(config.name === "codepi-gu" && config.pages_build_output_dir, "GU Pages project/output configuration is missing.");
   requireCheck(config.vars?.ENVIRONMENT === "production" && config.env?.preview?.vars?.ENVIRONMENT === "preview",
     "Production and preview environment markers must be explicit.");
   requireCheck(config.vars?.SSO_ENABLED === "1" && config.vars?.AUTH_CLIENT_ID === "gu"
     && config.vars?.AUTH_ORIGIN === "https://auth.codepi.app"
-    && config.services?.some(service => service.binding === "AUTH" && service.service === "kdp-auth"),
+    && config.services?.some(service => service.binding === "AUTH" && service.service === "codepi-auth"),
     "Production must preserve the GU SSO configuration and AUTH service binding.");
   for (const db of [production, preview]) {
     requireCheck(db?.database_name && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(db.database_id)

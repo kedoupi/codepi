@@ -4,7 +4,7 @@ import worker from "../worker/index";
 import { secretHash } from "../worker/lib";
 import type { Env } from "../worker/types";
 
-const origin = "https://kdp-gu.pages.dev";
+const origin = "https://codepi-gu.pages.dev";
 const sevenDays = 7 * 86400;
 function request(path: string, cookie = "", method = "GET", source = origin) {
   return new Request(origin + path, { method, headers: { Cookie: cookie, Origin: source } });

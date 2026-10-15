@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "kdp-auth",
+  "name": "codepi-auth",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-15",
   "compatibility_flags": ["nodejs_compat"],
@@ -14,8 +14,8 @@
   },
   "d1_databases": [{
     "binding": "DB",
-    "database_name": "kdp-auth",
-    "database_id": "2a208e2f-50b5-48be-8cbb-a2893e63c658",
+    "database_name": "codepi-auth",
+    "database_id": "ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1",
     "migrations_dir": "migrations"
   }],
   "triggers": { "crons": ["17 3 * * *"] }

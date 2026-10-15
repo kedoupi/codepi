@@ -295,7 +295,7 @@ export async function handleDevSession(
     return redirectToApp(request, env, { login: "dev" }, headers);
   } catch {
     return jsonError("DEV session failed", 503, {
-      hint: "Apply D1 migrations (wrangler d1 migrations apply oura_kdp --local)",
+      hint: "Apply D1 migrations (wrangler d1 migrations apply codepi-health --local)",
     });
   }
 }

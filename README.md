@@ -14,14 +14,14 @@
 
 | Path | Domain | CF project | 说明 |
 | --- | --- | --- | --- |
-| `web/` | `codepi.app` + `www.` | `kdp-portal` | 首页、应用介绍、博客与 `desk` 摘要接口 |
-| `gu/` | `gu.codepi.app` | `kdp-gu` | 私人投资工作台 |
-| `gzh/` | `gzh.codepi.app` | `gzh` | 公众号稿件、预览与审核台 |
-| `oura/` | `health.codepi.app` | `oura-kdp` + worker `oura-kdp-api` | Health |
-| `auth/` | `auth.codepi.app` | worker `kdp-auth` | 统一登录，四个产品共同依赖 |
+| `web/` | `codepi.app` + `www.` | `codepi-www` | 首页、应用介绍、博客与 `desk` 摘要接口 |
+| `gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
+| `gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
+| `oura/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
+| `auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`web`、`gu`、`gzh` 是 Cloudflare Pages 项目；`oura/` 是独立 pnpm workspace，前端发布到 `oura-kdp`，API 用 `cd oura && pnpm deploy:api` 部署 worker。`gzh/` 的目录名和 Pages 项目名是既有资源名，产品标识统一为 GZH；D1 数据库名沿用历史名称以保证数据不变。
+部署要点：`web`、`gu`、`gzh` 是 Cloudflare Pages 项目（`codepi-www`、`codepi-gu`、`codepi-gzh`）；`oura/` 是独立 pnpm workspace，前端发布到 `codepi-health`，API worker 名 `codepi-health-api`，用 `cd oura && pnpm deploy:api` 部署 worker。D1 数据库名同步改为 `codepi-*`（生产与 preview 分离）。
 
 
 ## 广告与历史工具
@@ -70,14 +70,15 @@ Push to `main` → Cloudflare Pages auto-rebuilds configured projects (each watc
 
 ### CF Pages settings (reference)
 
-| Project       | Root      | Build cmd       | Output | Node | Custom domains                                  |
-| ------------- | --------- | --------------- | ------ | ---- | ----------------------------------------------- |
-| `kdp-portal`  | `web`     | `npm run build:pages` | `dist` | 22   | `codepi.app` (apex), `www.codepi.app`           |
-| `kdp-gu`      | `gu`      | `npm run build` | `dist` | 22   | `gu.codepi.app`, `kdp-gu.pages.dev`             |
-| `gzh`         | `gzh`     | `npm run build` | `dist` | 22   | `gzh.codepi.app`, `gzh.pages.dev`               |
-| `oura-kdp`    | `oura/apps/web` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` | 22 | `health.codepi.app`, `oura-kdp.pages.dev` |
+| Project        | Root      | Build cmd       | Output | Node | Custom domains                                  |
+| -------------- | --------- | --------------- | ------ | ---- | ----------------------------------------------- |
+| `codepi-www`   | `web`     | `npm run build:pages` | `dist` | 22   | `codepi.app` (apex), `www.codepi.app`           |
+| `codepi-gu`    | `gu`      | `npm run build` | `dist` | 22   | `gu.codepi.app`, `codepi-gu.pages.dev`          |
+| `codepi-gzh`   | `gzh`     | `npm run build` | `dist` | 22   | `gzh.codepi.app`, `codepi-gzh.pages.dev`        |
+| `codepi-health` | `oura/apps/web` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` | 22 | `health.codepi.app`, `codepi-health.pages.dev` |
+> Note: Pages 项目的 pnpm workspace 过滤仍叫 `@oura-kdp/web` / `@oura-kdp/api`（包名未重命名），仅 Pages 项目名统一为 `codepi-*`。
 
-`kdp-portal` uses `npm run build:pages` because Pages only auto-compiles the
+`codepi-www` uses `npm run build:pages` because Pages only auto-compiles the
 Functions folder when it sits next to the project root; the portal's Functions
 (`web/functions/api/`) are compiled into `dist/` by the build script instead.
 
@@ -85,12 +86,12 @@ Functions folder when it sits next to the project root; the portal's Functions
 
 | Name              | Type  | Target                       | Proxied |
 | ----------------- | ----- | ---------------------------- | ------- |
-| `codepi.app` (apex) | CNAME | `kdp-portal.pages.dev`     | yes (CF flattens at apex) |
-| `www`             | CNAME | `kdp-portal.pages.dev`       | yes |
-| `gu`              | CNAME | `kdp-gu.pages.dev`           | yes |
-| `gzh`             | CNAME | `gzh.pages.dev`              | yes |
-| `health`          | CNAME | `oura-kdp.pages.dev`         | yes |
-| `auth`            | —     | Worker custom domain `kdp-auth` | yes |
+| `codepi.app` (apex) | CNAME | `codepi-www.pages.dev`   | yes (CF flattens at apex) |
+| `www`             | CNAME | `codepi-www.pages.dev`     | yes |
+| `gu`              | CNAME | `codepi-gu.pages.dev`      | yes |
+| `gzh`             | CNAME | `codepi-gzh.pages.dev`     | yes |
+| `health`          | CNAME | `codepi-health.pages.dev`  | yes |
+| `auth`            | —     | Worker custom domain `codepi-auth` | yes |
 
 `kdp.cool` 与 `oura.kdp.cool` 已退役：不再解析到任何项目，也不做跳转。原 `kdp.cool` 上的邮件身份与网站解析相互独立，停用站点不影响已配置的邮件发送域。
 

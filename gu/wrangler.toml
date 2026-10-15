@@ -1,11 +1,11 @@
-name = "kdp-gu"
+name = "codepi-gu"
 pages_build_output_dir = "./dist"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
 
 [[services]]
 binding = "AUTH"
-service = "kdp-auth"
+service = "codepi-auth"
 
 [vars]
 SSO_ENABLED = "1"
@@ -16,8 +16,8 @@ OTP_FROM = "otp@kdp.cool"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "gu-production"
-database_id = "8fc889ca-b3e6-493e-90ba-01aa0e1c82da"
+database_name = "codepi-gu"
+database_id = "4d3b6713-85dd-4f61-ac55-9925db72394b"
 migrations_dir = "migrations"
 
 [env.preview.vars]
@@ -29,10 +29,10 @@ OTP_FROM = "otp@kdp.cool"
 
 [[env.preview.services]]
 binding = "AUTH"
-service = "kdp-auth"
+service = "codepi-auth"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "gu-preview"
-database_id = "4c62889c-b7d1-4cd9-bd75-f959276cee61"
+database_name = "codepi-gu-preview"
+database_id = "2dd4b95a-e3a0-47ce-bda4-0598e523b350"
 migrations_dir = "migrations"

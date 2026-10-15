@@ -278,7 +278,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     return internal(request, env, cfg, url.pathname);
   }
   if (url.origin !== cfg.origin) throw new Failure("origin_not_allowed", 403);
-  if (url.pathname === "/api/health" && request.method === "GET") return secure(Response.json({ ok: true, service: "kdp-auth", mailConfigured: Boolean(env.RESEND_API_KEY) }));
+  if (url.pathname === "/api/health" && request.method === "GET") return secure(Response.json({ ok: true, service: "codepi-auth", mailConfigured: Boolean(env.RESEND_API_KEY) }));
   if (url.pathname === "/authorize" && request.method === "GET") return authorize(request, env, cfg);
   if (["/api/auth/request-otp", "/api/auth/verify-otp"].includes(url.pathname)) {
     if (request.method !== "POST") throw new Failure("method_not_allowed", 405);

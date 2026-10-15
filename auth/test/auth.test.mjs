@@ -77,7 +77,7 @@ test('explicit extra callback registrations accept the GU domain and reject othe
   const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify({ gu: ['https://gu.codepi.app/api/auth/callback'] }) });
   for (const [uri, expected] of [
     ['https://gu.codepi.app/api/auth/callback', 200],
-    ['https://preview.kdp-gu.pages.dev/api/auth/callback', 400],
+    ['https://preview.codepi-gu.pages.dev/api/auth/callback', 400],
     ['https://gu.codepi.app/api/auth/callback?next=evil', 400],
   ]) {
     const url = new URL('/authorize', authOrigin);
