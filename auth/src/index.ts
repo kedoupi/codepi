@@ -149,7 +149,7 @@ async function authorize(request: Request, env: Env, cfg: Config): Promise<Respo
   await env.DB.prepare("INSERT INTO auth_transactions (id,client_id,redirect_uri,state,challenge,expires_at) VALUES (?,?,?,?,?,?)")
     .bind(await hash(env.SESSION_SECRET, raw), clientId, redirect, state, challenge, Date.now() + 600_000).run();
   const nonce = random();
-  return secure(new Response(loginPage(client.name, env.OWNER_EMAIL, nonce), {
+  return secure(new Response(loginPage(clientId === "oura" ? "健康 Health" : client.name, env.OWNER_EMAIL, nonce), {
     headers: { "Content-Type": "text/html; charset=utf-8", "Set-Cookie": cookie(request, "transaction", raw, 600) },
   }), nonce);
 }

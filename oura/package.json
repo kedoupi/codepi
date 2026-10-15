@@ -2,7 +2,7 @@
   "name": "oura-kdp",
   "private": true,
   "version": "0.1.0",
-  "description": "Open-source Oura health dashboard for oura.kdp.cool",
+  "description": "Personal health workspace for health.kdp.cool",
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "pnpm --filter @oura-kdp/api db:migrate:local && pnpm --parallel --filter @oura-kdp/web --filter @oura-kdp/api dev",

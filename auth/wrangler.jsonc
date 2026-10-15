@@ -5,11 +5,12 @@
   "compatibility_date": "2026-10-15",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
+  "rules": [{ "type": "Text", "globs": ["**/tokens.css"], "fallthrough": true }],
   "routes": [{ "pattern": "auth.kdp.cool", "custom_domain": true }],
   "vars": {
     "ENVIRONMENT": "production",
     "AUTH_ORIGIN": "https://auth.kdp.cool",
-    "SSO_EXTRA_REDIRECT_URIS": "{\"gu\":[\"https://gu.kdp.cool/api/auth/callback\"]}"
+    "SSO_EXTRA_REDIRECT_URIS": "{\"gu\":[\"https://gu.kdp.cool/api/auth/callback\"],\"oura\":[\"https://health.kdp.cool/api/auth/callback\"]}"
   },
   "d1_databases": [{
     "binding": "DB",

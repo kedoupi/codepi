@@ -7,6 +7,7 @@ on:
       - 'fagao/**'
       - 'oura/**'
       - 'shared/auth/**'
+      - 'shared/styles/**'
       - 'shared/email/**'
       - 'shared/brand.ts'
       - '.github/workflows/deploy-product-apps.yml'
@@ -15,6 +16,7 @@ on:
       - 'fagao/**'
       - 'oura/**'
       - 'shared/auth/**'
+      - 'shared/styles/**'
       - 'shared/email/**'
       - 'shared/brand.ts'
       - '.github/workflows/deploy-product-apps.yml'
@@ -92,7 +94,7 @@ jobs:
         if: github.event_name == 'push'
         id: changed
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qE '^(oura/|shared/auth/|\.github/workflows/deploy-product-apps\.yml$)'; then
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^(oura/|shared/auth/|shared/styles/|\.github/workflows/deploy-product-apps\.yml$)'; then
             echo "touched=yes" >> "$GITHUB_OUTPUT"
           else
             echo "touched=no" >> "$GITHUB_OUTPUT"
@@ -162,4 +164,6 @@ jobs:
         run: |
           OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
           pnpm check:branding
+          pnpm check:api https://oura.kdp.cool
+          pnpm check:branding https://oura.kdp.cool
 

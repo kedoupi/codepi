@@ -4,7 +4,7 @@ const options = globalThis.ouraSmokeOptions || {};
 const task = await taskSpace(options.spaceId || 'Oura SSO regression');
 console.log({ spaceId: task.spaceId });
 const page = task.page(options.page || 'p1');
-const origin = 'http://127.0.0.1:4178';
+const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
 const instrument = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__ssoConsole = [];
     for (const level of ['error','warn']) {
@@ -94,7 +94,7 @@ try {
   });
   await page.waitForSelector('#landing-view');
   assert.equal(await page.evaluate(() => Boolean(document.querySelector('.today-scores, .journal-main, .health-data'))), false);
-  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录 KDP 账号/);
+  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录健康空间/);
   console.log('PASS focus revocation clears private workspace and immediately retains KDP login');
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.today-scores');
@@ -102,7 +102,7 @@ try {
   await page.click('loc=css:.journal-account > summary');
   await page.click('loc=css:nav button:text-is("退出")');
   await page.waitForSelector('#landing-view');
-  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录 KDP 账号/);
+  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录健康空间/);
   await page.screenshot({ path: '/tmp/oura-sso-logout.png' });
   console.log('PASS logout uses POST and immediately retains KDP login; cached history survives login');
 
@@ -110,7 +110,7 @@ try {
     await page.goto(`${origin}/?auth_error=${code}`);
     await page.waitForSelector('.landing-error[role="alert"]');
     assert.ok((await page.evaluate(() => document.querySelector('.landing-error').textContent)).includes(message));
-    assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录 KDP 账号/);
+    assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录健康空间/);
   }
   await page.screenshot({ path: '/tmp/oura-sso-callback-error.png' });
   console.log('PASS signed-out callback failures show safe retry/unavailable UI and KDP login');
@@ -130,7 +130,7 @@ try {
     document.querySelector('.journal-sync-line button').click();
   });
   await page.waitForSelector('#landing-view');
-  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录 KDP 账号/);
+  assert.match(await page.evaluate(() => document.querySelector('.landing-btn.primary').textContent), /登录健康空间/);
   const final = await page.evaluate(() => ({
     meaningful: document.body.textContent.trim().length > 100,
     overlay: Boolean(document.querySelector('vite-error-overlay')),
@@ -142,7 +142,7 @@ try {
   assert.deepEqual(final.errors, []);
   assert.equal(final.api401, true, 'the score refresh must receive an actual website-session 401');
   assert.equal(new URL(await page.url()).pathname, '/');
-  assert.equal(await page.title(), 'Oura 健康看板');
+  assert.equal(await page.title(), '健康 Health · kedoupi（codepi）');
   console.log('PASS API 401 clears private state, no overlay/console failures; SSO browser journey');
 } finally {
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: instrument.identifier });

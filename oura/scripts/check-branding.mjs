@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-const origin = new URL(process.argv[2] || 'https://oura.kdp.cool').origin;
+const origin = new URL(process.argv[2] || 'https://health.kdp.cool').origin;
 
 // Check real public responses: a missing Pages asset can silently return SPA HTML.
 async function asset(path, contentType) {

@@ -91,6 +91,24 @@ test('invalid extra callback configuration fails closed', async t => {
   }
 });
 
+test('Health callback is explicitly registered while legacy Oura and other clients stay scoped', async t => {
+  const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify({
+    oura: ['https://health.kdp.cool/api/auth/callback'],
+  }) });
+  for (const [id, uri, expected] of [
+    ['oura', 'https://health.kdp.cool/api/auth/callback', 200],
+    ['oura', clients.oura.redirectUris[0], 200],
+    ['gu', 'https://health.kdp.cool/api/auth/callback', 400],
+    ['oura', 'https://health.kdp.cool.evil.test/api/auth/callback', 400],
+    ['oura', 'https://health.kdp.cool/api/auth/callback?next=evil', 400],
+  ]) {
+    const url = new URL('/authorize', authOrigin);
+    url.search = new URLSearchParams({ client_id: id, redirect_uri: uri,
+      state: 's'.repeat(43), code_challenge: 'a'.repeat(43), code_challenge_method: 'S256' });
+    assert.equal((await f.auth.fetch(url)).status, expected, uri);
+  }
+});
+
 test('OTP is single-use under concurrent verification, wrong browser and expired code are refused', async t => {
   const f = await fixture(t);
   const tx = await f.begin();
