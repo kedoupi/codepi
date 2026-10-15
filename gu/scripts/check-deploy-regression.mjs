@@ -20,7 +20,7 @@ const prod = { binding: 'DB', database_name: 'production-fixture', database_id: 
 const prev = { binding: 'DB', database_name: 'preview-fixture', database_id: '22222222-2222-4222-8222-222222222222' };
 const config = () => ({ name: 'kdp-gu', pages_build_output_dir: './dist', vars: { ENVIRONMENT: 'production' }, d1_databases: [{ ...prod }], env: { preview: { vars: { ENVIRONMENT: 'preview' }, d1_databases: [{ ...prev }] } } });
 const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
-const routes = () => ({ '/api/health': () => json({ ok: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401) });
+const routes = () => ({ '/api/health': () => json({ ok: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401), '/api/calendar': () => json({ error: 'Login required' }, 401) });
 function fetcher(overrides = {}) {
   const handlers = { ...routes(), ...overrides };
   return async (url, options) => {
@@ -65,8 +65,8 @@ for (const [name, override, expected] of [
 ]) test(`health rejects ${name}`, async () => assert.rejects(health(override), expected));
 test('health requires an existing local build', async () => assert.rejects(checkHealth('https://gu.example', { distDir: path.join(dir, 'missing'), fetcher: fetcher() }), /Local dist\/index.html is missing/));
 test('network error is sanitized', async () => assert.rejects(checkHealth('https://gu.example', { distDir: dir, fetcher: async () => { throw new Error('private provider body'); } }), error => /network\/TLS/.test(error.message) && !error.message.includes('private provider')));
-test('auth requires error-only JSON 401 from both private endpoints', async () => assert.match(await auth(), /error-only 401/));
-for (const endpoint of ['/api/me', '/api/dashboard']) {
+test('auth requires error-only JSON 401 from all three private endpoints', async () => assert.match(await auth(), /error-only 401/));
+for (const endpoint of ['/api/me', '/api/dashboard', '/api/calendar']) {
   for (const status of [200, 302, 403, 503]) test(`auth rejects ${endpoint} status ${status}`, async () => assert.rejects(auth({ [endpoint]: () => json({ data: 'private fixture' }, status) }), new RegExp(`received ${status}`)));
   test(`auth rejects leaked fields at ${endpoint}`, async () => assert.rejects(auth({ [endpoint]: () => json({ error: 'Login required', data: 'private fixture' }, 401) }), /without private data/));
 }

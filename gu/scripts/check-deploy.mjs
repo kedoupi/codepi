@@ -124,7 +124,7 @@ export async function checkHealth(origin, { distDir = path.join(guDir, "dist"), 
 }
 
 export async function checkAuth(origin, { fetcher = fetch } = {}) {
-  for (const endpoint of ["/api/me", "/api/dashboard"]) {
+  for (const endpoint of ["/api/me", "/api/dashboard", "/api/calendar"]) {
     const response = await getResponse(fetcher, origin, endpoint);
     requireCheck(response.status === 401, `${endpoint}: expected unauthenticated 401, received ${response.status}.`);
     const body = await readJson(response, endpoint);
