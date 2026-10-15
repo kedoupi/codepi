@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'AI Token & Cost Calculator - Prompt Token and API Cost Estimator';
 const description = 'Estimate prompt tokens, output tokens, and AI API cost for common OpenAI, Anthropic, Gemini, and OpenRouter-style billing. Browser-only, no signup.';
@@ -28,7 +27,6 @@ const faqs = [
     title="AI Token & Cost Calculator"
     intro="Paste a prompt, choose a model, estimate output length, and see rough per-run cost. The math is transparent and runs in your browser."
   >
-    <AdSense slot="top-ad" adSlot="ai-token-top" style="min-height:90px" />
 
     <div slot="inputs" class="space-y-4">
       <div>
@@ -97,7 +95,6 @@ const faqs = [
       </div>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="ai-token-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How the estimate works</h2>
@@ -139,7 +136,6 @@ const faqs = [
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="ai-token-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

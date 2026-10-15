@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'AI Prompt Builder - Create Structured Prompts';
 const description = 'Build a clear AI prompt from role, task, context, inputs, constraints, output format, and acceptance criteria. Browser-only, no signup.';
@@ -26,7 +25,6 @@ const faqs = [
     title="AI Prompt Builder"
     intro="Fill in the fields you know. The tool turns them into a structured prompt you can copy into ChatGPT, Claude, Gemini, or an API request."
   >
-    <AdSense slot="top-ad" adSlot="ai-prompt-builder-top" style="min-height:90px" />
 
     <div slot="inputs" class="space-y-4">
       <div>
@@ -73,7 +71,6 @@ const faqs = [
         class="w-full px-3 py-2 border border-slate-300 rounded font-mono text-sm leading-relaxed resize-y bg-white"></textarea>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="ai-prompt-builder-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How to use the prompt builder</h2>
@@ -107,7 +104,6 @@ const faqs = [
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="ai-prompt-builder-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

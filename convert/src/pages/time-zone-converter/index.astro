@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Time Zone Converter - Free, Instant Conversion';
 const description = 'Convert any time between two time zones instantly. 80+ time zones with current UTC offset and DST handling. Free, no signup.';
@@ -108,7 +107,6 @@ const ZONES = [
     title="Time Zone Converter"
     intro="Convert any date and time between two time zones, with current UTC offset and daylight-saving handling."
   >
-    <AdSense slot="top-ad" adSlot="tz-top" style="min-height:90px" />
 
     <form id="tz-form" class="space-y-5" slot="inputs" autocomplete="off">
       <div>
@@ -151,7 +149,6 @@ const ZONES = [
       <p class="text-xs text-slate-500" id="tz-r-offset"></p>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="tz-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How time zone conversion works</h2>
@@ -187,7 +184,6 @@ const ZONES = [
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="tz-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

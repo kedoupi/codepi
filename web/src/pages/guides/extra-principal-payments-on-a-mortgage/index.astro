@@ -31,10 +31,10 @@ const guide = getGuide('extra-principal-payments-on-a-mortgage');
   <p>
     Iterating the schedule month by month until the balance clears:
   </p>
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">Scheduled payment versus $200 monthly extra principal</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Path</th>
           <th class="px-4 py-3 font-semibold">Monthly out the door</th>
@@ -43,8 +43,8 @@ const guide = getGuide('extra-principal-payments-on-a-mortgage');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Required P&amp;I only</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">360 (30.0 years)</td><td class="px-4 py-2.5">$408,142</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">P&amp;I + $200 extra</td><td class="px-4 py-2.5">$2,222.62</td><td class="px-4 py-2.5">281 (≈ 23.4 years)</td><td class="px-4 py-2.5">$302,714</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Required P&amp;I only</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">360 (30.0 years)</td><td class="px-4 py-2.5">$408,142</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">P&amp;I + $200 extra</td><td class="px-4 py-2.5">$2,222.62</td><td class="px-4 py-2.5">281 (≈ 23.4 years)</td><td class="px-4 py-2.5">$302,714</td></tr>
       </tbody>
     </table>
   </div>
@@ -64,7 +64,6 @@ const guide = getGuide('extra-principal-payments-on-a-mortgage');
   <p>
     Paying extra principal is one use of surplus cash. Investing the same $200, funding an emergency reserve, or buying down a higher-rate card can win on a pure return comparison depending on the rate, tax treatment, and your risk tolerance. This guide only prices the mortgage side of that trade. It does not claim prepaying is always best.
   </p>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Lump sums versus steady extras</h2>
   <p>

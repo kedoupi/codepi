@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Free Format Converters for Time Zones, Units, and Temperature';
 const description = 'Free, no-signup converters for time zones, units, and temperature. Instant browser results with formulas, examples, and clear limitations.';
@@ -19,7 +18,6 @@ const tools = [
     <p class="max-w-3xl text-stone-600 leading-7">Use ConvertKDP for everyday planning tasks: scheduling across regions, checking metric and imperial measurements, or translating a temperature between weather, cooking, science, and engineering contexts.</p>
   </section>
 
-  <AdSense adSlot="convert-home-top" style="min-height:90px" />
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {tools.map((c) => (
@@ -65,5 +63,4 @@ const tools = [
     </ul>
   </section>
 
-  <AdSense adSlot="convert-home-bottom" style="min-height:90px" />
 </BaseLayout>

@@ -9,18 +9,19 @@ transactional email and cross-product identity. KDP is a technical abbreviation;
 existing domains, service names and cookie identifiers do not need renaming.
 Reuse `shared/brand.ts` and `shared/email/otp.ts` for brand and OTP mail content.
 
-Monorepo for the `kdp.cool` family of static, ad-supported web tools. Five independent Astro projects share a `shared/` source folder via Vite aliases. Each project deploys to its own Cloudflare Pages project on its own (sub)domain. Read `README.md` for the full domain table, AdSense status, DNS records, and per-project CF settings — do not duplicate that content here.
+Monorepo for the kedoupi（codepi）personal digital space. `web/` is the personal homepage and product entrance. Six independent Astro projects share `shared/` via Vite aliases; private Health, GU and WeChat apps retain their own stacks and data. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract and phased application adoption. Each project deploys to its own Cloudflare Pages project on its own (sub)domain. Read `README.md` for the full domain table, DNS records, and per-project CF settings — do not duplicate that content here.
 
 ## Architecture in one screen
 
 ```
 kdp-tools/
-├── web/      → kdp.cool (apex portal)            CF project: kdp-portal
+├── web/      → kdp.cool (personal home)            CF project: kdp-portal
 ├── calc/     → calc.kdp.cool (5 calculators)     CF project: kdp-tools
 ├── convert/  → convert.kdp.cool (3 converters)   CF project: kdp-convert
 ├── text/     → text.kdp.cool (2 utils)           CF project: kdp-text
 ├── dev/      → dev.kdp.cool (2 dev tools)        CF project: kdp-dev
-└── shared/   → BaseLayout, AdSense, CalculatorShell, charts.js, url-state.js
+├── ai/       → ai.kdp.cool (archived AI utilities)
+└── shared/   → BaseLayout, styles/tokens.css, products.ts, CalculatorShell, charts.js, url-state.js
 ```
 
 Each site is a self-contained Astro project (its own `package.json`, `astro.config.mjs`, `node_modules`). They are NOT npm workspaces — there is no root `package.json`. The only thing connecting them is `shared/` and the per-site `astro.config.mjs` Vite aliases (`@shared` → `../shared`, `@site` → `./src`).
@@ -54,18 +55,17 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per site.
 
 1. **Always pass `--legacy-peer-deps` on `npm install`** (or rely on the per-site `.npmrc` which already pins it). `@astrojs/tailwind@6` declares peer `astro@^3||^4||^5` while we run Astro 6. Without it, install fails.
 2. **Lockfiles must use the public npm registry.** `<site>/.npmrc` pins `registry=https://registry.npmjs.org/`. If you ever regenerate a lockfile and your global `~/.npmrc` points at a private mirror (e.g. `npm.cnb.cool`), CF Pages builds will fail with `npm error code E401`. Always reinstall with `--registry=https://registry.npmjs.org/` explicitly.
-3. **AdSense review window: don't modify `calc/` page content** unless the user explicitly asks. We submitted `kdp.cool` for AdSense on 2026-05-08 — material changes to verified pages can trigger re-review. Cross-cutting refactors (e.g. shared/), new tools on other subdomains, and bug fixes are fine; major copy/structure rewrites of `calc/` pages are not.
+3. **Personal-space direction supersedes AdSense review restrictions.** Preserve useful legacy tool URLs and math behavior. Do not add advertising scripts, placeholders, or publisher files.
 4. **Math test gotcha: `round(a) + round(b) ≠ round(a + b)`.** Several tests in this repo were initially written with `Math.round(monthly) * n` style expectations and produced off-by-one failures. When asserting on derived totals, compute them from the implementation's exact numbers, not from rounded intermediates. Already cost two debugging cycles.
-5. **`shared/` change ripples to all 5 sites.** A change to `shared/layouts/BaseLayout.astro` rebuilds + redeploys every CF Pages project. Verify all 5 sites still build before pushing.
+5. **`shared/` change ripples to all 6 static sites.** A change to `shared/layouts/BaseLayout.astro` rebuilds + redeploys every CF Pages project. Verify all 6 static sites still build before pushing.
 6. **Astro inline `<script>` is bundled by Vite.** Relative imports (`@shared/lib/charts.js`) work and are tree-shaken. Don't switch to `<script type="module" src="/scripts/...">` — that breaks bundling. URL state must be persisted via the `pushUrlState` util in `shared/lib/url-state.js`, not raw `history.replaceState`, so the debounce + `?` handling is consistent.
-7. **AdSense.astro renders a placeholder `<div>`, not a real `<ins class="adsbygoogle">`.** This is intentional during the review window. Do not switch to real `<ins>` tags until Google approves the account; switching too early can cause empty ad units in Google's metrics. The swap is documented in README §"Post-approval".
-8. **Astro slot syntax conflict with AdSense `slot` prop.** The `AdSense.astro` component accepts BOTH `slot=` (the Astro named-slot fill) and `adSlot=` (the AdSense placement ID). When `<AdSense>` is filling a named slot in `CalculatorShell`, use `slot="top-ad"` for the Astro semantics and `adSlot="mortgage-top"` for the placement. When it's a direct child (no named-slot context), `slot=` alone works. The component resolves `slotId = adSlot ?? slot ?? ''` internally.
+7. **Shared visual contract.** Reuse `shared/styles/tokens.css`, `shared/styles/site.css` and `shared/products.ts`. Personal-site pages must share navigation, typography, colors, spacing and interaction states. Private apps adopt these rules in their own migration phase; do not claim all apps are restyled when only shared tokens exist.
 
 ## Conventions
 
 - **Pure math first.** Calculator math goes in `<site>/src/lib/<slug>.js` as a pure function with a `<slug>.test.mjs` next to it (`node:test` + `node:assert/strict`). The page's inline `<script>` imports the pure function — same code as the test, no DOM in the math module.
 - **Primitives in DRY order.** `shared/lib/url-state.js` and `shared/lib/charts.js` are cross-site. `calc/src/lib/{amortization,federal-tax}.js` are calc-internal primitives reused by multiple calc tools (e.g. `mortgage.js` and `auto-loan.js` both call `calcAmortizedLoan`). New shared primitives go in `shared/lib/`; new calc-only primitives stay in `calc/src/lib/`.
-- **Every tool page has 3 AdSense placements** (`top-ad`, `middle-ad`, `bottom-ad`) using `<AdSense>` with `adSlot=<slug>-{top,middle,bottom}`. Keep the naming pattern.
+- **No advertising.** Shared ad injection, components and placements have been retired. Preserve tool content without empty ad spacing.
 - **Every tool page has a "Show the math" `<details>` block** that prints the actual computation (formula filled in with the user's inputs). This is core to our SEO + GEO strategy — don't skip it.
 - **Every tool page persists inputs to URL** via `decodeState` + `pushUrlState` from `shared/lib/url-state.js`. Pattern: read URL on mount → seed inputs → on every input event, debounced 250ms, replaceState the snapshot.
 - **JSON-LD `applicationCategory`** is per-site. Set it via `<site>/src/site.config.js` (`FinanceApplication` for calc, `UtilityApplication` for convert/text, `DeveloperApplication` for dev).
@@ -75,9 +75,9 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per site.
 
 - Adding a new tool to an existing subdomain: see README §"Add a new tool".
 - Adding a new subdomain tool family: see README §"Add a new subdomain tool family" — the recipe is tested.
-- Math behavior changes that affect calc/ output during AdSense review: pause and confirm with the user first.
+- Keep math behavior changes separate from presentation changes; run the relevant math tests when behavior changes.
 
 ## Workflow notes
 
 - Design docs and implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` — generated via the brainstorm → plan → execute workflow. Reading the most recent files gives the most up-to-date picture of intended scope.
-- Memory in `~/.Codex/projects/-Users-echorenyuan-Coding-kedoupi-kdp-tools/memory/` records project goals (AdSense revenue, beat-NerdWallet UX), apex-domain AdSense lesson, and decisive-design preference. Read at session start when context matters.
+- Current product direction is recorded in `docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md`; visual rules are in `docs/architecture/personal-design-system.md`. Old AdSense records are historical context and do not override the personal-space direction.

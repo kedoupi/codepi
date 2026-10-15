@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 import FaqSection from '../../components/FaqSection.astro';
 
 const title = 'Compound Interest Calculator - Investment Growth';
@@ -51,7 +50,6 @@ const faqs = [
     title="Compound Interest Calculator"
     intro="Project your investment growth with regular contributions. See the year-by-year breakdown of contributions vs. interest earned."
   >
-    <AdSense slot="top-ad" adSlot="ci-top" style="min-height:90px" />
 
     <form id="ci-form" class="space-y-5" slot="inputs" autocomplete="off">
       <div>
@@ -119,7 +117,6 @@ const faqs = [
       </ul>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="ci-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <p class="mb-6 text-sm text-slate-600 border border-slate-200 bg-slate-50 rounded p-3">
@@ -205,7 +202,6 @@ const faqs = [
       />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="ci-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Unit Converter - Length, Weight, Volume, Area';
 const description = 'Free online unit converter — length, weight, volume, area. Metric ↔ Imperial. Instant conversion in your browser.';
@@ -91,7 +90,6 @@ const CATEGORIES = Object.entries(UNITS).map(([id, c]) => ({ id, label: c.label 
     title="Unit Converter"
     intro="Convert between metric and imperial units of length, weight, volume, and area. Instant, in-browser, no signup."
   >
-    <AdSense slot="top-ad" adSlot="unit-top" style="min-height:90px" />
 
     <form id="uc-form" class="space-y-5" slot="inputs" autocomplete="off">
       <div>
@@ -140,7 +138,6 @@ const CATEGORIES = Object.entries(UNITS).map(([id, c]) => ({ id, label: c.label 
       </div>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="unit-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How unit conversion works</h2>
@@ -176,7 +173,6 @@ const CATEGORIES = Object.entries(UNITS).map(([id, c]) => ({ id, label: c.label 
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="unit-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

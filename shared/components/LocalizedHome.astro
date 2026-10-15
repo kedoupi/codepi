@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 import { localizedPath } from '@shared/i18n/config.js';
 import { getHomeContent, localeChrome, siteMeta } from '@shared/i18n/home-content.js';
 
@@ -13,7 +12,6 @@ const { siteKey, locale } = Astro.props;
 const meta = siteMeta[siteKey];
 const copy = getHomeContent(siteKey, locale);
 const chrome = localeChrome[locale];
-const adPrefix = meta.adSlotPrefix;
 const isPortal = siteKey === 'web';
 
 const toolHref = (href) => {
@@ -51,7 +49,6 @@ const toolHref = (href) => {
     )}
   </section>
 
-  <AdSense adSlot={`${adPrefix}-top`} style="min-height:90px" />
 
   <section class="mt-10">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -90,7 +87,6 @@ const toolHref = (href) => {
     )}
   </section>
 
-  <AdSense adSlot={`${adPrefix}-bottom`} style="min-height:90px" />
 
   <section class="mt-12 border-t border-[#e6d9c8] pt-6 text-sm text-stone-600">
     <p class="flex flex-wrap gap-x-4 gap-y-2">

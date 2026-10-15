@@ -31,7 +31,7 @@ const guide = getGuide('how-monthly-mortgage-payments-are-calculated');
   <p>
     For a fixed monthly rate <em>r</em> and <em>n</em> months, the level payment <em>M</em> on principal <em>P</em> is:
   </p>
-  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+  <p class="rounded-xl border border-[var(--kdp-line)] bg-white px-4 py-3 font-mono text-[0.95rem] leading-7">
     M = P × [ r (1 + r)<sup>n</sup> ] / [ (1 + r)<sup>n</sup> − 1 ]
   </p>
   <p>
@@ -57,23 +57,23 @@ const guide = getGuide('how-monthly-mortgage-payments-are-calculated');
     Rounded to the nearest dollar, that is $2,023. Our calculator keeps the unrounded value $2,022.617… and only rounds when it displays a figure, which is why a hand check and an on-screen total can differ by a dollar if you mix rounded intermediates. If you want to verify the exact implementation, use the same formula without rounding until the end.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">Static mortgage example figures</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Item</th>
           <th class="px-4 py-3 font-semibold">Amount</th>
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Home price</td><td class="px-4 py-2.5">$400,000</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Down payment (20%)</td><td class="px-4 py-2.5">$80,000</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Loan principal</td><td class="px-4 py-2.5">$320,000</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Monthly P&amp;I</td><td class="px-4 py-2.5">$2,022.62</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Property tax ($5,000 / 12)</td><td class="px-4 py-2.5">$416.67</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Insurance ($1,500 / 12)</td><td class="px-4 py-2.5">$125.00</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Estimated housing payment</td><td class="px-4 py-2.5">$2,564.28</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Home price</td><td class="px-4 py-2.5">$400,000</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Down payment (20%)</td><td class="px-4 py-2.5">$80,000</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Loan principal</td><td class="px-4 py-2.5">$320,000</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Monthly P&amp;I</td><td class="px-4 py-2.5">$2,022.62</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Property tax ($5,000 / 12)</td><td class="px-4 py-2.5">$416.67</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Insurance ($1,500 / 12)</td><td class="px-4 py-2.5">$125.00</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Estimated housing payment</td><td class="px-4 py-2.5">$2,564.28</td></tr>
       </tbody>
     </table>
   </div>

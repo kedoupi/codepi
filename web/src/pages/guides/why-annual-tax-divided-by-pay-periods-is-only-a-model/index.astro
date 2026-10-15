@@ -23,7 +23,7 @@ const guide = getGuide('why-annual-tax-divided-by-pay-periods-is-only-a-model');
   <p>
     Take the $72,000 single filer with no 401(k) and a $16,100 standard deduction. Annual federal ordinary tax is <strong>$7,010</strong>. Divide by 26:
   </p>
-  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+  <p class="rounded-xl border border-[var(--kdp-line)] bg-white px-4 py-3 font-mono text-[0.95rem] leading-7">
     $7,010 ÷ 26 ≈ $269.62 federal income tax per biweekly check
   </p>
   <p>
@@ -49,10 +49,10 @@ const guide = getGuide('why-annual-tax-divided-by-pay-periods-is-only-a-model');
     A concrete tell: if your biweekly gross is not simply annual salary ÷ 26 (because of overtime, commissions, or unpaid time), the model’s first input is already wrong. Fix the annual wage estimate before you trust any per-check column.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">Planning model versus payroll withholding</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Question</th>
           <th class="px-4 py-3 font-semibold">Annual ÷ periods model</th>
@@ -60,14 +60,13 @@ const guide = getGuide('why-annual-tax-divided-by-pay-periods-is-only-a-model');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Primary goal</td><td class="px-4 py-2.5">Explain a full-year estimate</td><td class="px-4 py-2.5">Withhold from this check under IRS rules</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Inputs</td><td class="px-4 py-2.5">Annual assumptions you type</td><td class="px-4 py-2.5">This period’s wages + W-4</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Bonus handling</td><td class="px-4 py-2.5">Usually none</td><td class="px-4 py-2.5">Supplemental or aggregate methods</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Best use</td><td class="px-4 py-2.5">Compare scenarios</td><td class="px-4 py-2.5">Run payroll / read a stub</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Primary goal</td><td class="px-4 py-2.5">Explain a full-year estimate</td><td class="px-4 py-2.5">Withhold from this check under IRS rules</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Inputs</td><td class="px-4 py-2.5">Annual assumptions you type</td><td class="px-4 py-2.5">This period’s wages + W-4</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Bonus handling</td><td class="px-4 py-2.5">Usually none</td><td class="px-4 py-2.5">Supplemental or aggregate methods</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Best use</td><td class="px-4 py-2.5">Compare scenarios</td><td class="px-4 py-2.5">Run payroll / read a stub</td></tr>
       </tbody>
     </table>
   </div>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Three frequencies, same annual tax</h2>
   <p>

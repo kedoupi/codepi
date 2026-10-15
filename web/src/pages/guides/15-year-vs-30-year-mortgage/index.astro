@@ -23,17 +23,17 @@ const guide = getGuide('15-year-vs-30-year-mortgage');
   <p>
     Principal <em>P</em> is $320,000. The monthly rate <em>r</em> is 0.065 / 12. The 30-year term is 360 months. The 15-year term is 180 months. Monthly principal and interest is:
   </p>
-  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+  <p class="rounded-xl border border-[var(--kdp-line)] bg-white px-4 py-3 font-mono text-[0.95rem] leading-7">
     M = P × [ r (1 + r)<sup>n</sup> ] / [ (1 + r)<sup>n</sup> − 1 ]
   </p>
   <p>
     Plug in <em>n</em> = 360 and you get about <strong>$2,022.62</strong> per month. Plug in <em>n</em> = 180 and you get about <strong>$2,787.54</strong> per month. The shorter loan costs about <strong>$765 more each month</strong> in P&amp;I alone. That is the cash-flow price of finishing sooner.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">15-year versus 30-year mortgage on $320,000 at 6.5%</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Item</th>
           <th class="px-4 py-3 font-semibold">30-year</th>
@@ -41,12 +41,12 @@ const guide = getGuide('15-year-vs-30-year-mortgage');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Loan principal</td><td class="px-4 py-2.5">$320,000</td><td class="px-4 py-2.5">$320,000</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Note rate</td><td class="px-4 py-2.5">6.5%</td><td class="px-4 py-2.5">6.5%</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Monthly P&amp;I</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">$2,787.54</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Scheduled payments</td><td class="px-4 py-2.5">360</td><td class="px-4 py-2.5">180</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Total P&amp;I paid</td><td class="px-4 py-2.5">$728,142</td><td class="px-4 py-2.5">$501,758</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Total interest</td><td class="px-4 py-2.5">$408,142</td><td class="px-4 py-2.5">$181,758</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Loan principal</td><td class="px-4 py-2.5">$320,000</td><td class="px-4 py-2.5">$320,000</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Note rate</td><td class="px-4 py-2.5">6.5%</td><td class="px-4 py-2.5">6.5%</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Monthly P&amp;I</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">$2,787.54</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Scheduled payments</td><td class="px-4 py-2.5">360</td><td class="px-4 py-2.5">180</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Total P&amp;I paid</td><td class="px-4 py-2.5">$728,142</td><td class="px-4 py-2.5">$501,758</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Total interest</td><td class="px-4 py-2.5">$408,142</td><td class="px-4 py-2.5">$181,758</td></tr>
       </tbody>
     </table>
   </div>
@@ -74,7 +74,6 @@ const guide = getGuide('15-year-vs-30-year-mortgage');
   <p>
     Two practical notes follow from the table. First, comparing terms only works when rate and principal match. Lenders sometimes quote a slightly lower rate on 15-year products; if that happens, re-run both sides with the real quotes rather than this single-rate illustration. Second, many borrowers take a 30-year loan and send extra principal when they can. That hybrid path can land between the two columns. Our separate guide on extra principal payments walks that case.
   </p>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Same payment budget, different principal</h2>
   <p>

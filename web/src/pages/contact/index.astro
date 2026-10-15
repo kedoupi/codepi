@@ -1,29 +1,15 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-
-const title = 'Contact';
-const description = 'Reach the Kdp.Cool team. We read every email — bug reports, feature requests, and feedback all welcome.';
 ---
-<BaseLayout title={title} description={description} pathname="/contact/" schemaType="WebPage">
-  <article class="prose-like max-w-3xl space-y-4">
-    <h1 class="text-3xl font-bold tracking-tight">Contact</h1>
-
-    <p>The fastest way to reach us is email:</p>
-    <p class="text-lg"><a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a></p>
-
-    <p class="text-sm text-slate-600">We read everything — bug reports, feature requests, tool suggestions, and corrections to math or reference data are all welcome. Replies usually within a few days.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Found a bug?</h2>
-    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a> with the page URL, what you entered, what you expected, and what you got. Screenshots help.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Looking for a tool we don't have?</h2>
-    <p>Email <a href="mailto:hello@kdp.cool" class="text-blue-600 hover:underline">hello@kdp.cool</a>. We prioritize tools that have a clear job, sources we can cite, and behavior we can show on the page.</p>
-
-    <h2 class="text-xl font-semibold mt-6">What to include</h2>
-    <p>If you are reporting a bug, include the exact page URL, your browser, the input that produced the issue, and the result you expected. If the issue involves a calculator or converter, include the units, dates, rates, or assumptions you used so we can reproduce the same result.</p>
-    <p>If you are suggesting a new tool, describe the job it should help with, who would use it, and what a correct result looks like. We prefer focused tools with transparent behavior over broad tools that hide important assumptions.</p>
-
-    <h2 class="text-xl font-semibold mt-6">Privacy note</h2>
-    <p>Please do not send passwords, private keys, bank records, tax documents, customer data, or other sensitive personal information. If a screenshot is useful, redact anything private before sharing it by email.</p>
+<BaseLayout title="联系" description="关于 kedoupi（codepi）的个人空间、应用和工具，可以通过项目仓库交流。" pathname="/contact/" schemaType="WebPage">
+  <article class="personal-article">
+    <h1>联系</h1>
+    <p class="lead">关于这个空间，或这里的应用与工具，欢迎交流。</p>
+    <h2>项目交流</h2>
+    <p>可以在 <a href="https://github.com/kedoupi/kdp.cool/issues" target="_blank" rel="noopener noreferrer">GitHub 项目仓库</a>反馈问题或留下建议。</p>
+    <p>反馈界面或工具问题时，附上页面地址、遇到的情况和期望的结果，会更容易定位。</p>
+    <h2>公开交流的边界</h2>
+    <p>仓库中的讨论是公开的。请勿在反馈中放入验证码、密钥、个人健康记录、投资账户信息或未发布稿件；截图请先遮住私人内容。</p>
+    <p><a href="/about/">了解这个空间</a>，或<a href="/apps/">看看我正在使用的应用</a>。</p>
   </article>
 </BaseLayout>

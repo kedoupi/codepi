@@ -1,0 +1,20 @@
+---
+import BaseLayout from '@shared/layouts/BaseLayout.astro';
+import ProductList from '../../components/ProductList.astro';
+---
+<BaseLayout title="我的应用" description="围绕健康、投资理财和公众号内容工作的个人应用。了解每个应用的用途与访问方式。" pathname="/apps/" schemaType="WebPage">
+  <section class="personal-article">
+    <h1>从生活出发的应用</h1>
+    <p class="lead">这些应用，来自我想长期做好的一些事情。为自己做，也持续使用。</p>
+    <p>这里可以公开了解它们的用途。进入应用后，需要登录；个人记录和工作内容不会展示在这个公开页面。</p>
+  </section>
+  <section id="applications" class="app-directory" aria-label="应用入口">
+    <ProductList detailed />
+  </section>
+  <p class="directory-foot">以前做过的小工具，收在<a href="/tools/">工具存档</a>里。</p>
+</BaseLayout>
+<style>
+  .app-directory { margin-top: 20px; }
+  .directory-foot { margin: 26px 0 0; font-size: 14px; color: var(--kdp-muted); }
+  .directory-foot a { color: var(--kdp-accent); text-decoration: underline; }
+</style>

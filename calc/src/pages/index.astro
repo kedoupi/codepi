@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Free Financial Calculators for US Home Buyers & Investors';
 const description = 'Free, fast financial calculators for mortgage payments, auto loans, compound interest, paychecks, and 2026 US federal income tax.';
@@ -25,7 +24,6 @@ const calculators = [
     </p>
   </section>
 
-  <AdSense adSlot="home-top" style="min-height:90px" />
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {calculators.map((c) => (
@@ -118,5 +116,4 @@ const calculators = [
     </ul>
   </section>
 
-  <AdSense adSlot="home-bottom" style="min-height:90px" />
 </BaseLayout>

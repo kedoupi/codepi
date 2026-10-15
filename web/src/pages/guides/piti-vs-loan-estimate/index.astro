@@ -27,10 +27,10 @@ const guide = getGuide('piti-vs-loan-estimate');
     Property tax and homeowners insurance are separate costs. Many borrowers escrow them: the lender collects 1/12 of the expected annual amounts each month and pays the bills when due. With $5,000 tax and $1,500 insurance, escrow adds $416.67 + $125.00 = <strong>$541.67</strong>. Stack that on P&amp;I and the housing draft is about <strong>$2,564.28</strong>. That four-part stack — principal, interest, taxes, insurance — is what people mean by <strong>PITI</strong>.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">PITI stack for the default kdp.cool mortgage example</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Component</th>
           <th class="px-4 py-3 font-semibold">Monthly</th>
@@ -38,10 +38,10 @@ const guide = getGuide('piti-vs-loan-estimate');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Principal &amp; interest</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">Yes</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Property tax escrow</td><td class="px-4 py-2.5">$416.67</td><td class="px-4 py-2.5">No — pass-through</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Insurance escrow</td><td class="px-4 py-2.5">$125.00</td><td class="px-4 py-2.5">No — pass-through</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">PITI total</td><td class="px-4 py-2.5">$2,564.28</td><td class="px-4 py-2.5">Mixed</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Principal &amp; interest</td><td class="px-4 py-2.5">$2,022.62</td><td class="px-4 py-2.5">Yes</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Property tax escrow</td><td class="px-4 py-2.5">$416.67</td><td class="px-4 py-2.5">No — pass-through</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Insurance escrow</td><td class="px-4 py-2.5">$125.00</td><td class="px-4 py-2.5">No — pass-through</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">PITI total</td><td class="px-4 py-2.5">$2,564.28</td><td class="px-4 py-2.5">Mixed</td></tr>
       </tbody>
     </table>
   </div>
@@ -71,7 +71,6 @@ const guide = getGuide('piti-vs-loan-estimate');
   <p>
     A browser calculator that asks for price, down payment, rate, term, tax, and insurance is doing a planning sketch of the monthly draft. A Loan Estimate is the lender’s itemized attempt at the real transaction. When they disagree, the disclosure wins for decision-making.
   </p>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">APR is not the monthly draft either</h2>
   <p>

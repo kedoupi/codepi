@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
 import CalculatorShell from '@shared/components/CalculatorShell.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Word Counter - Free Online Word & Character Counter';
 const description = 'Count words, characters, sentences, paragraphs, and estimate reading time. Real-time as you type. Free, no signup.';
@@ -26,7 +25,6 @@ const faqs = [
     title="Word Counter"
     intro="Real-time word, character, sentence, and paragraph counts plus reading-time estimates. Type or paste text and it counts as you go."
   >
-    <AdSense slot="top-ad" adSlot="wc-top" style="min-height:90px" />
 
     <div slot="inputs" class="space-y-3">
       <label for="wc-input" class="block text-sm font-medium text-slate-700">Your text</label>
@@ -69,7 +67,6 @@ const faqs = [
       <p class="text-sm text-slate-500"><span class="font-medium">Most common word:</span> <span id="wc-common">—</span></p>
     </div>
 
-    <AdSense slot="middle-ad" adSlot="wc-middle" format="rectangle" style="min-height:250px;max-width:300px;margin-left:auto;margin-right:auto" />
 
     <div slot="content">
       <h2 class="text-2xl font-bold mb-3">How the word counter works</h2>
@@ -107,7 +104,6 @@ const faqs = [
       })} />
     </div>
 
-    <AdSense slot="bottom-ad" adSlot="wc-bottom" style="min-height:90px" />
   </CalculatorShell>
 
   <script>

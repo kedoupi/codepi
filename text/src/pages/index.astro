@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '@shared/layouts/BaseLayout.astro';
-import AdSense from '@shared/components/AdSense.astro';
 
 const title = 'Free Text Utilities for Word Counts';
 const description = 'Free word counter for words, characters, sentences, and reading time. Instant browser results, no signup.';
@@ -17,7 +16,6 @@ const tools = [
     <p class="max-w-3xl text-stone-600 leading-7">TextKDP is intentionally small: each page solves one text task, explains when to use it, and runs locally in your browser so drafts and pasted notes are not uploaded to a server.</p>
   </section>
 
-  <AdSense adSlot="text-home-top" style="min-height:90px" />
 
   <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
     {tools.map((c) => (
@@ -60,5 +58,4 @@ const tools = [
     </ul>
   </section>
 
-  <AdSense adSlot="text-home-bottom" style="min-height:90px" />
 </BaseLayout>

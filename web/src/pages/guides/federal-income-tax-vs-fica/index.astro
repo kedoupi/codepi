@@ -47,10 +47,10 @@ const guide = getGuide('federal-income-tax-vs-fica');
     FICA here is about 7.65% of gross. It does not care that the filer’s marginal ordinary rate is 22%. It also does not fall when you contribute to a traditional 401(k); Social Security and Medicare generally still see the wages.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">Federal income tax versus FICA on $72,000</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Item</th>
           <th class="px-4 py-3 font-semibold">Annual</th>
@@ -58,12 +58,12 @@ const guide = getGuide('federal-income-tax-vs-fica');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Gross wages</td><td class="px-4 py-2.5">$72,000</td><td class="px-4 py-2.5">$2,769.23</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Federal income tax</td><td class="px-4 py-2.5">$7,010</td><td class="px-4 py-2.5">$269.62</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Social Security</td><td class="px-4 py-2.5">$4,464</td><td class="px-4 py-2.5">$171.69</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Medicare</td><td class="px-4 py-2.5">$1,044</td><td class="px-4 py-2.5">$40.15</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Combined federal + FICA</td><td class="px-4 py-2.5">$12,518</td><td class="px-4 py-2.5">$481.46</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Estimated net</td><td class="px-4 py-2.5">$59,482</td><td class="px-4 py-2.5">$2,287.77</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Gross wages</td><td class="px-4 py-2.5">$72,000</td><td class="px-4 py-2.5">$2,769.23</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Federal income tax</td><td class="px-4 py-2.5">$7,010</td><td class="px-4 py-2.5">$269.62</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Social Security</td><td class="px-4 py-2.5">$4,464</td><td class="px-4 py-2.5">$171.69</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Medicare</td><td class="px-4 py-2.5">$1,044</td><td class="px-4 py-2.5">$40.15</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Combined federal + FICA</td><td class="px-4 py-2.5">$12,518</td><td class="px-4 py-2.5">$481.46</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Estimated net</td><td class="px-4 py-2.5">$59,482</td><td class="px-4 py-2.5">$2,287.77</td></tr>
       </tbody>
     </table>
   </div>
@@ -72,7 +72,6 @@ const guide = getGuide('federal-income-tax-vs-fica');
   <p>
     Combined federal income tax plus FICA is $12,518, about <strong>17.4% of gross</strong>. That is a useful headline for take-home planning. It is a bad substitute for either system’s rules. Raise wages toward the Social Security wage base and FICA’s average rate on total wages falls after the base is hit, while ordinary tax brackets may climb. Raise a traditional 401(k) deferral and ordinary tax falls while employee FICA usually does not. Self-employment income replaces employee FICA with self-employment tax and a different computation entirely.
   </p>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">A wage near the Social Security base looks different</h2>
   <p>

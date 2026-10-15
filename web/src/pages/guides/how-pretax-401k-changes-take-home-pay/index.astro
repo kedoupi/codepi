@@ -36,17 +36,17 @@ const guide = getGuide('how-pretax-401k-changes-take-home-pay');
   <p>
     Federal tax fell by $1,414 (from $7,010 to $5,596). Social Security and Medicare did not move: still $4,464 and $1,044 on $72,000 of FICA wages under this model. Net pay becomes:
   </p>
-  <p class="rounded-xl border border-[#e6d9c8] bg-[#fffdf8] px-4 py-3 font-mono text-[0.95rem] leading-7">
+  <p class="rounded-xl border border-[var(--kdp-line)] bg-white px-4 py-3 font-mono text-[0.95rem] leading-7">
     72,000 − 7,200 − 5,596 − 4,464 − 1,044 = $53,696
   </p>
   <p>
     About <strong>$2,065.23</strong> per biweekly check. You directed $7,200 into retirement accounts and your take-home fell by $59,482 − $53,696 = <strong>$5,786</strong>, not by the full $7,200. The difference is the federal tax you no longer owe this year under this sketch.
   </p>
 
-  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[#e6d9c8] bg-[#fffdf8]">
+  <div class="not-prose my-8 overflow-x-auto rounded-2xl border border-[var(--kdp-line)] bg-white">
     <table class="w-full text-left text-sm">
       <caption class="sr-only">0% versus 10% traditional 401(k) on $72,000</caption>
-      <thead class="bg-[#f3eadc] text-stone-800">
+      <thead class="bg-[var(--kdp-accent-soft)] text-stone-800">
         <tr>
           <th class="px-4 py-3 font-semibold">Line</th>
           <th class="px-4 py-3 font-semibold">0% deferral</th>
@@ -54,14 +54,14 @@ const guide = getGuide('how-pretax-401k-changes-take-home-pay');
         </tr>
       </thead>
       <tbody class="text-stone-800">
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Gross wages</td><td class="px-4 py-2.5">$72,000</td><td class="px-4 py-2.5">$72,000</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Traditional 401(k)</td><td class="px-4 py-2.5">$0</td><td class="px-4 py-2.5">$7,200</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Federal taxable income</td><td class="px-4 py-2.5">$55,900</td><td class="px-4 py-2.5">$48,700</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Federal income tax</td><td class="px-4 py-2.5">$7,010</td><td class="px-4 py-2.5">$5,596</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Social Security</td><td class="px-4 py-2.5">$4,464</td><td class="px-4 py-2.5">$4,464</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Medicare</td><td class="px-4 py-2.5">$1,044</td><td class="px-4 py-2.5">$1,044</td></tr>
-        <tr class="border-t border-[#e6d9c8] font-semibold"><td class="px-4 py-2.5">Net pay</td><td class="px-4 py-2.5">$59,482</td><td class="px-4 py-2.5">$53,696</td></tr>
-        <tr class="border-t border-[#e6d9c8]"><td class="px-4 py-2.5">Net per biweekly check</td><td class="px-4 py-2.5">$2,287.77</td><td class="px-4 py-2.5">$2,065.23</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Gross wages</td><td class="px-4 py-2.5">$72,000</td><td class="px-4 py-2.5">$72,000</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Traditional 401(k)</td><td class="px-4 py-2.5">$0</td><td class="px-4 py-2.5">$7,200</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Federal taxable income</td><td class="px-4 py-2.5">$55,900</td><td class="px-4 py-2.5">$48,700</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Federal income tax</td><td class="px-4 py-2.5">$7,010</td><td class="px-4 py-2.5">$5,596</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Social Security</td><td class="px-4 py-2.5">$4,464</td><td class="px-4 py-2.5">$4,464</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Medicare</td><td class="px-4 py-2.5">$1,044</td><td class="px-4 py-2.5">$1,044</td></tr>
+        <tr class="border-t border-[var(--kdp-line)] font-semibold"><td class="px-4 py-2.5">Net pay</td><td class="px-4 py-2.5">$59,482</td><td class="px-4 py-2.5">$53,696</td></tr>
+        <tr class="border-t border-[var(--kdp-line)]"><td class="px-4 py-2.5">Net per biweekly check</td><td class="px-4 py-2.5">$2,287.77</td><td class="px-4 py-2.5">$2,065.23</td></tr>
       </tbody>
     </table>
   </div>
@@ -70,7 +70,6 @@ const guide = getGuide('how-pretax-401k-changes-take-home-pay');
   <p>
     Roth 401(k) contributions are after-tax for federal ordinary income: they do not shrink this year’s taxable wages the way traditional deferrals do. Employer matches are not employee take-home. Early-withdrawal penalties, required distributions, and investment returns are outside a paycheck model. State tax treatment of deferrals varies; this example uses a 0% state rate.
   </p>
-
 
   <h2 class="font-serif text-3xl font-semibold tracking-normal text-stone-950 pt-4">Where the $1,414 of tax savings sits</h2>
   <p>

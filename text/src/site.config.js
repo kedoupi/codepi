@@ -7,7 +7,8 @@ export const navLinks = [
 ];
 export const applicationCategory = 'UtilityApplication';
 
-// AdSense review window: keep satellite tool sites out of the crawl/ad surface
-// until the apex property is approved. Flip both back to defaults after approval.
-export const adsenseEnabled = false;
+// Archived tool site; retain current indexing until a separate content review.
 export const defaultRobots = 'noindex, follow';
+
+export const personalSite = false;
+export const extraFooterLinks = [];
