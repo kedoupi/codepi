@@ -78,14 +78,14 @@ describe("DEV vs production client id", () => {
 
   it("uses real client id when configured", () => {
     assert.equal(
-      resolveClientId(req("oura.kdp.cool"), fakeEnv({ OURA_CLIENT_ID: "real_app" })),
+      resolveClientId(req("health.codepi.app"), fakeEnv({ OURA_CLIENT_ID: "real_app" })),
       "real_app",
     );
   });
 
   it("fails closed on production host without client id", () => {
-    assert.equal(resolveClientId(req("oura.kdp.cool"), fakeEnv()), null);
-    assert.equal(allowDevLogin(req("oura.kdp.cool"), fakeEnv()), false);
+    assert.equal(resolveClientId(req("health.codepi.app"), fakeEnv()), null);
+    assert.equal(allowDevLogin(req("health.codepi.app"), fakeEnv()), false);
   });
 });
 

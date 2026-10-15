@@ -101,4 +101,4 @@ Allow: /
 Disallow: /desk/
 Disallow: /api/
 
-Sitemap: https://kdp.cool/sitemap-index.xml
+Sitemap: https://codepi.app/sitemap-index.xml

@@ -14,6 +14,11 @@ interface Env {
   ENVIRONMENT: string;
 }
 type Client = { secret: string; name: string; redirectUris: string[] };
+/**
+ * Login-page product names. The registry `name` is a write-only secret value that
+ * cannot be edited in place, so product display names are applied here instead.
+ */
+const DISPLAY_NAMES: Record<string, string> = { oura: "健康 Health", gzh: "公众号 GZH" };
 type Config = { clients: Record<string, Client>; origin: string; dev: boolean };
 type Tx = { id: string; client_id: string; redirect_uri: string; state: string;
   challenge: string; expires_at: number; otp_hash: string | null; otp_expires_at: number | null; attempts: number };
@@ -57,7 +62,7 @@ function configuration(env: Env): Config {
       clients[id].redirectUris = [...new Set([...clients[id].redirectUris, ...uris])];
     }
     for (const [id, c] of Object.entries(clients)) {
-      if (!["gu", "oura", "fagao", "desk"].includes(id) || typeof c?.secret !== "string" || c.secret.length < 32
+      if (!["gu", "oura", "gzh", "desk"].includes(id) || typeof c?.secret !== "string" || c.secret.length < 32
         || typeof c.name !== "string" || c.name.length > 80 || !Array.isArray(c.redirectUris) || !c.redirectUris.length) throw new Error();
       for (const uri of c.redirectUris) {
         const u = new URL(uri);
@@ -149,7 +154,7 @@ async function authorize(request: Request, env: Env, cfg: Config): Promise<Respo
   await env.DB.prepare("INSERT INTO auth_transactions (id,client_id,redirect_uri,state,challenge,expires_at) VALUES (?,?,?,?,?,?)")
     .bind(await hash(env.SESSION_SECRET, raw), clientId, redirect, state, challenge, Date.now() + 600_000).run();
   const nonce = random();
-  return secure(new Response(loginPage(clientId === "oura" ? "健康 Health" : client.name, env.OWNER_EMAIL, nonce), {
+  return secure(new Response(loginPage(DISPLAY_NAMES[clientId] ?? client.name, env.OWNER_EMAIL, nonce), {
     headers: { "Content-Type": "text/html; charset=utf-8", "Set-Cookie": cookie(request, "transaction", raw, 600) },
   }), nonce);
 }

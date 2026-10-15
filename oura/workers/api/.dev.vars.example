@@ -1,7 +1,7 @@
 # Copy to .dev.vars (gitignored). Placeholders only — not real Oura secrets.
-# Production: wrangler secret put + OURA_REDIRECT_URI=https://oura.kdp.cool/api/auth/oura/callback
+# Production: wrangler secret put + OURA_REDIRECT_URI=https://health.codepi.app/api/auth/oura/callback
 # Preview/test Worker: ALLOW_DEV_LOGIN=1
-# Production: FRONTEND_ORIGIN=https://oura.kdp.cool · ALLOW_DEV_LOGIN unset/0
+# Production: FRONTEND_ORIGIN=https://health.codepi.app · ALLOW_DEV_LOGIN unset/0
 OURA_CLIENT_ID=oura_dev_placeholder_client_id
 OURA_CLIENT_SECRET=
 OURA_REDIRECT_URI=http://localhost:5173/api/auth/oura/callback

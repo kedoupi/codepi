@@ -2,8 +2,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-export const staticApps = ['web', 'calc', 'convert', 'text', 'dev', 'ai'];
-export const privateApps = ['auth', 'gu', 'fagao', 'oura'];
+export const staticApps = ['web'];
+export const privateApps = ['auth', 'gu', 'gzh', 'oura'];
 const allApps = [...staticApps, ...privateApps];
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -39,6 +39,9 @@ export function makePlan(files) {
       || ['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md'].includes(file)
       || file.startsWith('docs/development/')) {
       workflow = true;
+    } else if (['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'].some(prefix => file.startsWith(prefix))) {
+      // Retirement and directory moves must validate the remaining consumers.
+      addAll();
     } else if (file.startsWith('docs/') || /(^|\/)(README|AGENTS)\.md$/.test(file)) {
       continue;
     } else if (file.startsWith('.github/')) {
@@ -69,7 +72,6 @@ export function makePlan(files) {
       check(app, 'npm', 'run', 'typecheck:desk');
       check(app, 'npm', 'run', 'build:functions');
     }
-    if (app === 'calc') check(app, 'npm', 'test');
     check(app, 'npm', 'run', 'build');
   }
   for (const app of privateApps.filter(app => apps.has(app))) {

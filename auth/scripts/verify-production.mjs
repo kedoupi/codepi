@@ -7,8 +7,8 @@ import { createInterface } from 'node:readline/promises';
 const owner = (await readFile(new URL('../../gu/worker/lib.ts', import.meta.url), 'utf8'))
   .match(/OWNER_EMAIL\s*=\s*"([^"]+)"/)?.[1];
 if (!owner || !process.env.RESEND_API_KEY) throw Error('Owner/mail test configuration unavailable');
-const origins = { gu: 'https://gu.kdp.cool', gu_pages: 'https://kdp-gu.pages.dev', oura: 'https://oura.kdp.cool', fagao: 'https://fagao.kdp.cool' };
-const authOrigin = 'https://auth.kdp.cool';
+const origins = { gu: 'https://gu.codepi.app', gu_pages: 'https://kdp-gu.pages.dev', oura: 'https://health.codepi.app', gzh: 'https://gzh.codepi.app' };
+const authOrigin = 'https://auth.codepi.app';
 const jars = new Map();
 async function request(url, data) {
   const u = new URL(url), jar = jars.get(u.origin) || new Map();
@@ -97,7 +97,7 @@ try {
     await input.question('GU_VERIFIED: deploy the remaining apps, then press Enter to continue.\n');
     input.close();
   }
-  for (const id of ['gu_pages', 'oura', 'fagao']) {
+  for (const id of ['gu_pages', 'oura', 'gzh']) {
     const authorization = await begin(id);
     assert.equal(authorization.status, 302, id + ' reuses center session without another OTP');
     await callback(id, authorization.headers.get('Location'));

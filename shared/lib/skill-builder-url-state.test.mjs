@@ -27,7 +27,7 @@ function pushSkillBuilderState(search, data) {
   try {
     const { state, ownedKeys } = getSkillBuilderUrlState(data);
     pushUrlState(state, { ownedKeys });
-    return new URL(calls[0][2], 'https://kdp.cool');
+    return new URL(calls[0][2], 'https://codepi.app');
   } finally {
     globalThis.window = previousWindow;
   }

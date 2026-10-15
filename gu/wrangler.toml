@@ -10,7 +10,7 @@ service = "kdp-auth"
 [vars]
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "gu"
-AUTH_ORIGIN = "https://auth.kdp.cool"
+AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
 OTP_FROM = "otp@kdp.cool"
 
@@ -23,7 +23,7 @@ migrations_dir = "migrations"
 [env.preview.vars]
 SSO_ENABLED = "0"
 AUTH_CLIENT_ID = "gu"
-AUTH_ORIGIN = "https://auth.kdp.cool"
+AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "preview"
 OTP_FROM = "otp@kdp.cool"
 

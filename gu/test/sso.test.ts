@@ -34,7 +34,7 @@ function setup() {
   });
   const bindings: Env = {
     ...env, SSO_ENABLED: "1", AUTH_CLIENT_ID: "gu", AUTH_CLIENT_SECRET: "test-sso-secret",
-    AUTH_ORIGIN: "https://auth.kdp.cool", AUTH: { fetch: central } as unknown as Fetcher,
+    AUTH_ORIGIN: "https://auth.codepi.app", AUTH: { fetch: central } as unknown as Fetcher,
   };
   const call = (path: string, cookie = "", method = "GET", source = origin) =>
     worker.fetch(request(path, cookie, method, source), bindings);
@@ -43,7 +43,7 @@ function setup() {
     expect(response.status).toBe(302);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const authorize = new URL(response.headers.get("Location")!);
-    expect(authorize.origin).toBe("https://auth.kdp.cool");
+    expect(authorize.origin).toBe("https://auth.codepi.app");
     expect(authorize.searchParams.get("client_id")).toBe("gu");
     expect(authorize.searchParams.get("code_challenge_method")).toBe("S256");
     return {

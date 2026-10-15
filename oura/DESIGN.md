@@ -1,4 +1,4 @@
-# oura.kdp.cool 设计摘要
+# health.codepi.app 设计摘要
 
 ## 1. 现网数据链路
 
@@ -11,7 +11,7 @@
 ## 2. 目标产品
 
 - 用户 Oura OAuth 授权 → 后端代拉数据 → 个人看板
-- 自托管友好；域名 `oura.kdp.cool`（CF Pages/Workers；DNS 由运维，本仓不改 DNS）
+- 自托管友好；域名 `health.codepi.app`（CF Pages/Workers；DNS 由运维，本仓不改 DNS）
 - 开源仓：`kedoupi/oura-kdp`
 
 ## 3. 默认可拍板假设（待建国确认）

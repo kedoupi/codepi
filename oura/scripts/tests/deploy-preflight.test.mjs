@@ -67,7 +67,7 @@ test('build stamping preserves SSO flags, AUTH service binding and other environ
   const settings = `[vars]
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "oura"
-AUTH_ORIGIN = "https://auth.kdp.cool"
+AUTH_ORIGIN = "https://auth.codepi.app"
 BUILD_SHA = "abcdef0"
 [[services]]
 binding = "AUTH"

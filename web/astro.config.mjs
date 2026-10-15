@@ -9,7 +9,7 @@ import { ignoreDoorwayLocales } from '../shared/sitemap-filter.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  site: 'https://kdp.cool',
+  site: 'https://codepi.app',
   output: 'static',
   trailingSlash: 'always',
   build: { format: 'directory' },

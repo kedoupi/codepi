@@ -7,7 +7,7 @@ import { test } from 'node:test';
 const script = fileURLToPath(new URL('../check-api.mjs', import.meta.url));
 // The deployed Worker was configured with the public hostname, so the mock
 // always advertises it no matter which hostname answers the probe.
-const PUBLIC_ORIGIN = 'https://oura.kdp.cool';
+const PUBLIC_ORIGIN = 'https://health.codepi.app';
 const SCOPES = 'heartrate workout tag session spo2 heart_health stress ring_configuration';
 
 /** Minimal stand-in for the Worker + zone edge. */
@@ -44,7 +44,7 @@ async function healthyWorker({ sso = false } = {}) {
     }
     if (sso && url.pathname === '/api/auth/oura/start') return json(res, 401, { error: 'unauthorized' });
     if (sso && url.pathname === '/api/auth/login') {
-      const target = new URL('https://auth.kdp.cool/authorize');
+      const target = new URL('https://auth.codepi.app/authorize');
       target.search = new URLSearchParams({
         client_id: 'oura', redirect_uri: `${selfOrigin}/api/auth/callback`,
         state: 'test-state', code_challenge: 'test-challenge', code_challenge_method: 'S256',

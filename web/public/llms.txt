@@ -1,15 +1,15 @@
 # kedoupi（codepi）
 
-> kdp.cool 是 kedoupi（codepi）的个人数字空间，连接生活、工作、知识与表达。
+> codepi.app 是 kedoupi（codepi）的个人数字空间，连接生活、工作、知识与表达。
 
 ## 公开入口
 
-- [首页](https://kdp.cool/): 个人介绍、近况和应用入口。
-- [应用](https://kdp.cool/apps/): 健康、投资理财和公众号工作台的用途与访问说明。
-- [关于](https://kdp.cool/about/): 这套个人空间的来由与方向。
-- [联系](https://kdp.cool/contact/): 项目交流入口。
-- [隐私](https://kdp.cool/privacy/): 公开内容与私人应用的数据边界。
-- [工具存档](https://kdp.cool/tools/): 以前做过的计算器和工具，旧链接保留。
+- [首页](https://codepi.app/): 个人介绍、近况和应用入口。
+- [应用](https://codepi.app/apps/): 健康、投资理财和公众号工作台的用途与访问说明。
+- [关于](https://codepi.app/about/): 这套个人空间的来由与方向。
+- [联系](https://codepi.app/contact/): 项目交流入口。
+- [隐私](https://codepi.app/privacy/): 公开内容与私人应用的数据边界。
+- [博客](https://codepi.app/blog/): 公开文章与笔记。
 
 ## 访问范围
 

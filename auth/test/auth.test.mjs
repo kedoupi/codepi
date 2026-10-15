@@ -8,7 +8,7 @@ test('real service bindings: one OTP signs into four sites; one logout revokes a
   assert.equal(oura.finished.status, 303);
   assert.equal(oura.finished.headers.get('Location'), '/private');
   const logged = [oura];
-  for (const id of ['gu', 'fagao', 'desk']) {
+  for (const id of ['gu', 'gzh', 'desk']) {
     const tx = await f.begin(id, oura.centralCookie);
     assert.equal(tx.response.status, 302, 'existing center session bypasses OTP');
     const done = await tx.app.fetch(tx.response.headers.get('Location'), { headers: { Cookie: tx.appCookie }, redirect: 'manual' });
@@ -64,12 +64,21 @@ test('browser binding, same-origin POST and strict redirect registration are req
   assert.equal(res.headers.get('Location'), null);
 });
 
+test('login page shows product names instead of internal client ids', async t => {
+  const f = await fixture(t);
+  for (const [id, label] of [['oura', '健康 Health'], ['gzh', '公众号 GZH']]) {
+    const { response } = await f.begin(id);
+    assert.equal(response.status, 200, id);
+    assert.ok((await response.text()).includes(label), id);
+  }
+});
+
 test('explicit extra callback registrations accept the GU domain and reject other origins', async t => {
-  const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify({ gu: ['https://gu.kdp.cool/api/auth/callback'] }) });
+  const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify({ gu: ['https://gu.codepi.app/api/auth/callback'] }) });
   for (const [uri, expected] of [
-    ['https://gu.kdp.cool/api/auth/callback', 200],
+    ['https://gu.codepi.app/api/auth/callback', 200],
     ['https://preview.kdp-gu.pages.dev/api/auth/callback', 400],
-    ['https://gu.kdp.cool/api/auth/callback?next=evil', 400],
+    ['https://gu.codepi.app/api/auth/callback?next=evil', 400],
   ]) {
     const url = new URL('/authorize', authOrigin);
     url.search = new URLSearchParams({ client_id: 'gu', redirect_uri: uri,
@@ -80,10 +89,10 @@ test('explicit extra callback registrations accept the GU domain and reject othe
 
 test('invalid extra callback configuration fails closed', async t => {
   for (const extra of [
-    { unknown: ['https://gu.kdp.cool/api/auth/callback'] },
-    { gu: ['https://gu.kdp.cool/other'] },
-    { gu: ['http://gu.kdp.cool/api/auth/callback'] },
-    { gu: 'https://gu.kdp.cool/api/auth/callback' },
+    { unknown: ['https://gu.codepi.app/api/auth/callback'] },
+    { gu: ['https://gu.codepi.app/other'] },
+    { gu: ['http://gu.codepi.app/api/auth/callback'] },
+    { gu: 'https://gu.codepi.app/api/auth/callback' },
     [],
   ]) {
     const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify(extra) });
@@ -93,14 +102,14 @@ test('invalid extra callback configuration fails closed', async t => {
 
 test('Health callback is explicitly registered while legacy Oura and other clients stay scoped', async t => {
   const f = await fixture(t, { SSO_EXTRA_REDIRECT_URIS: JSON.stringify({
-    oura: ['https://health.kdp.cool/api/auth/callback'],
+    oura: ['https://health.codepi.app/api/auth/callback'],
   }) });
   for (const [id, uri, expected] of [
-    ['oura', 'https://health.kdp.cool/api/auth/callback', 200],
+    ['oura', 'https://health.codepi.app/api/auth/callback', 200],
     ['oura', clients.oura.redirectUris[0], 200],
-    ['gu', 'https://health.kdp.cool/api/auth/callback', 400],
-    ['oura', 'https://health.kdp.cool.evil.test/api/auth/callback', 400],
-    ['oura', 'https://health.kdp.cool/api/auth/callback?next=evil', 400],
+    ['gu', 'https://health.codepi.app/api/auth/callback', 400],
+    ['oura', 'https://health.codepi.app.evil.test/api/auth/callback', 400],
+    ['oura', 'https://health.codepi.app/api/auth/callback?next=evil', 400],
   ]) {
     const url = new URL('/authorize', authOrigin);
     url.search = new URLSearchParams({ client_id: id, redirect_uri: uri,
@@ -169,7 +178,7 @@ test('PKCE/client/code binding, expired codes, replay and cross-client reference
   assert.deepEqual(await (await f.internal('oura', 'session', { session_ref })).json(), { active: false });
   assert.equal((await f.internal('oura', 'logout', { session_ref })).status, 200);
   assert.equal((await (await f.internal('gu', 'session', { session_ref })).json()).active, true);
-  const expiring = await f.begin('fagao', original.centralCookie);
+  const expiring = await f.begin('gzh', original.centralCookie);
   await f.db.prepare('UPDATE auth_codes SET expires_at=0').run();
   assert.equal((await expiring.app.fetch(expiring.response.headers.get('Location'), {
     headers: { Cookie: expiring.appCookie }, redirect: 'manual',

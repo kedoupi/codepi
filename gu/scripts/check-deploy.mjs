@@ -18,7 +18,7 @@ export function validateConfig(config) {
   requireCheck(config.vars?.ENVIRONMENT === "production" && config.env?.preview?.vars?.ENVIRONMENT === "preview",
     "Production and preview environment markers must be explicit.");
   requireCheck(config.vars?.SSO_ENABLED === "1" && config.vars?.AUTH_CLIENT_ID === "gu"
-    && config.vars?.AUTH_ORIGIN === "https://auth.kdp.cool"
+    && config.vars?.AUTH_ORIGIN === "https://auth.codepi.app"
     && config.services?.some(service => service.binding === "AUTH" && service.service === "kdp-auth"),
     "Production must preserve the GU SSO configuration and AUTH service binding.");
   for (const db of [production, preview]) {

@@ -1,0 +1,17 @@
+# Vitest / Miniflare 专用，不用于生产部署
+name = "gzh-test"
+main = "worker/index.ts"
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gzh-test"
+database_id = "11111111-1111-4111-8111-111111111111"
+migrations_dir = "migrations"
+
+[vars]
+ALLOWLIST = "kedoupi@gmail.com"
+OTP_FROM = "otp@kdp.cool"
+ACCOUNT_BRAND = "珂抖屁"
+ENVIRONMENT = "test"

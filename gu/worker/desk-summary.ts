@@ -23,12 +23,12 @@ export async function handleDeskSummary(request: Request, env: Env): Promise<Res
     notes: ["只描述当前批次，无法据此计算最近 7 天收益或变化。", "组合单日与月度跌幅等历史条件未评估；规则计数不代表全面风险结论。"],
     attention: [...triggered, ...near].slice(0, 4).map(rule => ({
       label: `${rule.triggered === true ? "已触发" : "临近"}：${String(rule.item || rule.rule_id || "投资规则").slice(0, 100)}`,
-      href: "https://gu.kdp.cool/#positions",
+      href: "https://gu.codepi.app/#positions",
     })),
   };
   if (stale) {
     result.notes.push("投资批次已超过 36 小时或时间未知，请核对数据时效。");
-    result.attention.push({ label: "核对投资数据批次", href: "https://gu.kdp.cool/" });
+    result.attention.push({ label: "核对投资数据批次", href: "https://gu.codepi.app/" });
   }
   const total = finite(account.total_usd);
   if (total !== null) result.privateMetric = { label: "估算总资产 · 美元", value: total.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) };
