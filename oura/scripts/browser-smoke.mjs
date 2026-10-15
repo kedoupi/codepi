@@ -77,6 +77,94 @@ async function mobileFits(label) {
     && document.body.scrollWidth <= innerWidth), true, `${label} fits mobile viewport`);
 }
 
+async function fixture(path, method = 'GET') {
+  // Node-side requests keep scheduled events independent of the browser page.
+  const response = await fetch(`${origin}/__test/${path}`, { method, signal: AbortSignal.timeout(15000) });
+  assert.equal(response.status, 200, `fixture ${path}`);
+  return response.json();
+}
+
+async function automatic() {
+  const result = await page.evaluate(async () => {
+    const response = await fetch('/api/me/health-records/automatic');
+    return { status: response.status, value: await response.json() };
+  });
+  assert.equal(result.status, 200);
+  return result.value;
+}
+
+async function waitForQueue(predicate, label) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const observation = await fixture('sync-scenario');
+    if (predicate(observation) && observation.leaseUntil === 0) return observation;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.fail(label);
+}
+
+async function settledScores() {
+  return waitForQueue(observation => observation.tasks.find(task => task.collection === '__scores')?.state === 'done',
+    'POST waitUntil did not persist the first score batch');
+}
+
+async function assertSyncWrites(count, status = 202) {
+  const observation = await fixture('sync-scenario');
+  assert.equal(observation.requests.length, count, 'only explicit clicks or the deliberate duplicate submit sync work');
+  for (const request of observation.requests) {
+    assert.deepEqual(request, { path: '/api/me/health-records/automatic', search: '', bodyBytes: 0, status },
+      'the browser must submit automatic work without a window query or body');
+  }
+  return observation;
+}
+
+async function observeAutomaticPoll(timeout = 15000) {
+  await page.evaluate(() => {
+    window.__automaticReads = 0;
+    const original = window.fetch;
+    window.fetch = (...args) => {
+      if (new URL(String(args[0]), location.origin).pathname === '/api/me/health-records/automatic'
+        && (args[1]?.method || 'GET') === 'GET') window.__automaticReads++;
+      return original(...args);
+    };
+  });
+  await page.waitForFunction(() => window.__automaticReads >= 1, undefined, { timeout });
+}
+
+async function assertAutomaticDom(value) {
+  await page.waitForFunction(value => {
+    const panel = document.querySelector('.automatic-sync');
+    const stages = panel?.querySelectorAll('.automatic-stages p');
+    const progress = panel?.querySelector('progress');
+    const scoreText = stages?.[0]?.textContent || '';
+    const detailText = stages?.[1]?.textContent || '';
+    const score = value.scores.status === 'completed' ? '已完成'
+      : value.scores.status === 'failed' ? '更新失败' : '等待';
+    return scoreText.includes('官方评分') && scoreText.includes(score)
+      && detailText.includes(`${value.details.completed} / ${value.details.total}`)
+      && (!value.details.total || progress?.value === value.details.completed && progress.max === value.details.total)
+      && (location.pathname !== '/settings' || !value.current
+        || panel.textContent.includes(value.current.from) && panel.textContent.includes(value.current.to));
+  }, value);
+}
+
+async function startShortScenario(mode, collections = 'sleep,heartrate') {
+  await fixture(`sync-scenario?mode=${mode}`, 'POST');
+  await page.goto(`${origin}/settings`);
+  await page.waitForSelector('.automatic-sync');
+  await page.waitForFunction(() => document.querySelector('.health-data .actions button')?.textContent === '更新数据'
+    && !document.querySelector('.health-data .actions button').disabled);
+  await page.click('loc=css:.health-data .actions button:text-is("更新数据")');
+  await settledScores();
+  await fixture(`short-queue?collections=${collections}`, 'POST');
+  await page.reload();
+  await assertSyncWrites(1);
+  const value = await automatic();
+  assert.deepEqual(value.scores, { status: 'completed', error: null });
+  await assertAutomaticDom(value);
+  return value;
+}
+
 // Delay one real Worker response to exercise loading states and out-of-order delivery.
 async function holdNextReport(path, staleLabel = '') {
   await page.evaluate(({ path, staleLabel }) => {
@@ -292,87 +380,235 @@ try {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);
   await healthy('owner settings shows personal workspace, no billing');
   await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
-  await page.evaluate(async () => { await fetch('/__test/backfill-scenario', { method: 'POST' }); });
-  await page.reload();
-  await page.waitForSelector('.sync-issues');
-  console.log(await page.snapshot({ scope: 'full_page' }));
-  await page.screenshot({ path: '/tmp/oura-backfill-retry.png' });
-  await page.click('loc=css:.health-data button:text-is("继续未完成部分")');
-  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。')
-    && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 60000 });
-  const splitResult = await page.evaluate(async () => {
-    const status = await (await fetch('/api/me/health-records/status')).json();
-    const heart = status.collections.find(row => row.name === 'heartrate');
-    const failures = window.__smokeFailures;
-    window.__smokeFailures = [];
-    return { heart, failures, progress: document.querySelector('.sync-progress progress').value };
-  });
-  assert.equal(splitResult.heart.records, 7);
-  assert.equal(splitResult.heart.failed_windows, 0);
-  assert.equal(splitResult.progress, 100);
-  assert.equal(splitResult.failures.length, 6, 'seven days split into seven one-day windows after six oversized requests');
-  assert.ok(splitResult.failures.every(f => f === '/api/me/health-records: HTTP 422'));
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.sync-issues').length), 0);
-  await healthy('oversized backfill automatically splits, saves every day and clears old failures');
-  await page.screenshot({ path: '/tmp/oura-backfill-desktop.png' });
-  console.log(await page.snapshot({ scope: 'full_page' }));
-  await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
-  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。'));
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.health-data .error').length), 0);
-  await healthy('owner syncs 18 health collections, including empty results');
-  await page.goto(`${origin}/settings?sync=90`);
-  await page.waitForFunction(() => document.querySelector('.health-data')?.textContent.includes('同步完成。')
-    && !document.querySelector('.health-data button[disabled]'), undefined, { timeout: 60000 });
-  assert.equal(await page.url(), `${origin}/settings`, 'automatic backfill flag is consumed once');
-  await healthy('owner completes 90-day backfill');
-  await page.waitForSelector('.automatic-sync');
-  assert.ok(await page.evaluate(() => document.querySelector('.automatic-sync').textContent.includes('每天 09:00')));
-  // Leave settings, then deliver real Worker scheduled events with no page
-  // initiating Oura requests. Return to prove durable background progress.
+  // Keep the real score response pending so acceptance, route changes and
+  // reloads happen before waitUntil finishes its first batch.
   await navigate('/');
-  await page.evaluate(async () => {
-    for (let i = 0; i < 2; i++) {
-      const response = await fetch('/__test/automatic-sync', { method: 'POST' });
-      if (!response.ok) throw new Error('Scheduled fixture event failed');
-    }
-  });
+  await page.waitForSelector('.automatic-sync');
+  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '80'
+    && document.querySelector('.journal-sleep')?.textContent.includes('8 小时 0 分'));
+  await fixture('sync-scenario?mode=success&hold_scores=1', 'POST');
+  await page.click('loc=css:.journal-sync-line button:text-is("更新数据")');
+  await page.waitForFunction(async () => (await (await fetch('/api/me/health-records/automatic')).json()).status === 'running');
+  const accepted = await automatic();
+  assert.deepEqual(accepted.scores, { status: 'pending', error: null });
+  assert.equal(accepted.details.completed, 0);
+  assert.ok(accepted.details.total > 18, 'real POST plans the full detail queue before the test trims it');
+  assert.equal(accepted.total, accepted.details.total + 1, 'legacy totals include scores');
+  await assertSyncWrites(1);
   await navigate('/settings');
-  await page.waitForFunction(() => document.querySelector('.automatic-sync')?.textContent.includes('后台正在更新数据'));
-  const auto = await page.evaluate(async () => (await (await fetch('/api/me/health-records/status')).json()).automatic);
-  assert.equal(auto.completed, 2);
-  assert.equal(auto.status, 'running');
-  await healthy('scheduled sync continues away from settings and shows persisted progress');
+  await assertAutomaticDom(accepted);
+  await page.reload();
+  await assertAutomaticDom(accepted);
+  assert.equal((await automatic()).started_at, accepted.started_at, 'reload reuses the durable run');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.health-data .actions button').length), 1);
+  assert.equal(await page.evaluate(() => document.querySelector('.health-data .actions button').disabled), true);
+
+  // about:blank unloads the entire application; only the Node fixture drives
+  // the Worker from here until the dashboard is opened again.
+  await page.goto('about:blank');
+  await fixture('release-scores', 'POST');
+  await settledScores();
+  await fixture('short-queue', 'POST');
+  await page.goto(`${origin}/`);
+  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '91');
+  let auto = await automatic();
+  assert.deepEqual(auto.scores, { status: 'completed', error: null });
+  assert.deepEqual(auto.details, { total: 2, completed: 0, failed: 0, remaining: 2 });
+  assert.equal(auto.status, 'running', 'official scores are ready while details still await Cron');
+  await assertAutomaticDom(auto);
+  await healthy('homepage restores scores separately from unfinished background details');
   await page.screenshot({ path: '/tmp/oura-automatic-desktop.png' });
+
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.deepEqual(auto.details, { total: 2, completed: 1, failed: 0, remaining: 1 });
+  assert.equal(auto.current.collection, 'heartrate');
+  await assertAutomaticDom(auto);
+  await page.reload();
+  await assertAutomaticDom(auto);
+  assert.equal((await automatic()).started_at, accepted.started_at);
+  await assertSyncWrites(1);
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.equal(auto.status, 'completed');
+  assert.equal(auto.current, null);
+  assert.deepEqual(auto.details, { total: 2, completed: 2, failed: 0, remaining: 0 });
+  assert.equal(auto.completed, auto.total);
+  await assertAutomaticDom(auto);
+  assert.ok((await assertSyncWrites(1)).providerCalls.includes('/v2/usercollection/heartrate'));
+  await healthy('Cron completes persisted work while the application is unloaded');
+
+  // A permission failure is terminal for that collection; other detail work
+  // completes, while the successful official scores remain usable at home.
+  await startShortScenario('permission', 'daily_spo2,heartrate');
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  await fixture('automatic-sync', 'POST');
+  await page.goto(`${origin}/`);
+  auto = await automatic();
+  assert.equal(auto.status, 'partial');
+  assert.deepEqual(auto.scores, { status: 'completed', error: null });
+  assert.deepEqual(auto.details, { total: 2, completed: 1, failed: 1, remaining: 0 });
+  await assertAutomaticDom(auto);
+  assert.equal(await page.evaluate(() => document.querySelector('.journal-score-body strong').textContent), '91');
+  const permissionCalls = (await fixture('sync-scenario')).providerCalls;
+  await fixture('automatic-sync', 'POST');
+  assert.deepEqual((await assertSyncWrites(1)).providerCalls, permissionCalls, 'terminal failures do not loop');
+  await healthy('homepage keeps refreshed scores when a detail collection fails');
+
+  // Force only the persisted retry deadline to mature between real scheduled
+  // invocations. The score executor must stop after three provider failures.
+  await fixture('sync-scenario?mode=score-failure', 'POST');
+  await page.goto(`${origin}/settings`);
+  await page.waitForSelector('.automatic-sync');
+  await page.click('loc=css:.health-data .actions button:text-is("更新数据")');
+  await waitForQueue(observation => observation.tasks.find(task => task.collection === '__scores')?.attempts === 1,
+    'first failed score attempt must be persisted');
+  await fixture('short-queue?collections=heartrate,daily_spo2', 'POST');
+  await page.goto('about:blank');
+  for (let attempt = 2; attempt <= 3; attempt++) {
+    await fixture('retry-due?collection=__scores', 'POST');
+    await fixture('automatic-sync', 'POST');
+  }
+  await fixture('automatic-sync', 'POST');
+  await fixture('automatic-sync', 'POST');
+  const exhaustedScores = await fixture('sync-scenario');
+  assert.equal(exhaustedScores.tasks.find(task => task.collection === '__scores').attempts, 3);
+  assert.equal(exhaustedScores.tasks.find(task => task.collection === '__scores').state, 'failed');
+  for (let tick = 0; tick < 3; tick++) await fixture('automatic-sync', 'POST');
+  assert.deepEqual((await fixture('sync-scenario')).providerCalls, exhaustedScores.providerCalls,
+    'exhausted score retries must not become an infinite Cron loop');
+  await page.goto(`${origin}/`);
+  auto = await automatic();
+  assert.equal(auto.status, 'partial');
+  assert.deepEqual(auto.scores, { status: 'failed', error: 'upstream_unavailable' });
+  assert.deepEqual(auto.details, { total: 2, completed: 2, failed: 0, remaining: 0 });
+  await assertAutomaticDom(auto);
+  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '91');
+  await assertSyncWrites(1);
+  await healthy('homepage distinguishes failed score refresh from completed details and retains saved scores');
+
+  // Preserve the previous oversized-window regression in the server executor.
+  await startShortScenario('oversized');
+  await page.goto('about:blank');
+  for (let tick = 0; tick < 20; tick++) {
+    await fixture('automatic-sync', 'POST');
+    if ((await fixture('sync-scenario')).status !== 'running') break;
+  }
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.equal(auto.status, 'completed');
+  assert.equal(auto.details.completed, 8, 'seven split sleep days and one heart-rate day complete');
+  const split = await page.evaluate(async () => (await (await fetch('/api/me/health-records/status')).json()));
+  assert.equal(split.collections.find(row => row.name === 'sleep').failed_windows, 0);
+  assert.equal(split.collections.find(row => row.name === 'heartrate').records, 1);
+  assert.equal((await assertSyncWrites(1)).tasks.filter(task => task.state === 'split').length, 6);
+  await assertAutomaticDom(auto);
+  await healthy('oversized batches split durably without browser window POSTs');
+
+  // A rate-limited batch must retain its exact backoff across duplicate POST,
+  // remount, browser polling, and repeated scheduled delivery.
+  await startShortScenario('rate-limit', 'heartrate,daily_spo2');
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  const delayed = await fixture('sync-scenario');
+  assert.equal(delayed.tasks.find(task => task.collection === 'heartrate').attempts, 1);
+  assert.ok(delayed.tasks.filter(task => task.state === 'pending').every(task => task.after > Date.now()));
+  await page.goto(`${origin}/settings`);
+  const duplicate = await page.evaluate(async () => {
+    const response = await fetch('/api/me/health-records/automatic', { method: 'POST' });
+    return { status: response.status, value: await response.json() };
+  });
+  assert.equal(duplicate.status, 202);
+  assert.equal(duplicate.value.error, 'rate_limited');
+  assert.equal(duplicate.value.started_at, delayed.started_at);
+  await page.reload();
+  await assertAutomaticDom(duplicate.value);
+  for (let tick = 0; tick < 3; tick++) await fixture('automatic-sync', 'POST');
+  // Observe a real five-second UI poll rather than inferring that no retry ran.
+  await observeAutomaticPoll();
+  const afterDelay = await assertSyncWrites(2);
+  assert.deepEqual(afterDelay.tasks, delayed.tasks, 'duplicate POST, Cron and UI polling preserve retry timestamps and attempts');
+  assert.deepEqual(afterDelay.providerCalls, delayed.providerCalls, 'backoff never polls the provider');
+  await healthy('rate limits preserve durable backoff without timer-driven POST retries');
+
+  // Exercise the shared settings trigger and progress on a mobile viewport.
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'settings fits mobile viewport');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.health-data *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sync controls and messages fit mobile');
-  await page.screenshot({ path: '/tmp/oura-backfill-mobile.png' });
+  await startShortScenario('success');
+  await mobileFits('settings trigger');
+  await navigate('/');
+  await page.waitForSelector('.automatic-sync progress');
+  await mobileFits('homepage running sync');
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  await fixture('automatic-sync', 'POST');
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.equal(auto.status, 'completed');
+  await assertAutomaticDom(auto);
+  await assertSyncWrites(1);
+  await mobileFits('mobile restored completion');
   await page.screenshot({ path: '/tmp/oura-automatic-mobile.png' });
-  await page.evaluate(async () => { await fetch('/__test/storage-quota?enabled=1', { method: 'POST' }); });
+
+  // Exhaust the real application write budget after scores, before details.
+  await startShortScenario('success');
+  await fixture('sync-budget', 'POST');
+  const historyBeforeBudget = (await fixture('sync-scenario')).records;
+  await page.goto('about:blank');
+  await fixture('automatic-sync', 'POST');
+  const budget = await fixture('sync-scenario');
+  await page.goto(`${origin}/settings`);
+  auto = await automatic();
+  assert.equal(auto.error, 'daily_sync_budget_reached');
+  assert.equal(auto.scores.status, 'completed');
+  assert.equal(auto.details.completed, 0);
+  assert.equal(auto.details.remaining, 2);
+  await assertAutomaticDom(auto);
+  await page.waitForFunction(() => document.querySelector('.automatic-error')?.textContent.includes('预算'));
+  assert.equal(await page.evaluate(() => document.querySelector('.health-data .actions button').disabled), true);
+  for (let tick = 0; tick < 3; tick++) await fixture('automatic-sync', 'POST');
+  const budgetAfter = await assertSyncWrites(1);
+  assert.deepEqual(budgetAfter.tasks, budget.tasks, 'quota holds survive subsequent Cron ticks');
+  assert.deepEqual(budgetAfter.providerCalls, budget.providerCalls);
+  assert.equal(budgetAfter.records, historyBeforeBudget, 'quota failures preserve archived history');
+  await mobileFits('budget recovery message');
+  await page.screenshot({ path: '/tmp/oura-budget-mobile.png' });
+  await healthy('write budget defers details without retries or loss of history');
+
+  // A D1 account quota can also reject admission itself. Reads stay real and
+  // available; there must be one explicit POST and no client retry loop.
+  await fixture('sync-scenario?mode=success', 'POST');
+  await fixture('storage-quota?enabled=1', 'POST');
   await page.reload();
   await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
-  console.log(await page.snapshot());
-  await page.click('loc=css:.health-data button:text-is("同步最近 7 天")');
-  await page.waitForFunction(() => document.querySelector('.sync-issue')?.textContent.includes('数据库写入额度')
-    && !document.querySelector('.health-data button[disabled]'));
+  await page.waitForFunction(() => document.querySelector('.health-data .actions button')?.disabled === false);
+  await page.click('loc=css:.health-data .actions button:text-is("更新数据")');
+  await page.waitForFunction(() => document.querySelector('.health-data [role="alert"]')?.textContent.includes('数据库写入额度'));
   const quota = await page.evaluate(async () => ({
     attempts: (await (await fetch('/__test/storage-quota')).json()).attempts,
-    groups: document.querySelectorAll('.sync-issue').length,
-    text: document.querySelector('.sync-issues').textContent,
+    text: document.querySelector('.health-data [role="alert"]').textContent,
     failures: window.__smokeFailures,
     fits: document.documentElement.scrollWidth <= innerWidth,
   }));
-  assert.equal(quota.attempts, 1, 'quota stops all other collections');
-  assert.equal(quota.groups, 1, 'one storage failure must not become eighteen collection failures');
-  assert.match(quota.text, /08:00.*历史数据保留.*本次预计恢复/s);
-  assert.deepEqual(quota.failures, ['/api/me/health-records: HTTP 503']);
+  assert.equal(quota.attempts, 1);
+  assert.match(quota.text, /08:00.*本次预计恢复/s);
+  assert.deepEqual(quota.failures, ['/api/me/health-records/automatic: HTTP 503']);
+  await assertSyncWrites(1, 503);
+  assert.equal((await fixture('sync-scenario')).tasks.length, 0, 'failed admission must not fabricate an accepted job');
   assert.equal(quota.fits, true, 'quota recovery message fits mobile');
   await page.screenshot({ path: '/tmp/oura-quota-mobile.png' });
+  await observeAutomaticPoll(40000);
+  await assertSyncWrites(1, 503);
+  assert.equal((await fixture('storage-quota')).attempts, 1, 'idle polling after a quota error must never retry POST');
   await page.evaluate(async () => {
     await fetch('/__test/storage-quota?enabled=0', { method: 'POST' });
     window.__smokeFailures = [];
   });
-  console.log('PASS quota stops after one request and shows reset while history remains readable');
+  console.log('PASS quota rejects one automatic POST and shows recovery while history remains readable');
   await page.cdp('Emulation.clearDeviceMetricsOverride');
   await page.click('loc=css:.journal-account > summary');
   await page.click('loc=css:nav button:text-is("退出")');

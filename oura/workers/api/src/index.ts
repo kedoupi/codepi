@@ -46,7 +46,7 @@ export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     await runAutomaticSync(env, controller.scheduledTime, controller.cron);
   },
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const requestId = crypto.randomUUID();
     const origin = request.headers.get("Origin");
@@ -124,7 +124,7 @@ export default {
         case "/api/me/health-records":
         case "/api/me/health-records/status":
         case "/api/me/health-records/automatic":
-          res = await handleHealthRecords(request, env);
+          res = await handleHealthRecords(request, env, ctx);
           break;
         case "/api/me/ai":
           res = await handleMeAi(request, env);
