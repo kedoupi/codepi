@@ -39,6 +39,9 @@
     if (!el || !hasValues) return;
     if (typeof Chart === "undefined") { unavailable = true; return; }
     unavailable = false;
+    const styles = getComputedStyle(document.documentElement);
+    const color = (name: string) => styles.getPropertyValue(name).trim();
+    const theme = { accent: color("--kdp-accent"), surface: color("--kdp-surface"), ink: color("--kdp-ink"), line: color("--kdp-line"), muted: color("--kdp-muted") };
     const points = data[0]?.points ?? [];
     const datasets: Record<string, unknown>[] = [];
     if (chartBand) {
@@ -53,7 +56,7 @@
         type: chartKind, label: item.label, data: item.points.map(p => p.value),
         borderColor: item.color, borderWidth: chartKind === "bar" ? 0 : 1.8,
         backgroundColor: chartKind === "bar"
-          ? item.points.map((_, index) => index === last ? "#ad491e" : item.color) : item.color,
+          ? item.points.map((_, index) => index === last ? theme.accent : item.color) : item.color,
         borderRadius: chartKind === "bar" ? 2 : 0,
         pointRadius: spark ? 0 : points.length <= 14 ? 3 : 1.5,
         pointHoverRadius: 5, pointHitRadius: 16, spanGaps: false,
@@ -75,8 +78,8 @@
         plugins: {
           legend: { display: false },
           tooltip: {
-            enabled: !spark, backgroundColor: "#fffdf9", titleColor: "#202927", bodyColor: "#202927",
-            borderColor: "#d9d6cd", borderWidth: 1, padding: 12, displayColors: true,
+            enabled: !spark, backgroundColor: theme.surface, titleColor: theme.ink, bodyColor: theme.ink,
+            borderColor: theme.line, borderWidth: 1, padding: 12, displayColors: true,
             filter: (item: { dataset: { label: string } }) => !item.dataset.label.startsWith("band-"),
             callbacks: {
               title: (items: { dataIndex: number }[]) => points[items[0]?.dataIndex]?.date ?? "",
@@ -87,16 +90,16 @@
         },
         scales: {
           x: {
-            display: !spark, grid: { display: false }, border: { color: "#ddd8cf" },
-            ticks: { color: "#626a68", maxRotation: 0, autoSkip: true, maxTicksLimit: points.length <= 7 ? 7 : 7, font: { size: 11 } },
+            display: !spark, grid: { display: false }, border: { color: theme.line },
+            ticks: { color: theme.muted, maxRotation: 0, autoSkip: true, maxTicksLimit: points.length <= 7 ? 7 : 7, font: { size: 11 } },
           },
           y: {
             display: !spark, beginAtZero: true,
             suggestedMax: unit === text("分", "score") ? 100 : undefined,
             border: { display: false },
-            grid: { color: "#e8e3db", drawTicks: false },
-            ticks: { color: "#626a68", maxTicksLimit: 5, padding: 8, font: { size: 11 } },
-            title: { display: !spark && !!unit, text: unit, color: "#626a68", align: "end", font: { size: 10 } },
+            grid: { color: theme.line, drawTicks: false },
+            ticks: { color: theme.muted, maxTicksLimit: 5, padding: 8, font: { size: 11 } },
+            title: { display: !spark && !!unit, text: unit, color: theme.muted, align: "end", font: { size: 10 } },
           },
         },
       },

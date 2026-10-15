@@ -3,6 +3,7 @@
   import "./workspace.css";
   import { api, errorText, RequestError } from "./lib/api";
   import ComparePage from "./components/ComparePage.svelte";
+  import ChromeHeader from "./components/ChromeHeader.svelte";
   import Dashboard from "./components/Dashboard.svelte";
   import LandingView from "./components/LandingView.svelte";
   import SettingsPage from "./components/SettingsPage.svelte";
@@ -196,12 +197,17 @@
 {:else if me?.authenticated}
   <div class="journal workspace">
   {#if me.ouraConnection?.status === "disconnected" && !me.ouraConnection.hasCachedHistory && router.path !== "/settings"}
+    <ChromeHeader {locale} active="/" onLogout={() => void logout()} />
     <main class="wrap page">
+      <section class="panel">
       <h1>{locale === "zh" ? "连接你的 Oura" : "Connect your Oura"}</h1>
-      <p>{locale === "zh" ? "网站账号已登录。连接 Oura 后即可同步健康记录。" : "You are signed in. Connect Oura to sync your health records."}</p>
+      <p class="sub">{locale === "zh" ? "网站账号已登录。连接 Oura 后即可同步健康记录。" : "You are signed in. Connect Oura to sync your health records."}</p>
+      <div class="settings-actions">
       <a class="ai-btn" href="/api/auth/oura/start">{locale === "zh" ? "连接 Oura" : "Connect Oura"}</a>
       <button class="ai-btn" onclick={() => goto("/settings")}>{t(locale, "settingsTitle")}</button>
       <button class="ai-btn" onclick={() => void logout()}>{locale === "zh" ? "退出登录" : "Sign out"}</button>
+      </div>
+      </section>
     </main>
   {:else if router.path === "/sleep"}
     <SleepPage {me} {locale} onLogout={() => void logout()} onUnauthorized={() => showLogin()} />

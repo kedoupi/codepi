@@ -1,4 +1,4 @@
-const origin = new URL(process.argv[2] || 'https://oura.kdp.cool').origin;
+const origin = new URL(process.argv[2] || 'https://health.kdp.cool').origin;
 // Expected build SHA for the just-deployed Worker. When provided, /api/health
 // must report it; this turns the smoke check into a real deploy gate.
 const expectedBuild = process.env.OURA_EXPECT_BUILD || '';

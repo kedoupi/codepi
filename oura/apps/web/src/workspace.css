@@ -1,11 +1,11 @@
-/* Shared authenticated workspace; the public landing retains its own identity. */
+/* Shared application layout; colors and typography come from the personal site. */
 .workspace {
-  --surface: #fffdf9;
-  --radius: 6px;
-  --chart-well: #fbf8f3;
-  --chart-line: #dcd8d0;
-  --chart-muted: #626a68;
-  --page-max: 1464px;
+  --surface: var(--kdp-surface);
+  --radius: var(--kdp-radius);
+  --chart-well: var(--kdp-canvas);
+  --chart-line: var(--kdp-line);
+  --chart-muted: var(--kdp-muted);
+  --page-max: var(--kdp-content-width);
 }
 .workspace .page {
   padding: 32px 0 48px;
@@ -28,12 +28,11 @@
 .workspace .page .sub { color: var(--muted); font-size: 15px; line-height: 1.7; }
 .workspace .page .panel,
 .workspace .page .sleep-history {
-  background: transparent;
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  box-shadow: none;
-  padding: 28px 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--kdp-radius-lg);
+  box-shadow: var(--kdp-shadow);
+  padding: 28px;
   margin-top: 24px;
   min-width: 0;
 }
@@ -52,7 +51,7 @@
   font: inherit;
   font-size: 14px;
   min-height: 44px;
-  border-radius: 6px;
+  border-radius: var(--kdp-radius-sm);
   background: transparent;
   border: 1px solid var(--line);
   color: var(--primary);
@@ -65,7 +64,7 @@
   background: var(--peach);
   border-color: var(--primary);
 }
-.workspace .page .sync-status { background: transparent; }
+.workspace .page .sync-status { background: var(--surface); }
 .workspace .page .insight-lines { max-width: 80ch; line-height: 1.9; }
 .workspace .page .insight-lines li { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .workspace .page .compare-grid { gap: 40px; }
@@ -77,22 +76,22 @@
   font-size: 28px;
   font-variant-numeric: tabular-nums;
 }
-.workspace .page .sleep-detail { background: transparent; border-radius: 6px; }
+.workspace .page .sleep-detail { background: transparent; border-radius: var(--kdp-radius-sm); }
 .workspace .page .sleep-duration { background: var(--peach); }
 .workspace .page .sleep-duration h2 { font-size: 42px; }
 .workspace .page .bar-fill { background: #79909d; border-radius: 2px 2px 0 0; }
 .workspace .page .chosen .bar-fill { background: var(--primary); }
-.workspace .page .sleep-empty { border-radius: 6px; }
+.workspace .page .sleep-empty { border-radius: var(--kdp-radius-sm); }
 .workspace #account { scroll-margin-top: 140px; }
 .workspace .page code { overflow-wrap: anywhere; }
 .workspace .page section[id] { scroll-margin-top: 140px; }
 .workspace-sections { display: flex; flex-wrap: wrap; gap: 8px 24px; }
 .workspace-sections a { padding: 12px 0; color: var(--primary); text-decoration: underline; text-underline-offset: 5px; }
-.workspace .page .collection { background: transparent; border-radius: 6px; }
+.workspace .page .collection { background: transparent; border-radius: var(--kdp-radius-sm); }
 .workspace .page .sync-progress,
-.workspace .page .sync-issues { background: var(--peach); border-color: var(--line); border-radius: 6px; }
+.workspace .page .sync-issues { background: var(--peach); border-color: var(--line); border-radius: var(--kdp-radius-sm); }
 .workspace .page .primary-action { background: var(--primary); color: white; }
-.workspace .page .primary-action:hover:not(:disabled) { background: #813719; }
+.workspace .page .primary-action:hover:not(:disabled) { background: var(--kdp-accent-strong); }
 @media (max-width: 760px) {
   .workspace .page { padding-top: 24px; }
   .workspace .page .hero-row { align-items: flex-start; gap: 16px; flex-wrap: wrap; }
@@ -100,5 +99,5 @@
   .workspace .page .sleep-duration h2 { font-size: 34px; }
   .workspace .page .compare-grid { gap: 12px; grid-template-columns: 1fr; }
   .workspace .page .sleep-history { padding-inline: 0; }
-  .workspace .page .panel { padding-block: 22px; }
+  .workspace .page .panel { padding: 22px 20px; }
 }
