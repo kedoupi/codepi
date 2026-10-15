@@ -1,9 +1,10 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
 
 const origin = 'https://oura.example';
-const today = new Date().toISOString().slice(0, 10);
+const today = calendarDay();
 const day = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);
 const scheduledTime = Date.parse(`${today}T01:00:00Z`);
 const pending = (collection, from = today, to = today) =>
@@ -42,7 +43,7 @@ test('09:00 gate, durable batches, successful empty coverage, score refresh and 
   const f = await fixture(t, () => { calls++; });
   await f.tick(scheduledTime - 120000);
   assert.equal((await f.status()).status, 'idle');
-  const localDay = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const localDay = calendarDay();
   if (Date.now() >= Date.parse(`${localDay}T01:00:00Z`)) {
     assert.ok(Date.parse((await f.status()).next_run_at) <= Date.now() + 120000,
       'a due first run should show the next tick, not tomorrow');

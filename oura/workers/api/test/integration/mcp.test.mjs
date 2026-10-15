@@ -1,3 +1,4 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
@@ -447,6 +448,12 @@ test('tools are listed with schemas and return grounded Oura data', async () => 
   assert.equal(compare.body.result.structuredContent.left.sleep, 80);
   assert.equal(compare.body.result.structuredContent.right.sleep, 80);
   assert.equal(compare.body.result.structuredContent.left.days, 7);
+  const httpCompare = await (await fetchAt('/api/me/insights/compare?mode=week', {
+    headers: { Cookie: cookie },
+  })).json();
+  assert.deepEqual(compare.body.result.structuredContent.left, httpCompare.left);
+  assert.deepEqual(compare.body.result.structuredContent.right, httpCompare.right);
+  assert.equal(compare.body.result.structuredContent.timezone, 'Asia/Shanghai');
 
   const unknown = await rpc(access_token, 'tools/call', { name: 'delete_everything', arguments: {} });
   assert.equal(unknown.body.result.structuredContent.error, 'unknown_tool');
@@ -463,7 +470,7 @@ test('period tools compute the actual 30-day window and prior 30-day comparison'
   const varied = createRuntime({
     variedDailyData: day => {
       const date = new Date(`${day}T00:00:00Z`);
-      const age = Math.floor((Date.now() - date.getTime()) / 86400000);
+      const age = Math.floor((Date.parse(calendarDay()) - date.getTime()) / 86400000);
       if (age <= 29) return { score: 90, steps: 9000 };
       return { score: 60, steps: 6000 };
     },
@@ -488,11 +495,14 @@ test('period tools compute the actual 30-day window and prior 30-day comparison'
     const payload = compare.body.result.structuredContent;
     assert.equal(payload.mode, 'range');
     assert.equal(payload.left.label, '近 30 天');
-    assert.equal(payload.right.label, '前 30 天');
+    assert.equal(payload.right.label, '此前 30 天');
     assert.equal(payload.left.sleep, 90);
     assert.equal(payload.right.sleep, 60);
     assert.equal(payload.left.steps, 9000);
     assert.equal(payload.right.steps, 6000);
+    assert.deepEqual(payload.left.samples, { sleep: 30, readiness: 30, activity: 30, steps: 30 });
+    assert.deepEqual(payload.right.samples, { sleep: 30, readiness: 30, activity: 30, steps: 30 });
+    assert.equal(payload.left.to, calendarDay());
   } finally {
     await varied.dispose();
   }

@@ -117,6 +117,25 @@ jobs:
         run: pnpm typecheck
       - if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
         run: pnpm --filter @oura-kdp/web build
+      - name: Install Chinese fonts for browser screenshots
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Browser regression (normal and SSO)
+        if: github.event_name != 'push' || steps.changed.outputs.touched == 'yes'
+        timeout-minutes: 15
+        run: pnpm test:browser:built
+        env:
+          OURA_BROWSER_ARTIFACTS: ${{ runner.temp }}/oura-browser-artifacts
+      - name: Upload browser screenshots and diagnostics
+        if: always() && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
+        uses: actions/upload-artifact@v4
+        with:
+          name: oura-browser-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/oura-browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Deploy API before publishing its frontend
         if: github.event_name != 'pull_request' && (github.event_name != 'push' || steps.changed.outputs.touched == 'yes')
         run: pnpm deploy:api

@@ -1,5 +1,7 @@
 import { api, RequestError } from "./api.ts";
 import type { Day } from "./types";
+export { calendarWindow as dateWindow } from "../../../../shared/dates.ts";
+import { calendarWindow as dateWindow, shiftDay } from "../../../../shared/dates.ts";
 
 export type HealthCollection = {
   name: string; label: string; mode: string; records: number;
@@ -29,9 +31,6 @@ export function duration(seconds: unknown, locale: string): string {
   return locale === "zh" ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分`
     : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
-export function dateWindow(days: number, end = new Date().toISOString().slice(0, 10)) {
-  return { from: new Date(Date.parse(end) - (days - 1) * 86400000).toISOString().slice(0, 10), to: end };
-}
 export function latestDay(days: Day[]): Day | undefined {
   return [...days].filter(day => [day.sleep?.score, day.readiness?.score, day.activity?.score].some(finite))
     .sort((a, b) => b.date.localeCompare(a.date))[0];
@@ -40,7 +39,7 @@ export function calendarDays(records: Day[], count: number, end?: string): Day[]
   const { from } = dateWindow(count, end);
   const byDate = new Map(records.map(record => [record.date, record]));
   return Array.from({ length: count }, (_, index) => {
-    const date = new Date(Date.parse(from) + index * 86400000).toISOString().slice(0, 10);
+    const date = shiftDay(from, index);
     return byDate.get(date) ?? { date };
   });
 }

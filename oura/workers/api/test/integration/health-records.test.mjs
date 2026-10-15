@@ -1,3 +1,4 @@
+import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
@@ -6,7 +7,7 @@ let runtime, cookie, db;
 let handler = () => undefined;
 let calls = [];
 const origin = 'https://oura.example';
-const today = new Date().toISOString().slice(0, 10);
+const today = calendarDay();
 before(async () => {
   runtime = createRuntime({
     providerResponse(url, request) {

@@ -6,10 +6,12 @@
   import { isDevLoginAllowed, type MeResponse } from "../lib/types";
   import ChromeHeader from "./ChromeHeader.svelte";
   import ArchiveStatus from "./ArchiveStatus.svelte";
+  import { watchCalendarDay } from "../lib/calendar";
 
   let { me, locale, onUnauthorized, onLogout }: { me: MeResponse; locale: Locale; onUnauthorized: () => void; onLogout: () => void } = $props();
   const text = (zh: string, en: string) => locale === "zh" ? zh : en;
   let range = $state(7);
+  let end = $state(dateWindow(1).to);
   let records = $state<SleepRecord[]>([]);
   let selectedDay = $state("");
   let selectedId = $state("");
@@ -31,7 +33,7 @@
   ]);
   const stageTotal = $derived(stages.reduce((sum, s) => sum + (finite(s.value) && s.value >= 0 ? s.value : 0), 0));
   const calendar = $derived.by(() => {
-    const { from } = dateWindow(range);
+    const { from } = dateWindow(range, end);
     return Array.from({ length: range }, (_, index) => {
       const day = new Date(Date.parse(from) + index * 86400000).toISOString().slice(0, 10);
       const record = sleepForDay(records, day)[0];
@@ -61,7 +63,7 @@
     records = [];
     verified = false;
     syncedAt = null;
-    const { from, to } = dateWindow(range);
+    const { from, to } = dateWindow(range, end);
     try {
       const result = await readSleep(from, to);
       if (current !== revision) return;
@@ -80,7 +82,7 @@
     if (syncing || loading) return;
     syncing = true;
     syncError = "";
-    const { from, to } = dateWindow(range);
+    const { from, to } = dateWindow(range, end);
     try {
       await api(`/api/me/health-records?${new URLSearchParams({ collection: "sleep", from, to })}`, { method: "POST" });
       await load();
@@ -89,7 +91,11 @@
       syncError = errorText(err, locale);
     } finally { syncing = false; }
   }
-  onMount(() => { if (me.capabilities?.personal) void load(); else loading = false; return () => { revision++; }; });
+  onMount(() => {
+    if (me.capabilities?.personal) void load(); else loading = false;
+    const stop = watchCalendarDay(day => { end = day; if (me.capabilities?.personal) void load(); });
+    return () => { stop(); revision++; };
+  });
 </script>
 
 <ChromeHeader {locale} active="/sleep" isDev={isDevLoginAllowed(me.allowDevLogin) && me.source === "dev"} {onLogout} />
@@ -103,8 +109,8 @@
       <button class="ai-btn" disabled={syncing || loading || !me.capabilities?.personal} onclick={sync}>{syncing ? text("同步中…", "Syncing…") : text("同步此区间", "Sync this range")}</button>
     </div>
   </header>
-  <p class="sleep-coverage">{dateWindow(range).from} — {dateWindow(range).to} · {text("已保存", "Saved")} {days.length}/{range} {text("天", "days")} · {records.length} {text("段记录", "periods")}</p>
-  <p class="hint">{text("日期遵循 Oura 的睡眠归属日。此页读取已保存记录，点击同步更新所选区间。", "Dates follow Oura's assigned sleep day. This page reads saved records; sync to update the selected range.")}</p>
+  <p class="sleep-coverage">{dateWindow(range, end).from} — {dateWindow(range, end).to} · {text("已保存", "Saved")} {days.length}/{range} {text("天", "days")} · {records.length} {text("段记录", "periods")}</p>
+  <p class="hint">{text("窗口截至北京时间今天；记录保留 Oura 的睡眠归属日。此页读取已保存记录，点击同步更新所选区间。", "Windows end today in Asia/Shanghai; records retain Oura's assigned sleep day. Sync to update the selected range.")}</p>
   {#if syncedAt}<p class="hint">{text("此区间同步于", "Range synced")} {new Date(syncedAt).toLocaleString(locale === "zh" ? "zh-CN" : "en")}</p>{/if}
   {#if syncError}<div class="sleep-notice" role="alert">{syncError} <a href="/settings">{text("查看数据设置", "Open data settings")}</a></div>{/if}
   {#if !me.capabilities?.personal}

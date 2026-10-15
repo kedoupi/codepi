@@ -7,6 +7,7 @@
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
   import ChromeHeader from "./ChromeHeader.svelte";
+  import { watchCalendarDay } from "../lib/calendar";
 
   let {
     me,
@@ -62,7 +63,8 @@
 
   onMount(() => {
     void load();
-    return () => { disposed = true; revision++; };
+    const stop = watchCalendarDay(() => { payload = null; void load(); });
+    return () => { stop(); disposed = true; revision++; };
   });
 </script>
 
@@ -86,6 +88,9 @@
       <strong>{t(locale, "notMedical")}</strong>
       <span> / {t(locale, "notMedicalEn")}</span>
     </p>
+    <p class="hint">{locale === "zh"
+      ? "滚动窗口截至北京时间今天，包含今天。保留 Oura 原始归属日；均值只使用有效数据，缺失不计为零。近 7 天属于近 30 天的一部分，两列不是独立样本。"
+      : "Rolling windows include today in Asia/Shanghai and retain Oura dates. Averages use valid data only. The last 7 days overlap with the last 30 days; these are not independent samples."}</p>
     <div class="lang-pills" role="group" aria-label={t(locale, "compareTitle")}>
       <button type="button" class="ai-btn" class:on={mode === "week"} aria-pressed={mode === "week"} onclick={() => setMode("week")}>{t(locale, "compareWeek")}</button>
       <button type="button" class="ai-btn" class:on={mode === "range"} aria-pressed={mode === "range"} onclick={() => setMode("range")}>{t(locale, "compareRange")}</button>
@@ -104,14 +109,14 @@
         {#each [payload.left, payload.right] as col, i (`col-${i}`)}
           <article class="panel">
             <h2>{col.label}</h2>
-            <p class="hint">{col.from} → {col.to} · {col.days} {t(locale, "daysUnit")}</p>
+            <p class="hint">{col.from} → {col.to} · {col.days} {locale === "zh" ? "天有有效数据" : "days with valid data"}</p>
             <table class="avg-table">
-              <thead><tr><th>{t(locale, "metricLabel")}</th><th>{col.label}</th></tr></thead>
+              <thead><tr><th>{t(locale, "metricLabel")}</th><th>{locale === "zh" ? "均值" : "Mean"}</th><th>{locale === "zh" ? "有效天数" : "Valid days"}</th></tr></thead>
               <tbody>
-                <tr><td>{t(locale, "metricSleep")}</td><td>{fmt(col.sleep)}</td></tr>
-                <tr><td>{t(locale, "metricReady")}</td><td>{fmt(col.readiness)}</td></tr>
-                <tr><td>{t(locale, "metricAct")}</td><td>{fmt(col.activity)}</td></tr>
-                <tr><td>{t(locale, "metricSteps")}</td><td>{fmt(col.steps, true)}</td></tr>
+                <tr><td>{t(locale, "metricSleep")}</td><td>{fmt(col.sleep)}</td><td>{col.samples?.sleep ?? "—"}</td></tr>
+                <tr><td>{t(locale, "metricReady")}</td><td>{fmt(col.readiness)}</td><td>{col.samples?.readiness ?? "—"}</td></tr>
+                <tr><td>{t(locale, "metricAct")}</td><td>{fmt(col.activity)}</td><td>{col.samples?.activity ?? "—"}</td></tr>
+                <tr><td>{t(locale, "metricSteps")}</td><td>{fmt(col.steps, true)}</td><td>{col.samples?.steps ?? "—"}</td></tr>
               </tbody>
             </table>
           </article>

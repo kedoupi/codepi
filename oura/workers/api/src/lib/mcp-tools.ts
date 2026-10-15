@@ -14,11 +14,11 @@ import { HEALTH_COLLECTIONS, healthStatus, healthWindow, readHealthRecords, sync
 import { ApiError } from "./errors.ts";
 import {
   buildCompareReport,
-  rangeOf,
-  sortDays,
+  comparisonColumn,
   windowAverages,
   type InsightDay,
 } from "./weekly-report.ts";
+import { calendarDay, shiftDay, DISPLAY_TIME_ZONE } from "../../../../shared/dates.ts";
 
 export const DISCLAIMER = "非医疗建议 / Not medical advice.";
 
@@ -36,7 +36,6 @@ const DAYS_SCHEMA = {
   description: "Window size in days ending today.",
 } as const;
 
-const ONE_DAY_MS = 86400000;
 
 export const TOOLS: ToolDefinition[] = [
   {
@@ -180,15 +179,17 @@ function roundAverages(days: InsightDay[]) {
 }
 
 function periodComparison(days: InsightDay[]) {
-  const sorted = sortDays(days);
-  const end = Date.parse(sorted.at(-1)?.date ?? "");
-  const current = sorted.filter(day => Date.parse(day.date) > end - 30 * ONE_DAY_MS);
-  const previous = sorted.filter(day =>
-    Date.parse(day.date) > end - 60 * ONE_DAY_MS && Date.parse(day.date) <= end - 30 * ONE_DAY_MS
-  );
+  const end = calendarDay();
+  const column = (label: string, to: string) => {
+    const result = comparisonColumn(days, label, 30, to);
+    return {
+      ...result, sleep: round1(result.sleep), readiness: round1(result.readiness),
+      activity: round1(result.activity), steps: round1(result.steps),
+    };
+  };
   return {
-    left: { label: "近 30 天", ...rangeOf(current), days: current.length, ...roundAverages(current) },
-    right: { label: "前 30 天", ...rangeOf(previous), days: previous.length, ...roundAverages(previous) },
+    left: column("近 30 天", end),
+    right: column("此前 30 天", shiftDay(end, -30)),
   };
 }
 
@@ -298,6 +299,8 @@ export async function runTool(
       mode,
       left: report.left,
       right: report.right,
+      timezone: DISPLAY_TIME_ZONE,
+      period_basis: mode === "range" ? "Last 30 calendar days vs preceding 30 days" : "Last 7 calendar days vs preceding 7 days",
       coverage: coverage(daily.days),
       synced_at: daily.sync?.syncedAt ?? null,
       stale: daily.sync?.stale ?? false,
