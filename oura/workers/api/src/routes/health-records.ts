@@ -2,9 +2,9 @@ import type { Env } from "../env";
 import { requireSession, isResponse } from "../lib/authz";
 import { ApiError } from "../lib/errors.ts";
 import { healthStatus, healthWindow, readHealthRecords, syncHealthWindow } from "../lib/health-records.ts";
-import { automaticSyncStatus } from "../lib/auto-sync.ts";
+import { automaticSyncStatus, requestAutomaticSync, runAutomaticSync } from "../lib/auto-sync.ts";
 
-export async function handleHealthRecords(request: Request, env: Env): Promise<Response> {
+export async function handleHealthRecords(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const auth = await requireSession(request, env);
   if (isResponse(auth)) return auth;
   if (!["oauth", "sso"].includes(auth.session.kind) || !env.PERSONAL_OWNER_ID || auth.session.user_id !== env.PERSONAL_OWNER_ID) {
@@ -12,6 +12,18 @@ export async function handleHealthRecords(request: Request, env: Env): Promise<R
   }
   const url = new URL(request.url);
   if (url.pathname.endsWith("/automatic")) {
+    if (request.method === "POST") {
+      const result = await requestAutomaticSync(env, auth.session.user_id);
+      if (result.started && ctx) {
+        ctx.waitUntil(runAutomaticSync(env, Date.now(), "*/2 * * * *").catch(error => {
+          // The durable queue remains available to Cron if this opportunistic
+          // first batch fails or the HTTP execution context is terminated.
+          console.error(JSON.stringify({ event: "auto_sync_start_failure",
+            code: error instanceof ApiError ? error.code : "internal_error" }));
+        }));
+      }
+      return Response.json(result.status, { status: 202 });
+    }
     if (request.method !== "GET") throw new ApiError("method_not_allowed", 405);
     return Response.json(await automaticSyncStatus(env, auth.session.user_id));
   }

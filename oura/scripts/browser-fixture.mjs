@@ -6,6 +6,7 @@ import { centralFixture, connectOura, createRuntime, login, loginSso, migrate } 
 import worker from '../workers/api/dist/index.js';
 import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 import { calendarDay, calendarWindow, shiftDay, DISPLAY_TIME_ZONE } from '../shared/dates.ts';
+import { shortAutomaticQueue } from './browser-sync-fixture.mjs';
 
 const origin = 'http://127.0.0.1:4178';
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
@@ -13,18 +14,41 @@ const sso = process.env.OURA_BROWSER_SSO === '1';
 const central = centralFixture();
 const workerOrigin = sso ? origin : 'https://oura.example';
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports).
-let adaptiveBackfill = false;
+let syncScenario = 'normal';
+let providerCalls = [];
+let syncRequests = [];
+let releaseScores;
+let scoreGate;
 const ownerRuntime = createRuntime({
   sso,
   ...(sso ? { serviceBindings: { AUTH: central.fetch } } : {}),
   autoSync: true,
   providerResponse(url) {
-    if (!adaptiveBackfill || !url.pathname.endsWith('/heartrate')) return undefined;
-    const from = url.searchParams.get('start_datetime');
-    const to = url.searchParams.get('end_datetime');
-    return Response.json({ data: Date.parse(to) - Date.parse(from) > 86400000
-      ? Array.from({ length: 5001 }, () => ({}))
-      : [{ timestamp: from, bpm: 60, source: 'rest' }], next_token: null });
+    providerCalls.push(url.pathname);
+    if (syncScenario === 'normal') return undefined;
+    if (/\/daily_(sleep|readiness|activity)$/.test(url.pathname)) {
+      if (syncScenario === 'score-failure') return new Response('', { status: 503 });
+      const respond = () => {
+        const data = [];
+        for (let day = url.searchParams.get('start_date'); day <= url.searchParams.get('end_date'); day = shiftDay(day, 1)) {
+          data.push({ id: `${url.pathname.split('/').at(-1)}-${day}`, day, score: 91, steps: 9100 });
+        }
+        return Response.json({ data, next_token: null });
+      };
+      return scoreGate ? scoreGate.then(respond) : respond();
+    }
+    if (syncScenario === 'permission' && url.pathname.endsWith('/daily_spo2')) return new Response('', { status: 403 });
+    if (syncScenario === 'rate-limit' && url.pathname.endsWith('/heartrate')) return new Response('', { status: 429 });
+    if (syncScenario === 'oversized' && url.pathname.endsWith('/sleep')) {
+      const from = url.searchParams.get('start_date');
+      const to = url.searchParams.get('end_date');
+      return Response.json({ data: Date.parse(to) - Date.parse(from) > 86400000
+        ? Array.from({ length: 5001 }, () => ({})) : [], next_token: null });
+    }
+    if (url.pathname.endsWith('/heartrate')) {
+      return Response.json({ data: [{ timestamp: url.searchParams.get('start_datetime'), bpm: 60, source: 'rest' }], next_token: null });
+    }
+    return undefined;
   },
 });
 await ownerRuntime.ready;
@@ -60,6 +84,81 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
         today: calendarDay(), week: calendarWindow(7), timezone: DISPLAY_TIME_ZONE,
       }));
+      return;
+    }
+    if (url.pathname === '/__test/sync-scenario') {
+      const db = await ownerRuntime.getD1Database('DB');
+      if (req.method === 'POST') {
+        releaseScores?.();
+        releaseScores = undefined;
+        scoreGate = undefined;
+        syncScenario = url.searchParams.get('mode') || 'success';
+        if (!['normal', 'success', 'permission', 'rate-limit', 'oversized', 'score-failure'].includes(syncScenario)) {
+          res.writeHead(400).end('Unknown sync scenario');
+          return;
+        }
+        await db.batch([
+          db.prepare("DELETE FROM auto_sync_state WHERE user_id='test-user'"),
+          db.prepare("DELETE FROM auto_sync_budget WHERE user_id='test-user'"),
+          db.prepare("DELETE FROM health_sync_windows WHERE user_id='test-user'"),
+          // Keep the last good score snapshot readable while letting the real
+          // POST bypass the 30-second success cooldown and reach mock Oura.
+          db.prepare("UPDATE sync_state SET synced_at=? WHERE user_id='test-user'")
+            .bind(new Date(Date.now() - 60_000).toISOString()),
+        ]);
+        if (url.searchParams.get('hold_scores') === '1') {
+          scoreGate = new Promise(resolve => { releaseScores = resolve; });
+        }
+        providerCalls = [];
+        syncRequests = [];
+      }
+      const row = await db.prepare("SELECT payload,started_at,status,lease_until FROM auto_sync_state WHERE user_id='test-user'").first();
+      const records = await db.prepare("SELECT COUNT(*) AS count FROM health_records WHERE user_id='test-user'").first();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        tasks: JSON.parse(row?.payload || '[]'), started_at: row?.started_at ?? null,
+        status: row?.status ?? 'idle', leaseUntil: row?.lease_until ?? 0,
+        records: records.count, providerCalls, requests: syncRequests,
+      }));
+      return;
+    }
+    if (url.pathname === '/__test/release-scores' && req.method === 'POST') {
+      releaseScores?.();
+      releaseScores = undefined;
+      scoreGate = undefined;
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
+    if (url.pathname === '/__test/short-queue' && req.method === 'POST') {
+      const db = await ownerRuntime.getD1Database('DB');
+      const row = await db.prepare("SELECT * FROM auto_sync_state WHERE user_id='test-user'").first();
+      if (!row?.started_at || row.lease_until > Date.now()) throw new Error('Real automatic POST must settle before trimming');
+      const collections = url.searchParams.get('collections')?.split(',') || ['sleep', 'heartrate'];
+      const tasks = shortAutomaticQueue(JSON.parse(row.payload), collections);
+      await db.prepare("UPDATE auto_sync_state SET payload=? WHERE user_id='test-user'")
+        .bind(JSON.stringify(tasks)).run();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ total: tasks.length }));
+      return;
+    }
+    if (url.pathname === '/__test/sync-budget' && req.method === 'POST') {
+      const db = await ownerRuntime.getD1Database('DB');
+      await db.prepare(`INSERT OR REPLACE INTO auto_sync_budget(user_id,utc_day,reserved_rows)
+        VALUES ('test-user',?,400000)`).bind(new Date().toISOString().slice(0, 10)).run();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
+    if (url.pathname === '/__test/retry-due' && req.method === 'POST') {
+      // Simulate expiry of one persisted retry delay, without waiting 15/30
+      // minutes. Attempts, errors, task order and the executor remain real.
+      const db = await ownerRuntime.getD1Database('DB');
+      const row = await db.prepare("SELECT payload,lease_until FROM auto_sync_state WHERE user_id='test-user'").first();
+      if (!row || row.lease_until > Date.now()) throw new Error('Retry must be persisted before expiring its delay');
+      const tasks = JSON.parse(row.payload);
+      const collection = url.searchParams.get('collection');
+      const item = tasks.find(task => task.collection === collection && task.state === 'pending' && task.error);
+      if (!item || item.after <= Date.now()) throw new Error('Expected a pending task with an actual retry delay');
+      item.after = 0;
+      await db.prepare("UPDATE auto_sync_state SET payload=? WHERE user_id='test-user'").bind(JSON.stringify(tasks)).run();
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
       return;
     }
     if (url.pathname === '/__test/report-scenario' && req.method === 'POST') {
@@ -113,17 +212,6 @@ const server = createServer(async (req, res) => {
       const today = calendarDay();
       const result = await worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
       res.writeHead(result.outcome === 'ok' ? 200 : 500, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
-      return;
-    }
-    if (url.pathname === '/__test/backfill-scenario' && req.method === 'POST') {
-      adaptiveBackfill = true;
-      const db = await ownerRuntime.getD1Database('DB');
-      const today = calendarDay();
-      const from = calendarWindow(7, today).from;
-      await db.prepare(`INSERT OR REPLACE INTO health_sync_windows
-        (user_id, collection, window_from, window_to, attempted_at, last_error) VALUES (?, ?, ?, ?, ?, ?)`)
-        .bind('test-user', 'heartrate', from, today, '2000-01-01T00:00:00Z', 'sync_window_too_large').run();
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
       return;
     }
     if (url.pathname === '/__test/sleep-scenario' && req.method === 'POST') {
@@ -209,16 +297,21 @@ const server = createServer(async (req, res) => {
       const jar = /oura_fixture_jar=free/.test(req.headers.cookie || '') ? freeRuntime : ownerRuntime;
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
+      const syncRequest = req.method === 'POST'
+        && ['/api/me/sync', '/api/me/health-records', '/api/me/health-records/automatic'].includes(url.pathname)
+        ? { path: url.pathname, search: url.search, bodyBytes: Buffer.concat(chunks).length, status: null } : null;
+      if (syncRequest) syncRequests.push(syncRequest);
       // The Worker whitelists its own origin + FRONTEND_ORIGIN. The fixture
       // impersonates the trusted frontend origin for browser requests.
       const requestHeaders = { ...req.headers, origin: workerOrigin, referer: `${workerOrigin}/` };
       if (storageQuota) {
-        if (req.method === 'POST' && url.pathname === '/api/me/health-records') quotaSyncAttempts++;
+        if (syncRequest) quotaSyncAttempts++;
         const bindings = await jar.getBindings();
         const response = await worker.fetch(new Request(`${workerOrigin}${url.pathname}${url.search}`, {
           method: req.method, headers: requestHeaders,
           body: chunks.length ? Buffer.concat(chunks) : undefined,
         }), { ...bindings, DB: failingDb(bindings.DB) });
+        if (syncRequest) syncRequest.status = response.status;
         res.writeHead(response.status, Object.fromEntries(response.headers))
           .end(Buffer.from(await response.arrayBuffer()));
         return;
@@ -228,6 +321,7 @@ const server = createServer(async (req, res) => {
         method: req.method, headers: requestHeaders, redirect: 'manual',
         body: chunks.length ? Buffer.concat(chunks) : undefined,
       });
+      if (syncRequest) syncRequest.status = response.status;
       const headers = Object.fromEntries(response.headers);
       if (headers.location?.startsWith('https://oura.example')) {
         headers.location = headers.location.replace('https://oura.example', origin);
@@ -257,6 +351,7 @@ const server = createServer(async (req, res) => {
 });
 server.listen(4178, '127.0.0.1', () => console.log(`Browser fixture ready: ${origin}`));
 async function stop() {
+  releaseScores?.();
   server.close();
   await ownerRuntime.dispose();
   await freeRuntime.dispose();
