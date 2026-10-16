@@ -216,8 +216,12 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/__test/automatic-sync' && req.method === 'POST') {
       const worker = await ownerRuntime.getWorker();
-      const today = calendarDay();
-      const result = await worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
+      const db = await ownerRuntime.getD1Database('DB');
+      const row = await db.prepare("SELECT started_at FROM auto_sync_state WHERE user_id='test-user'").first();
+      // These ticks drain the admitted manual job. Keep its event time even if
+      // the suite crosses 09:00; daily planning has separate integration tests.
+      const scheduledTime = row?.started_at ? Date.parse(row.started_at) : Date.now();
+      const result = await worker.scheduled({ scheduledTime, cron: '*/2 * * * *' });
       res.writeHead(result.outcome === 'ok' ? 200 : 500, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
       return;
     }
