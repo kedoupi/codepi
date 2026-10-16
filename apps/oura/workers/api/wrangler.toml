@@ -19,6 +19,10 @@ AUTH_ORIGIN = "https://auth.codepi.app"
 FRONTEND_ORIGIN = "https://health.codepi.app"
 FRONTEND_ORIGINS = "https://health.codepi.app"
 OURA_REDIRECT_URI = "https://health.codepi.app/api/auth/oura/callback"
+# Set by scripts/deploy-api.mjs at release time to the short source SHA so
+# /api/health and the smoke gate can prove which build is live. Local dev
+# leaves it unset and the routes fall back to "local". Never commit a real SHA.
+BUILD_SHA = "local"
 
 [triggers]
 crons = ["*/2 * * * *"]
