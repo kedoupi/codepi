@@ -145,6 +145,7 @@ test('logout revokes the central session; cross-origin requests and failed revoc
 
 test('configuration and transport failures never create an insecure or fallback session', async t => {
   const f = await fixture(t);
+  const diagnostics = t.mock.method(console, 'error', () => {});
   assert.equal(ssoEnabled({ ...f.env, SSO_ENABLED: '0' }), false);
   assert.equal(ssoEnabled({ ...f.env, SSO_ENABLED: '1' }), true);
   for (const override of [
@@ -155,6 +156,11 @@ test('configuration and transport failures never create an insecure or fallback 
     await assert.rejects(beginLogin(request('/api/auth/login'), { ...f.env, ...override }),
       { code: 'auth_not_configured', status: 503 });
   }
+  assert.deepEqual(diagnostics.mock.calls.map(call => call.arguments), [
+    ['sso_configuration_error', JSON.stringify({ missing: ['AUTH'] })],
+    ['sso_configuration_error', JSON.stringify({ missing: ['AUTH_CLIENT_ID'] })],
+    ['sso_configuration_error', JSON.stringify({ missing: ['AUTH_CLIENT_SECRET'] })],
+  ]);
   await assert.rejects(beginLogin(new Request('http://oura.example/api/auth/login'), f.env),
     { code: 'https_required', status: 400 });
   await assert.rejects(beginLogin(request('/api/auth/login', '', { method: 'POST' }), f.env),
