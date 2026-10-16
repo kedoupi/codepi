@@ -8,7 +8,7 @@
 
 整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
 
-首页是唯一的静态 Astro 站点，通过 `packages/shared/` 与 `@shared/*` alias 复用基础样式和组件。所有应用由根 pnpm workspace 统一管理依赖。私人应用保留现有技术栈与数据边界。
+首页是唯一的静态 Astro 站点，通过 `@kedoupi/shared/<subpath>` 复用基础样式、布局与契约，共享入口由严格的 `exports` 白名单声明。所有应用由根 pnpm workspace 统一管理依赖。私人应用保留现有技术栈与数据边界。
 
 ## 产品与支撑层
 
@@ -50,7 +50,7 @@ To submit to Google Search Console (next step, manual): add `codepi.app` as a pr
 
 从 [规范与工作流导航](docs/development/README.md) 开始：根与局部 `AGENTS.md` 定义项目约束；`.agents/skills/` 提供 `kdp-dev`、`kdp-review`、`kdp-release`、`kdp-handoff` 四个入口；[开发工作流](docs/development/agent-workflow.md) 和 [集成发布流程](docs/development/integration-release.md) 维护执行步骤。各工具按 [兼容说明](docs/development/agent-compatibility.md) 共用这些来源。`node scripts/agent/check.mjs --base <基线SHA>` 只预览检查计划，加 `--run` 才执行。
 
-The homepage is the only Astro project; it imports from `packages/shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`. The private apps use their own stacks. All packages are managed by a single pnpm workspace.
+The homepage is the only Astro project; it imports shared APIs via the `@kedoupi/shared/<subpath>` exports allowlist and its own `src/site.config.js` via `@site/*`. The private apps use their own stacks. All packages are managed by a single pnpm workspace.
 
 ```bash
 pnpm install                    # install all workspace dependencies
@@ -110,12 +110,11 @@ Functions folder when it sits next to the project root; the portal's Functions
 
 ## Notes
 
-- `output: 'static'` + `trailingSlash: 'always'` + `format: 'directory'` produces clean URLs like `/mortgage-calculator/` with `index.html` inside.
+- `output: 'static'` + `trailingSlash: 'always'` + `format: 'directory'` produces clean URLs like `/about/` with `index.html` inside.
 - Sitemap is emitted as `sitemap-index.xml` (index) referencing `sitemap-0.xml`. `robots.txt` points at the index.
 - The `_headers` file under each site's `public/` is consumed by Cloudflare Pages for security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
-- All math modules use `node:test` (no test framework dependency). Run with `npm test` per project.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` hold design specs and implementation plans from the brainstorm → plan → execute workflow used to build this repo.
-- `packages/shared/` is a private workspace member. Consumers still import its source through relative paths or Vite aliases; package exports are not yet defined.
+- `packages/shared/` is a private workspace package. Consumers import its source through the explicit `@kedoupi/shared/<subpath>` exports allowlist; unlisted module paths are rejected.
 
 ## Roadmap
 
