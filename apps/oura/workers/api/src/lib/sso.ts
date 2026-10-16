@@ -1,7 +1,7 @@
-import { SsoError, ssoEnabled } from "../../../../../../packages/shared/auth/client.ts";
+import { SsoError, ssoEnabled } from "@kedoupi/shared/auth/client";
 import type { Env } from "../env";
 
-export { beginLogin, finishLogin, logoutSso, readSsoSession, SsoError, ssoEnabled } from "../../../../../../packages/shared/auth/client.ts";
+export { beginLogin, finishLogin, logoutSso, readSsoSession, SsoError, ssoEnabled } from "@kedoupi/shared/auth/client";
 
 export function personalOwner(env: Env): string {
   if (!env.PERSONAL_OWNER_ID || env.PERSONAL_OWNER_ID === "dev-local") {

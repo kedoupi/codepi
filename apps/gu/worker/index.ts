@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import { handleDeskSummary } from "./desk-summary";
 import { authenticated, callbackSso, loginSso, logout, requestOtp, verifyOtp } from "./auth";
-import { ssoEnabled, ssoErrorResponse } from "../../../packages/shared/auth/client";
+import { ssoEnabled, ssoErrorResponse } from "@kedoupi/shared/auth/client";
 import { dashboard, upload } from "./data";
 import { calendar, syncCalendar } from "./calendar";
 import { json, localDev, secureResponse, ValidationError } from "./lib";

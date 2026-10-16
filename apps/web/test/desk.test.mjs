@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { deskFixture, sourceFixture, sourceTokens } from './runtime.mjs';
-import { calendarDay, shiftDay } from '../../../packages/shared/desk/contract.ts';
+import { calendarDay, shiftDay } from '@kedoupi/shared/desk/contract';
 
 test('private endpoints require a real owner session; login returns to desk; requests never forward cookies', async t => {
   const f = await deskFixture(t);

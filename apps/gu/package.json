@@ -19,6 +19,7 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.2",
     "@cloudflare/workers-types": "latest",
+    "@kedoupi/shared": "workspace:*",
     "esbuild": "^0.25.9",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",

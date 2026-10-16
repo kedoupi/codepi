@@ -1,7 +1,7 @@
 import { api } from "./app";
 import { handleDeskSummary } from "./desk-summary";
 import { handleSsoCallback, handleSsoLogin, requireAccount } from "./auth";
-import { ssoErrorResponse } from "../../../packages/shared/auth/client";
+import { ssoErrorResponse } from "@kedoupi/shared/auth/client";
 import { isSpaPath, needsSession } from "./gate";
 
 async function fetchStatic(env: Env, url: URL): Promise<Response> {

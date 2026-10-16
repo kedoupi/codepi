@@ -1,5 +1,5 @@
 import "./style.css";
-import { PRODUCT_BRAND } from "../../../../packages/shared/brand";
+import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
 import {
   marketChange,
   percent as pct,

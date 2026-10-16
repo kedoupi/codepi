@@ -16,6 +16,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: latest
         version: 5.20261016.1
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       esbuild:
         specifier: ^0.25.9
         version: 0.25.12
@@ -44,6 +47,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: latest
         version: 5.20261016.1
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       esbuild:
         specifier: ^0.25.9
         version: 0.25.12
@@ -64,6 +70,9 @@ importers:
 
   apps/oura/apps/web:
     devDependencies:
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       '@sveltejs/vite-plugin-svelte':
         specifier: ^5.1.1
         version: 5.1.1(svelte@5.57.2)(vite@6.4.4(@types/node@24.19.2)(jiti@1.21.7)(yaml@2.9.1))
@@ -85,6 +94,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250109.0
         version: 4.20260702.1
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../../../packages/shared
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -104,6 +116,9 @@ importers:
       '@astrojs/tailwind':
         specifier: ^6.0.2
         version: 6.0.2(astro@6.4.8(@types/node@24.19.2)(jiti@1.21.7)(rollup@4.64.7)(yaml@2.9.1))(tailwindcss@3.4.19(yaml@2.9.1))
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       tailwindcss:
         specifier: ^3.4.19
         version: 3.4.19(yaml@2.9.1)
@@ -118,6 +133,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: 5.20261014.1
         version: 5.20261014.1
+      '@kedoupi/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       esbuild:
         specifier: 0.25.12
         version: 0.25.12

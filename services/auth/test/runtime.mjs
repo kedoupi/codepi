@@ -12,7 +12,7 @@ export const clients = Object.fromEntries(['oura', 'gu', 'gzh', 'desk'].map((id,
 export const cookie = (res, name) => res.headers.getSetCookie().find(v => v.split('=')[0].endsWith(name))?.split(';')[0] || '';
 const bundle = await build({
   stdin: {
-    contents: `import {beginLogin,finishLogin,readSsoSession,logoutSso,ssoErrorResponse} from '../../packages/shared/auth/client.ts';
+    contents: `import {beginLogin,finishLogin,readSsoSession,logoutSso,ssoErrorResponse} from '@kedoupi/shared/auth/client';
     export default { async fetch(req,env) { try {
       const p=new URL(req.url).pathname;
       if(p==='/api/auth/login')return await beginLogin(req,env);

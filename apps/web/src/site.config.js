@@ -1,4 +1,4 @@
-import { PRODUCT_BRAND } from '@shared/brand';
+import { PRODUCT_BRAND } from '@kedoupi/shared/brand';
 
 export const siteName = PRODUCT_BRAND;
 export const personalSite = true;

@@ -1,4 +1,4 @@
-import { authorizeSummary, deskJson, emptySummary, type DeskSummary } from "../../../packages/shared/desk/contract";
+import { authorizeSummary, deskJson, emptySummary, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export async function handleDeskSummary(request: Request, env: Env): Promise<Response> {
   const denied = await authorizeSummary(request, env.DESK_SUMMARY_TOKEN);

@@ -3,5 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Shared contracts, styles, auth client and email templates for kedoupi products"
+  "description": "Shared contracts, styles, auth client and email templates for kedoupi products",
+  "exports": {
+    "./brand": "./brand.ts",
+    "./products": "./products.ts",
+    "./auth/client": "./auth/client.ts",
+    "./auth/schema.sql": "./auth/schema.sql",
+    "./desk/contract": "./desk/contract.ts",
+    "./email/otp": "./email/otp.ts",
+    "./i18n/config.js": "./i18n/config.js",
+    "./styles/tokens.css": "./styles/tokens.css",
+    "./styles/site.css": "./styles/site.css",
+    "./layouts/BaseLayout.astro": "./layouts/BaseLayout.astro",
+    "./privacy-redirects.js": "./privacy-redirects.js",
+    "./sitemap-filter.js": "./sitemap-filter.js",
+    "./*": "./*"
+  }
 }

@@ -1,6 +1,6 @@
 import type { Env } from "./types";
-import { brandedSender, buildOtpEmail } from "../../../packages/shared/email/otp";
-import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "../../../packages/shared/auth/client";
+import { brandedSender, buildOtpEmail } from "@kedoupi/shared/email/otp";
+import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "@kedoupi/shared/auth/client";
 import { OWNER_EMAIL, bodyJson, cookie, equal, json, localDev, object, readCookie, secretHash, token } from "./lib";
 
 const OTP_TTL = 8 * 60 * 1000;
