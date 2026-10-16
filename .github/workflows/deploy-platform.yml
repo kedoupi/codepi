@@ -18,19 +18,6 @@ name: Deploy platform (auth / web / gu / gzh / health)
 on:
   push:
     branches: [main]
-    paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.npmrc'
-      - 'services/auth/**'
-      - 'apps/web/**'
-      - 'apps/gu/**'
-      - 'apps/gzh/**'
-      - 'apps/oura/**'
-      - 'packages/shared/**'
-      - 'scripts/cloudflare/**'
-      - '.github/workflows/deploy-platform.yml'
   pull_request:
     paths:
       - 'package.json'
@@ -134,11 +121,13 @@ jobs:
             # push covers a full release, unlike a successful single-app dispatch.
             released=$(gh api "repos/$GH_REPO/actions/workflows/deploy-platform.yml/runs?branch=main&event=push&status=success&per_page=1" \
               --jq '.workflow_runs[0].head_sha // empty')
-            if [ -z "$released" ]; then
+            if [ -z "$released" ] || ! git merge-base --is-ancestor "$released" "$SHA"; then
               mark_all
               exit 0
             else
-              changed=$(git diff --name-only "$released" "$SHA") || {
+              # A partially deployed failed release may then be reverted. Include
+              # every touched path, even when the final tree matches the baseline.
+              changed=$(git log --format= --name-only --no-renames "$released..$SHA") || {
                 echo "::error::could not determine changed paths since the last successful release"
                 exit 1
               }

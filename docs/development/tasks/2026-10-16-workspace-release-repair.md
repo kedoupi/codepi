@@ -1,6 +1,6 @@
 # Workspace 发布链修复
 
-- 状态：本地验证完成，PR / 远端发布待执行。
+- 状态：本地验证完成，PR #47 已创建，云端检查进行中；尚未合并或完成生产发布。
 - 目标：使统一 workspace 的 CI 和 main 自动发布可运行，校正迁移后过期的工程规则。
 - 范围：workflow、检查映射、Health typecheck 范围、当前架构与开发文档；不迁移产品技术栈或业务数据。
 - worktree：`~/.worktrees/kdp.cool/codex/release-workspace-fixes`。
@@ -22,6 +22,8 @@ GitHub run `38883652043` 在依赖安装前失败，所有部署 job 均跳过�
 5. Health `pnpm -r typecheck` 在根 workspace 下扩散到其他应用，改为两个 Health 包。
 6. 独立审查发现跨 run 发布交错风险。增加整条生产 workflow 并发锁、过期 SHA 检查；
    affected 从最近成功的 main push release 计算，覆盖失败或被合并队列替换的提交。
+   复核补齐所有 main push（含文档）触发、按各提交触及路径而非净 diff 判断；
+   fixture 覆盖文档提交接管发布和部分发布失败后的完整 revert。
 7. 当前文档、skill、资源登记路径仍有旧结构或强制 staging 描述，已校正；
    保留历史记录，不将保留的 staging 配置标成已启用环境。
 

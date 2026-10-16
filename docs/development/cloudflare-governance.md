@@ -125,8 +125,10 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   套餐限制，GitHub CLI 凭证也失效；这些控制面配置仍待处理，不改变仓库可见性。
 - 并发控制：整条 main workflow 共用 `platform-refs/heads/main` 并发组，
   `cancel-in-progress: false`；服务级锁作为额外保护。PR 可以取消过期检查。
-  发布前拒绝已落后于 main 的 run；push 的 affected 范围从最近一次成功的 main push
-  release 计算，首次无成功记录则发布全部服务，覆盖失败或被队列替换的中间提交。
+  发布前拒绝已落后于 main 的 run；每次 main 更新（包括仅文档变更）都启动 workflow，
+  保证新 run 接管未完成发布。push 的 affected 范围取最近一次成功的 main push release
+  之后所有提交触及的路径，不能只看净 diff，否则失败后的 revert 会遗漏已部分上线的服务。
+  无成功记录或成功 SHA 不在当前祖先链时发布全部服务；仅文档且无积压改动时不部署应用。
 - 每次部署传入并记录 `GITHUB_SHA`；deploy 步骤必须解析真实 provider 标识
   （Pages deployment id 经 Cloudflare API 只读解析，Worker Current Version ID
   从 wrangler 输出解析，解析失败即失败），连同 service/target/smoke 结果由

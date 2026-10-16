@@ -30,8 +30,13 @@ test('workspace-only changes trigger validation and deployment of all consumers'
   for (const name of ['deploy-platform', 'validate-sso']) {
     const workflow = await readFile(new URL(`.github/workflows/${name}.yml`, root), 'utf8');
     const triggers = workflow.split('\npermissions:')[0];
+    if (name === 'deploy-platform') {
+      assert.doesNotMatch(triggers.split('  push:')[1].split('  pull_request:')[0], /paths:/,
+        'every main update must start a run that can pick up a superseded release');
+    }
     for (const file of workspaceFiles) {
-      assert.equal(triggers.split(`      - '${file}'`).length - 1, 2, `${name}: push and pull_request must include ${file}`);
+      assert.equal(triggers.split(`      - '${file}'`).length - 1, name === 'deploy-platform' ? 1 : 2,
+        `${name}: push and pull_request must include ${file}`);
     }
   }
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
@@ -84,7 +89,7 @@ test('production releases serialize and include changes from failed or coalesced
   await writeFile(path.join(bin, 'gh'), '#!/bin/sh\nprintf "%s\\n" "$TEST_RELEASE_BASE"\n');
   await chmod(path.join(bin, 'gh'), 0o755);
   const output = path.join(cwd, 'outputs');
-  const run = async (base, sha = latest) => {
+  const run = async (base, sha = git('rev-parse', 'HEAD')) => {
     await writeFile(output, '');
     execFileSync('bash', ['-euo', 'pipefail', '-c', script], {
       cwd, stdio: 'pipe',
@@ -96,6 +101,14 @@ test('production releases serialize and include changes from failed or coalesced
   assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' });
   assert.deepEqual(await run(''), { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes' });
   await assert.rejects(run(released, pending), /older than main/);
+  await commit('docs/release.md');
+  await assert.rejects(run(released, latest), /older than main/);
+  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' },
+    'the docs-only successor must pick up pending application changes');
+  git('rm', 'apps/gu/change.ts', 'apps/gzh/change.ts');
+  git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', 'revert partially deployed applications');
+  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' },
+    'a revert must redeploy consumers even when the net application diff is empty');
 });
 
 test('isolated www-build installs cross-product fixture dependencies before Desk tests', async () => {
