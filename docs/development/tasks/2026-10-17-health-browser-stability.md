@@ -1,6 +1,7 @@
 # Health 浏览器回归的时间与加载竞态修复
 
-- 状态：修复与本地完整检查完成，待独立审查和 PR CI；未合并、未发布。
+- 状态：修复、独立审查、本地与 PR CI 验证完成；PR #57 已合并为 `610e2d6`。
+  后续与 shared 严格白名单组合验证通过，已随 `158484c` 完成生产发布与匿名 smoke。
 - 目标：解除 PR #56 的 Health 回归阻塞，保留原有评分、重试与登录验收要求。
 - worktree / 分支：`~/.worktrees/kdp.cool/codex/health-test-stability` /
   `codex/health-test-stability`。
@@ -43,5 +44,11 @@
 - `node --test scripts/agent/check.test.mjs`：22 项通过；`git diff --check` 通过。
 - 独立审查在 `590effd` 上无阻塞，并独立通过正常/SSO 浏览器、39 项相关 API
   集成测试与 22 项工作流脚本测试。采纳其异常清理建议，并收紧 09:00 跨界的
-  测试事件时间；后续验证绑定更新后的提交。
-- 独立审查、PR CI、合并与自动发布：待执行；线上业务流程本次尚未重新验收。
+  测试事件时间；reviewer 复核后放行最终 `b2bf5b3`。
+- `b2bf5b3` 完整受影响检查五项通过，PR CI run `38965247899` 成功，PR #57
+  squash 合并为 `610e2d63cadf7f0b16ce208f4e0cfa50e474377d`。
+- `610e2d6` 的 main 自动发布 run `38965814532` 为 `completed/success`。
+- shared 分支合入上述 main 后，`3e03299` 的全部 21 项组合检查与 PR CI run
+  `38965920812` 通过，包含 Health 正常/SSO 浏览器回归；合并为 `158484c`。
+- 自动发布及线上验收见 [shared 任务记录](2026-10-17-shared-strict-exports.md)。
+  本次尚未重新执行线上真实账号/Oura 授权流程。
