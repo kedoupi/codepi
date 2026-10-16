@@ -1,6 +1,7 @@
 # Workspace 发布链修复
 
-- 状态：本地验证完成，PR #47 已创建，云端检查进行中；尚未合并或完成生产发布。
+- 状态：已完成。PR #47 已 squash 合并为 `68b11a3`，main 自动发布链执行完成，
+  受影响应用（auth/web/gu/gzh）已上线；GU 与 Desk 的客户端 secret 恢复为后续独立任务。
 - 目标：使统一 workspace 的 CI 和 main 自动发布可运行，校正迁移后过期的工程规则。
 - 范围：workflow、检查映射、Health typecheck 范围、当前架构与开发文档；不迁移产品技术栈或业务数据。
 - worktree：`~/.worktrees/kdp.cool/codex/release-workspace-fixes`。
@@ -55,6 +56,24 @@ GU 应急 API 操作：当前部署 `065f85b0-9f97-472d-b50d-6a9a1c73b658`
 （reported source `cb4339a`）后仍返回 503。已通过 API 恢复原 `065f85b0` 部署。
 事前核对 Worker 仅有导入路径变化、migration 内容相同；未改数据、secret 或认证行为。
 此次回退不作为发布成功证据，后续修复须回到 Actions。
+
+## 2026-10-16 PR #47 合并与生产发布
+
+- 审查：独立 reviewer（Banach）对最终 SHA `b56a77e` 放行，无阻塞项。
+- CI：PR head `b56a77e` 上 `Validate SSO and GU` 与 `Deploy platform` 全部成功，
+  PR run 的 deploy jobs 按预期 skipped。
+- 合并：squash merge SHA `68b11a3e4772621020616aa5926443ad1eef0c73`。
+- 生产发布（Cloudflare 控制面实测，UTC 2026-10-16 10:41 前后）：
+  - Auth Worker deployment `4ee360fd-0e01-4590-abbf-21f73488e4a4`，version `e7b39c76`。
+  - codepi-www deployment `f53ff666`，commit `68b11a3e4`。
+  - codepi-gu deployment `55020e39`，commit `68b11a3e4`。
+  - codepi-gzh deployment `5029593b`，commit `68b11a3e4`。
+  - Health API / Pages 本次无 `apps/oura/**` 改动，按 affected 规则未重发，保持 10-15 版本。
+- 发布后 smoke：`auth /api/health` 200、`codepi.app` 200、`gzh` 检查通过、
+  `health` 200；`web/gu` 的 private endpoint 仍为 503，即已知的 AUTH_CLIENT_SECRET 失效，
+  不属于本次发布回归。
+- 清理：worktree 与 `codex/release-workspace-fixes`、`codex/simplify-deploy`、
+  `codex/workspace-migration` 三个分支已删除（内容经 squash 全部包含于 main）。
 
 ## 待处理
 
