@@ -59,3 +59,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 7. 回退时撤回 web 部署即可恢复公共站入口；新增源接口没有业务写入。如退役工作台，撤销 desk 注册及三份摘要凭证，保留原应用注册与数据库。
 
 缺少配置时接口明确拒绝请求；不要临时绕过登录使页面“看起来能用”。
+
+## 运维记录
+
+- 2026-10-16：Desk 的 `AUTH_CLIENT_SECRET` 经中央 per-client override（`SSO_CLIENT_SECRET_DESK`）轮换，应用侧同值配对后重发；轮换后 Desk 现有登录需重新登录。
