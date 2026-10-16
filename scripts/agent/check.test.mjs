@@ -103,6 +103,16 @@ test('CI changes select all applications; unknown paths need manual handling', (
   assert.deepEqual(makePlan(['new-app/index.ts', '.gitignore']).manual, ['new-app/index.ts', '.gitignore']);
 });
 
+test('root workspace changes validate every consumer and the release workflow', () => {
+  for (const file of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc']) {
+    const plan = makePlan([file]);
+    assert.deepEqual(plan.apps, [...staticApps, ...privateApps], file);
+    assert.deepEqual(plan.manual, []);
+    assert.ok(plan.checks.some(check => check.argv.includes('scripts/cloudflare/deploy-workflow.test.mjs')));
+    assert.ok(plan.checks.some(check => check.argv.includes('packages/shared/auth/client.test.mjs')));
+  }
+});
+
 test('tool entry points select workflow checks without building unrelated apps', () => {
   for (const file of [
     'CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md',

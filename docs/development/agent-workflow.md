@@ -10,7 +10,7 @@
 
 ```text
 读取 AGENTS.md 和 .agents/skills/kdp-dev/SKILL.md。
-修复 Health 的……。完成标准：……。范围限于 oura/。
+修复 Health 的……。完成标准：……。范围限于 apps/oura/。
 先调查根因，完成实现和本地验证，最后交付改动与未覆盖项。
 ```
 
@@ -131,6 +131,7 @@ node --test scripts/agent/check.test.mjs
 | CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |
+| 根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` | 全应用、shared auth、CF 治理与工作流检查 |
 | 其他根级文件 | 提示人工判断；`--run` 返回非零，防止误称验证完成 |
 
 这是导航摘要，具体选择以 [检查脚本](../../scripts/agent/check.mjs)、[回归测试](../../scripts/agent/check.test.mjs) 和当次预览为准，并非完整依赖图。新增应用、共享导入或检查命令时同步更新映射与回归测试；手动检查本次实际调用关系。纯应用 README/AGENTS 改动不触发应用构建，产品内容中的 Markdown 仍会触发构建。

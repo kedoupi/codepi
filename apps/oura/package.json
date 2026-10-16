@@ -16,7 +16,7 @@
     "test:browser": "pnpm build && pnpm test:browser:built",
     "test:browser:built": "node scripts/run-browser-smoke.mjs",
     "test:browser:ego": "pnpm build && node scripts/run-browser-smoke.mjs --ego",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @oura-kdp/web --filter @oura-kdp/api -r typecheck",
     "test": "node --test scripts/tests/*.test.mjs && node --experimental-strip-types --test apps/web/test/*.test.mjs && pnpm --filter @oura-kdp/api test && pnpm --filter @oura-kdp/api test:integration"
   },
   "engines": {

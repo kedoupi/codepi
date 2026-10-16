@@ -19,6 +19,10 @@ on:
   push:
     branches: [main]
     paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
       - 'services/auth/**'
       - 'apps/web/**'
       - 'apps/gu/**'
@@ -29,6 +33,10 @@ on:
       - '.github/workflows/deploy-platform.yml'
   pull_request:
     paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
       - 'services/auth/**'
       - 'apps/web/**'
       - 'apps/gu/**'
@@ -53,6 +61,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+# Keep the complete production chain on one SHA at a time.
+concurrency:
+  group: platform-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   governance:
@@ -90,14 +104,22 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           APP: ${{ inputs.app }}
-          BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          all_trigger='^(services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
+          all_trigger='^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
           mark_all() { for s in auth web gu gzh health; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
+          if [ "$EVENT" != 'pull_request' ]; then
+            current_main=$(git ls-remote origin refs/heads/main | cut -f1)
+            if [ "$SHA" != "$current_main" ]; then
+              echo "::error::This run is older than main; release the current main revision instead"
+              exit 1
+            fi
+          fi
           if [ "$EVENT" = 'workflow_dispatch' ]; then
             if [ "$APP" = 'all' ] || [ "$APP" = 'auth' ]; then
               mark_all
@@ -108,14 +130,16 @@ jobs:
           fi
           for s in auth web gu gzh health; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
           if [ "$EVENT" = 'push' ]; then
-            if [ -z "$BEFORE" ] || [ "$BEFORE" = '0000000000000000000000000000000000000000' ]; then
-              changed=$(git diff-tree --root --no-commit-id --name-only -r "$SHA") || {
-                echo "::error::could not determine changed paths for initial push"
-                exit 1
-              }
+            # Pending runs can be coalesced by GitHub concurrency. The last green
+            # push covers a full release, unlike a successful single-app dispatch.
+            released=$(gh api "repos/$GH_REPO/actions/workflows/deploy-platform.yml/runs?branch=main&event=push&status=success&per_page=1" \
+              --jq '.workflow_runs[0].head_sha // empty')
+            if [ -z "$released" ]; then
+              mark_all
+              exit 0
             else
-              changed=$(git diff --name-only "$BEFORE" "$SHA") || {
-                echo "::error::could not determine changed paths for push range $BEFORE..$SHA"
+              changed=$(git diff --name-only "$released" "$SHA") || {
+                echo "::error::could not determine changed paths since the last successful release"
                 exit 1
               }
             fi
@@ -146,7 +170,7 @@ jobs:
           fi
 
 
-  # ---------------- Staging Auth preflight ----------------
+  # ---------------- Local checks ----------------
 
   auth-build:
     needs: [affected]
@@ -159,15 +183,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck
@@ -183,15 +205,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck:desk
@@ -208,15 +228,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run test:scripts
@@ -234,15 +252,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck
@@ -259,15 +275,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: apps/oura/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: node --experimental-strip-types --test ../../packages/shared/auth/client.test.mjs
       - run: pnpm test
@@ -313,26 +327,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: migrate
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler d1 migrations apply codepi-auth --remote
+        run: pnpm exec wrangler d1 migrations apply codepi-auth --remote
         env:
           CI: 'true'
       - name: deploy
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(npx wrangler deploy)
+          out=$(pnpm exec wrangler deploy)
           echo "$out"
           version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -381,28 +393,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build:pages
       - name: migrate
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler d1 migrations apply codepi-desk --remote
+        run: pnpm exec wrangler d1 migrations apply codepi-desk --remote
         env:
           CI: 'true'
       - name: deploy
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-www --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-www --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
           url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
           dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
@@ -446,28 +456,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler d1 migrations apply codepi-gu --remote
+        run: pnpm exec wrangler d1 migrations apply codepi-gu --remote
         env:
           CI: 'true'
       - name: deploy
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
           url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
           dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
@@ -511,28 +519,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
         if: github.ref == 'refs/heads/main'
-        run: npx wrangler d1 migrations apply codepi-gzh --remote
+        run: pnpm exec wrangler d1 migrations apply codepi-gzh --remote
         env:
           CI: 'true'
       - name: deploy
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gzh --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-gzh --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
           url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
           dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
@@ -576,15 +582,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: apps/oura/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: Deploy API before publishing its frontend
         id: deploy
@@ -638,15 +642,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: apps/oura/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
         run: pnpm --filter @oura-kdp/web build
@@ -659,8 +661,8 @@ jobs:
         run: |
           out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../../../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-health --url "$url")
+          url=$(printf '%s' "$out" | node ../../../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-health --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: check deployment
         if: github.ref == 'refs/heads/main'

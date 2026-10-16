@@ -4,8 +4,8 @@
 迁移与退役。资源事实来源是 [cloudflare-resource-registry.md](./cloudflare-resource-registry.md)。
 仓库内静态守门由 `node scripts/cloudflare/validate-governance.mjs` 执行（见第 8 节）。
 
-单一账户：所有资源在 Cloudflare 账户 `Kedoupi` 下，不拆分账户；隔离由独立资源、
-最小发布凭证与 CI 环境保护实现。
+单一账户：所有资源在 Cloudflare 账户 `Kedoupi` 下，不拆分账户；产品边界由独立服务、
+数据库与最小发布凭证维护。平台保护是否生效以控制面证据为准。
 
 ## 1. 环境模型
 
@@ -13,16 +13,17 @@
 
 | 环境 | 语义 | 数据 | 凭证 |
 |---|---|---|---|
-| `local` | 开发者本机 | Wrangler 本地 storage / 本地 D1 | `.dev.vars*` 合成配置，禁止真实 secret |
-| `production` | 正式数据与正式外部集成 | 生产 D1 | 生产 secret，仅发布 workflow 可用 |
+| `local` | 开发者本机 | 默认本地 D1；显式联调可连接产品共用的远程业务 D1 | 自动测试用合成配置；联调凭证不入 Git、不输出 |
+| `production` | 日常使用与外部集成 | 各产品生产 D1 | Worker/Pages runtime secrets 与 CI 发布凭证分开管理 |
 
 `staging` 资源（wrangler named environment、staging D1、staging secrets）保留但不自动部署。
-仅在需要云端联调（统一登录、MCP、跨应用调用）时手动或按需触发。staging 不再作为
-发布的必经路径。
+仅在需要云端联调（统一登录、MCP、跨应用调用）时再启用。目前 workflow 不提供 staging
+入口，不能把保留配置视为可用环境。staging 不再作为发布的必经路径。
 
-业务数据不做环境隔离——本地、测试和生产共用各产品的 D1 数据库。这是当前阶段的
-有意决策：所有数据均为个人测试数据，可重建。Cloudflare remote bindings 允许本地
-代码直接连接远程 D1，无需 staging 作为数据代理。
+业务数据不要求环境隔离，这是当前阶段的有意决策：所有数据均为个人测试数据，可重建。
+现有开发命令默认本地 D1；接入远程业务数据需显式配置并验证运行方式支持的 binding，
+不复制数据来维持第二套业务环境。自动测试使用本地合成数据。共享业务数据不等于共享
+认证会话、OAuth 凭证或外部副作用；远程 migration 和批量写入由单一任务负责。
 
 ## 2. 资源命名
 
@@ -51,7 +52,10 @@
   不分配 `codepi.app` wildcard host。
 - 同一 hostname 不得同时映射到 production 与 staging。
 
-## 4. staging 拓扑
+## 4. 保留的 staging 配置
+
+以下是未启用的存量配置边界，用于防止误部署接入生产资源，不是日常发布要求。
+重新启用时必须先完成独立认证、域名与发布入口核验；不得为此建立第二条长期 Git 分支。
 
 ### Pages
 
@@ -59,10 +63,10 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
 
 - 每个 Pages 项目的 `preview` 环境即 staging runtime：`ENVIRONMENT="staging"`，
   绑定 staging D1 与 `codepi-auth-staging`。
-- staging 由稳定的 `staging` branch 承载，Actions 只允许 `staging` branch 上传
-  staging Pages（branch alias `staging`）。
-- staging branch alias 绑定到对应 `<service>-staging.codepi.app`，并用 Cloudflare
-  Access 限制访问。
+- 保留的 `staging` Pages deployment alias 是 provider 路由标签，不要求仓库存在同名
+  长期分支；启用时须明确其 source SHA。
+- 该 alias 对应 `<service>-staging.codepi.app`；启用前验证 Cloudflare Access 或等效的
+  访问限制，当前不能声称 Access 已配置。
 - 非 staging 的 PR 不发布有状态 Pages preview，避免所有 preview 共享一套 binding
   时写入 staging 数据。
 
@@ -89,8 +93,8 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   `wrangler pages secret put`）设置；Git 只声明 required secret 名，禁止提交
   secret 值或真实 `.dev.vars`。
 - staging 与 production 使用相互独立的 session/OTP/SSO client-secret registry。
-- staging D1 只应用仓库已提交的 migration 并写入 synthetic fixture；禁止复制生产
-  健康、投资、稿件、会话或 provider token。
+- 保留的 staging D1 仅作 synthetic fixture 使用，不复制生产会话或 provider token，
+  也不作为强制维护的第二份业务数据。日常共享业务数据按第 1 节显式联调。
 - 数据分级：`public-dns`、`synthetic`、`auth-session-data`、`private-user-data`、
   `private-health-data`、`legacy`、`unknown`。公开首页与私有健康/投资/稿件数据不得
   混入同一数据边界。
@@ -99,25 +103,30 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
 
 - 受控发布的唯一入口是 GitHub Actions `.github/workflows/deploy-platform.yml`：
   Auth、Web、GU、GZH、Health 全部经它发布（`deploy-product-apps.yml` 已删除，
-  无其它受控入口）。这是一项仓库约束；当前线上 direct-upload 历史状态与本次未运行
-  workflow 的事实见资源登记表，不能据此声称新 workflow 已完成远程发布。
+  无其它受控入口）。这是仓库约束，workflow 文件存在不代表运行成功；实际 run 与
+  线上版本见资源登记表及对应任务记录。
 - workflow 支持 `push`（main）、`pull_request`（只构建测试，不
   migrate/deploy）与 `workflow_dispatch`（`target=production`、
   `app=all|auth|web|gu|gzh|health`）。一个 affected 判定 job 先标记受影响服务：
   `services/auth/**`、`packages/shared/auth/**`、`packages/shared/email/**`、`packages/shared/brand.ts`、
   `packages/shared/styles/**`、`scripts/cloudflare/**`、workflow 文件本身标记全部五个
-  服务；否则只标记对应 app 路径。
+  服务；根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` 也标记全部
+  服务；否则只标记对应 app 路径。pnpm 版本从根 packageManager 读取，所有 job 从根目录
+  frozen install，发布使用 lockfile 中的 Wrangler。
 - DAG：governance gate → auth build/migrate/deploy/smoke → web/gu/gzh Pages
   build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke →
   health Pages build/deploy/smoke。下游 job 只在 predecessor success 或 skipped
   时继续（`!failure() && !cancelled()`），failure 必须停止。
 - 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
 - production deploy/migrate step 同时有 job 级与 step 级
-  `github.ref == 'refs/heads/main'` guard。GitHub `production`
-  Environment 的 approval 与 scoped secrets 是 provider 前提：workflow 已声明
-  `environment:`，但保护规则是否已配置未经验证，不得声称已配置。
-- 并发控制：production job `concurrency: <service>-production` 且
-  `cancel-in-progress: false`。
+  `github.ref == 'refs/heads/main'` guard。合并 PR 即授权自动发布，不增加逐次 Environment
+  approval。GitHub `production` Environment 应仅允许 main，并配置发布凭证；`environment:`
+  声明不能证明平台保护和 scoped secrets 已生效。2026-10-16 rulesets API 返回私有仓库
+  套餐限制，GitHub CLI 凭证也失效；这些控制面配置仍待处理，不改变仓库可见性。
+- 并发控制：整条 main workflow 共用 `platform-refs/heads/main` 并发组，
+  `cancel-in-progress: false`；服务级锁作为额外保护。PR 可以取消过期检查。
+  发布前拒绝已落后于 main 的 run；push 的 affected 范围从最近一次成功的 main push
+  release 计算，首次无成功记录则发布全部服务，覆盖失败或被队列替换的中间提交。
 - 每次部署传入并记录 `GITHUB_SHA`；deploy 步骤必须解析真实 provider 标识
   （Pages deployment id 经 Cloudflare API 只读解析，Worker Current Version ID
   从 wrangler 输出解析，解析失败即失败），连同 service/target/smoke 结果由

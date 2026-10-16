@@ -40,13 +40,18 @@ export function makePlan(files) {
     'services/auth/wrangler.jsonc', 'apps/oura/workers/api/wrangler.toml', 'apps/oura/apps/web/wrangler.toml'];
   for (const file of files) {
     if (file.startsWith('scripts/cloudflare/')
+      || file === '.github/workflows/deploy-platform.yml'
+      || ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)
       || file === 'docs/development/cloudflare-resource-registry.md'
       || file === 'docs/development/cloudflare-governance.md'
       || wranglerConfigs.includes(file)) cfGovernance = true;
   }
 
   for (const file of files) {
-    if (file.startsWith('scripts/agent/') || file.startsWith('scripts/cloudflare/') || file.startsWith('.agents/')
+    if (['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)) {
+      addAll();
+      workflow = true;
+    } else if (file.startsWith('scripts/agent/') || file.startsWith('scripts/cloudflare/') || file.startsWith('.agents/')
       || file.startsWith('.claude/skills/') || file.startsWith('.cursor/rules/')
       || ['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md'].includes(file)
       || file.startsWith('docs/development/')) {
