@@ -59,3 +59,7 @@ npm run check:deploy -- --url https://gu.codepi.app
 ```
 
 检查会逐字节核对线上 JS/CSS 与本地构建，并检查未登录私有接口 401。验证码真实投递、登录后数据和日历需另行验收；只通过配置检查不代表发布完成。
+
+## 运维记录
+
+- 2026-10-16：GU 的 `AUTH_CLIENT_SECRET` 经中央 per-client override（`SSO_CLIENT_SECRET_GU`）轮换，应用侧同值配对后重发；轮换后 GU 现有登录需重新登录。
