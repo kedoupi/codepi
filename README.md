@@ -21,7 +21,7 @@
 | `auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`web`、`gu`、`gzh` 是 Cloudflare Pages 项目（`codepi-www`、`codepi-gu`、`codepi-gzh`）；`oura/` 是独立 pnpm workspace，前端发布到 `codepi-health`，API worker 名 `codepi-health-api`，用 `cd oura && pnpm deploy:api` 部署 worker。D1 数据库名同步改为 `codepi-*`（生产与 preview 分离）。
+部署要点：`web`、`gu`、`gzh` 是 Cloudflare Pages 项目；`oura/` 是独立 pnpm workspace，前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -48,7 +48,7 @@ To submit to Google Search Console (next step, manual): add `codepi.app` as a pr
 
 ## Local development
 
-多 agent 开发入口见 [开发工作流](docs/development/agent-workflow.md) 和 [工具兼容说明](docs/development/agent-compatibility.md)：Codex、Claude Code、Cursor、Gemini CLI、Copilot 及其他 agent 共用根与局部 `AGENTS.md`、`.agents/skills/` 下的开发/审查/交接流程，以及 `node scripts/agent/check.mjs --base <基线SHA>` 检查入口。按任务隔离 worktree，明确写入范围与集成负责人。
+从 [规范与工作流导航](docs/development/README.md) 开始：根与局部 `AGENTS.md` 定义项目约束；`.agents/skills/` 提供 `kdp-dev`、`kdp-review`、`kdp-release`、`kdp-handoff` 四个入口；[开发工作流](docs/development/agent-workflow.md) 和 [集成发布流程](docs/development/integration-release.md) 维护执行步骤。各工具按 [兼容说明](docs/development/agent-compatibility.md) 共用这些来源。`node scripts/agent/check.mjs --base <基线SHA>` 只预览检查计划，加 `--run` 才执行。
 
 The homepage is the only Astro project; it imports from `shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`. The private apps use their own stacks.
 
@@ -68,18 +68,20 @@ The `shared/` directory has no `package.json` — it's a raw source folder pulle
 
 Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规范见
 [Cloudflare 项目级治理规范](docs/development/cloudflare-governance.md)；
-全部资源的实时归属与状态见
+资源归属、最近核验记录与未决项见
 [Cloudflare 资源登记表](docs/development/cloudflare-resource-registry.md)。
-四个 `codepi-*` Pages 项目均为 GitHub Actions direct upload，未启用 Git 自动构建。
+登记表是版本化快照，不是实时控制面。受控发布使用治理规范指定的 GitHub Actions 入口；历史 direct upload 记录不能证明新 workflow 已完成发布。
 
-### CF Pages settings (reference)
+### Pages build commands (reference)
 
-| Project        | Root      | Build cmd       | Output | Node | Custom domains                                  |
-| -------------- | --------- | --------------- | ------ | ---- | ----------------------------------------------- |
-| `codepi-www`   | `web`     | `npm run build:pages` | `dist` | 22   | `codepi.app` (apex), `www.codepi.app`           |
-| `codepi-gu`    | `gu`      | `npm run build` | `dist` | 22   | `gu.codepi.app`, `codepi-gu.pages.dev`          |
-| `codepi-gzh`   | `gzh`     | `npm run build` | `dist` | 22   | `gzh.codepi.app`, `codepi-gzh.pages.dev`        |
-| `codepi-health` | `oura/apps/web` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` | 22 | `health.codepi.app`, `codepi-health.pages.dev` |
+| Project | Command working directory | Build cmd | Output relative to working directory |
+| --- | --- | --- | --- |
+| `codepi-www` | `web` | `npm run build:pages` | `dist` |
+| `codepi-gu` | `gu` | `npm run build` | `dist` |
+| `codepi-gzh` | `gzh` | `npm run build` | `dist` |
+| `codepi-health` | `oura` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
+
+这里只列构建命令，不是 Dashboard 自动构建设置，也不代表完整检查与发布步骤。Node、依赖安装和发布参数以当前 workflow 为准。
 > Note: Pages 项目的 pnpm workspace 过滤仍叫 `@oura-kdp/web` / `@oura-kdp/api`（包名未重命名），仅 Pages 项目名统一为 `codepi-*`。
 
 `codepi-www` uses `npm run build:pages` because Pages only auto-compiles the
@@ -97,11 +99,11 @@ Functions folder when it sits next to the project root; the portal's Functions
 | `health`          | CNAME | `codepi-health.pages.dev`  | yes |
 | `auth`            | —     | Worker custom domain `codepi-auth` | yes |
 
-`kdp.cool` 与 `oura.kdp.cool` 已退役：不再解析到任何项目，也不做跳转。原 `kdp.cool` 上的邮件身份与网站解析相互独立，停用站点不影响已配置的邮件发送域。
+上表描述产品域名映射，不是本次实时 DNS 查询。`kdp.cool` 与 `oura.kdp.cool` 的产品网站已退役，不再作为产品入口或跳转目标；实际残留与兼容入口按资源登记表核实。原 `kdp.cool` 的邮件路由与邮件身份、用户指定保留的 `wechat-proxy` 不在网站退役范围，不能随旧站一并删除。
 
 ## Adding or retiring a product
 
-新增应用时同步更新 `shared/products.ts`、首页入口、`auth` 的客户端登记（`SSO_REDIRECT_URIS` 与 `SSO_CLIENTS`）、`scripts/agent/check.mjs` 的影响映射及其回归测试。
+经批准新增应用时同步更新 `shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处，且必须保持 production/staging 隔离。
 
 退役产品时按顺序执行：先移除代码与入口，再更新 `shared/products.ts` 和文档，然后撤下 Cloudflare Pages 自定义域，最后删除 DNS 记录与项目。数据（D1、对象存储）单独确认后再处理。
 

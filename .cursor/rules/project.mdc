@@ -5,9 +5,10 @@ alwaysApply: true
 
 Read the repository root `AGENTS.md` and the target directory's `AGENTS.md`
 before editing. They are the canonical project rules.
-For implementation, review or handoff, read the matching
-`.agents/skills/kdp-dev/SKILL.md`, `.agents/skills/kdp-review/SKILL.md` or
+For implementation, review, integration/release or handoff, read the matching
+`.agents/skills/kdp-dev/SKILL.md`, `.agents/skills/kdp-review/SKILL.md`,
+`.agents/skills/kdp-release/SKILL.md` or
 `.agents/skills/kdp-handoff/SKILL.md`.
-Read `docs/development/agent-workflow.md` for parallel task ownership,
-worktree isolation, validation and integration.
+Read `docs/development/README.md` for rule ownership and task routing.
+Loading a skill does not authorize Git or remote mutations.
 Paths above are relative to the repository root.

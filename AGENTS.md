@@ -4,10 +4,10 @@ This is the shared project contract for all coding agents working in this reposi
 
 ## Agent development
 
-- Follow `docs/development/agent-workflow.md` for task isolation, validation and handoff. Small changes do not require a plan document.
-- Reuse this task's worktree; use separate worktrees for independent concurrent tasks. Record the starting SHA and inspect existing changes before editing. Detached HEAD is supported.
+- Start at `docs/development/README.md` for rule ownership and task routing. Follow `docs/development/agent-workflow.md` for development and handoff, and `docs/development/integration-release.md` for branch audits, integration, release and retirement. Small changes do not require a plan document.
+- Verify the actual Git root; a chat's old worktree path may no longer be a checkout. Reuse a suitable task worktree; create new independent worktrees under `~/.worktrees/<project-directory>/<branch>` (for example `~/.worktrees/kdp.cool/codex/task-name`). Record the starting SHA and inspect existing changes before editing. Detached HEAD is supported.
 - Read the target directory's `AGENTS.md` before modifying `auth/`, `gu/`, `gzh/`, `oura/` or `shared/`, including when starting from the repository root.
-- Project skills live in `.agents/skills/`: `kdp-dev` for implementation, `kdp-review` for review, `kdp-handoff` for continuity.
+- Project skills live in `.agents/skills/`: `kdp-dev` for implementation, `kdp-review` for review, `kdp-release` for integration/release/retirement, `kdp-handoff` for continuity. Keep these skill names stable across product/domain renaming.
 - Tool entry points and portable invocation are documented in `docs/development/agent-compatibility.md`. If native skill discovery is unavailable, read the selected `SKILL.md` directly; `$skill` and `/skill` syntax are tool-specific conveniences.
 - In a multi-agent task, record the coordinator, each writer's worktree and allowed paths, shared-contract owner, dependencies and integration owner before parallel edits. Role names do not grant permission to message other agents or execute Git/remote actions.
 - Preview affected checks with `node scripts/agent/check.mjs --base <starting-SHA>`; add `--run` to execute local checks. This does not replace UI acceptance or caller analysis.
@@ -27,11 +27,11 @@ Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The
 
 ```
 kdp.cool/
-├── web/      → codepi.app (personal home)          CF project: kdp-portal
-├── auth/     → shared login Worker                 custom domain: auth.codepi.app
-├── gu/       → private investment app (web + Worker)  CF project: kdp-gu
-├── gzh/      → private WeChat workbench (web + Worker) CF project: gzh
-├── oura/     → Health (independent pnpm workspace)     CF project: oura-kdp
+├── web/      → personal homepage and private desk
+├── auth/     → shared login Worker
+├── gu/       → private investment app (web + Worker)
+├── gzh/      → private WeChat workbench (web + Worker)
+├── oura/     → Health (independent pnpm workspace)
 └── shared/   → BaseLayout, styles/tokens.css, products.ts, charts.js, url-state.js, desk contract
 ```
 
@@ -70,7 +70,7 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 2. **Lockfiles must use the public npm registry.** `web/.npmrc` pins `registry=https://registry.npmjs.org/`. If you ever regenerate a lockfile and your global `~/.npmrc` points at a private mirror (e.g. `npm.cnb.cool`), CF Pages builds will fail with `npm error code E401`. Always reinstall with `--registry=https://registry.npmjs.org/` explicitly.
 3. **Personal-space direction supersedes AdSense review restrictions.** Do not add advertising scripts, placeholders, or publisher files.
 4. **`shared/` change ripples beyond the homepage.** `shared/layouts/BaseLayout.astro`, `shared/styles/`, `shared/brand.ts` and `shared/email/` are consumed by the homepage build and by the GU, GZH and Health bundles. Verify the affected apps, not just `web/`.
-5. **Auth changes are a cross-app contract.** `shared/auth/` and `auth/` are consumed by GU, GZH, Health and `desk`. A change there requires the auth, GU, GZH and Health checks plus `shared/auth/client.test.mjs`. The central `SSO_CLIENTS` secret and each app's `AUTH_CLIENT_ID`/redirect URIs must stay in sync.
+5. **Auth changes are a cross-app contract.** `shared/auth/` and `auth/` are consumed by GU, GZH, Health and `desk`. A change there requires the auth, homepage/desk, GU, GZH and Health checks plus `shared/auth/client.test.mjs`. The central `SSO_CLIENTS` secret and each app's `AUTH_CLIENT_ID`/redirect URIs must stay in sync.
 6. **Shared visual contract.** Reuse `shared/styles/tokens.css`, `shared/styles/site.css` and `shared/products.ts`. Personal-site pages must share navigation, typography, colors, spacing and interaction states. Private apps adopt these rules in their own migration phase; do not claim all apps are restyled when only shared tokens exist.
 
 ## Conventions
@@ -79,7 +79,7 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 - **No advertising.** Shared ad injection, components and placements have been retired. Do not reintroduce them.
 - **Public pages are independent of private data.** The homepage, `/apps/`, `/about/`, `/privacy/`, `/terms/` and `/contact/` must not embed health, investment or unpublished draft data. Private apps stay behind unified login.
 - **Product registry is shared.** `shared/products.ts` is the single list of public product entries; update it when a product is added or retired, and keep it free of private business data.
-- **Health keeps its own vocabulary.** The directory, package names and database names stay `oura` even though the product and domain are Health; do not "fix" them to match the UI name.
+- **Health keeps its source vocabulary.** The source directory and package names retain `oura` even though the product and domain are Health; do not rename them just to match the UI. Cloudflare physical resource names follow the governance document and resource registry, not legacy package names.
 - **No new dependencies without asking.** The homepage stack is locked at Astro 6 + `@astrojs/tailwind@6` + Tailwind v3 + `@astrojs/sitemap` + zero JS framework. Private apps retain their existing stacks. Any addition needs explicit user approval.
 
 ## Adding work
@@ -90,5 +90,6 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 
 ## Workflow notes
 
-- Design docs and implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` — generated via the brainstorm → plan → execute workflow. Reading the most recent files gives the most up-to-date picture of intended scope.
+- Design docs and implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/`. A proposal is not approval or implementation evidence; verify scope against current user decisions, code and tests. Proposed `apps/` / `packages/` or root workspace migrations do not replace the current structure until approved and implemented.
+- Cloudflare rules live in `docs/development/cloudflare-governance.md`; resource ownership and dated verification evidence live in `docs/development/cloudflare-resource-registry.md`. A registry entry or workflow file is not proof of current remote readiness or successful release.
 - Current product direction is recorded in `docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md`; visual rules are in `docs/architecture/personal-design-system.md`. Old AdSense records are historical context and do not override the personal-space direction.

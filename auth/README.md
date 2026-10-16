@@ -1,6 +1,6 @@
 # KDP unified login
 
-`kdp-auth` is the first-party login Worker for Oura, GU, gzh and the personal desk. It accepts no
+`codepi-auth` is the first-party login Worker for Health, GU, GZH and the personal desk. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `shared/brand.ts`.
@@ -21,9 +21,11 @@ The committed Wrangler configuration declares the independent D1 database and
 
 `SSO_EXTRA_REDIRECT_URIS` is an optional public JSON map of already registered
 client IDs to additional exact callback URLs. It follows the same validation as
-the secret registry and never accepts browser-supplied registrations. GU's verified
-custom domain `gu.codepi.app` is registered here alongside its original Pages URL,
-so adding the domain does not require rotating unrelated clients' credentials.
+the secret registry and never accepts browser-supplied registrations. The URLs
+are merged with each client's `SSO_CLIENTS.redirectUris`; adding a callback does
+not require rotating unrelated client credentials. Removing one requires checking
+both sources. Keep production and staging callbacks separate; current bindings
+and dated verification evidence are in the [CF resource registry](../docs/development/cloudflare-resource-registry.md).
 
 Applications bind `AUTH` to this Worker and configure their own `AUTH_CLIENT_ID`,
 `AUTH_CLIENT_SECRET`, `AUTH_ORIGIN` and `SSO_ENABLED`.
@@ -73,12 +75,21 @@ JSON response; production never exposes them.
 - Local OTP exposure requires a loopback auth origin, development/test mode and
   no mail credential. Missing production configuration fails closed.
 
-Apply migrations before code deployment:
+Remote migrations and deployment use the controlled workflow defined in the
+[CF governance rules](../docs/development/cloudflare-governance.md), with acceptance
+and recovery steps in the [integration/release workflow](../docs/development/integration-release.md).
+Do not use an ad hoc `npm run deploy` as the default release path.
+
+The committed `wrangler.jsonc` selects production D1 `codepi-auth` and, under
+`env.staging`, `codepi-auth-staging`, both through binding `DB`. Verify the selected
+environment and resource ID against the registry before any authorized remote
+migration. Migration state is not inferred from this README.
+
+For local-only initialization, run from `auth/`:
 
 ```sh
-npx wrangler d1 migrations apply kdp-auth --remote
-npm run deploy
+npx wrangler d1 migrations apply codepi-auth --local
 ```
 
-Production rollout and recovery are documented in
-`../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md`.
+The [original SSO rollout plan](../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md)
+is historical context, not the current resource inventory or release procedure.

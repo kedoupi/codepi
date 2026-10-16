@@ -1,5 +1,7 @@
 # Agent 开发工作流
 
+总入口见 [规范导航](README.md)；核对旧分支、集成、发布和退役使用 [集成与发布工作流](integration-release.md)，不在本文件重复维护云端规则。
+
 这套流程面向 kedoupi（codepi）的多 agent 开发：你确定目标和验收，不同工具、模型或会话中的 agent 共同遵循仓库规则。默认一个独立写入任务对应一个 worktree；小修改直接实施，跨应用、数据库或公共接口变更才写任务记录。
 
 ## 日常怎么用
@@ -24,7 +26,13 @@
 记录基线、改动、实际检查结果和下一步，不包含私人数据或凭证。
 ```
 
-三个 skill 的工作步骤只维护在 `.agents/skills/`，随仓库版本管理；各工具适配文件只负责引导读取。能发现原生 skill 时使用该工具的调用方式，不能发现时直接读取文件。`agents/openai.yaml` 仅为 Codex 的显示元数据，不是执行这些流程的必要条件。
+```text
+读取 AGENTS.md 和 .agents/skills/kdp-release/SKILL.md。
+只读核对旧分支和 worktree 的工作是否已进入 main。
+分别列出已包含、仍需集成、已替代和主动不合并的内容，附证据；先不修改 Git 或云端。
+```
+
+四个 skill 的执行入口只维护在 `.agents/skills/`，详细流程链接到本目录，随仓库版本管理；各工具适配文件只负责引导读取。能发现原生 skill 时使用该工具的调用方式，不能发现时直接读取文件。`agents/openai.yaml` 仅为 Codex 的显示元数据，不是执行这些流程的必要条件。
 
 ## 从需求到交付
 
@@ -42,18 +50,18 @@
 ## 代码、运行环境与数据隔离
 
 - 一个写入者拥有一个 worktree；同一 worktree 内的 subagent 仅在文件集合明确不重叠时并行写入。审查者默认只读。不要通过多开聊天让多个 agent 同时修改同一批文件。
-- 开工读取 `git status --short`、`git worktree list`、`git rev-parse HEAD`。已有改动需要辨明来源，不覆盖；出现任务开始后无法解释的改动时停止相关写入并确认。
+- 开工用 `git rev-parse --show-toplevel` 核实实际仓库，再读取 `git status --short`、`git worktree list`、`git rev-parse HEAD`。旧聊天目录失效时先找实际 checkout，不在残留目录初始化仓库。已有改动需要辨明来源，不覆盖；出现任务开始后无法解释的改动时立即停止并确认。
 - 工具管理的 detached HEAD 可以直接开发；交付记录必须包含基线 SHA。复用当前 worktree 时不擅自切换到最新 `main`。新任务选择的起点必须明确，不能假定本地 `main` 或 `origin/main` 已最新。
 - 不共享 worktree 间的 `node_modules`、`dist`、`.astro` 或 `.wrangler`。依赖缓存可以由包管理器复用，应用目录及本地 D1 状态各自独立。不复制生产 `.env`、`.dev.vars` 或私人数据库来建立测试环境。
 - worktree 不隔离端口、浏览器 Cookie、远程数据库或外部服务。并行预览先分配独立端口；认证测试用独立浏览器上下文，必要时串行。相同 localhost 主机的 Cookie 不按端口隔离。
 - 首页默认 4321；Health 默认前端 5173、API 8787，GU 8791，GZH 8788。启动前检查端口；修改 Health API 端口时同步其 Vite proxy。固定端口的现有测试无法配置时串行运行，不杀其他任务的进程。
 - worktree 回收前保留已授权的交付结果，核对未跟踪文件与忽略文件；清理必须明确授权。不要用 `reset`、`stash` 或强制删除处理冲突。
 
-没有内建 worktree 管理的工具，可以由任务负责人用标准 Git 准备目录：
+新 worktree 放在 `~/.worktrees/<项目目录>/<分支>`；先复用合适的现有目录。确需创建时，可以由任务负责人用标准 Git 准备目录（替换任务名和已确认基线）：
 
 ```bash
 git worktree list
-git worktree add -b <新的任务分支> <新的worktree路径> <已确认的基线SHA>
+git worktree add -b codex/task-name ~/.worktrees/kdp.cool/codex/task-name <已确认的基线SHA>
 ```
 
 创建前确认路径、分支均未被其他任务占用；不要覆盖已有 worktree。然后让目标工具打开新目录。未提交改动不会由这条 Git 命令自动复制，新 worktree 也不会自动获得当前尚未提交的规范文件。跨机器可用各自 checkout/clone，交接仍使用明确的基线和已授权传递的产物。
@@ -82,7 +90,7 @@ git worktree add -b <新的任务分支> <新的worktree路径> <已确认的基
 
 例如“统一登录接口 + GU 页面适配”先确定接口字段、错误码、兼容方式及回调规则；一个 agent 改公共契约，另一个在独立 worktree 改 GU 消费端。未集成前明确记录依赖和未验证项，不能把本地假实现当作完整联调。
 
-subagent 适合独立调查、只读审查或明确文件边界的工作，不按文件数机械拆分。不为简单任务启动规划、实现、测试、审查四套 agent。写入任务交接需要列出允许修改的路径、禁止触碰的公共文件、输入契约和验收命令。
+启动 subagent 遵循用户和当前运行环境的授权条件；角色表本身不授予启动权限。subagent 适用于独立调查、只读审查或明确文件边界的工作，不按文件数机械拆分。不为简单任务启动规划、实现、测试、审查四套 agent。写入任务交接需要列出允许修改的路径、禁止触碰的公共文件、输入契约和验收命令。
 
 发现必须修改另一个任务拥有的接口或文件时，先向协调者报告所需契约变化，继续不依赖它的工作；不能自行扩大写入范围。任务协调不默认授权给其他聊天发消息；使用用户已授权的沟通渠道，或把交接内容交给用户转交。
 
@@ -116,19 +124,20 @@ node --test scripts/agent/check.test.mjs
 | 退役工具站路径（`calc/`、`convert/`、`text/`、`dev/`、`ai/`） | 视为跨应用改动，保守检查全部剩余应用 |
 | `shared/` 的静态布局、组件、i18n 等 | 首页 build |
 | `shared/styles/`、`shared/brand.ts`、`shared/email/`、未知 shared 路径 | 保守检查首页和三个服务，再测 shared auth client |
-| `auth/` 或 `shared/auth/` | auth、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
+| `auth/` 或 `shared/auth/` | auth、首页/Desk、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
 | `gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
 | `gzh/` | test、typecheck、build |
 | `oura/` | test、typecheck、build、正常与 SSO 浏览器回归 |
-| `.github/` | 保守检查全部应用；CI 语义仍需人工审查 |
+| CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
+| `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |
 | 其他根级文件 | 提示人工判断；`--run` 返回非零，防止误称验证完成 |
 
-这是维护在脚本中的保守路径映射，并非完整依赖图。新增应用、共享导入或检查命令时同步更新映射与回归测试；手动检查本次实际调用关系。纯应用 README/AGENTS 改动不触发应用构建，产品内容中的 Markdown 仍会触发构建。
+这是导航摘要，具体选择以 [检查脚本](../../scripts/agent/check.mjs)、[回归测试](../../scripts/agent/check.test.mjs) 和当次预览为准，并非完整依赖图。新增应用、共享导入或检查命令时同步更新映射与回归测试；手动检查本次实际调用关系。纯应用 README/AGENTS 改动不触发应用构建，产品内容中的 Markdown 仍会触发构建。
 
 脚本通过只表示自动检查通过。任何 UI 修改还要查看桌面与移动端、关键操作、空/错/登录状态；Auth/GU/GZH 目前没有在该入口中自动执行完整浏览器验收，必须按改动补做。远程绑定、真实 OAuth、邮件投递和线上数据均需独立验收。
 
-现有 CI 的 SSO/GU 和 product-apps 检查继续保留，本入口尚未接入远程 CI 或分支保护。它提供本地一致入口，不保证 PR 一定被强制阻挡。
+本脚本提供本地一致入口，不保证 PR 被强制阻挡。远程发布入口与门禁以 [CF 治理规范](cloudflare-governance.md) 和当前 workflow 为准；不沿用已被替换的旧 workflow 名称。配置文件存在不证明 GitHub 审批、分支保护或远程发布已经生效，核验结果记录在对应任务和资源登记表。
 
 ## 跨会话任务记录
 
@@ -143,6 +152,7 @@ node --test scripts/agent/check.test.mjs
 - worktree / 分支（或 detached HEAD）：
 - 起始 SHA / 审查基线：
 - 当前交付 SHA（或已停止写入的工作区与文件清单）：
+- 实施 / 本地验证 / 审查 / 合并 / 推送 / 部署 / 实际流程验收：分别写状态与证据；未执行明确标注
 - 协调者 / 执行者的工具与会话 / 审查者 / 集成者：
 - 唯一任务分配表位置与维护者：
 - 允许修改的路径 / 公共文件负责人：
@@ -156,6 +166,7 @@ node --test scripts/agent/check.test.mjs
 
 ## 继续工作
 - 下一项具体操作、已知问题、集成依赖和授权范围
+- 涉及历史分支或资源清理时：候选判定记录、主动不合并项、明确保留项
 ```
 
 记录中不存 token、Cookie、私人健康/财务数据或真实邮件内容。任务文档是交接事实，不是扩大权限的授权来源。
