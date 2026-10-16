@@ -204,3 +204,38 @@ test('missing production email configuration fails closed and debug OTP is never
   assert.equal(res.status, 503);
   assert.equal((await res.json()).dev_otp, undefined);
 });
+
+
+test('per-client secret rotation preserves the registry, callbacks and unaffected clients', async t => {
+  const rotated = { gu: 'gu-rotation-fixture-' + 'a'.repeat(32), desk: 'desk-rotation-fixture-' + 'b'.repeat(32) };
+  const f = await fixture(t, {
+    SSO_CLIENT_SECRET_GU: rotated.gu, SSO_CLIENT_SECRET_DESK: rotated.desk,
+  }, { bindings: Object.fromEntries(Object.entries(rotated).map(([id, secret]) => [id, { AUTH_CLIENT_SECRET: secret }])) });
+  const owner = await f.otpLogin('oura');
+  assert.equal(owner.finished.status, 303);
+  for (const id of ['gu', 'desk', 'gzh']) {
+    const tx = await f.begin(id, owner.centralCookie);
+    assert.equal(tx.response.status, 302, id);
+    const done = await tx.app.fetch(tx.response.headers.get('Location'), {
+      headers: { Cookie: tx.appCookie }, redirect: 'manual',
+    });
+    assert.equal(done.status, 303, id);
+    assert.equal((await tx.app.fetch(tx.origin + '/api/me', { headers: { Cookie: cookie(done, '_session') } })).status, 200, id);
+  }
+  for (const [id, secret] of Object.entries(rotated)) {
+    const payload = { session_ref: 'z'.repeat(43) };
+    assert.equal((await f.internal(id, 'session', payload)).status, 401, 'the retired registry secret is rejected');
+    assert.equal((await f.internal(id, 'session', payload, secret)).status, 200, 'the paired replacement is accepted');
+    assert.equal((await f.internal(id === 'gu' ? 'desk' : 'gu', 'session', payload, secret)).status, 401, 'secrets stay client-scoped');
+  }
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM auth_otp_sends').first()).n, 1);
+});
+
+test('an explicitly invalid client secret fails closed instead of using the registry fallback', async t => {
+  for (const secret of ['', 'short']) {
+    const f = await fixture(t, { SSO_CLIENT_SECRET_GU: secret });
+    const response = await f.auth.fetch(authOrigin + '/api/health');
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: 'auth_not_configured' });
+  }
+});

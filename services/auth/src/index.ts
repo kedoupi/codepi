@@ -9,6 +9,10 @@ interface Env {
   OTP_PEPPER: string;
   SESSION_SECRET: string;
   SSO_CLIENTS: string;
+  SSO_CLIENT_SECRET_GU?: string;
+  SSO_CLIENT_SECRET_OURA?: string;
+  SSO_CLIENT_SECRET_GZH?: string;
+  SSO_CLIENT_SECRET_DESK?: string;
   SSO_EXTRA_REDIRECT_URIS?: string;
   AUTH_ORIGIN: string;
   ENVIRONMENT: string;
@@ -64,9 +68,16 @@ function configuration(env: Env): Config {
         || !Array.isArray(uris) || !uris.every(uri => typeof uri === "string")) throw new Error();
       clients[id].redirectUris = [...new Set([...clients[id].redirectUris, ...uris])];
     }
+    // Rotate one client's credential without rewriting the write-only registry.
+    const clientSecrets: Record<string, string | undefined> = {
+      gu: env.SSO_CLIENT_SECRET_GU, oura: env.SSO_CLIENT_SECRET_OURA,
+      gzh: env.SSO_CLIENT_SECRET_GZH, desk: env.SSO_CLIENT_SECRET_DESK,
+    };
     for (const [id, c] of Object.entries(clients)) {
-      if (!["gu", "oura", "gzh", "desk"].includes(id) || typeof c?.secret !== "string" || c.secret.length < 32
+      const secret = clientSecrets[id] ?? c?.secret;
+      if (!["gu", "oura", "gzh", "desk"].includes(id) || typeof secret !== "string" || secret.length < 32
         || typeof c.name !== "string" || c.name.length > 80 || !Array.isArray(c.redirectUris) || !c.redirectUris.length) throw new Error();
+      c.secret = secret;
       for (const uri of c.redirectUris) {
         const u = new URL(uri);
         if ((u.protocol !== "https:" && !(dev && u.protocol === "http:" && loopback(u)))
