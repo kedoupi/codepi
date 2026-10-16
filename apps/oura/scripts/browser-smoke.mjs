@@ -453,7 +453,9 @@ try {
   const dailyGate = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
     source: `{
       const original = window.fetch;
-      const gate = new Promise(resolve => { window.__releaseDaily = resolve; });
+      const gate = new Promise(resolve => {
+        window.__releaseDaily = () => { resolve(); window.fetch = original; };
+      });
       window.__dailyHeld = false;
       window.fetch = async (...args) => {
         const response = await original(...args);
@@ -465,19 +467,23 @@ try {
       };
     }`,
   });
-  await page.goto(`${origin}/`);
-  await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: dailyGate.identifier });
-  auto = await automatic();
-  assert.equal(auto.status, 'completed');
-  assert.deepEqual(auto.scores, { status: 'completed', error: null });
-  assert.deepEqual(auto.details, { total: 1, completed: 1, failed: 0, remaining: 0 });
-  assert.equal(auto.unavailable[0].collection, 'daily_spo2');
-  await assertAutomaticDom(auto);
-  await page.waitForFunction(() => window.__dailyHeld);
-  assert.equal(await page.evaluate(() => document.querySelector('.journal-score-body strong').textContent), '—',
-    'completed progress does not imply that daily scores have rendered');
-  await page.evaluate(() => window.__releaseDaily());
-  await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '91');
+  try {
+    await page.goto(`${origin}/`);
+    auto = await automatic();
+    assert.equal(auto.status, 'completed');
+    assert.deepEqual(auto.scores, { status: 'completed', error: null });
+    assert.deepEqual(auto.details, { total: 1, completed: 1, failed: 0, remaining: 0 });
+    assert.equal(auto.unavailable[0].collection, 'daily_spo2');
+    await assertAutomaticDom(auto);
+    await page.waitForFunction(() => window.__dailyHeld);
+    assert.equal(await page.evaluate(() => document.querySelector('.journal-score-body strong').textContent), '—',
+      'completed progress does not imply that daily scores have rendered');
+    await page.evaluate(() => window.__releaseDaily());
+    await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '91');
+  } finally {
+    try { await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: dailyGate.identifier }); }
+    finally { await page.evaluate(() => window.__releaseDaily?.()); }
+  }
   const permissionCalls = (await fixture('sync-scenario')).providerCalls;
   await fixture('automatic-sync', 'POST');
   assert.deepEqual((await assertSyncWrites(1)).providerCalls, permissionCalls, 'terminal failures do not loop');
