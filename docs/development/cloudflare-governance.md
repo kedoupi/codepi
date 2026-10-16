@@ -9,17 +9,20 @@
 
 ## 1. 环境模型
 
-只有四种环境，不得新增长期 `dev` 或不带环境含义的 `preview` 资源：
+项目采用单主干自动发布，常用环境只有 `local` 和 `production`：
 
 | 环境 | 语义 | 数据 | 凭证 |
 |---|---|---|---|
 | `local` | 开发者本机 | Wrangler 本地 storage / 本地 D1 | `.dev.vars*` 合成配置，禁止真实 secret |
-| `staging` | 唯一持久云端集成环境 | 独立 staging D1，仅 synthetic fixture | 独立 secret，与 production 完全分离 |
 | `production` | 正式数据与正式外部集成 | 生产 D1 | 生产 secret，仅发布 workflow 可用 |
-| `pr-<number>` | 临时 PR 环境 | 独立 `codepi-<service>-pr-<number>` 资源 | 独立；必须有 owner、`expires_on`、清理证据 |
 
-PR 环境只在需要做带状态的完整云端验收时创建；PR 关闭后删除，登记表必须记录
-`expires_on` 与 `cleanup_evidence`。临时资源不得连接 shared staging 或 production。
+`staging` 资源（wrangler named environment、staging D1、staging secrets）保留但不自动部署。
+仅在需要云端联调（统一登录、MCP、跨应用调用）时手动或按需触发。staging 不再作为
+发布的必经路径。
+
+业务数据不做环境隔离——本地、测试和生产共用各产品的 D1 数据库。这是当前阶段的
+有意决策：所有数据均为个人测试数据，可重建。Cloudflare remote bindings 允许本地
+代码直接连接远程 D1，无需 staging 作为数据代理。
 
 ## 2. 资源命名
 
@@ -98,11 +101,11 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   Auth、Web、GU、GZH、Health 全部经它发布（`deploy-product-apps.yml` 已删除，
   无其它受控入口）。这是一项仓库约束；当前线上 direct-upload 历史状态与本次未运行
   workflow 的事实见资源登记表，不能据此声称新 workflow 已完成远程发布。
-- workflow 支持 `push`（main/staging）、`pull_request`（只构建测试，不
-  migrate/deploy）与 `workflow_dispatch`（`target=staging|production`、
+- workflow 支持 `push`（main）、`pull_request`（只构建测试，不
+  migrate/deploy）与 `workflow_dispatch`（`target=production`、
   `app=all|auth|web|gu|gzh|health`）。一个 affected 判定 job 先标记受影响服务：
-  `auth/**`、`shared/auth/**`、`shared/email/**`、`shared/brand.ts`、
-  `shared/styles/**`、`scripts/cloudflare/**`、workflow 文件本身标记全部五个
+  `services/auth/**`、`packages/shared/auth/**`、`packages/shared/email/**`、`packages/shared/brand.ts`、
+  `packages/shared/styles/**`、`scripts/cloudflare/**`、workflow 文件本身标记全部五个
   服务；否则只标记对应 app 路径。
 - DAG：governance gate → auth build/migrate/deploy/smoke → web/gu/gzh Pages
   build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke →
@@ -110,13 +113,11 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   时继续（`!failure() && !cancelled()`），failure 必须停止。
 - 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
 - production deploy/migrate step 同时有 job 级与 step 级
-  `github.ref == 'refs/heads/main'` guard；staging 为
-  `github.ref == 'refs/heads/staging'`。GitHub `production`/`staging`
+  `github.ref == 'refs/heads/main'` guard。GitHub `production`
   Environment 的 approval 与 scoped secrets 是 provider 前提：workflow 已声明
-  `environment:`，但保护规则是否已配置未经验证（本机 `gh` 未认证），
-  不得声称已配置。
+  `environment:`，但保护规则是否已配置未经验证，不得声称已配置。
 - 并发控制：production job `concurrency: <service>-production` 且
-  `cancel-in-progress: false`；staging 为 `<service>-staging`。
+  `cancel-in-progress: false`。
 - 每次部署传入并记录 `GITHUB_SHA`；deploy 步骤必须解析真实 provider 标识
   （Pages deployment id 经 Cloudflare API 只读解析，Worker Current Version ID
   从 wrangler 输出解析，解析失败即失败），连同 service/target/smoke 结果由
@@ -124,10 +125,6 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   GitHub artifact（不含 secret）；登记表 `last_verified` 必须能关联同一 SHA。
 - 部署前运行 `validate-governance.mjs`；部署后做匿名 smoke、预期登录跳转、
   匿名私有 API 拒绝和 Health OAuth discovery content-type 检查。
-- staging Auth 的 secret-name preflight 必须在任何远程 migration 或 deploy **之前**
-  fail-closed：只通过 Cloudflare API 元数据校验 `OWNER_EMAIL`/`OTP_FROM`/
-  `RESEND_API_KEY`（绝不读取值、不发送 OTP）。任一缺失即停止 release；
-  配置完成后再要求 Auth health 为 200 JSON，503 `auth_not_configured` 是失败。
 - 紧急 break-glass 仅允许使用同一 workflow 的明确 SHA；如不得不在本机操作，
   必须在登记表写入执行人、目标、SHA、原因、验证与后续 workflow 回填记录。
 
