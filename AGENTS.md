@@ -19,7 +19,7 @@ This is the shared project contract for all coding agents working in this reposi
 Product brand: **kedoupi（codepi）**. Use this exact brand for shared login,
 transactional email and cross-product identity. KDP is a technical abbreviation;
 existing service names, database names and cookie identifiers do not need renaming.
-Reuse `shared/brand.ts` and `shared/email/otp.ts` for brand and OTP mail content.
+Reuse `packages/shared/brand.ts` and `packages/shared/email/otp.ts` for brand and OTP mail content.
 
 Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The repository keeps exactly four products: the homepage (`apps/web/`), GU (`apps/gu/`), the WeChat workbench GZH (`apps/gzh/`) and Health (`apps/oura/`). `services/auth/` and `packages/shared/` are support layers, not products. The former static tool sites (`calc/`, `convert/`, `text/`, `dev/`, `ai/`), the homepage calculator and guide pages, `/tools/`, and the `kdp.cool` and `oura.kdp.cool` domains are retired and must not be reintroduced. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract. In-flight scope and cutover order live in `docs/development/tasks/2026-10-15-codepi-cutover.md`. Read `README.md` for the domain table, DNS records, and per-project CF settings — do not duplicate that content here.
 
@@ -76,7 +76,7 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 
 ## Pitfalls (these will bite you)
 
-1. **The root `.npmrc` pins `legacy-peer-deps=true` and the public npm registry.** `@astrojs/tailwind@6` declares peer `astro@^3||^4||^5` while we run Astro 6. Without `legacy-peer-deps`, install fails.
+1. **The root `.npmrc` pins the public npm registry.** `@astrojs/tailwind@6` declares peer `astro@^3||^4||^5` while we run Astro 6. The retained `legacy-peer-deps` option is for npm; do not treat it as pnpm peer-dependency validation. Keep the frozen workspace lockfile and verify the homepage build.
 2. **Use pnpm for all installs.** Run `pnpm install` from the repository root. Do not use `npm install` or `npm ci` in individual app directories.
 3. **Personal-space direction supersedes AdSense review restrictions.** Do not add advertising scripts, placeholders, or publisher files.
 4. **`packages/shared/` change ripples beyond the homepage.** `packages/shared/layouts/BaseLayout.astro`, `packages/shared/styles/`, `packages/shared/brand.ts` and `packages/shared/email/` are consumed by the homepage build and by the GU, GZH and Health bundles. Verify the affected apps, not just `apps/web/`.

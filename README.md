@@ -36,10 +36,10 @@ We optimize for both classical SEO (Google / Bing / DuckDuckGo) and Generative E
 
 | Lever                                | Where it lives                              |
 | ------------------------------------ | ------------------------------------------- |
-| Sitemaps (`sitemap-index.xml` + `sitemap-0.xml`) | Auto-emitted by `@astrojs/sitemap` for `web/` |
-| `robots.txt` explicitly Allows AI bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) | `web/public/robots.txt` |
-| `llms.txt` (site summary + key page links per [llmstxt.org](https://llmstxt.org/)) | `web/public/llms.txt` |
-| Internal links between products | `web/src/components/ProductList.astro` |
+| Sitemaps (`sitemap-index.xml` + `sitemap-0.xml`) | Auto-emitted by `@astrojs/sitemap` for `apps/web/` |
+| `robots.txt` explicitly Allows AI bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) | `apps/web/public/robots.txt` |
+| `llms.txt` (site summary + key page links per [llmstxt.org](https://llmstxt.org/)) | `apps/web/public/llms.txt` |
+| Internal links between products | `apps/web/src/components/ProductList.astro` |
 | Crawler Hints (IndexNow protocol — pings Bing/Yandex on changes) | CF zone setting (Caching → Configuration → Crawler Hints) — enabled |
 | Cloudflare "Block AI bots" feature | **Disabled** in CF Security → Bot traffic |
 | Cloudflare "Managed robots.txt" feature | **Disabled** in CF Security → Bot traffic |
@@ -77,17 +77,17 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 
 | Project | Command working directory | Build cmd | Output relative to working directory |
 | --- | --- | --- | --- |
-| `codepi-www` | `web` | `npm run build:pages` | `dist` |
-| `codepi-gu` | `gu` | `npm run build` | `dist` |
-| `codepi-gzh` | `gzh` | `npm run build` | `dist` |
-| `codepi-health` | `oura` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
+| `codepi-www` | `apps/web` | `npm run build:pages` | `dist` |
+| `codepi-gu` | `apps/gu` | `npm run build` | `dist` |
+| `codepi-gzh` | `apps/gzh` | `npm run build` | `dist` |
+| `codepi-health` | `apps/oura` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
 
 这里只列构建命令，不是 Dashboard 自动构建设置，也不代表完整检查与发布步骤。Node、依赖安装和发布参数以当前 workflow 为准。
 > Note: Pages 项目的 pnpm workspace 过滤仍叫 `@oura-kdp/web` / `@oura-kdp/api`（包名未重命名），仅 Pages 项目名统一为 `codepi-*`。
 
 `codepi-www` uses `npm run build:pages` because Pages only auto-compiles the
 Functions folder when it sits next to the project root; the portal's Functions
-(`web/functions/api/`) are compiled into `dist/` by the build script instead.
+(`apps/web/functions/api/`) are compiled into `dist/` by the build script instead.
 
 ### DNS records (CF zone for `codepi.app`)
 
@@ -104,9 +104,9 @@ Functions folder when it sits next to the project root; the portal's Functions
 
 ## Adding or retiring a product
 
-经批准新增应用时同步更新 `shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处，且必须保持 production/staging 隔离。
+经批准新增应用时同步更新 `packages/shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处，且必须保持 production/staging 隔离。
 
-退役产品时按顺序执行：先移除代码与入口，再更新 `shared/products.ts` 和文档，然后撤下 Cloudflare Pages 自定义域，最后删除 DNS 记录与项目。数据（D1、对象存储）单独确认后再处理。
+退役产品时按顺序执行：先移除代码与入口，再更新 `packages/shared/products.ts` 和文档，然后撤下 Cloudflare Pages 自定义域，最后删除 DNS 记录与项目。数据（D1、对象存储）单独确认后再处理。
 
 ## Notes
 
@@ -115,7 +115,7 @@ Functions folder when it sits next to the project root; the portal's Functions
 - The `_headers` file under each site's `public/` is consumed by Cloudflare Pages for security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
 - All math modules use `node:test` (no test framework dependency). Run with `npm test` per project.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` hold design specs and implementation plans from the brainstorm → plan → execute workflow used to build this repo.
-- `shared/` does not have its own `package.json`; it is a raw source folder consumed by every site via Vite alias `@shared/*`.
+- `packages/shared/` is a private workspace member. Consumers still import its source through relative paths or Vite aliases; package exports are not yet defined.
 
 ## Roadmap
 
