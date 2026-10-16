@@ -202,12 +202,17 @@ jobs:
         working-directory: services/auth
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: services/auth/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck
 
@@ -221,21 +226,17 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - run: npm ci
-      - name: Install Desk integration fixture dependencies
-        run: |
-          npm --prefix ../auth ci
-          npm --prefix ../gu ci
-          npm --prefix ../gzh ci
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
-      - run: pnpm --dir ../oura install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck:desk
       - run: npm run build:pages
@@ -250,12 +251,17 @@ jobs:
         working-directory: apps/gu
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gu/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run test:scripts
       - run: npm run typecheck
@@ -271,12 +277,17 @@ jobs:
         working-directory: apps/gzh
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gzh/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
@@ -299,7 +310,9 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - run: node --experimental-strip-types --test ../../packages/shared/auth/client.test.mjs
       - run: pnpm test
       - run: pnpm typecheck
@@ -343,12 +356,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: services/auth/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: migrate
         if: github.ref == 'refs/heads/main'
         run: npx wrangler d1 migrations apply codepi-auth --remote
@@ -360,7 +378,7 @@ jobs:
         run: |
           out=$(npx wrangler deploy)
           echo "$out"
-          version=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: smoke
         # A configured Auth Worker returns its health payload with 200 JSON.
@@ -374,7 +392,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service auth --target production --sha "$GITHUB_SHA"
           --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
@@ -407,12 +425,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: services/auth/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: migrate
         if: github.ref == 'refs/heads/staging'
         run: npx wrangler d1 migrations apply codepi-auth-staging --env staging --remote
@@ -424,7 +447,7 @@ jobs:
         run: |
           out=$(npx wrangler deploy --env staging)
           echo "$out"
-          version=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: smoke
         # A configured Auth Worker returns 200 JSON; 503 means it is not configured.
@@ -438,7 +461,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service auth --target staging --sha "$GITHUB_SHA"
           --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
@@ -472,12 +495,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build:pages
       - name: migrate
@@ -491,16 +519,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-www --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: node ../scripts/cloudflare/check-pages.mjs web production
+        run: node ../../scripts/cloudflare/check-pages.mjs web production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service www --target production --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -533,12 +561,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build:pages
       - name: migrate
@@ -552,16 +585,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-www --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: node ../scripts/cloudflare/check-pages.mjs web staging
+        run: node ../../scripts/cloudflare/check-pages.mjs web staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service www --target staging --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -595,12 +628,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gu/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
@@ -614,16 +652,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: node ../scripts/cloudflare/check-pages.mjs gu production
+        run: node ../../scripts/cloudflare/check-pages.mjs gu production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gu --target production --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -656,12 +694,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gu/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
@@ -675,16 +718,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gu --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: node ../scripts/cloudflare/check-pages.mjs gu staging
+        run: node ../../scripts/cloudflare/check-pages.mjs gu staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gu --target staging --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -718,12 +761,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gzh/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
@@ -737,16 +785,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gzh --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: node ../scripts/cloudflare/check-pages.mjs gzh production
+        run: node ../../scripts/cloudflare/check-pages.mjs gzh production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gzh --target production --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -779,12 +827,17 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: npm
-          cache-dependency-path: apps/gzh/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: npm run build
       - name: migrate
@@ -798,16 +851,16 @@ jobs:
         run: |
           out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gzh --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
+          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: node ../scripts/cloudflare/check-pages.mjs gzh staging
+        run: node ../../scripts/cloudflare/check-pages.mjs gzh staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gzh --target staging --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -849,14 +902,16 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: Deploy API before publishing its frontend
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
           set -o pipefail
           pnpm deploy:api 2>&1 | tee "$RUNNER_TEMP/deploy-api.log"
-          version=$(node ../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
+          version=$(node ../../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Check live API contract
         # Connector discovery and auth must really reach the deployed Worker.
@@ -869,7 +924,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service health-api --target production --sha "$GITHUB_SHA"
           --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
@@ -910,14 +965,16 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: Deploy staging API (controlled path with BUILD_SHA stamp)
         id: deploy
         if: github.ref == 'refs/heads/staging'
         run: |
           set -o pipefail
           node scripts/deploy-api.mjs --env staging 2>&1 | tee "$RUNNER_TEMP/deploy-api.log"
-          version=$(node ../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
+          version=$(node ../../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Check staging API contract
         # Assert the selected staging Worker build and discovery contract before Pages deploy.
@@ -932,7 +989,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service health-api --target staging --sha "$GITHUB_SHA"
           --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
@@ -974,7 +1031,9 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: pnpm --filter @oura-kdp/web build
       - name: publish frontend
@@ -1000,7 +1059,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service health-pages --target production --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
@@ -1041,7 +1100,9 @@ jobs:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: apps/oura/pnpm-lock.yaml
-      - run: pnpm i --frozen-lockfile
+      - name: Install dependencies
+        working-directory: $GITHUB_WORKSPACE
+        run: pnpm install --frozen-lockfile
       - name: build
         run: pnpm --filter @oura-kdp/web build
       - name: publish frontend
@@ -1065,7 +1126,7 @@ jobs:
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
-          node ../scripts/cloudflare/deployment-evidence.mjs append
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service health-pages --target staging --sha "$GITHUB_SHA"
           --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
