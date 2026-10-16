@@ -3,8 +3,8 @@
 `codepi-auth` is the first-party login Worker for Health, GU, GZH and the personal desk. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
-The product brand is **kedoupi（codepi）**, defined in `shared/brand.ts`.
-`shared/email/otp.ts` supplies the shared HTML/text OTP template for the center
+The product brand is **kedoupi（codepi）**, defined in `packages/shared/brand.ts`.
+`packages/shared/email/otp.ts` supplies the shared HTML/text OTP template for the center
 and GU/gzh legacy mail paths. It retains the configured verified sender address
 and sets the common brand as its display name. Never duplicate OTP templates per app.
 
@@ -25,18 +25,38 @@ the secret registry and never accepts browser-supplied registrations. The URLs
 are merged with each client's `SSO_CLIENTS.redirectUris`; adding a callback does
 not require rotating unrelated client credentials. Removing one requires checking
 both sources. Keep production and staging callbacks separate; current bindings
-and dated verification evidence are in the [CF resource registry](../docs/development/cloudflare-resource-registry.md).
+and dated verification evidence are in the [CF resource registry](../../docs/development/cloudflare-resource-registry.md).
+
+Optional per-client secrets `SSO_CLIENT_SECRET_GU`, `SSO_CLIENT_SECRET_OURA`,
+`SSO_CLIENT_SECRET_GZH` and `SSO_CLIENT_SECRET_DESK` override only the matching
+registered client's secret. An absent override retains `SSO_CLIENTS.secret` for
+existing clients; an empty or short override fails closed. Callback registration
+still comes from the registry and `SSO_EXTRA_REDIRECT_URIS`.
+
+Use these bindings to recover or rotate one client without reading or rewriting
+other credentials in the write-only JSON registry. Set the same new value on the
+center and that app's `AUTH_CLIENT_SECRET`, then redeploy the Pages app through
+the release workflow. Keep the value out of logs and files. Existing sessions for
+that app need a fresh login because their stored references use the old key.
+This does not rotate the center session, OTP, provider or MCP credentials.
+
+Health is the exception: its SSO logic and `AUTH_CLIENT_SECRET` are consumed by
+the `codepi-health-api` Worker, while the Pages project only forwards requests.
+To rotate `oura`, update the API Worker's binding instead of the Pages project
+and redeploy through the release workflow with `app=health`.
 
 Applications bind `AUTH` to this Worker and configure their own `AUTH_CLIENT_ID`,
 `AUTH_CLIENT_SECRET`, `AUTH_ORIGIN` and `SSO_ENABLED`.
 
 ## Validation
 
+Run from the repository root:
+
 ```sh
-npm ci
-npm test
-npm run typecheck
-npm run build
+pnpm install --frozen-lockfile
+pnpm --dir services/auth test
+pnpm --dir services/auth typecheck
+pnpm --dir services/auth build
 ```
 
 The tests run the built center plus four real shared-client Workers with service
@@ -76,8 +96,8 @@ JSON response; production never exposes them.
   no mail credential. Missing production configuration fails closed.
 
 Remote migrations and deployment use the controlled workflow defined in the
-[CF governance rules](../docs/development/cloudflare-governance.md), with acceptance
-and recovery steps in the [integration/release workflow](../docs/development/integration-release.md).
+[CF governance rules](../../docs/development/cloudflare-governance.md), with acceptance
+and recovery steps in the [integration/release workflow](../../docs/development/integration-release.md).
 Do not use an ad hoc `npm run deploy` as the default release path.
 
 The committed `wrangler.jsonc` selects production D1 `codepi-auth` and, under
@@ -85,11 +105,11 @@ The committed `wrangler.jsonc` selects production D1 `codepi-auth` and, under
 environment and resource ID against the registry before any authorized remote
 migration. Migration state is not inferred from this README.
 
-For local-only initialization, run from `auth/`:
+For local-only initialization, run from `services/auth/`:
 
 ```sh
 npx wrangler d1 migrations apply codepi-auth --local
 ```
 
-The [original SSO rollout plan](../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md)
+The [original SSO rollout plan](../../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md)
 is historical context, not the current resource inventory or release procedure.
