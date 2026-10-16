@@ -216,8 +216,9 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === '/__test/automatic-sync' && req.method === 'POST') {
       const worker = await ownerRuntime.getWorker();
-      const today = calendarDay();
-      const result = await worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
+      // Manual admission uses wall time too; do not cross the 09:00 daily gate
+      // just because this endpoint is advancing an accepted job.
+      const result = await worker.scheduled({ scheduledTime: Date.now(), cron: '*/2 * * * *' });
       res.writeHead(result.outcome === 'ok' ? 200 : 500, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
       return;
     }
