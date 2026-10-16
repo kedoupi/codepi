@@ -3,6 +3,12 @@
 账户：`Kedoupi`（`69f1de4c8f3c7411593613711207e7b3`）。本表是版本化登记记录；
 实时状态以当次 Cloudflare 控制面核实为准。治理规则见 [cloudflare-governance.md](./cloudflare-governance.md)。
 
+2026-10-17 后续核验：`158484c` 的 main 发布 run `38966431148` 成功；四个生产 Pages
+均为该干净 SHA，Auth/Health API 的 deployment/version 已核对，匿名 smoke 与 Health
+16 项接口检查通过。具体版本与未验收边界见
+[shared 严格白名单发布记录](tasks/2026-10-17-shared-strict-exports.md)。
+本次只更新六个生产计算资源的核验日期，不表示重新审计了数据库、staging 或 unknown 资源。
+
 2026-10-16 后续核验：workspace 与单主干规则已合并，但 run `38883652043` 的构建失败、
 部署跳过；GU 和 Desk 私有接口存在 503。诊断、GU 回退及恢复原版本的操作记录见
 [Workspace 发布链修复](tasks/2026-10-16-workspace-release-repair.md)。下文较早的 smoke
@@ -26,12 +32,12 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
-| pages-www | production | pages | codepi-www | kedoupi | 首页与 Desk 摘要 | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-16 |
-| pages-gu | production | pages | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户 | gu.codepi.app | apps/gu/wrangler.toml | managed | 2026-10-16 |
-| pages-gzh | production | pages | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户 | gzh.codepi.app | apps/gzh/wrangler.toml | managed | 2026-10-16 |
-| pages-health | production | pages | codepi-health | kedoupi | Health 前端 | private-health-data | 终端用户 | health.codepi.app | apps/oura/apps/web/wrangler.toml | managed | 2026-10-16 |
-| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-16 |
-| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | pages-health, MCP 客户端 | health.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml | managed | 2026-10-16 |
+| pages-www | production | pages | codepi-www | kedoupi | 首页与 Desk 摘要 | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 |
+| pages-gu | production | pages | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户 | gu.codepi.app | apps/gu/wrangler.toml | managed | 2026-10-17 |
+| pages-gzh | production | pages | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户 | gzh.codepi.app | apps/gzh/wrangler.toml | managed | 2026-10-17 |
+| pages-health | production | pages | codepi-health | kedoupi | Health 前端 | private-health-data | 终端用户 | health.codepi.app | apps/oura/apps/web/wrangler.toml | managed | 2026-10-17 |
+| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
+| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | pages-health, MCP 客户端 | health.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml | managed | 2026-10-17 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | pages-www | - | apps/web/wrangler.toml | managed | 2026-10-16 |
 | d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | pages-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
