@@ -1,5 +1,5 @@
-import { products } from "@shared/products";
-import type { DeskSummary, DeskSource } from "../../../../packages/shared/desk/contract";
+import { products } from "@kedoupi/shared/products";
+import type { DeskSummary, DeskSource } from "@kedoupi/shared/desk/contract";
 
 type Payload = { generatedAt: string; partial: boolean; range: "current" | "week"; sources: DeskSummary[] };
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;

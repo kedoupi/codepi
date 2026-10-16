@@ -1,4 +1,4 @@
-import { brandedSender, buildOtpEmail } from "../../../packages/shared/email/otp";
+import { brandedSender, buildOtpEmail } from "@kedoupi/shared/email/otp";
 
 export interface Mailer {
   sendOtp(to: string, code: string): Promise<void>;

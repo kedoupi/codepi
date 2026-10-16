@@ -1,5 +1,5 @@
 import { hashSecret, randomDigits, randomToken, timingSafeEqual } from "./crypto";
-import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "../../../packages/shared/auth/client";
+import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "@kedoupi/shared/auth/client";
 import {
   brandName,
   clientIp,

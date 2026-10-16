@@ -1,5 +1,5 @@
-import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "../../../packages/shared/auth/client";
-import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "../../../packages/shared/desk/contract";
+import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
+import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export interface DeskEnv extends SsoEnv {
   HEALTH_SUMMARY_TOKEN?: string;

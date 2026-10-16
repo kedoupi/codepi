@@ -25,7 +25,7 @@ function contrast(foreground, background) {
 
 test('Health theme follows shared defaults without overriding shared geometry or typography', () => {
   const styles = read('../src/styles.css');
-  assert.match(styles, /@import "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/shared\/styles\/tokens\.css";\s*@import "\.\/theme\.css";/);
+  assert.match(styles, /@import "@kedoupi\/shared\/styles\/tokens\.css";\s*@import "\.\/theme\.css";/);
   assert.doesNotMatch(theme, /--kdp-(?:font|space|radius|content-width|reading-width|motion)[\w-]*\s*:/);
   const canvas = read('../index.html').match(/name="theme-color" content="([^"]+)"/)?.[1];
   assert.equal(canvas, colors['--kdp-canvas'], 'Browser chrome should match the local canvas');

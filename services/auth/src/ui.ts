@@ -1,5 +1,5 @@
-import { PRODUCT_BRAND } from "../../../packages/shared/brand";
-import tokens from "../../../packages/shared/styles/tokens.css";
+import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+import tokens from "@kedoupi/shared/styles/tokens.css";
 
 const escape = (text: string) => text.replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);

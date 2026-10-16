@@ -1,4 +1,4 @@
-import type { SsoEnv } from "../../../../../packages/shared/auth/client";
+import type { SsoEnv } from "@kedoupi/shared/auth/client";
 
 export interface Env extends SsoEnv {
   DESK_SUMMARY_TOKEN?: string;

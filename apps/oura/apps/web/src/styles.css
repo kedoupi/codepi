@@ -1,4 +1,4 @@
-@import "../../../../../packages/shared/styles/tokens.css";
+@import "@kedoupi/shared/styles/tokens.css";
 @import "./theme.css";
 
 :root{
