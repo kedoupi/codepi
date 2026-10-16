@@ -40,3 +40,23 @@
   GU 与 Desk 的新 secret（中央 override + 应用侧 `AUTH_CLIENT_SECRET`），
   重发受影响应用并跑 smoke。
 - 操作全程不读取、不打印、不落地任何 secret 值。
+
+## 2026-10-16 合并、发布与轮换结果
+
+- PR #49 squash 合并为 `bac640c`（CI 两 workflow 成功；独立 reviewer Nietzsche 放行，
+  无阻塞；采纳其 P3 建议补充 Health 轮换指向 API Worker，提交 `44e9e65`）。
+- main 发布链将新 Auth Worker 上线（deployment `d24e61c9`，11:08 UTC）。
+- 通过 Cloudflare API 生成两个 43 字符随机 secret（值不落地、不打印）：
+  - 中央 Auth 设置 `SSO_CLIENT_SECRET_GU` 与 `SSO_CLIENT_SECRET_DESK` override。
+  - `codepi-gu` 与 `codepi-www` 的 production `AUTH_CLIENT_SECRET` 同值配对。
+- 因 Pages secret 轮换晚于当次部署，运行中 deployment 仍持旧值；PR #50 记录轮换
+  并使 web+gu 落入 affected，main 发布链于 11:19 UTC 用配对 secret 重发：
+  - codepi-www deployment `28423e59`（commit `193bb2167`）。
+  - codepi-gu deployment `ffafd3a9`（commit `193bb2167`）。
+- 上线验证全部通过：
+  - `check-pages.mjs web/gu/gzh production`：root、匿名私有 API 401、同环境 SSO 跳转均通过。
+  - GU `/` 302、GU `/api/me` 401、Desk `/api/desk/me` 401（均由 503 恢复为正确匿名拒绝）。
+  - `apps/oura/scripts/check-api.mjs`：16 项 API/MCP/OAuth probes 通过（`/api/health` build 仍为 local）。
+  - Auth `/api/health` 200、`codepi.app` 200、`health.codepi.app` 200。
+- 影响：GU 与 Desk 的既有登录态因 secret 轮换失效，需重新登录；其他客户端、
+  中心会话、OTP、provider、MCP 凭证不受影响（gzh/health 未轮换，仍正常）。
