@@ -60,3 +60,12 @@
   - Auth `/api/health` 200、`codepi.app` 200、`health.codepi.app` 200。
 - 影响：GU 与 Desk 的既有登录态因 secret 轮换失效，需重新登录；其他客户端、
   中心会话、OTP、provider、MCP 凭证不受影响（gzh/health 未轮换，仍正常）。
+
+## 附：Health 线上 build 标记绑定（PR #52）
+
+- 问题：`/api/health` 长期 `build=local`，因 health-api 自 workspace 迁移后未重发，
+  `BUILD_SHA` 未注入，无法据其证明线上 source SHA。
+- 处理：PR #52 把 `BUILD_SHA` 显式声明为 Worker var（本地 fallback `local`），
+  合并为 `9f4672f`，main 发布链重发 health-api（deployment `74dca71c`，11:39 UTC）。
+- 验证：`OURA_EXPECT_BUILD=9f4672f04ebb node scripts/check-api.mjs` 16 项通过，
+  `/api/health` 现报 `build=9f4672f04ebb`，smoke 的 build 校验真正生效。
