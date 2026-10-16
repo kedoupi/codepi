@@ -89,17 +89,20 @@ test('production releases serialize and include changes from failed or coalesced
   await writeFile(path.join(bin, 'gh'), '#!/bin/sh\nprintf "%s\\n" "$TEST_RELEASE_BASE"\n');
   await chmod(path.join(bin, 'gh'), 0o755);
   const output = path.join(cwd, 'outputs');
-  const run = async (base, sha = git('rev-parse', 'HEAD')) => {
+  const run = async (base, sha = git('rev-parse', 'HEAD'), event = 'push', app = '') => {
     await writeFile(output, '');
     execFileSync('bash', ['-euo', 'pipefail', '-c', script], {
       cwd, stdio: 'pipe',
       env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
-        EVENT: 'push', APP: '', SHA: sha, GH_REPO: 'fixture/repo', GITHUB_OUTPUT: output, TEST_RELEASE_BASE: base },
+        EVENT: event, APP: app, SHA: sha, GH_REPO: 'fixture/repo', GITHUB_OUTPUT: output, TEST_RELEASE_BASE: base },
     });
     return Object.fromEntries((await readFile(output, 'utf8')).trim().split('\n').map(line => line.split('=')));
   };
   assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' });
   assert.deepEqual(await run(''), { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes' });
+  assert.deepEqual(await run(released, latest, 'workflow_dispatch', 'web'),
+    { auth: 'no', web: 'yes', gu: 'yes', gzh: 'yes', health: 'no' },
+    'a manual deployment that replaces a queued push must include its unpublished changes');
   await assert.rejects(run(released, pending), /older than main/);
   await commit('docs/release.md');
   await assert.rejects(run(released, latest), /older than main/);

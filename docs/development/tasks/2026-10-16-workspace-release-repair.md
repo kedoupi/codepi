@@ -24,6 +24,7 @@ GitHub run `38883652043` 在依赖安装前失败，所有部署 job 均跳过�
    affected 从最近成功的 main push release 计算，覆盖失败或被合并队列替换的提交。
    复核补齐所有 main push（含文档）触发、按各提交触及路径而非净 diff 判断；
    fixture 覆盖文档提交接管发布和部分发布失败后的完整 revert。
+   同一队列中的单应用 dispatch 也接管积压范围，避免替换 pending push 后漏发。
 7. 当前文档、skill、资源登记路径仍有旧结构或强制 staging 描述，已校正；
    保留历史记录，不将保留的 staging 配置标成已启用环境。
 

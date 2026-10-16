@@ -129,6 +129,8 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   保证新 run 接管未完成发布。push 的 affected 范围取最近一次成功的 main push release
   之后所有提交触及的路径，不能只看净 diff，否则失败后的 revert 会遗漏已部分上线的服务。
   无成功记录或成功 SHA 不在当前祖先链时发布全部服务；仅文档且无积压改动时不部署应用。
+  手动 dispatch 也包含相同积压范围，再额外加入指定应用；不能让单应用 dispatch
+  替换 pending push 后遗漏它尚未发布的应用。
 - 每次部署传入并记录 `GITHUB_SHA`；deploy 步骤必须解析真实 provider 标识
   （Pages deployment id 经 Cloudflare API 只读解析，Worker Current Version ID
   从 wrangler 输出解析，解析失败即失败），连同 service/target/smoke 结果由

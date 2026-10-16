@@ -40,7 +40,7 @@ on:
         type: choice
         options: [production]
       app:
-        description: 'Which app to deploy'
+        description: 'App to redeploy (pending main changes are always included)'
         required: true
         default: 'all'
         type: choice
@@ -107,18 +107,18 @@ jobs:
               exit 1
             fi
           fi
+          for s in auth web gu gzh health; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
           if [ "$EVENT" = 'workflow_dispatch' ]; then
             if [ "$APP" = 'all' ] || [ "$APP" = 'auth' ]; then
               mark_all
+              exit 0
             else
               echo "$APP=yes" >> "$GITHUB_OUTPUT"
             fi
-            exit 0
           fi
-          for s in auth web gu gzh health; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
-          if [ "$EVENT" = 'push' ]; then
+          if [ "$EVENT" = 'push' ] || [ "$EVENT" = 'workflow_dispatch' ]; then
             # Pending runs can be coalesced by GitHub concurrency. The last green
-            # push covers a full release, unlike a successful single-app dispatch.
+            # push covers a full release. Dispatch includes that backlog too.
             released=$(gh api "repos/$GH_REPO/actions/workflows/deploy-platform.yml/runs?branch=main&event=push&status=success&per_page=1" \
               --jq '.workflow_runs[0].head_sha // empty')
             if [ -z "$released" ] || ! git merge-base --is-ancestor "$released" "$SHA"; then
