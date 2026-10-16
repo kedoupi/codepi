@@ -4,12 +4,12 @@ import { pathToFileURL } from 'node:url';
 export function shouldRetryQuotaDeployment(run, failedLog) {
   return run?.status === 'completed' && run.conclusion === 'failure'
     && run.headBranch === 'main'
-    && /oura\s+Deploy API before publishing its frontend.*D1's free tier daily row write limit/.test(failedLog);
+    && /Deploy API before publishing its frontend.*D1's free tier daily row write limit/.test(failedLog);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const gh = args => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
-  const [run] = JSON.parse(gh(['run', 'list', '--workflow', 'deploy-product-apps.yml',
+  const [run] = JSON.parse(gh(['run', 'list', '--workflow', 'deploy-platform.yml',
     '--branch', 'main', '--limit', '1', '--json', 'databaseId,status,conclusion,headBranch']));
   const log = run?.status === 'completed' && run.conclusion === 'failure'
     ? gh(['run', 'view', String(run.databaseId), '--log-failed']) : '';

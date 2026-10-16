@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 
 /** Stamp a full config, preserving all production vars and service bindings. */
-export function withBuildSha(text, sha) {
+export function withBuildSha(text, sha, envName = '') {
   if (!/^[a-f0-9]{7,40}$/i.test(sha)) throw new Error('BUILD_SHA must be a Git commit SHA');
+  const varsHeader = envName ? `[env.${envName}.vars]` : '[vars]';
   const tables = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
-  const vars = tables.filter(match => match[1] === '[vars]');
-  if (vars.length > 1) throw new Error('wrangler.toml has ambiguous [vars] tables');
-  if (!vars.length) return `${text}\n[vars]\nBUILD_SHA = ${JSON.stringify(sha)}\n`;
+  const vars = tables.filter(match => match[1] === varsHeader);
+  if (vars.length > 1) throw new Error(`wrangler.toml has ambiguous ${varsHeader} tables`);
+  if (!vars.length) return `${text}\n${varsHeader}\nBUILD_SHA = ${JSON.stringify(sha)}\n`;
   const index = tables.indexOf(vars[0]);
   const start = vars[0].index + vars[0][0].length;
   const end = tables[index + 1]?.index ?? text.length;
@@ -17,6 +18,52 @@ export function withBuildSha(text, sha) {
   const stamped = entries.length ? body.replace(key, `BUILD_SHA = ${JSON.stringify(sha)}`)
     : `\nBUILD_SHA = ${JSON.stringify(sha)}` + body;
   return text.slice(0, start) + stamped + text.slice(end);
+}
+
+/**
+ * Reads the Worker settings for a named Wrangler environment (e.g. "staging").
+ * Only the [env.<name>] section is considered: name override, DB binding and
+ * trigger table; anything missing falls back to failing loudly so a staging
+ * deploy can stop before it touches the wrong environment.
+ */
+export function parseWranglerEnvConfig(text, envName, { fileExists = existsSync, dir } = {}) {
+  const headers = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
+  const tables = headers.map((match, i) => ({
+    header: match[1],
+    body: text.slice(match.index + match[0].length, headers[i + 1]?.index ?? text.length),
+  }));
+  const stringValue = (section, key) => {
+    const matches = [...section.matchAll(new RegExp(`^[ \\t]*${key}[ \\t]*=[ \\t]*("(?:[^"\\\\]|\\\\.)*")[ \\t]*(?:#[^\\n]*)?$`, 'gm'))];
+    if (matches.length > 1) throw new Error(`[env.${envName}] has ambiguous ${key} values`);
+    return matches[0] ? JSON.parse(matches[0][1]) : undefined;
+  };
+  const root = text.slice(0, headers[0]?.index ?? text.length);
+  const envPrefix = `env.${envName}`;
+  const envTables = tables.filter(table => table.header === `[${envPrefix}]`);
+  if (!envTables.length) throw new Error(`wrangler.toml is missing [env.${envName}]`);
+  const envSection = envTables.map(table => table.body).join('\n');
+  const name = stringValue(envSection, 'name');
+  if (!name) throw new Error(`[env.${envName}] is missing the Worker name`);
+  const databases = tables.filter(table => table.header === `[[${envPrefix}.d1_databases]]` && stringValue(table.body, 'binding') === 'DB');
+  if (databases.length > 1) throw new Error(`[env.${envName}] has ambiguous D1 DB bindings`);
+  const databaseName = databases[0] && stringValue(databases[0].body, 'database_name');
+  if (!databaseName) throw new Error(`[env.${envName}] is missing the D1 database_name binding`);
+  const main = stringValue(root, 'main');
+  if (dir && main && !fileExists(`${dir}/${main}`)) throw new Error(`Worker entrypoint ${main} does not exist`);
+  const triggers = tables.filter(table => table.header === `[${envPrefix}.triggers]`);
+  if (triggers.length > 1) throw new Error(`[env.${envName}] has ambiguous [triggers] tables`);
+  const cronLine = triggers[0]?.body.match(/^[ \t]*crons[ \t]*=[ \t]*(\[[\s\S]*?\])[ \t]*(?:#[^\n]*)?$/m)?.[1];
+  if (!cronLine) throw new Error(`[env.${envName}] is missing the [triggers] crons list`);
+  let crons;
+  try {
+    crons = JSON.parse(cronLine);
+  } catch {
+    throw new Error(`[env.${envName}] crons is not valid JSON: ${cronLine}`);
+  }
+  if (!Array.isArray(crons) || crons.length === 0 || crons.some(cron => typeof cron !== 'string' || !cron.trim())) {
+    throw new Error(`[env.${envName}] crons must be a non-empty list of cron strings: ${cronLine}`);
+  }
+  return { name, databaseName, crons };
 }
 
 /**

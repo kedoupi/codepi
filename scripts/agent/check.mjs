@@ -30,11 +30,21 @@ export function makePlan(files) {
   const manual = [];
   let workflow = false;
   let sharedAuth = false;
+  let cfGovernance = false;
   const add = names => names.forEach(name => apps.add(name));
   const addAll = () => { add(allApps); sharedAuth = true; };
 
+  const wranglerConfigs = ['web/wrangler.toml', 'gu/wrangler.toml', 'gzh/wrangler.toml',
+    'auth/wrangler.jsonc', 'oura/workers/api/wrangler.toml', 'oura/apps/web/wrangler.toml'];
   for (const file of files) {
-    if (file.startsWith('scripts/agent/') || file.startsWith('.agents/')
+    if (file.startsWith('scripts/cloudflare/')
+      || file === 'docs/development/cloudflare-resource-registry.md'
+      || file === 'docs/development/cloudflare-governance.md'
+      || wranglerConfigs.includes(file)) cfGovernance = true;
+  }
+
+  for (const file of files) {
+    if (file.startsWith('scripts/agent/') || file.startsWith('scripts/cloudflare/') || file.startsWith('.agents/')
       || file.startsWith('.claude/skills/') || file.startsWith('.cursor/rules/')
       || ['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md'].includes(file)
       || file.startsWith('docs/development/')) {
@@ -65,6 +75,11 @@ export function makePlan(files) {
 
   const checks = [];
   const check = (cwd, ...argv) => checks.push({ cwd, argv });
+  if (cfGovernance) {
+    // 只读仓库文件的静态守门；绝不访问 Cloudflare 或远程数据库。
+    check('.', 'node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs');
+    check('.', 'node', 'scripts/cloudflare/validate-governance.mjs');
+  }
   if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
   for (const app of staticApps.filter(app => apps.has(app))) {
     if (app === 'web') {

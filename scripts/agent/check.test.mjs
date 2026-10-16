@@ -72,6 +72,24 @@ test('GU deployment check is explicitly local configuration only', () => {
   assert.deepEqual(checks.at(-1).argv, ['npm', 'run', 'check:deploy', '--', '--mode', 'config']);
 });
 
+test('Cloudflare configs, governance scripts and docs select the static governance gate', () => {
+  const expected = [
+    { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs'] },
+    { cwd: '.', argv: ['node', 'scripts/cloudflare/validate-governance.mjs'] },
+  ];
+  for (const file of ['web/wrangler.toml', 'gu/wrangler.toml', 'gzh/wrangler.toml',
+    'auth/wrangler.jsonc', 'oura/workers/api/wrangler.toml', 'oura/apps/web/wrangler.toml',
+    'scripts/cloudflare/validate-governance.mjs',
+    'docs/development/cloudflare-resource-registry.md',
+    'docs/development/cloudflare-governance.md']) {
+    const plan = makePlan([file]);
+    for (const entry of expected) {
+      assert.ok(plan.checks.some(check => check.cwd === entry.cwd && check.argv.join('') === entry.argv.join('')),
+        `${file} must select ${entry.argv.join(' ')}`);
+    }
+  }
+});
+
 test('docs skip application builds but product Markdown remains covered', () => {
   assert.deepEqual(makePlan(['docs/architecture/example.md', 'oura/AGENTS.md', 'README.md']).checks, []);
   assert.deepEqual(makePlan(['web/src/content/post.md']).apps, ['web']);

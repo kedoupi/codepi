@@ -1,5 +1,7 @@
-name: Retry Oura deployment after D1 quota reset
+name: Retry Health API deployment after D1 quota reset
 
+# 只重试 deploy-platform.yml 中 Health API production deploy 被 D1 免费额度
+# 日写限制阻断的失败 run；其它失败不会被 rerun。
 on:
   schedule:
     # D1 free daily limits reset at midnight UTC (08:00 Asia/Shanghai).

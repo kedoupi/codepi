@@ -2,6 +2,19 @@ const origin = new URL(process.argv[2] || 'https://health.codepi.app').origin;
 // Expected build SHA for the just-deployed Worker. When provided, /api/health
 // must report it; this turns the smoke check into a real deploy gate.
 const expectedBuild = process.env.OURA_EXPECT_BUILD || '';
+const expectedOauthConfigured = (() => {
+  const value = process.env.OURA_EXPECT_OAUTH_CONFIGURED;
+  if (!value || value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error('OURA_EXPECT_OAUTH_CONFIGURED must be "true" or "false"');
+})();
+const expectedSsoEnabled = (() => {
+  const value = process.env.OURA_EXPECT_SSO_ENABLED;
+  if (!value) return undefined;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error('OURA_EXPECT_SSO_ENABLED must be "true" or "false"');
+})();
 // The zone's edge challenges datacenter IPs on this hostname (cf-mitigated:
 // challenge) and the free-plan rules cannot exempt a path. The Worker is also
 // reachable on its workers.dev hostname, which has no zone bot rules, so that
@@ -98,10 +111,12 @@ async function check(targetOrigin, path, expectedStatus = 200, blocked, ssoEnabl
       };
     }
     const ok = response.status === 200 && (path === '/api/health'
-      ? payload?.ok === true && payload?.oauthConfigured === true && payload?.allowDevLogin === false
+      ? payload?.ok === true && payload?.oauthConfigured === expectedOauthConfigured && payload?.allowDevLogin === false
+        && (expectedSsoEnabled === undefined || payload?.ssoEnabled === expectedSsoEnabled)
         && typeof payload?.release === 'string'
         && (!expectedBuild || payload?.build === expectedBuild)
-      : payload?.authenticated === false && payload?.oauthConfigured === true && payload?.allowDevLogin === false
+      : payload?.authenticated === false && payload?.oauthConfigured === expectedOauthConfigured && payload?.allowDevLogin === false
+        && (expectedSsoEnabled === undefined || payload?.ssoEnabled === expectedSsoEnabled)
         && payload?.capabilities?.personal === false && payload?.capabilities?.weeklyFull === false
         && (!ssoEnabled || (payload?.ssoEnabled === true && payload?.websiteAccount === null && payload?.ouraConnection === null))
         && Object.hasOwn(payload, 'localePref'));

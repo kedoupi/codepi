@@ -1,0 +1,1088 @@
+name: Deploy platform (auth / web / gu / gzh / health)
+
+# 全部 Cloudflare 服务（Auth、Web、GU、GZH、Health）的唯一发布入口。
+# 规则见 docs/development/cloudflare-governance.md 第 6 节：
+# - DAG：governance gate → auth build/deploy/smoke → web/gu/gzh Pages
+#   build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke
+#   → health Pages build/deploy/smoke。下游在 predecessor success 或 skipped
+#   时继续；failure 必须停止。
+# - SSO/shared-auth/shared-email/shared-brand/shared-styles 改动标记全部五个
+#   服务受影响；否则只标记对应 app 路径。
+# - production 只接受 main 上的 SHA（GitHub `production` Environment 保护为
+#   provider 前提，尚未验证已配置）；staging 只接受 staging branch；
+# - PR 只运行测试和构建，不 migrate/deploy。
+# - 每个 deploy job 通过 scripts/cloudflare/deployment-evidence.mjs 记录
+#   service/target/SHA/provider 标识/smoke 结果并上传 artifact（无 secret）。
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - 'auth/**'
+      - 'web/**'
+      - 'gu/**'
+      - 'gzh/**'
+      - 'oura/**'
+      - 'shared/**'
+      - 'scripts/cloudflare/**'
+      - '.github/workflows/deploy-platform.yml'
+  pull_request:
+    paths:
+      - 'auth/**'
+      - 'web/**'
+      - 'gu/**'
+      - 'gzh/**'
+      - 'oura/**'
+      - 'shared/**'
+      - 'scripts/cloudflare/**'
+      - '.github/workflows/deploy-platform.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Deployment target environment'
+        required: true
+        type: choice
+        options: [staging, production]
+      app:
+        description: 'Which app to deploy'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, auth, web, gu, gzh, health]
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Reject dispatch target/ref mismatch
+        # fail fast：production 只允许 main，staging 只允许 staging branch。
+        # 不匹配时在这里失败，而不是让所有 deploy job 静默 skipped。
+        if: >-
+          ${{github.event_name == 'workflow_dispatch'
+            && ((inputs.target == 'production' && github.ref != 'refs/heads/main')
+              || (inputs.target == 'staging' && github.ref != 'refs/heads/staging'))}}
+        run: |
+          echo "::error::workflow_dispatch target=${{ inputs.target }} is not allowed on ref ${{ github.ref }} (production requires refs/heads/main, staging requires refs/heads/staging)"
+          exit 1
+      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs
+      - run: node scripts/cloudflare/validate-governance.mjs
+
+  affected:
+    runs-on: ubuntu-latest
+    outputs:
+      auth: ${{ steps.map.outputs.auth }}
+      web: ${{ steps.map.outputs.web }}
+      gu: ${{ steps.map.outputs.gu }}
+      gzh: ${{ steps.map.outputs.gzh }}
+      health: ${{ steps.map.outputs.health }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine affected services
+        id: map
+        env:
+          EVENT: ${{ github.event_name }}
+          APP: ${{ inputs.app }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          all_trigger='^(auth/|shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
+          mark_all() { for s in auth web gu gzh health; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
+          if [ "$EVENT" = 'workflow_dispatch' ]; then
+            if [ "$APP" = 'all' ] || [ "$APP" = 'auth' ]; then
+              mark_all
+            else
+              echo "$APP=yes" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          for s in auth web gu gzh health; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
+          if [ "$EVENT" = 'push' ]; then
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = '0000000000000000000000000000000000000000' ]; then
+              changed=$(git diff-tree --root --no-commit-id --name-only -r "$SHA") || {
+                echo "::error::could not determine changed paths for initial push"
+                exit 1
+              }
+            else
+              changed=$(git diff --name-only "$BEFORE" "$SHA") || {
+                echo "::error::could not determine changed paths for push range $BEFORE..$SHA"
+                exit 1
+              }
+            fi
+          elif [ "$EVENT" = 'pull_request' ]; then
+            changed=$(git diff --name-only "$PR_BASE...$PR_HEAD") || {
+              echo "::error::could not determine changed paths for pull request range $PR_BASE...$PR_HEAD"
+              exit 1
+            }
+          else
+            echo "::error::unsupported event for affected-service mapping: $EVENT"
+            exit 1
+          fi
+          if printf '%s\n' "$changed" | grep -qE "$all_trigger"; then
+            mark_all
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^web/'; then
+            echo 'web=yes' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^gu/'; then
+            echo 'gu=yes' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^gzh/'; then
+            echo 'gzh=yes' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^oura/'; then
+            echo 'health=yes' >> "$GITHUB_OUTPUT"
+          fi
+
+
+  # ---------------- Staging Auth preflight ----------------
+
+  staging-auth-preflight:
+    needs: [governance, affected]
+    if: >-
+      ${{!failure() && !cancelled() && github.event_name != 'pull_request'
+        && (needs.affected.outputs.auth == 'yes' || needs.affected.outputs.web == 'yes'
+          || needs.affected.outputs.gu == 'yes' || needs.affected.outputs.gzh == 'yes'
+          || needs.affected.outputs.health == 'yes')
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Verify required staging Auth secret metadata
+        run: |
+          set -euo pipefail
+          secret_names=$(
+            curl --fail-with-body -sS --max-time 30 \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/codepi-auth-staging/secrets" \
+              | node -e 'let data="";process.stdin.on("data", chunk => data += chunk).on("end", () => { const response = JSON.parse(data); if (!response.success) process.exit(1); process.stdout.write((response.result || []).map(secret => secret.name).join("\n")); })'
+          )
+          for secret in SESSION_SECRET OTP_PEPPER SSO_CLIENTS OWNER_EMAIL OTP_FROM RESEND_API_KEY; do
+            printf '%s\n' "$secret_names" | grep -Fxq "$secret" \
+              || { echo "missing required staging Auth secret metadata: $secret"; exit 1; }
+          done
+      - name: Verify configured staging Auth health
+        run: |
+          set -euo pipefail
+          body=$(mktemp)
+          trap 'rm -f "$body"' EXIT
+          status=$(curl -sS --max-time 30 -o "$body" -w '%{http_code} %{content_type}' \
+            https://auth-staging.codepi.app/api/health)
+          code=${status%% *}
+          content_type=${status#* }
+          echo "auth-staging.codepi.app/api/health -> $code $content_type (sha=$GITHUB_SHA)"
+          test "$code" = 200
+          case "$content_type" in application/json*) ;; *) exit 1;; esac
+          node -e 'JSON.parse(require("node:fs").readFileSync(0, "utf8"))' < "$body"
+  # ---------------- Builds（PR 只跑到这里） ----------------
+
+  auth-build:
+    needs: [affected]
+    if: >-
+      ${{needs.affected.outputs.auth == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: auth
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: auth/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+
+  www-build:
+    needs: [affected]
+    if: >-
+      ${{needs.affected.outputs.web == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck:desk
+      - run: npm run build:pages
+
+  gu-build:
+    needs: [affected]
+    if: >-
+      ${{needs.affected.outputs.gu == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gu/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:scripts
+      - run: npm run typecheck
+      - run: npm run build
+
+  gzh-build:
+    needs: [affected]
+    if: >-
+      ${{needs.affected.outputs.gzh == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gzh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gzh/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+
+  health-build:
+    needs: [affected]
+    if: >-
+      ${{needs.affected.outputs.health == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: oura
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: oura/pnpm-lock.yaml
+      - run: pnpm i --frozen-lockfile
+      - run: node --experimental-strip-types --test ../shared/auth/client.test.mjs
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm --filter @oura-kdp/web build
+      - name: Install Chinese fonts for browser screenshots
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Browser regression (normal and SSO)
+        timeout-minutes: 15
+        run: pnpm test:browser:built
+        env:
+          OURA_BROWSER_ARTIFACTS: ${{ runner.temp }}/oura-browser-artifacts
+      - name: Upload browser screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oura-browser-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/oura-browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------- Auth ----------------
+
+  auth-deploy-production:
+    needs: [governance, affected, auth-build]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.auth == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: auth-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: auth
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: auth/package-lock.json
+      - run: npm ci
+      - name: migrate
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler d1 migrations apply codepi-auth --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          out=$(npx wrangler deploy)
+          echo "$out"
+          version=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        # A configured Auth Worker returns its health payload with 200 JSON.
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://auth.codepi.app/api/health)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://auth.codepi.app/api/health)
+          echo "auth.codepi.app/api/health -> $code $ct (sha=$GITHUB_SHA)"
+          test "$code" = 200
+          case "$ct" in application/json*) ;; *) exit 1;; esac
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service auth --target production --sha "$GITHUB_SHA"
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-auth-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  auth-deploy-staging:
+    needs: [governance, affected, auth-build, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.auth == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: auth-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: auth
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: auth/package-lock.json
+      - run: npm ci
+      - name: migrate
+        if: github.ref == 'refs/heads/staging'
+        run: npx wrangler d1 migrations apply codepi-auth-staging --env staging --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          out=$(npx wrangler deploy --env staging)
+          echo "$out"
+          version=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        # A configured Auth Worker returns 200 JSON; 503 means it is not configured.
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://auth-staging.codepi.app/api/health)
+          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://auth-staging.codepi.app/api/health)
+          echo "auth-staging.codepi.app/api/health -> $code $ct (sha=$GITHUB_SHA)"
+          test "$code" = 200
+          case "$ct" in application/json*) ;; *) exit 1;; esac
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service auth --target staging --sha "$GITHUB_SHA"
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-auth-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------- Web (www) ----------------
+
+  www-deploy-production:
+    needs: [governance, affected, www-build, auth-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.web == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: www-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: web
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build:pages
+      - name: migrate
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler d1 migrations apply codepi-desk --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-www --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/main'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://codepi.app)
+          echo "codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 200
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service www --target production --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-www-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  www-deploy-staging:
+    needs: [governance, affected, www-build, auth-deploy-staging, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.web == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: www-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: web
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build:pages
+      - name: migrate
+        if: github.ref == 'refs/heads/staging'
+        run: npx wrangler d1 migrations apply codepi-desk-staging --env preview --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-www --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://staging.codepi.app)
+          echo "staging.codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 200
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service www --target staging --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-www-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------- GU ----------------
+
+  gu-deploy-production:
+    needs: [governance, affected, gu-build, auth-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.gu == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: gu-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: gu
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gu/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build
+      - name: migrate
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler d1 migrations apply codepi-gu --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/main'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gu.codepi.app)
+          echo "gu.codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 302
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service gu --target production --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-gu-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  gu-deploy-staging:
+    needs: [governance, affected, gu-build, auth-deploy-staging, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.gu == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: gu-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: gu
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gu/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build
+      - name: migrate
+        if: github.ref == 'refs/heads/staging'
+        run: npx wrangler d1 migrations apply codepi-gu-staging --env preview --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gu --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gu-staging.codepi.app)
+          echo "gu-staging.codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 302
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service gu --target staging --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-gu-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------- GZH ----------------
+
+  gzh-deploy-production:
+    needs: [governance, affected, gzh-build, auth-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.gzh == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: gzh-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: gzh
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gzh/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build
+      - name: migrate
+        if: github.ref == 'refs/heads/main'
+        run: npx wrangler d1 migrations apply codepi-gzh --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gzh --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/main'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gzh.codepi.app)
+          echo "gzh.codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 302
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service gzh --target production --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-gzh-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  gzh-deploy-staging:
+    needs: [governance, affected, gzh-build, auth-deploy-staging, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.gzh == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: gzh-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: gzh
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gzh/package-lock.json
+      - run: npm ci
+      - name: build
+        run: npm run build
+      - name: migrate
+        if: github.ref == 'refs/heads/staging'
+        run: npx wrangler d1 migrations apply codepi-gzh-staging --env preview --remote
+        env:
+          CI: 'true'
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          out=$(npx wrangler@4 pages deploy dist --project-name=codepi-gzh --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gzh --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gzh-staging.codepi.app)
+          echo "gzh-staging.codepi.app -> $code (sha=$GITHUB_SHA)"
+          test "$code" = 302
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service gzh --target staging --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-gzh-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------- Health API ----------------
+
+  health-api-deploy-production:
+    needs: [governance, affected, health-build, auth-deploy-production, www-deploy-production, gu-deploy-production, gzh-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.health == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: health-api-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: oura
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: oura/pnpm-lock.yaml
+      - run: pnpm i --frozen-lockfile
+      - name: Deploy API before publishing its frontend
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -o pipefail
+          pnpm deploy:api 2>&1 | tee "$RUNNER_TEMP/deploy-api.log"
+          version=$(node ../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check live API contract
+        # Connector discovery and auth must really reach the deployed Worker.
+        # A challenged 403 is a deployment failure, not a warning.
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}"
+          OURA_CHECK_ALT_ORIGIN="https://codepi-health-api.kedoupi.workers.dev"
+          pnpm check:api
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service health-api --target production --sha "$GITHUB_SHA"
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-health-api-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  health-api-deploy-staging:
+    needs: [governance, affected, health-build, auth-deploy-staging, www-deploy-staging, gu-deploy-staging, gzh-deploy-staging, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.health == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: health-api-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: oura
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: oura/pnpm-lock.yaml
+      - run: pnpm i --frozen-lockfile
+      - name: Deploy staging API (controlled path with BUILD_SHA stamp)
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          set -o pipefail
+          node scripts/deploy-api.mjs --env staging 2>&1 | tee "$RUNNER_TEMP/deploy-api.log"
+          version=$(node ../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-api.log")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check staging API contract
+        # Assert the selected staging Worker build and discovery contract before Pages deploy.
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}"
+          OURA_EXPECT_OAUTH_CONFIGURED=false
+          OURA_EXPECT_SSO_ENABLED=true
+          OURA_CHECK_PUBLIC_ORIGIN="https://health-staging.codepi.app"
+          OURA_CHECK_AUTH_ORIGIN="https://auth-staging.codepi.app"
+          node scripts/check-api.mjs https://health-staging.codepi.app
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service health-api --target staging --sha "$GITHUB_SHA"
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-health-api-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------- Health Pages ----------------
+
+  health-pages-deploy-production:
+    needs: [governance, affected, health-build, health-api-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.health == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: health-pages-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: oura
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: oura/pnpm-lock.yaml
+      - run: pnpm i --frozen-lockfile
+      - name: build
+        run: pnpm --filter @oura-kdp/web build
+      - name: publish frontend
+        # Wrangler discovers Pages Functions from process.cwd()/functions, so the
+        # deploy must run in apps/web (where functions/ lives), not workers/api.
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        working-directory: oura/apps/web
+        run: |
+          out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-health --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: check deployment
+        if: github.ref == 'refs/heads/main'
+        run: |
+          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
+          pnpm check:branding
+          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://health.codepi.app/.well-known/oauth-protected-resource)
+          echo "well-known content-type: $ct"
+          case "$ct" in application/json*) ;; *) exit 1;; esac
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service health-pages --target production --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-health-pages-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  health-pages-deploy-staging:
+    needs: [governance, affected, health-build, health-api-deploy-staging, staging-auth-preflight]
+    if: >-
+      ${{!failure() && !cancelled() && needs.staging-auth-preflight.result == 'success'
+        && needs.affected.outputs.health == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/staging')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && github.ref == 'refs/heads/staging'))}}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: health-pages-staging
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: oura
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: oura/pnpm-lock.yaml
+      - run: pnpm i --frozen-lockfile
+      - name: build
+        run: pnpm --filter @oura-kdp/web build
+      - name: publish frontend
+        id: deploy
+        if: github.ref == 'refs/heads/staging'
+        working-directory: oura/apps/web
+        run: |
+          out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          echo "$out"
+          url=$(printf '%s' "$out" | node ../../../scripts/cloudflare/deployment-evidence.mjs pages-url)
+          dep=$(node ../../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-health --url "$url")
+          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/staging'
+        run: |
+          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://health-staging.codepi.app/.well-known/oauth-protected-resource)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://health-staging.codepi.app)
+          echo "health-staging well-known=$ct frontend=$code (sha=$GITHUB_SHA)"
+          case "$ct" in application/json*) ;; *) exit 1;; esac
+          test "$code" = 200
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/staging'
+        run: >-
+          node ../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service health-pages --target staging --sha "$GITHUB_SHA"
+          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-health-pages-staging
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

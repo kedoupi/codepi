@@ -1,0 +1,64 @@
+# Health 前端 Pages 项目 `codepi-health` 的仓库内配置（治理规范第 4/6 节）。
+# production 由 main branch 通过 deploy-platform.yml direct upload；
+# preview 环境 = staging runtime，仅由 staging branch 上传（branch alias）。
+# 密钥禁止写入本文件，只用 `wrangler pages secret put`（值存 Cloudflare secret store）。
+# 需要声明的 secret 名（本文件不含值）：
+#   AUTH_CLIENT_SECRET
+name = "codepi-health"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+
+# Pages Functions（api/*、mcp、oauth、well-known）通过 WORKER service binding
+# 转发到 Health API Worker；AUTH/D1 与 API 保持同环境，避免跨环境引用。
+[[services]]
+binding = "WORKER"
+service = "codepi-health-api"
+
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-health"
+database_id = "2e35deaa-8066-49c1-b19a-afcd8706d58c"
+migrations_dir = "../../migrations"
+
+[vars]
+ENVIRONMENT = "production"
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "oura"
+AUTH_ORIGIN = "https://auth.codepi.app"
+FRONTEND_ORIGIN = "https://health.codepi.app"
+FRONTEND_ORIGINS = "https://health.codepi.app"
+OURA_REDIRECT_URI = "https://health.codepi.app/api/auth/oura/callback"
+ALLOW_DEV_LOGIN = "0"
+
+# Pages preview 环境 = staging runtime（治理规范第 4 节）：独立 staging D1、
+# staging Auth 与 staging Health API；禁止连接生产资源。
+[env.preview]
+
+[[env.preview.services]]
+binding = "WORKER"
+service = "codepi-health-api-staging"
+
+[[env.preview.services]]
+binding = "AUTH"
+service = "codepi-auth-staging"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "codepi-health-staging"
+database_id = "36430305-83df-4af6-961f-64abedca02fe"
+migrations_dir = "../../migrations"
+
+[env.preview.vars]
+ENVIRONMENT = "staging"
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "oura"
+AUTH_ORIGIN = "https://auth-staging.codepi.app"
+FRONTEND_ORIGIN = "https://health-staging.codepi.app"
+FRONTEND_ORIGINS = "https://health-staging.codepi.app"
+OURA_REDIRECT_URI = "https://health-staging.codepi.app/api/auth/oura/callback"
+ALLOW_DEV_LOGIN = "0"

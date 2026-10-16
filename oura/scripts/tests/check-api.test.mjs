@@ -30,21 +30,21 @@ function json(res, status, body) {
 }
 
 /** A healthy Worker: every path the contract probes answers correctly. */
-async function healthyWorker({ sso = false } = {}) {
+async function healthyWorker({ sso = false, oauthConfigured = true, authOrigin = 'https://auth.codepi.app' } = {}) {
   return listen((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     // The script probes each origin in turn; the mock reflects its own origin
     // in discovery documents, exactly like the Worker derives issuer(request).
     const selfOrigin = `http://${req.headers.host}`;
     if (url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured: true, allowDevLogin: false, release: 'test-release', build: process.env.OURA_EXPECT_BUILD || 'local' });
+      return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured, allowDevLogin: false, release: 'test-release', build: process.env.OURA_EXPECT_BUILD || 'local' });
     }
     if (url.pathname === '/api/me') {
-      return json(res, 200, { authenticated: false, ssoEnabled: sso, websiteAccount: null, ouraConnection: null, oauthConfigured: true, allowDevLogin: false, localePref: null, capabilities: { personal: false, weeklyFull: false, compare: false } });
+      return json(res, 200, { authenticated: false, ssoEnabled: sso, websiteAccount: null, ouraConnection: null, oauthConfigured, allowDevLogin: false, localePref: null, capabilities: { personal: false, weeklyFull: false, compare: false } });
     }
     if (sso && url.pathname === '/api/auth/oura/start') return json(res, 401, { error: 'unauthorized' });
     if (sso && url.pathname === '/api/auth/login') {
-      const target = new URL('https://auth.codepi.app/authorize');
+      const target = new URL(`${authOrigin}/authorize`);
       target.search = new URLSearchParams({
         client_id: 'oura', redirect_uri: `${selfOrigin}/api/auth/callback`,
         state: 'test-state', code_challenge: 'test-challenge', code_challenge_method: 'S256',
@@ -86,7 +86,7 @@ function runCheck(origin, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script, origin], {
       env: {
-        ...process.env, OURA_EXPECT_BUILD: '', OURA_CHECK_ALT_ORIGIN: '', OURA_CHECK_EDGE_BLOCK: '',
+        ...process.env, OURA_EXPECT_BUILD: '', OURA_EXPECT_OAUTH_CONFIGURED: '', OURA_EXPECT_SSO_ENABLED: '', OURA_CHECK_ALT_ORIGIN: '', OURA_CHECK_EDGE_BLOCK: '',
         // A contract failure must not turn into a real 60s retry loop in tests.
         OURA_CHECK_HEALTH_TIMEOUT_MS: '200',
         // The mock Worker advertises this hostname as its configured callback,
@@ -119,6 +119,22 @@ test('SSO contract uses central login and rejects unauthenticated provider linki
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, /PASS \/api\/auth\/login: HTTP 302; SSO redirect/);
   assert.match(run.output, /PASS \/api\/auth\/oura\/start: HTTP 401/);
+});
+
+test('staging contract retains SSO, discovery, MCP and anonymous isolation without Oura credentials', async t => {
+  const authOrigin = 'https://auth-staging.codepi.app';
+  const worker = await healthyWorker({ sso: true, oauthConfigured: false, authOrigin });
+  t.after(() => worker.close());
+  const run = await runCheck(worker.origin, {
+    OURA_EXPECT_OAUTH_CONFIGURED: 'false',
+    OURA_EXPECT_SSO_ENABLED: 'true',
+    OURA_CHECK_AUTH_ORIGIN: authOrigin,
+  });
+  assert.equal(run.status, 0, run.output);
+  assert.match(run.output, /PASS \/api\/auth\/login: HTTP 302; SSO redirect/);
+  assert.match(run.output, /PASS \/api\/me/);
+  assert.match(run.output, /PASS \/.well-known\/oauth-protected-resource/);
+  assert.match(run.output, /PASS \/mcp/);
 });
 
 test('strict mode fails when the edge answers instead of the Worker', async t => {
