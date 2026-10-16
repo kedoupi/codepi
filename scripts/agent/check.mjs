@@ -68,7 +68,7 @@ export function makePlan(files) {
       add(['web', ...privateApps]);
       sharedAuth = true;
     } else if (file.startsWith('packages/shared/')) {
-      const staticOnly = ['layouts/', 'components/', 'lib/', 'i18n/']
+      const staticOnly = ['layouts/', 'i18n/']
         .some(prefix => file.startsWith(`packages/shared/${prefix}`))
         || ['packages/shared/products.ts', 'packages/shared/privacy-redirects.js', 'packages/shared/sitemap-filter.js'].includes(file);
       if (staticOnly) add(staticApps);
