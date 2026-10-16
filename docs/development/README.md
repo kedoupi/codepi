@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 个人语言、协作与授权偏好 | 用户级 AGENTS / 工具配置 | 不复制到每个项目 skill |
 | 产品范围、现有技术栈、共享契约 | [根 AGENTS.md](../../AGENTS.md) | 四个产品：首页、GU、GZH、Health；auth/shared 是支撑层 |
-| 应用内部约束 | [Auth](../../auth/AGENTS.md)、[GU](../../gu/AGENTS.md)、[GZH](../../gzh/AGENTS.md)、[Health](../../oura/AGENTS.md)、[shared](../../shared/AGENTS.md) | 改对应目录前读取；实现、调用方与测试也要核对 |
+| 应用内部约束 | [Auth](../../services/auth/AGENTS.md)、[GU](../../apps/gu/AGENTS.md)、[GZH](../../apps/gzh/AGENTS.md)、[Health](../../apps/oura/AGENTS.md)、[shared](../../packages/shared/AGENTS.md) | 改对应目录前读取；实现、调用方与测试也要核对 |
 | 开发、验证、协作与交接 | [Agent 开发工作流](agent-workflow.md) | 小任务不强制建计划，多任务明确文件所有权 |
 | 分支核对、集成、发布与退役 | [集成与发布工作流](integration-release.md) | 先核实事实，再执行已授权的变更 |
 | Cloudflare 平台约束 | [CF 治理规范](cloudflare-governance.md) | 命名、环境、密钥、发布门禁与退役条件 |
@@ -34,7 +34,7 @@
 - worktree 消失、分支删除或 Git 历史里出现相似标题，不代表内容已合并；按集成工作流检查 ancestry、补丁与当前行为。
 - 本地 main 不一定等于远程 main；云端报告的 commit 也不一定对应干净源码。不要只用一句“都是最新的”交付。
 - YAML、Wrangler 配置或密钥名称存在，不代表远程审批、绑定、密钥值及运行时已验收。不得在记录中存储凭证或私人业务数据。
-- 历史任务与设计计划保留为决策依据，不覆盖当前产品边界。`apps/`、`packages/`、根 workspace 等目标结构在明确批准并实施前仍是提案，不作为当前目录规则。
+- 历史任务与设计计划保留为决策依据，不覆盖当前产品边界。`apps/`、`services/`、`packages/` 与根 pnpm workspace 已实施，当前架构见 [工程架构与部署模型](../architecture/workspace-and-deployment.md)；目标技术栈仍按应用逐步迁移。
 
 ## 以后如何更新
 

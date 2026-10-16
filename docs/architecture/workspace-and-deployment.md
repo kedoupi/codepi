@@ -35,8 +35,10 @@ kdp.cool/
 4. **交叉测试依赖 hack**。Web 的 Desk 集成测试需要安装 Auth、GU、GZH、Health
    的依赖，在 CI 里用 `npm --prefix ../auth ci` 等命令逐个安装，维护成本高。
 
-统一后：根目录一次 `pnpm install` 安装所有依赖，lockfile 只有一个，
-跨应用引用通过 pnpm workspace 的 node_modules 链接自动解析。
+统一后：根目录一次 `pnpm install --frozen-lockfile` 安装所有依赖，lockfile 只有一个。
+当前共享源码仍通过相对路径或 Vite alias 引入；`packages/shared` 成为 workspace
+成员不等于已经建立包级 exports 和依赖声明。后续提取公共 API 时再迁移这些引用，
+不能仅靠移动目录解决模块边界。同一依赖的版本范围也仍由各 package.json 声明。
 
 ### 共享原则
 
@@ -51,6 +53,8 @@ kdp.cool/
 
 - `main` 是唯一长期分支。功能在短期任务分支开发，通过 PR 合入。
 - 合入 `main` 后 GitHub Actions 自动发布受影响的应用。
+- 整条生产发布串行执行；每次 main 更新都会触发检查，按最近成功发布之后所有提交触及的
+  路径决定应用范围，覆盖连续合并和失败后的回退。仅文档且无积压改动时不部署应用。
 - 不要求每次发布前经过 staging 验收。
 
 ### 环境
@@ -60,14 +64,18 @@ kdp.cool/
 | 本地 | 开发、调试、测试 | 本地 D1 / remote bindings 连远程 D1 |
 | 生产 | 日常使用 | 生产 D1 |
 
-业务数据不做环境隔离。所有数据是个人测试数据，可重建。
-Cloudflare remote bindings 允许本地代码直接连接远程 D1。
+业务数据不要求按环境隔离。所有数据是个人测试数据，可重建。
+当前本地配置默认使用 Wrangler 本地 D1；共享远程业务数据是允许的联调方式，
+不是已有配置自动实现的行为。需要时单独配置所用运行方式支持的 remote binding，
+明确目标数据库，并将 schema migration 和批量写入集中安排。自动测试仍用本地合成数据。
 
 ### staging 的定位
 
-staging 资源（wrangler named environment、staging D1、staging secrets）保留，
-但不自动部署，也不是发布的必经路径。仅在需要云端联调（统一登录改造、
-MCP 客户端连接、跨应用调用验证）时按需使用。
+staging 资源（wrangler named environment、staging D1、staging secrets）作为旧配置保留，
+目前未接入发布 workflow，也不是发布的必经路径。保留资源不代表 staging 已可用。
+需要云端联调（统一登录改造、MCP 客户端连接、跨应用调用验证）时再落实临时发布入口、
+域名与认证配置；不创建长期 staging Git 分支。旧 preview 数据库继续隔离以避免意外写入，
+不代表日常流程要求维护第二套业务数据。
 
 ### 故障处理
 
@@ -92,6 +100,9 @@ MCP 客户端连接、跨应用调用验证）时按需使用。
 - 审查重点：功能边界、跨应用影响、验证缺口。
 - 合并条件：所有审查无阻塞问题 + 用户确认。
 - 合并后自动发布，不需要额外审批。
+- GitHub 平台强制规则需要独立核验。2026-10-16 rulesets API 返回私有仓库套餐限制，
+  本地 GitHub CLI 凭证也已失效；当前不能声称 PR、审批或禁止直推已由平台强制执行。
+  不为启用规则将仓库改为公开。仓库内检查与人工合并约定仍照常执行。
 
 ### 并行开发注意事项
 

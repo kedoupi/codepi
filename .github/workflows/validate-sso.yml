@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
     paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
       - 'services/auth/**'
       - 'apps/gu/**'
       - 'packages/shared/auth/**'
@@ -13,6 +17,10 @@ on:
       - '.github/workflows/validate-sso.yml'
   pull_request:
     paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
       - 'services/auth/**'
       - 'apps/gu/**'
       - 'packages/shared/auth/**'
@@ -38,15 +46,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install dependencies
-        working-directory: $GITHUB_WORKSPACE
+        working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run test:scripts
