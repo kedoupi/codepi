@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { parseWranglerConfig, readWranglerConfig, withBuildSha } from '../lib/wrangler-config.mjs';
+import { parseWranglerConfig, parseWranglerEnvConfig, readWranglerConfig } from '../lib/wrangler-config.mjs';
 
 const config = `name = "test-worker"
 main = "src/index.ts"
@@ -63,26 +63,27 @@ test('preflight tolerates comments and multiline schedules without selecting env
   assert.deepEqual(parseWranglerConfig(text).crons, ['*/2 * * * *']);
 });
 
-test('build stamping preserves SSO flags, AUTH service binding and other environments', () => {
-  const settings = `[vars]
-SSO_ENABLED = "1"
-AUTH_CLIENT_ID = "oura"
-AUTH_ORIGIN = "https://auth.codepi.app"
-BUILD_SHA = "abcdef0"
-[[services]]
-binding = "AUTH"
-service = "test-auth"
-[env.preview.vars]
-SSO_ENABLED = "0"
-BUILD_SHA = "1111111"
+test('staging environment parsing remains isolated from production', () => {
+  const staging = `[env.staging]
+name = "test-worker-staging"
+[env.staging.triggers]
+crons = ["0 1 * * *"]
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "test-db-staging"
 `;
-  const stamped = withBuildSha(config + settings, '5cedbe5123456');
-  assert.equal(stamped, (config + settings).replace('BUILD_SHA = "abcdef0"', 'BUILD_SHA = "5cedbe5123456"'));
-  assert.deepEqual(parseWranglerConfig(stamped), parseWranglerConfig(config));
-  const withoutSha = settings.replace('BUILD_SHA = "abcdef0"\n', '');
-  assert.ok(withBuildSha(config + withoutSha, '5cedbe5').includes('SSO_ENABLED = "1"'));
-  assert.ok(withBuildSha(config + withoutSha, '5cedbe5').includes('binding = "AUTH"\nservice = "test-auth"'));
-  assert.throws(() => withBuildSha(config, 'bad"sha'), /commit SHA/);
+  const text = config + staging;
+  // 只解析所选环境，绝不回落到生产声明。
+  assert.deepEqual(parseWranglerEnvConfig(text, 'staging'), {
+    name: 'test-worker-staging', databaseName: 'test-db-staging', crons: ['0 1 * * *'],
+  });
+  assert.equal(parseWranglerConfig(text).name, 'test-worker');
+  assert.equal(parseWranglerConfig(text).databaseName, 'test-db');
+  assert.throws(() => parseWranglerEnvConfig(text, 'preview'));
+  assert.throws(() => parseWranglerEnvConfig(config, 'staging'));
+  assert.throws(() => parseWranglerEnvConfig(text.replace('name = "test-worker-staging"', ''), 'staging'));
+  assert.throws(() => parseWranglerEnvConfig(text.replace('database_name = "test-db-staging"', ''), 'staging'));
+  assert.throws(() => parseWranglerEnvConfig(text.replace('crons = ["0 1 * * *"]', ''), 'staging'));
 });
 
 async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false } = {}) {

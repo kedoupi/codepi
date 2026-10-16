@@ -14,12 +14,16 @@ function requireCheck(condition, message) {
 export function validateConfig(config) {
   const production = config.d1_databases?.find(db => db.binding === "DB");
   const preview = config.env?.preview?.d1_databases?.find(db => db.binding === "DB");
+  const productionAuth = config.services?.find(service => service.binding === "AUTH");
+  const previewAuth = config.env?.preview?.services?.find(service => service.binding === "AUTH");
   requireCheck(config.name === "codepi-gu" && config.pages_build_output_dir, "GU Pages project/output configuration is missing.");
-  requireCheck(config.vars?.ENVIRONMENT === "production" && config.env?.preview?.vars?.ENVIRONMENT === "preview",
-    "Production and preview environment markers must be explicit.");
+  // Pages preview 环境 = staging runtime（治理规范第 4 节）：preview 必须声明
+  // ENVIRONMENT="staging"，且只允许连接 *-staging 资源。
+  requireCheck(config.vars?.ENVIRONMENT === "production" && config.env?.preview?.vars?.ENVIRONMENT === "staging",
+    "Production and preview environment markers must be explicit (production/production, preview/staging).");
   requireCheck(config.vars?.SSO_ENABLED === "1" && config.vars?.AUTH_CLIENT_ID === "gu"
     && config.vars?.AUTH_ORIGIN === "https://auth.codepi.app"
-    && config.services?.some(service => service.binding === "AUTH" && service.service === "codepi-auth"),
+    && productionAuth?.service === "codepi-auth",
     "Production must preserve the GU SSO configuration and AUTH service binding.");
   for (const db of [production, preview]) {
     requireCheck(db?.database_name && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(db.database_id)
@@ -28,6 +32,13 @@ export function validateConfig(config) {
   }
   requireCheck(production.database_id.toLowerCase() !== preview.database_id.toLowerCase()
     && production.database_name !== preview.database_name, "Production and preview D1 databases must be separate.");
+  // staging 契约：preview 绑定 staging Auth 与 staging 域名，禁止回落到生产 Auth。
+  requireCheck(previewAuth?.service === "codepi-auth-staging",
+    "Preview/staging Pages must bind the codepi-auth-staging AUTH service; binding production codepi-auth is a cross-environment violation.");
+  requireCheck(config.env?.preview?.vars?.AUTH_ORIGIN === "https://auth-staging.codepi.app",
+    "Preview/staging AUTH_ORIGIN must be https://auth-staging.codepi.app.");
+  requireCheck(preview.database_name.endsWith("-staging"),
+    "Preview/staging D1 database_name must carry the -staging suffix.");
 }
 
 export async function checkConfig() {

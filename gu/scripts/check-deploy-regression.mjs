@@ -17,8 +17,8 @@ const js = 'console.log("public build fixture")';
 const css = 'body { color: #0f172a; }';
 await Promise.all([writeFile(path.join(dir, 'index.html'), index), writeFile(path.join(dir, 'assets/index-fixture.js'), js), writeFile(path.join(dir, 'assets/index-fixture.css'), css)]);
 const prod = { binding: 'DB', database_name: 'production-fixture', database_id: '11111111-1111-4111-8111-111111111111' };
-const prev = { binding: 'DB', database_name: 'preview-fixture', database_id: '22222222-2222-4222-8222-222222222222' };
-const config = () => ({ name: 'codepi-gu', pages_build_output_dir: './dist', vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }], env: { preview: { vars: { ENVIRONMENT: 'preview' }, d1_databases: [{ ...prev }] } } });
+const prev = { binding: 'DB', database_name: 'codepi-gu-staging', database_id: '22222222-2222-4222-8222-222222222222' };
+const config = () => ({ name: 'codepi-gu', pages_build_output_dir: './dist', vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }], env: { preview: { vars: { ENVIRONMENT: 'staging', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth-staging.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth-staging' }], d1_databases: [{ ...prev }] } } });
 const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
 const routes = () => ({ '/api/health': () => json({ ok: true, sso_enabled: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401), '/api/calendar': () => json({ error: 'Login required' }, 401) });
 function fetcher(overrides = {}) {
@@ -47,6 +47,11 @@ for (const [name, mutate] of [
   ['malformed ID', c => { c.d1_databases[0].database_id = 'invalid'; }],
   ['disabled SSO', c => { c.vars.SSO_ENABLED = '0'; }],
   ['missing AUTH service', c => { c.services = []; }],
+  ['preview marker not staging', c => { c.env.preview.vars.ENVIRONMENT = 'preview'; }],
+  ['staging bound to production Auth', c => { c.env.preview.services[0].service = 'codepi-auth'; }],
+  ['missing staging AUTH service', c => { c.env.preview.services = []; }],
+  ['staging AUTH_ORIGIN not staging host', c => { c.env.preview.vars.AUTH_ORIGIN = 'https://auth.codepi.app'; }],
+  ['staging D1 missing -staging suffix', c => { c.env.preview.d1_databases[0].database_name = 'preview-fixture'; }],
 ]) test(`configuration rejects ${name}`, () => { const c = config(); mutate(c); assert.throws(() => validateConfig(c)); });
 test('origin accepts HTTPS and loopback HTTP', () => { assert.equal(deploymentOrigin('https://gu.example/'), 'https://gu.example'); assert.equal(deploymentOrigin('http://127.0.0.1:8787'), 'http://127.0.0.1:8787'); });
 for (const url of ['http://gu.example', 'https://user:value@gu.example', 'https://:value@gu.example', 'https://gu.example/path', 'https://gu.example/?query=value', 'https://gu.example/#fragment', undefined]) test(`origin rejects unsafe shape ${String(url).replace(/\/\/.*@/, '//[credentials]@')}`, () => assert.throws(() => deploymentOrigin(url)));

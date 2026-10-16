@@ -43,7 +43,7 @@ service = "codepi-auth-staging"
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "codepi-gzh-staging"
-database_id = "5162cf66-7bf8-4ba9-9758-5c546e13582f"
+database_id = "1a57d7d8-6d16-4f16-b9f6-b78f78b714ab"
 migrations_dir = "migrations"
 
 [env.preview.vars]

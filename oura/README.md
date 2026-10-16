@@ -160,10 +160,13 @@ pnpm --filter @oura-kdp/web build
 ### API 路由与登录检查
 
 Pages 只托管前端。`health.codepi.app/api/*` 必须通过同一 Cloudflare zone 的
-Worker Route 指向 `oura-kdp-api`；API 路由、生产回调地址和关闭 DEV 登录的变量
-已声明在 `workers/api/wrangler.toml`。前端与 API Worker 分别发布；
-`.github/workflows/deploy-product-apps.yml` 现在先测试、检查类型并构建，
-再发布 API，通过线上契约检查后才发布前端，最后再检查一次。
+Worker Route 指向 `codepi-health-api`；API 路由、生产回调地址和关闭 DEV 登录的变量
+已声明在 `workers/api/wrangler.toml`；Health Pages 的运行配置在
+`apps/web/wrangler.toml`（Pages Functions 通过 `WORKER` service binding 连接 API）。
+前端与 API Worker 分别发布；
+`.github/workflows/deploy-platform.yml` 是唯一发布入口：先测试、检查类型并构建，
+再发布 API，通过线上契约检查后才发布前端，最后再检查一次；每次部署记录
+deployment-evidence artifact（service/target/SHA/provider 标识/smoke，无 secret）。
 PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitHub 生效。
 
 已有路由下发布 API：`pnpm deploy:api`。脚本上传新版本并将该版本切到 100% 流量，
