@@ -11,6 +11,7 @@
     "./auth/schema.sql": "./auth/schema.sql",
     "./desk/contract": "./desk/contract.ts",
     "./email/otp": "./email/otp.ts",
+    "./i18n/config.js": "./i18n/config.js",
     "./styles/tokens.css": "./styles/tokens.css",
     "./styles/site.css": "./styles/site.css",
     "./layouts/BaseLayout.astro": "./layouts/BaseLayout.astro",
