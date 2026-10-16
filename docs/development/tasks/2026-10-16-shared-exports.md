@@ -46,3 +46,14 @@
 - 新增共享文件需同步登记 exports（兜底期内不强制，收紧后强制）。
 - 后续：逐步移除 `./*` 兜底转为严格白名单；本次不动 `check.mjs` 的路径前缀映射
   （它按文件路径而非依赖图，未受影响）。
+
+## 2026-10-16 合并、发布与线上验证
+
+- 独立 reviewer（Faraday）放行：无阻塞；采纳其建议把 `i18n/config.js` 补为显式映射（`d87a801`）。
+- CI 两 workflow 成功；squash 合并为 `65b86d6`。
+- main 发布链上线（UTC 2026-10-16 15:5x）：www `fb8b64a4`、gu `e5bf66bb`、gzh `8d2618b3`、
+  health-api `c74fbb93`、auth `69443944`（commit 均 `65b86d6e9`；health pages 无 web 改动未重发）。
+- 线上验证全部通过：`check-pages.mjs web/gu/gzh` 三项通过；`check-api.mjs`
+  `OURA_EXPECT_BUILD=65b86d6e9f54` 16 项通过，`/api/health` 报 `build=65b86d6e9f54`；
+  四域名 200/302/302/200，auth `/api/health` 200 mail=true。
+- 结论：消费统一为包名导入后线上行为与基线一致，exports 边界生效，无回归。
