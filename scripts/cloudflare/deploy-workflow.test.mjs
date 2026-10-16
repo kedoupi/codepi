@@ -14,3 +14,12 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.match(beforeTests, /uses: pnpm\/action-setup@v4/);
   assert.match(beforeTests, /pnpm --dir \.\.\/oura install --frozen-lockfile/);
 });
+
+test('Pages deployment smoke includes private endpoints and SSO, not just homepage status', async () => {
+  const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
+  for (const app of ['web', 'gu', 'gzh']) for (const target of ['production', 'staging']) {
+    const name = app === 'web' ? 'www' : app;
+    const job = workflow.split(`\n  ${name}-deploy-${target}:`)[1]?.split(/\n  [a-z][a-z-]+:/)[0];
+    assert.ok(job?.includes(`node ../scripts/cloudflare/check-pages.mjs ${app} ${target}`));
+  }
+});
