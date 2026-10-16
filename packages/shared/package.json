@@ -16,7 +16,6 @@
     "./styles/site.css": "./styles/site.css",
     "./layouts/BaseLayout.astro": "./layouts/BaseLayout.astro",
     "./privacy-redirects.js": "./privacy-redirects.js",
-    "./sitemap-filter.js": "./sitemap-filter.js",
-    "./*": "./*"
+    "./sitemap-filter.js": "./sitemap-filter.js"
   }
 }

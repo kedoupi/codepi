@@ -41,7 +41,7 @@ test('single static app stays isolated; retired paths validate remaining consume
 });
 
 test('static shared code covers the remaining homepage', () => {
-  const plan = makePlan(['packages/shared/lib/url-state.js', 'packages/shared/layouts/BaseLayout.astro']);
+  const plan = makePlan(['packages/shared/i18n/config.js', 'packages/shared/layouts/BaseLayout.astro']);
   assert.deepEqual(plan.apps, staticApps);
   assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 1);
 });

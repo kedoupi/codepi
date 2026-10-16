@@ -36,9 +36,10 @@ kdp.cool/
    的依赖，在 CI 里用 `npm --prefix ../auth ci` 等命令逐个安装，维护成本高。
 
 统一后：根目录一次 `pnpm install --frozen-lockfile` 安装所有依赖，lockfile 只有一个。
-当前共享源码仍通过相对路径或 Vite alias 引入；`packages/shared` 成为 workspace
-成员不等于已经建立包级 exports 和依赖声明。后续提取公共 API 时再迁移这些引用，
-不能仅靠移动目录解决模块边界。同一依赖的版本范围也仍由各 package.json 声明。
+共享源码已统一通过 `@kedoupi/shared/<subpath>` 导入，各消费包声明
+`@kedoupi/shared: workspace:*`。共享包使用严格 `exports` 白名单，没有 `./*` 兜底；
+新增公共模块需要显式登记。schema 读取、Tailwind content 扫描等文件系统路径不属于
+模块导入，仍使用文件路径。同一依赖的版本范围仍由各 package.json 声明。
 
 ### 共享原则
 
@@ -112,14 +113,14 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 
 ## 技术栈方向
 
-当前状态（2026-10-16）：
+当前状态（2026-10-17）：
 
 | 应用 | 前端 | 服务端 | 包管理 |
 |---|---|---|---|
 | web | Astro 6 + Tailwind v3 | Pages Functions (desk) | pnpm workspace |
 | gu | Vite（vanilla TS） | Bundled Worker | pnpm workspace |
 | gzh | Vite（vanilla TS） | Hono Worker | pnpm workspace |
-| oura | Svelte 5 | Hono Workers API | pnpm workspace |
+| oura | Svelte 5 + Vite | Worker API（自有路由） | pnpm workspace |
 | auth | — | Worker (TS) | pnpm workspace |
 
 目标方向（逐步迁移，不强制时间表）：

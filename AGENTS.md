@@ -35,14 +35,14 @@ kdp.cool/
 ├── services/
 │   └── auth/  → shared login Worker
 ├── packages/
-│   └── shared/ → BaseLayout, styles/tokens.css, products.ts, charts.js, url-state.js, desk contract
+│   └── shared/ → layouts, styles, products, auth client, email templates, desk contract
 ├── scripts/   → agent checks and Cloudflare governance
 └── docs/      → architecture and development documentation
 ```
 
-All packages are managed by a single pnpm workspace (`pnpm-workspace.yaml` at the root). Install once from the repository root with `pnpm install`; each app retains its own `package.json` and scripts. `apps/web/` is the only Astro site; it connects to `packages/shared/` through the `astro.config.mjs` Vite aliases (`@shared` → `../../packages/shared`, `@site` → `./src`).
+All packages are managed by a single pnpm workspace (`pnpm-workspace.yaml` at the root). Install once from the repository root with `pnpm install`; each app retains its own `package.json` and scripts. `apps/web/` is the only Astro site; shared source is imported as `@kedoupi/shared/<subpath>`, while its `astro.config.mjs` Vite alias `@site` points to `./src`.
 
-`packages/shared/` has a minimal `package.json` marking it as a workspace member. Its source files are consumed by the homepage build and by the private app bundles. `packages/shared/auth/client.test.mjs` runs against the Health workspace dependencies.
+`packages/shared/` is a private workspace package with an explicit `exports` allowlist. Add public subpaths to that list when introducing shared APIs; unlisted module imports are rejected. Its source files are consumed by the homepage build and by the private app bundles. `packages/shared/auth/client.test.mjs` runs against the Health workspace dependencies.
 
 The homepage brand identity lives in `apps/web/src/site.config.js` exporting `siteName`, `tagline`, `footerNote`, `navLinks`, `applicationCategory`, `personalSite`. `BaseLayout.astro` reads it via `@site/site.config.js` and the Astro-injected `import.meta.env.SITE` from `apps/web/astro.config.mjs`.
 
