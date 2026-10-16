@@ -40,6 +40,11 @@ the release workflow. Keep the value out of logs and files. Existing sessions fo
 that app need a fresh login because their stored references use the old key.
 This does not rotate the center session, OTP, provider or MCP credentials.
 
+Health is the exception: its SSO logic and `AUTH_CLIENT_SECRET` are consumed by
+the `codepi-health-api` Worker, while the Pages project only forwards requests.
+To rotate `oura`, update the API Worker's binding instead of the Pages project
+and redeploy through the release workflow with `app=health`.
+
 Applications bind `AUTH` to this Worker and configure their own `AUTH_CLIENT_ID`,
 `AUTH_CLIENT_SECRET`, `AUTH_ORIGIN` and `SSO_ENABLED`.
 
