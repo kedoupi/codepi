@@ -71,7 +71,7 @@ jobs:
         run: |
           echo "::error::workflow_dispatch target=${{ inputs.target }} is not allowed on ref ${{ github.ref }} (production requires refs/heads/main, staging requires refs/heads/staging)"
           exit 1
-      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs scripts/cloudflare/deploy-workflow.test.mjs
+      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs scripts/cloudflare/deploy-workflow.test.mjs scripts/cloudflare/check-pages.test.mjs
       - run: node scripts/cloudflare/validate-governance.mjs
 
   affected:
@@ -496,10 +496,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://codepi.app)
-          echo "codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 200
+        run: node ../scripts/cloudflare/check-pages.mjs web production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
@@ -560,10 +557,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://staging.codepi.app)
-          echo "staging.codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 200
+        run: node ../scripts/cloudflare/check-pages.mjs web staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
@@ -625,10 +619,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gu.codepi.app)
-          echo "gu.codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 302
+        run: node ../scripts/cloudflare/check-pages.mjs gu production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
@@ -689,10 +680,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gu-staging.codepi.app)
-          echo "gu-staging.codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 302
+        run: node ../scripts/cloudflare/check-pages.mjs gu staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-
@@ -754,10 +742,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gzh.codepi.app)
-          echo "gzh.codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 302
+        run: node ../scripts/cloudflare/check-pages.mjs gzh production
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
@@ -818,10 +803,7 @@ jobs:
           echo "deployment=$dep" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/staging'
-        run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://gzh-staging.codepi.app)
-          echo "gzh-staging.codepi.app -> $code (sha=$GITHUB_SHA)"
-          test "$code" = 302
+        run: node ../scripts/cloudflare/check-pages.mjs gzh staging
       - name: record deployment evidence
         if: github.ref == 'refs/heads/staging'
         run: >-

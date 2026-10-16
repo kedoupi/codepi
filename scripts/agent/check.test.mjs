@@ -74,7 +74,7 @@ test('GU deployment check is explicitly local configuration only', () => {
 
 test('Cloudflare configs, governance scripts and docs select the static governance gate', () => {
   const expected = [
-    { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs'] },
+    { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs', 'scripts/cloudflare/deploy-workflow.test.mjs', 'scripts/cloudflare/check-pages.test.mjs'] },
     { cwd: '.', argv: ['node', 'scripts/cloudflare/validate-governance.mjs'] },
   ];
   for (const file of ['web/wrangler.toml', 'gu/wrangler.toml', 'gzh/wrangler.toml',

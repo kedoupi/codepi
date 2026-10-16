@@ -77,7 +77,7 @@ export function makePlan(files) {
   const check = (cwd, ...argv) => checks.push({ cwd, argv });
   if (cfGovernance) {
     // 只读仓库文件的静态守门；绝不访问 Cloudflare 或远程数据库。
-    check('.', 'node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs');
+    check('.', 'node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs', 'scripts/cloudflare/deploy-workflow.test.mjs', 'scripts/cloudflare/check-pages.test.mjs');
     check('.', 'node', 'scripts/cloudflare/validate-governance.mjs');
   }
   if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
