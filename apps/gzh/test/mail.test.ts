@@ -1,4 +1,4 @@
-import { PRODUCT_BRAND } from "../../../packages/shared/brand";
+import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { buildOtpHtml, buildOtpText, createMailer } from "../worker/mail";
 

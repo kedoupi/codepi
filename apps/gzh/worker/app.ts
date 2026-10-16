@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { handleLogout, handleRequestOtp, handleVerifyOtp, mePayload, requireAccount } from "./auth";
-import { ssoEnabled, ssoErrorResponse } from "../../../packages/shared/auth/client";
+import { ssoEnabled, ssoErrorResponse } from "@kedoupi/shared/auth/client";
 import {
   handleBoard,
   handleBoxed,

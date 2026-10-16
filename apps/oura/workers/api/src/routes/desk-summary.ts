@@ -1,4 +1,4 @@
-import { authorizeSummary, calendarDay, deskJson, emptySummary, finite, shiftDay, type DeskSummary } from "../../../../../../packages/shared/desk/contract";
+import { authorizeSummary, calendarDay, deskJson, emptySummary, finite, shiftDay, type DeskSummary } from "@kedoupi/shared/desk/contract";
 import type { Env } from "../env";
 import type { NestedDay } from "../lib/daily";
 

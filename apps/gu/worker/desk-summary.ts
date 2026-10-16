@@ -1,4 +1,4 @@
-import { authorizeSummary, deskJson, emptySummary, finite, type DeskSummary } from "../../../packages/shared/desk/contract";
+import { authorizeSummary, deskJson, emptySummary, finite, type DeskSummary } from "@kedoupi/shared/desk/contract";
 import type { Dashboard, Env } from "./types";
 
 export async function handleDeskSummary(request: Request, env: Env): Promise<Response> {

@@ -1,5 +1,5 @@
 import { loginPage } from "./ui";
-import { brandedSender, buildOtpEmail } from "../../../packages/shared/email/otp";
+import { brandedSender, buildOtpEmail } from "@kedoupi/shared/email/otp";
 
 interface Env {
   DB: D1Database;

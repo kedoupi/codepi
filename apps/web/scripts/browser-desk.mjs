@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { launchBrowser } from '../../oura/scripts/browser-cdp.mjs';
 import { deskFixture } from '../test/runtime.mjs';
-import { calendarDay, shiftDay } from '../../../packages/shared/desk/contract.ts';
+import { calendarDay, shiftDay } from '@kedoupi/shared/desk/contract';
 
 const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
 await mkdir(artifacts, { recursive: true });

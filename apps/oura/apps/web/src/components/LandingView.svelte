@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t, type Locale, type LocalePref } from "../lib/i18n";
   import { errorText, RequestError } from "../lib/api";
-  import { PRODUCT_BRAND } from "../../../../../../packages/shared/brand";
+  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import ProductBrand from "./ProductBrand.svelte";
 
   let { allowDevLogin = false, ssoEnabled = false, error, locale, localePref, onLocalePref }: {

@@ -6,9 +6,7 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": { "@shared/*": ["../../packages/shared/*"] }
+    "skipLibCheck": true
   },
   "include": ["src/scripts/desk.ts"]
 }

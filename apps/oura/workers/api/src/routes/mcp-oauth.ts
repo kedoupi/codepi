@@ -7,7 +7,7 @@
  * logged-in site user, so only the account owner can authorize a connector.
  */
 import type { Env } from "../env";
-import tokens from "../../../../../../packages/shared/styles/tokens.css";
+import tokens from "@kedoupi/shared/styles/tokens.css";
 import { jsonError, resolveSessionSecret } from "../lib/config";
 import { ssoEnabled } from "../lib/sso";
 import { readSessionFromRequest } from "../lib/session";

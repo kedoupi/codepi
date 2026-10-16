@@ -10,6 +10,7 @@
     "typecheck": "svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
+    "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "svelte": "^5.38.6",
     "svelte-check": "^4.3.1",

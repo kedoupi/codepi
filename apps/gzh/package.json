@@ -24,6 +24,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
     "@cloudflare/workers-types": "latest",
+    "@kedoupi/shared": "workspace:*",
     "esbuild": "^0.25.9",
     "typescript": "^5.9.2",
     "vite": "^7.1.5",
