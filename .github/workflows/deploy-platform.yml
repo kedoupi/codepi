@@ -1041,7 +1041,7 @@ jobs:
         # deploy must run in apps/web (where functions/ lives), not workers/api.
         id: deploy
         if: github.ref == 'refs/heads/main'
-        working-directory: oura/apps/web
+        working-directory: apps/oura/apps/web
         run: |
           out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
@@ -1108,7 +1108,7 @@ jobs:
       - name: publish frontend
         id: deploy
         if: github.ref == 'refs/heads/staging'
-        working-directory: oura/apps/web
+        working-directory: apps/oura/apps/web
         run: |
           out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=staging --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
