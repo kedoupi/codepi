@@ -3,7 +3,18 @@ import { test } from 'node:test';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CdpConnection, CdpPage, parseLocator } from '../browser-cdp.mjs';
+import { CdpConnection, CdpPage, parseLocator, removeBrowserProfile } from '../browser-cdp.mjs';
+
+test('Chrome profile cleanup retries transient filesystem races without swallowing persistent errors', async () => {
+  const calls = [];
+  await removeBrowserProfile('/synthetic/profile', async (...args) => calls.push(args));
+  assert.deepEqual(calls, [['/synthetic/profile', {
+    recursive: true, force: true, maxRetries: 10, retryDelay: 100,
+  }]]);
+  const failure = Object.assign(new Error('still busy'), { code: 'ENOTEMPTY' });
+  await assert.rejects(removeBrowserProfile('/synthetic/profile', async () => { throw failure; }),
+    error => error === failure);
+});
 
 class Socket extends EventTarget {
   sent = [];

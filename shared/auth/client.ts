@@ -39,6 +39,13 @@ export function ssoEnabled(env: SsoEnv): boolean {
 function config(env: SsoEnv): Config {
   if (!env.AUTH || !env.AUTH_ORIGIN || !env.AUTH_CLIENT_SECRET
     || !["gu", "oura", "gzh", "desk"].includes(env.AUTH_CLIENT_ID ?? "")) {
+    // Names only: diagnose missing runtime bindings without exposing credential values.
+    console.error("sso_configuration_error", JSON.stringify({ missing: [
+      ...(!env.AUTH ? ["AUTH"] : []),
+      ...(!env.AUTH_ORIGIN ? ["AUTH_ORIGIN"] : []),
+      ...(!env.AUTH_CLIENT_SECRET ? ["AUTH_CLIENT_SECRET"] : []),
+      ...(!["gu", "oura", "gzh", "desk"].includes(env.AUTH_CLIENT_ID ?? "") ? ["AUTH_CLIENT_ID"] : []),
+    ] }));
     throw new SsoError("auth_not_configured", 503);
   }
   let origin: URL;

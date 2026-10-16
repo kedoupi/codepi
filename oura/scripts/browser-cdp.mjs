@@ -208,6 +208,11 @@ export async function stopChild(child) {
   });
 }
 
+export async function removeBrowserProfile(profile, remove = rm) {
+  // Chrome subprocesses can finish writing after the parent exits.
+  await remove(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
 export async function launchBrowser(artifactDir) {
   await mkdir(artifactDir, { recursive: true });
   const candidates = [
@@ -236,7 +241,7 @@ export async function launchBrowser(artifactDir) {
     connection?.close();
     await stopChild(child);
     await writeFile(join(artifactDir, 'chrome.log'), chromeLog);
-    await rm(profile, { recursive: true, force: true });
+    await removeBrowserProfile(profile);
   };
   try {
     const deadline = Date.now() + 15000;

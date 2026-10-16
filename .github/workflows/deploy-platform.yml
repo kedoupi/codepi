@@ -71,7 +71,7 @@ jobs:
         run: |
           echo "::error::workflow_dispatch target=${{ inputs.target }} is not allowed on ref ${{ github.ref }} (production requires refs/heads/main, staging requires refs/heads/staging)"
           exit 1
-      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs
+      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs scripts/cloudflare/deploy-workflow.test.mjs
       - run: node scripts/cloudflare/validate-governance.mjs
 
   affected:
@@ -227,6 +227,15 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Install Desk integration fixture dependencies
+        run: |
+          npm --prefix ../auth ci
+          npm --prefix ../gu ci
+          npm --prefix ../gzh ci
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - run: pnpm --dir ../oura install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck:desk
       - run: npm run build:pages
