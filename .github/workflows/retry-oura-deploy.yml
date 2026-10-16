@@ -26,4 +26,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: node oura/scripts/retry-quota-deploy.mjs
+        run: node apps/oura/scripts/retry-quota-deploy.mjs

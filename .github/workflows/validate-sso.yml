@@ -4,21 +4,21 @@ on:
   push:
     branches: [main]
     paths:
-      - 'auth/**'
-      - 'gu/**'
-      - 'shared/auth/**'
-      - 'shared/styles/**'
-      - 'shared/email/**'
-      - 'shared/brand.ts'
+      - 'services/auth/**'
+      - 'apps/gu/**'
+      - 'packages/shared/auth/**'
+      - 'packages/shared/styles/**'
+      - 'packages/shared/email/**'
+      - 'packages/shared/brand.ts'
       - '.github/workflows/validate-sso.yml'
   pull_request:
     paths:
-      - 'auth/**'
-      - 'gu/**'
-      - 'shared/auth/**'
-      - 'shared/styles/**'
-      - 'shared/email/**'
-      - 'shared/brand.ts'
+      - 'services/auth/**'
+      - 'apps/gu/**'
+      - 'packages/shared/auth/**'
+      - 'packages/shared/styles/**'
+      - 'packages/shared/email/**'
+      - 'packages/shared/brand.ts'
       - '.github/workflows/validate-sso.yml'
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [auth, gu]
+        app: [services/auth, apps/gu]
     defaults:
       run:
         working-directory: ${{ matrix.app }}
@@ -45,8 +45,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run test:scripts
-        if: matrix.app == 'gu'
+        if: matrix.app == 'apps/gu'
       - run: npm run typecheck
       - run: npm run build
       - run: npm run check:deploy
-        if: matrix.app == 'gu'
+        if: matrix.app == 'apps/gu'

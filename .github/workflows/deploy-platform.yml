@@ -18,22 +18,22 @@ on:
   push:
     branches: [main, staging]
     paths:
-      - 'auth/**'
-      - 'web/**'
-      - 'gu/**'
-      - 'gzh/**'
-      - 'oura/**'
-      - 'shared/**'
+      - 'services/auth/**'
+      - 'apps/web/**'
+      - 'apps/gu/**'
+      - 'apps/gzh/**'
+      - 'apps/oura/**'
+      - 'packages/shared/**'
       - 'scripts/cloudflare/**'
       - '.github/workflows/deploy-platform.yml'
   pull_request:
     paths:
-      - 'auth/**'
-      - 'web/**'
-      - 'gu/**'
-      - 'gzh/**'
-      - 'oura/**'
-      - 'shared/**'
+      - 'services/auth/**'
+      - 'apps/web/**'
+      - 'apps/gu/**'
+      - 'apps/gzh/**'
+      - 'apps/oura/**'
+      - 'packages/shared/**'
       - 'scripts/cloudflare/**'
       - '.github/workflows/deploy-platform.yml'
   workflow_dispatch:
@@ -97,7 +97,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          all_trigger='^(auth/|shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
+          all_trigger='^(services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
           mark_all() { for s in auth web gu gzh health; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
           if [ "$EVENT" = 'workflow_dispatch' ]; then
             if [ "$APP" = 'all' ] || [ "$APP" = 'auth' ]; then
@@ -133,16 +133,16 @@ jobs:
             mark_all
             exit 0
           fi
-          if printf '%s\n' "$changed" | grep -qE '^web/'; then
+          if printf '%s\n' "$changed" | grep -qE '^apps/web/'; then
             echo 'web=yes' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^gu/'; then
+          if printf '%s\n' "$changed" | grep -qE '^apps/gu/'; then
             echo 'gu=yes' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^gzh/'; then
+          if printf '%s\n' "$changed" | grep -qE '^apps/gzh/'; then
             echo 'gzh=yes' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^oura/'; then
+          if printf '%s\n' "$changed" | grep -qE '^apps/oura/'; then
             echo 'health=yes' >> "$GITHUB_OUTPUT"
           fi
 
@@ -199,14 +199,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: auth
+        working-directory: services/auth
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: auth/package-lock.json
+          cache-dependency-path: services/auth/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
@@ -218,14 +218,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - name: Install Desk integration fixture dependencies
         run: |
@@ -247,14 +247,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: gu
+        working-directory: apps/gu
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gu/package-lock.json
+          cache-dependency-path: apps/gu/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run test:scripts
@@ -268,14 +268,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: gzh
+        working-directory: apps/gzh
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gzh/package-lock.json
+          cache-dependency-path: apps/gzh/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
@@ -288,7 +288,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: oura
+        working-directory: apps/oura
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -298,9 +298,9 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: oura/pnpm-lock.yaml
+          cache-dependency-path: apps/oura/pnpm-lock.yaml
       - run: pnpm i --frozen-lockfile
-      - run: node --experimental-strip-types --test ../shared/auth/client.test.mjs
+      - run: node --experimental-strip-types --test ../../packages/shared/auth/client.test.mjs
       - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm --filter @oura-kdp/web build
@@ -337,7 +337,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: auth
+        working-directory: services/auth
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -347,7 +347,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: auth/package-lock.json
+          cache-dependency-path: services/auth/package-lock.json
       - run: npm ci
       - name: migrate
         if: github.ref == 'refs/heads/main'
@@ -401,7 +401,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: auth
+        working-directory: services/auth
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -411,7 +411,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: auth/package-lock.json
+          cache-dependency-path: services/auth/package-lock.json
       - run: npm ci
       - name: migrate
         if: github.ref == 'refs/heads/staging'
@@ -466,7 +466,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: web
+        working-directory: apps/web
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -476,7 +476,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build:pages
@@ -527,7 +527,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: web
+        working-directory: apps/web
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -537,7 +537,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build:pages
@@ -589,7 +589,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: gu
+        working-directory: apps/gu
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -599,7 +599,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gu/package-lock.json
+          cache-dependency-path: apps/gu/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build
@@ -650,7 +650,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: gu
+        working-directory: apps/gu
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -660,7 +660,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gu/package-lock.json
+          cache-dependency-path: apps/gu/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build
@@ -712,7 +712,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: gzh
+        working-directory: apps/gzh
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -722,7 +722,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gzh/package-lock.json
+          cache-dependency-path: apps/gzh/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build
@@ -773,7 +773,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: gzh
+        working-directory: apps/gzh
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -783,7 +783,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: gzh/package-lock.json
+          cache-dependency-path: apps/gzh/package-lock.json
       - run: npm ci
       - name: build
         run: npm run build
@@ -835,7 +835,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: oura
+        working-directory: apps/oura
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -848,7 +848,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: oura/pnpm-lock.yaml
+          cache-dependency-path: apps/oura/pnpm-lock.yaml
       - run: pnpm i --frozen-lockfile
       - name: Deploy API before publishing its frontend
         id: deploy
@@ -896,7 +896,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: oura
+        working-directory: apps/oura
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -909,7 +909,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: oura/pnpm-lock.yaml
+          cache-dependency-path: apps/oura/pnpm-lock.yaml
       - run: pnpm i --frozen-lockfile
       - name: Deploy staging API (controlled path with BUILD_SHA stamp)
         id: deploy
@@ -960,7 +960,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: oura
+        working-directory: apps/oura
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -973,7 +973,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: oura/pnpm-lock.yaml
+          cache-dependency-path: apps/oura/pnpm-lock.yaml
       - run: pnpm i --frozen-lockfile
       - name: build
         run: pnpm --filter @oura-kdp/web build
@@ -1027,7 +1027,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: oura
+        working-directory: apps/oura
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -1040,7 +1040,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: oura/pnpm-lock.yaml
+          cache-dependency-path: apps/oura/pnpm-lock.yaml
       - run: pnpm i --frozen-lockfile
       - name: build
         run: pnpm --filter @oura-kdp/web build
