@@ -86,7 +86,7 @@ git worktree add -b codex/task-name ~/.worktrees/kdp.cool/codex/task-name <已�
 
 说明分配表由谁维护、在哪个工作目录，所有参与者确认同一版分配后再开工。Git 跟踪的任务文档在各 worktree 中各有副本，不能作为实时锁或自动同步的任务队列。不能访问协调者记录的 agent 由用户转交分配内容，不推测其他 agent 的状态。
 
-按业务边界拆：首页 `web/`、健康 `oura/`、投资 `gu/`、公众号 GZH `gzh/`、统一登录 `auth/`。`shared/`、根规范和 CI 作为公共改动由一个任务统一负责。
+按业务边界拆：首页 `apps/web/`、健康 `apps/oura/`、投资 `apps/gu/`、公众号 GZH `apps/gzh/`、统一登录 `services/auth/`。`packages/shared/`、根规范和 CI 作为公共改动由一个任务统一负责。
 
 例如“统一登录接口 + GU 页面适配”先确定接口字段、错误码、兼容方式及回调规则；一个 agent 改公共契约，另一个在独立 worktree 改 GU 消费端。未集成前明确记录依赖和未验证项，不能把本地假实现当作完整联调。
 
@@ -116,18 +116,18 @@ node --test scripts/agent/check.test.mjs
 
 `--base` 使用指定提交与当前 HEAD 的 merge-base；开工时记录的 SHA 最稳定。只传默认 `HEAD` 会漏掉已经提交的任务改动，不能用于整个 PR 的验收。
 
-脚本不安装依赖、不提交代码、不部署。依赖缺失时明确失败。在需要的应用内用 `npm ci --legacy-peer-deps --registry=https://registry.npmjs.org/`，Health 在 `oura/` 内用 `pnpm install --frozen-lockfile`（遵循 `packageManager`）；不要全仓库无差别安装。新依赖仍需事先确认。
+脚本不安装依赖、不提交代码、不部署。依赖缺失时明确失败。统一从仓库根目录用 `pnpm install --frozen-lockfile` 安装所有 workspace 依赖；不要在子目录单独安装。新依赖仍需事先确认。
 
 | 改动范围 | 自动检查 |
 | --- | --- |
-| `web/` | `npm test`、`npm run typecheck:desk`、`npm run build:functions`、`npm run build` |
+| `apps/web/` | `npm test`、`npm run typecheck:desk`、`npm run build:functions`、`npm run build` |
 | 退役工具站路径（`calc/`、`convert/`、`text/`、`dev/`、`ai/`） | 视为跨应用改动，保守检查全部剩余应用 |
-| `shared/` 的静态布局、组件、i18n 等 | 首页 build |
-| `shared/styles/`、`shared/brand.ts`、`shared/email/`、未知 shared 路径 | 保守检查首页和三个服务，再测 shared auth client |
-| `auth/` 或 `shared/auth/` | auth、首页/Desk、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
-| `gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
-| `gzh/` | test、typecheck、build |
-| `oura/` | test、typecheck、build、正常与 SSO 浏览器回归 |
+| `packages/shared/` 的静态布局、组件、i18n 等 | 首页 build |
+| `packages/shared/styles/`、`packages/shared/brand.ts`、`packages/shared/email/`、未知 shared 路径 | 保守检查首页和三个服务，再测 shared auth client |
+| `services/auth/` 或 `packages/shared/auth/` | auth、首页/Desk、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
+| `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
+| `apps/gzh/` | test、typecheck、build |
+| `apps/oura/` | test、typecheck、build、正常与 SSO 浏览器回归 |
 | CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |
