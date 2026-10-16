@@ -1,0 +1,14 @@
+{
+  "name": "kedoupi",
+  "private": true,
+  "version": "0.1.0",
+  "description": "kedoupi (codepi) personal digital space monorepo",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "check": "node scripts/agent/check.mjs",
+    "check:run": "node scripts/agent/check.mjs --run"
+  }
+}

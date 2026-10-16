@@ -1,0 +1,8 @@
+{
+  "extends": "../../services/auth/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["../../services/auth/node_modules/@cloudflare"],
+    "types": ["workers-types"]
+  },
+  "include": ["server/**/*.ts", "functions/**/*.ts"]
+}
