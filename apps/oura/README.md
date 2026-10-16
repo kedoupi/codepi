@@ -2,7 +2,7 @@
 
 kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`，`health.codepi.app` 保留兼容访问。当前数据来源为 Oura；内部目录、Worker、Pages、D1 和 client ID 保留原技术名称。
 
-未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../docs/architecture/health-domain-migration.md)。
+未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../../packages/shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../../docs/architecture/health-domain-migration.md)。
 
 ## 当前生产登录与授权
 
