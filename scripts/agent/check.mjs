@@ -2,9 +2,11 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
+export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', oura: 'apps/oura', auth: 'services/auth' };
 export const staticApps = ['web'];
 export const privateApps = ['auth', 'gu', 'gzh', 'oura'];
 const allApps = [...staticApps, ...privateApps];
+const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
 function git(cwd, args) {
@@ -34,8 +36,8 @@ export function makePlan(files) {
   const add = names => names.forEach(name => apps.add(name));
   const addAll = () => { add(allApps); sharedAuth = true; };
 
-  const wranglerConfigs = ['web/wrangler.toml', 'gu/wrangler.toml', 'gzh/wrangler.toml',
-    'auth/wrangler.jsonc', 'oura/workers/api/wrangler.toml', 'oura/apps/web/wrangler.toml'];
+  const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
+    'services/auth/wrangler.jsonc', 'apps/oura/workers/api/wrangler.toml', 'apps/oura/apps/web/wrangler.toml'];
   for (const file of files) {
     if (file.startsWith('scripts/cloudflare/')
       || file === 'docs/development/cloudflare-resource-registry.md'
@@ -57,17 +59,17 @@ export function makePlan(files) {
     } else if (file.startsWith('.github/')) {
       addAll();
       workflow = true;
-    } else if (file.startsWith('auth/') || file.startsWith('shared/auth/')) {
+    } else if (file.startsWith('services/auth/') || file.startsWith('packages/shared/auth/')) {
       add(['web', ...privateApps]);
       sharedAuth = true;
-    } else if (file.startsWith('shared/')) {
+    } else if (file.startsWith('packages/shared/')) {
       const staticOnly = ['layouts/', 'components/', 'lib/', 'i18n/']
-        .some(prefix => file.startsWith(`shared/${prefix}`))
-        || ['shared/products.ts', 'shared/privacy-redirects.js', 'shared/sitemap-filter.js'].includes(file);
+        .some(prefix => file.startsWith(`packages/shared/${prefix}`))
+        || ['packages/shared/products.ts', 'packages/shared/privacy-redirects.js', 'packages/shared/sitemap-filter.js'].includes(file);
       if (staticOnly) add(staticApps);
       else addAll();
     } else {
-      const app = allApps.find(name => file.startsWith(`${name}/`));
+      const app = allApps.find(name => file.startsWith(`${dirOf(name)}/`));
       if (app) apps.add(app);
       else manual.push(file);
     }
@@ -83,27 +85,27 @@ export function makePlan(files) {
   if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
   for (const app of staticApps.filter(app => apps.has(app))) {
     if (app === 'web') {
-      check(app, 'npm', 'test');
-      check(app, 'npm', 'run', 'typecheck:desk');
-      check(app, 'npm', 'run', 'build:functions');
+      check(dirOf(app), 'npm', 'test');
+      check(dirOf(app), 'npm', 'run', 'typecheck:desk');
+      check(dirOf(app), 'npm', 'run', 'build:functions');
     }
-    check(app, 'npm', 'run', 'build');
+    check(dirOf(app), 'npm', 'run', 'build');
   }
   for (const app of privateApps.filter(app => apps.has(app))) {
     if (app === 'oura') {
-      check(app, 'pnpm', 'test');
-      check(app, 'pnpm', 'typecheck');
-      check(app, 'pnpm', 'build');
-      check(app, 'pnpm', 'test:browser:built');
+      check(dirOf(app), 'pnpm', 'test');
+      check(dirOf(app), 'pnpm', 'typecheck');
+      check(dirOf(app), 'pnpm', 'build');
+      check(dirOf(app), 'pnpm', 'test:browser:built');
     } else {
-      check(app, 'npm', 'test');
-      if (app === 'gu') check(app, 'npm', 'run', 'test:scripts');
-      check(app, 'npm', 'run', 'typecheck');
-      check(app, 'npm', 'run', 'build');
-      if (app === 'gu') check(app, 'npm', 'run', 'check:deploy', '--', '--mode', 'config');
+      check(dirOf(app), 'npm', 'test');
+      if (app === 'gu') check(dirOf(app), 'npm', 'run', 'test:scripts');
+      check(dirOf(app), 'npm', 'run', 'typecheck');
+      check(dirOf(app), 'npm', 'run', 'build');
+      if (app === 'gu') check(dirOf(app), 'npm', 'run', 'check:deploy', '--', '--mode', 'config');
     }
   }
-  if (sharedAuth) check('.', 'node', '--experimental-strip-types', '--test', 'shared/auth/client.test.mjs');
+  if (sharedAuth) check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/auth/client.test.mjs');
   return { apps: allApps.filter(app => apps.has(app)), checks, manual };
 }
 

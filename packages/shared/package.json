@@ -1,0 +1,7 @@
+{
+  "name": "@kedoupi/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Shared contracts, styles, auth client and email templates for kedoupi products"
+}

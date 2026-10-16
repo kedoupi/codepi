@@ -36,38 +36,38 @@ function fixture(t) {
 }
 
 test('single static app stays isolated; retired paths validate remaining consumers', () => {
-  assert.deepEqual(makePlan(['web/src/pages/index.astro']).apps, ['web']);
+  assert.deepEqual(makePlan(['apps/web/src/pages/index.astro']).apps, ['web']);
   assert.deepEqual(makePlan(['calc/src/lib/mortgage.js']).apps, [...staticApps, ...privateApps]);
 });
 
 test('static shared code covers the remaining homepage', () => {
-  const plan = makePlan(['shared/lib/url-state.js', 'shared/layouts/BaseLayout.astro']);
+  const plan = makePlan(['packages/shared/lib/url-state.js', 'packages/shared/layouts/BaseLayout.astro']);
   assert.deepEqual(plan.apps, staticApps);
   assert.equal(plan.checks.filter(check => check.argv.join(' ') === 'npm test').length, 1);
 });
 
 test('SSO changes cover center, all four clients and shared client tests', () => {
-  for (const file of ['auth/src/index.ts', 'shared/auth/client.ts', 'shared/auth/schema.sql']) {
+  for (const file of ['services/auth/src/index.ts', 'packages/shared/auth/client.ts', 'packages/shared/auth/schema.sql']) {
     const plan = makePlan([file]);
     assert.deepEqual(plan.apps, ['web', ...privateApps]);
-    assert.ok(plan.checks.some(check => check.argv.includes('shared/auth/client.test.mjs')));
+    assert.ok(plan.checks.some(check => check.argv.includes('packages/shared/auth/client.test.mjs')));
   }
 });
 
 test('brand, styles, email and new shared modules fall back to all apps', () => {
-  for (const file of ['shared/styles/tokens.css', 'shared/brand.ts', 'shared/email/otp.ts', 'shared/new-module.ts']) {
+  for (const file of ['packages/shared/styles/tokens.css', 'packages/shared/brand.ts', 'packages/shared/email/otp.ts', 'packages/shared/new-module.ts']) {
     assert.deepEqual(makePlan([file]).apps, [...staticApps, ...privateApps]);
   }
 });
 
 test('Health keeps both browser modes via its existing runner', () => {
-  assert.deepEqual(makePlan(['oura/apps/web/src/App.svelte']).checks.map(check => check.argv), [
+  assert.deepEqual(makePlan(['apps/oura/apps/web/src/App.svelte']).checks.map(check => check.argv), [
     ['pnpm', 'test'], ['pnpm', 'typecheck'], ['pnpm', 'build'], ['pnpm', 'test:browser:built'],
   ]);
 });
 
 test('GU deployment check is explicitly local configuration only', () => {
-  const checks = makePlan(['gu/worker/index.ts']).checks;
+  const checks = makePlan(['apps/gu/worker/index.ts']).checks;
   assert.ok(checks.some(check => check.argv.includes('test:scripts')));
   assert.deepEqual(checks.at(-1).argv, ['npm', 'run', 'check:deploy', '--', '--mode', 'config']);
 });
@@ -77,8 +77,8 @@ test('Cloudflare configs, governance scripts and docs select the static governan
     { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs', 'scripts/cloudflare/deploy-workflow.test.mjs', 'scripts/cloudflare/check-pages.test.mjs'] },
     { cwd: '.', argv: ['node', 'scripts/cloudflare/validate-governance.mjs'] },
   ];
-  for (const file of ['web/wrangler.toml', 'gu/wrangler.toml', 'gzh/wrangler.toml',
-    'auth/wrangler.jsonc', 'oura/workers/api/wrangler.toml', 'oura/apps/web/wrangler.toml',
+  for (const file of ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
+    'services/auth/wrangler.jsonc', 'apps/oura/workers/api/wrangler.toml', 'apps/oura/apps/web/wrangler.toml',
     'scripts/cloudflare/validate-governance.mjs',
     'docs/development/cloudflare-resource-registry.md',
     'docs/development/cloudflare-governance.md']) {
@@ -91,8 +91,8 @@ test('Cloudflare configs, governance scripts and docs select the static governan
 });
 
 test('docs skip application builds but product Markdown remains covered', () => {
-  assert.deepEqual(makePlan(['docs/architecture/example.md', 'oura/AGENTS.md', 'README.md']).checks, []);
-  assert.deepEqual(makePlan(['web/src/content/post.md']).apps, ['web']);
+  assert.deepEqual(makePlan(['docs/architecture/example.md', 'apps/oura/AGENTS.md', 'README.md']).checks, []);
+  assert.deepEqual(makePlan(['apps/web/src/content/post.md']).apps, ['web']);
   assert.deepEqual(makePlan(['.agents/skills/kdp-dev/SKILL.md']).checks, [
     { cwd: '.', argv: ['node', '--test', 'scripts/agent/check.test.mjs'] },
   ]);
@@ -137,50 +137,50 @@ test('every selected npm/pnpm command exists in the current app manifest', () =>
 test('task base includes committed, staged, unstaged and untracked files without ignored files', t => {
   const f = fixture(t);
   f.write('.gitignore', '*.secret\n');
-  f.write('web/committed.txt');
+  f.write('apps/web/committed.txt');
   f.commit();
-  f.write('gu/staged.txt');
-  f.git('add', 'gu/staged.txt');
+  f.write('apps/gu/staged.txt');
+  f.git('add', 'apps/gu/staged.txt');
   f.write('README.md', 'modified\n');
-  f.write('gzh/untracked file.txt');
+  f.write('apps/gzh/untracked file.txt');
   f.write('fixture.secret');
   assert.deepEqual(changedFiles(f.cwd, f.base).files, [
-    '.gitignore', 'README.md', 'gu/staged.txt', 'gzh/untracked file.txt', 'web/committed.txt',
+    '.gitignore', 'README.md', 'apps/gu/staged.txt', 'apps/gzh/untracked file.txt', 'apps/web/committed.txt',
   ]);
-  assert.ok(!changedFiles(f.cwd).files.includes('web/committed.txt'));
+  assert.ok(!changedFiles(f.cwd).files.includes('apps/web/committed.txt'));
 });
 
 test('cross-app rename retains both old and new consumers', t => {
   const f = fixture(t);
-  f.write('web/file.txt');
+  f.write('apps/web/file.txt');
   const base = f.commit();
-  mkdirSync(path.join(f.cwd, 'gu'), { recursive: true });
-  renameSync(path.join(f.cwd, 'web/file.txt'), path.join(f.cwd, 'gu/file.txt'));
+  mkdirSync(path.join(f.cwd, 'apps/gu'), { recursive: true });
+  renameSync(path.join(f.cwd, 'apps/web/file.txt'), path.join(f.cwd, 'apps/gu/file.txt'));
   f.commit();
   const result = changedFiles(f.cwd, base);
-  assert.deepEqual(result.files, ['gu/file.txt', 'web/file.txt']);
+  assert.deepEqual(result.files, ['apps/gu/file.txt', 'apps/web/file.txt']);
   assert.deepEqual(makePlan(result.files).apps, ['web', 'gu']);
 });
 
 test('staged changes are retained even when working copy restores HEAD content', t => {
   const f = fixture(t);
-  f.write('web/file.txt', 'original\n');
+  f.write('apps/web/file.txt', 'original\n');
   f.commit();
-  f.write('web/file.txt', 'staged\n');
+  f.write('apps/web/file.txt', 'staged\n');
   f.git('add', '.');
-  f.write('web/file.txt', 'original\n');
-  assert.deepEqual(changedFiles(f.cwd).files, ['web/file.txt']);
+  f.write('apps/web/file.txt', 'original\n');
+  assert.deepEqual(changedFiles(f.cwd).files, ['apps/web/file.txt']);
 });
 
 test('comparison uses merge-base and excludes changes only on the base branch', t => {
   const f = fixture(t);
   f.git('checkout', '-qb', 'comparison');
-  f.write('gu/base-only.txt');
+  f.write('apps/gu/base-only.txt');
   f.commit();
   f.git('checkout', '--detach', f.base);
-  f.write('web/task.txt');
+  f.write('apps/web/task.txt');
   f.commit();
-  assert.deepEqual(changedFiles(f.cwd, 'comparison'), { mergeBase: f.base, files: ['web/task.txt'] });
+  assert.deepEqual(changedFiles(f.cwd, 'comparison'), { mergeBase: f.base, files: ['apps/web/task.txt'] });
 });
 
 test('invalid refs fail instead of falling back to an empty change list', t => {
@@ -203,7 +203,7 @@ appendFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join(' ') + '\\n
 process.exit(${status});
 `);
   chmodSync(path.join(bin, 'npm'), 0o755);
-  f.write('gzh/change.js');
+  f.write('apps/gzh/change.js');
   const source = `import { main } from ${JSON.stringify(pathToFileURL(script).href)};
 process.exitCode = main(JSON.parse(process.argv[1]), process.argv[2]);`;
   const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source, JSON.stringify(args), f.cwd], {

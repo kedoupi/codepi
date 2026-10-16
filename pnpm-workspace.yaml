@@ -1,0 +1,9 @@
+packages:
+  - apps/web
+  - apps/gu
+  - apps/gzh
+  - apps/oura
+  - apps/oura/apps/*
+  - apps/oura/workers/*
+  - services/auth
+  - packages/shared

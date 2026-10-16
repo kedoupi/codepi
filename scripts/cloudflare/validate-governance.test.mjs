@@ -216,12 +216,12 @@ function authConfig() {
 function legalFiles(overrides = {}) {
   return {
     'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
-    'web/wrangler.toml': pagesConfig({ name: 'codepi-www', clientId: 'desk', prodD1Name: 'codepi-desk', prodD1Id: U.www, stgD1Name: 'codepi-desk-staging', stgD1Id: U.wwwStg }),
-    'gu/wrangler.toml': pagesConfig({ name: 'codepi-gu', clientId: 'gu', prodD1Name: 'codepi-gu', prodD1Id: U.gu, stgD1Name: 'codepi-gu-staging', stgD1Id: U.guStg }),
-    'gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }),
-    'auth/wrangler.jsonc': authConfig(),
-    'oura/workers/api/wrangler.toml': healthApiConfig(),
-    'oura/apps/web/wrangler.toml': healthPagesConfig(),
+    'apps/web/wrangler.toml': pagesConfig({ name: 'codepi-www', clientId: 'desk', prodD1Name: 'codepi-desk', prodD1Id: U.www, stgD1Name: 'codepi-desk-staging', stgD1Id: U.wwwStg }),
+    'apps/gu/wrangler.toml': pagesConfig({ name: 'codepi-gu', clientId: 'gu', prodD1Name: 'codepi-gu', prodD1Id: U.gu, stgD1Name: 'codepi-gu-staging', stgD1Id: U.guStg }),
+    'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }),
+    'services/auth/wrangler.jsonc': authConfig(),
+    'apps/oura/workers/api/wrangler.toml': healthApiConfig(),
+    'apps/oura/apps/web/wrangler.toml': healthPagesConfig(),
     ...overrides.files,
   };
 }
@@ -268,28 +268,28 @@ test('CLI：合法 fixture 退出 0', () => {
 // ---- 既有负例 ----
 
 test('preview 指向生产 D1 被拒绝并指出资源', () => {
-  const files = legalFiles({ files: { 'gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh', stgD1Id: U.gzh }) } });
+  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh', stgD1Id: U.gzh }) } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('gzh') && v.includes(U.gzh) && v.includes('production D1')),
     `expected D1 violation, got ${JSON.stringify(violations)}`);
 });
 
 test('staging Pages 指向生产 Auth 被拒绝', () => {
-  const files = legalFiles({ files: { 'gu/wrangler.toml': pagesConfig({ name: 'codepi-gu', clientId: 'gu', prodD1Name: 'codepi-gu', prodD1Id: U.gu, stgD1Name: 'codepi-gu-staging', stgD1Id: U.guStg }).replace('service = "codepi-auth-staging"', 'service = "codepi-auth"') } });
+  const files = legalFiles({ files: { 'apps/gu/wrangler.toml': pagesConfig({ name: 'codepi-gu', clientId: 'gu', prodD1Name: 'codepi-gu', prodD1Id: U.gu, stgD1Name: 'codepi-gu-staging', stgD1Id: U.guStg }).replace('service = "codepi-auth-staging"', 'service = "codepi-auth"') } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('gu') && v.includes('AUTH') && v.includes('codepi-auth')),
     `expected AUTH violation, got ${JSON.stringify(violations)}`);
 });
 
 test('引用未登记资源被拒绝', () => {
-  const files = legalFiles({ files: { 'gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: '99999999-9999-4999-8999-999999999999', stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }) } });
+  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: '99999999-9999-4999-8999-999999999999', stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }) } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('99999999-9999-4999-8999-999999999999') && v.includes('no registry record')),
     `expected registry violation, got ${JSON.stringify(violations)}`);
 });
 
 test('Health staging 打开自动同步被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/workers/api/wrangler.toml': healthApiConfig({ autoSync: '1' }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/workers/api/wrangler.toml': healthApiConfig({ autoSync: '1' }) } }));
   assert.ok(violations.some(v => v.includes('health-api') && v.includes('AUTO_SYNC_ENABLED')),
     `expected auto-sync violation, got ${JSON.stringify(violations)}`);
 });
@@ -304,41 +304,41 @@ test('引用 legacy 资源被拒绝', () => {
 // ---- 新增负例 ----
 
 test('Health staging frontend origin 使用生产域名被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/workers/api/wrangler.toml': healthApiConfig({ stgFrontend: 'https://health.codepi.app' }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/workers/api/wrangler.toml': healthApiConfig({ stgFrontend: 'https://health.codepi.app' }) } }));
   assert.ok(violations.some(v => v.includes('health-api') && v.includes('production hostname')),
     `expected production-host violation, got ${JSON.stringify(violations)}`);
 });
 
 test('Health staging OURA_REDIRECT_URI 使用生产域名被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/apps/web/wrangler.toml': healthPagesConfig({ stgRedirect: 'https://health.codepi.app/api/auth/oura/callback' }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/apps/web/wrangler.toml': healthPagesConfig({ stgRedirect: 'https://health.codepi.app/api/auth/oura/callback' }) } }));
   assert.ok(violations.some(v => v.includes('health-pages') && v.includes('OURA_REDIRECT_URI') && v.includes('production hostname')),
     `expected redirect violation, got ${JSON.stringify(violations)}`);
 });
 
 test('Health staging route 使用生产域名被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/workers/api/wrangler.toml': healthApiConfig({ stgRoutes: ['health.codepi.app/api/*', 'health-staging.codepi.app/mcp', 'health-staging.codepi.app/oauth*', 'health-staging.codepi.app/.well-known*'] }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/workers/api/wrangler.toml': healthApiConfig({ stgRoutes: ['health.codepi.app/api/*', 'health-staging.codepi.app/mcp', 'health-staging.codepi.app/oauth*', 'health-staging.codepi.app/.well-known*'] }) } }));
   assert.ok(violations.some(v => v.includes('health-api') && v.includes('route') && v.includes('production hostname')),
     `expected route violation, got ${JSON.stringify(violations)}`);
 });
 
 test('Health Pages 缺 WORKER binding 被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/apps/web/wrangler.toml': healthPagesConfig({ includeWorker: false }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/apps/web/wrangler.toml': healthPagesConfig({ includeWorker: false }) } }));
   assert.ok(violations.some(v => v.includes('health-pages') && v.includes('WORKER') && v.includes('codepi-health-api')),
     `expected WORKER violation, got ${JSON.stringify(violations)}`);
 });
 
 test('Health Pages WORKER binding 指向错误服务被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/apps/web/wrangler.toml': healthPagesConfig({ workerStg: 'codepi-health-api' }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/apps/web/wrangler.toml': healthPagesConfig({ workerStg: 'codepi-health-api' }) } }));
   assert.ok(violations.some(v => v.includes('health-pages') && v.includes('WORKER')),
     `expected WORKER violation, got ${JSON.stringify(violations)}`);
 });
 
 test('缺 staging D1 / AUTH / route / cron 声明被拒绝', () => {
   for (const [label, file, config, needle] of [
-    ['staging D1', 'oura/apps/web/wrangler.toml', healthPagesConfig({ stgD1: false }), 'D1'],
-    ['staging AUTH', 'oura/apps/web/wrangler.toml', healthPagesConfig({ authStg: 'codepi-auth' }), 'AUTH'],
-    ['staging route', 'oura/workers/api/wrangler.toml', healthApiConfig({ stgRoutes: [] }), 'routes'],
-    ['staging cron', 'oura/workers/api/wrangler.toml', healthApiConfig({ stgCrons: null }), 'crons'],
+    ['staging D1', 'apps/oura/apps/web/wrangler.toml', healthPagesConfig({ stgD1: false }), 'D1'],
+    ['staging AUTH', 'apps/oura/apps/web/wrangler.toml', healthPagesConfig({ authStg: 'codepi-auth' }), 'AUTH'],
+    ['staging route', 'apps/oura/workers/api/wrangler.toml', healthApiConfig({ stgRoutes: [] }), 'routes'],
+    ['staging cron', 'apps/oura/workers/api/wrangler.toml', healthApiConfig({ stgCrons: null }), 'crons'],
   ]) {
     const violations = run(legalFiles({ files: { [file]: config } }));
     assert.ok(violations.some(v => v.includes(needle)), `missing ${label}: expected violation mentioning ${needle}, got ${JSON.stringify(violations)}`);
@@ -346,7 +346,7 @@ test('缺 staging D1 / AUTH / route / cron 声明被拒绝', () => {
 });
 
 test('重复/冲突 service binding 被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'oura/workers/api/wrangler.toml': healthApiConfig({ duplicateAuth: true }) } }));
+  const violations = run(legalFiles({ files: { 'apps/oura/workers/api/wrangler.toml': healthApiConfig({ duplicateAuth: true }) } }));
   assert.ok(violations.some(v => v.includes('duplicate service binding') && v.includes('AUTH')),
     `expected duplicate binding violation, got ${JSON.stringify(violations)}`);
 });
@@ -355,7 +355,7 @@ test('登记表 environment 不匹配被拒绝', () => {
   // staging D1 的 UUID 只登记在 production 行：环境不兼容。
   const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-health-staging'
     ? ['d1-health-staging', 'production', 'd1', `codepi-health-staging (${U.healthStg})`, '-'] : r);
-  const violations = run(legalFiles({ registryRows: rows, files: { 'oura/apps/web/wrangler.toml': healthPagesConfig() } }));
+  const violations = run(legalFiles({ registryRows: rows, files: { 'apps/oura/apps/web/wrangler.toml': healthPagesConfig() } }));
   assert.ok(violations.some(v => v.includes(U.healthStg) && v.includes('no managed staging registry row')),
     `expected environment mismatch, got ${JSON.stringify(violations)}`);
 });
@@ -377,7 +377,7 @@ test('每个环境都缺 D1、额外 D1 或名称与 ID 跨登记行时被拒绝
     .replace('database_id = "' + U.gzh + '"', `database_id = "${U.gzh}"\n[[d1_databases]]\nbinding = "OTHER"\ndatabase_name = "codepi-gzh"\ndatabase_id = "${U.gzh}"`);
   const mismatchedRow = pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gu, stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg });
   for (const [label, config, needle] of [['missing D1', noD1, 'exactly one D1'], ['extra D1', extraD1, 'exactly one D1'], ['mismatched registry row', mismatchedRow, 'matching both name and database_id']]) {
-    const violations = run(legalFiles({ files: { 'gzh/wrangler.toml': config } }));
+    const violations = run(legalFiles({ files: { 'apps/gzh/wrangler.toml': config } }));
     assert.ok(violations.some(v => v.includes(needle)), `${label}: ${JSON.stringify(violations)}`);
   }
 });
@@ -387,9 +387,9 @@ test('Health 缺失或指向其他 staging 产品的 URL 变量被拒绝', () =>
   const missingRedirect = healthApiConfig().replace('OURA_REDIRECT_URI = "https://health-staging.codepi.app/api/auth/oura/callback"\n', '');
   const misdirected = healthPagesConfig({ stgFrontend: 'https://gu-staging.codepi.app' });
   for (const [file, config, needle] of [
-    ['oura/workers/api/wrangler.toml', missingFrontendOrigins, 'FRONTEND_ORIGINS'],
-    ['oura/workers/api/wrangler.toml', missingRedirect, 'OURA_REDIRECT_URI'],
-    ['oura/apps/web/wrangler.toml', misdirected, 'FRONTEND_ORIGIN'],
+    ['apps/oura/workers/api/wrangler.toml', missingFrontendOrigins, 'FRONTEND_ORIGINS'],
+    ['apps/oura/workers/api/wrangler.toml', missingRedirect, 'OURA_REDIRECT_URI'],
+    ['apps/oura/apps/web/wrangler.toml', misdirected, 'FRONTEND_ORIGIN'],
   ]) {
     const violations = run(legalFiles({ files: { [file]: config } }));
     assert.ok(violations.some(v => v.includes(needle)), `expected ${needle}: ${JSON.stringify(violations)}`);
@@ -409,10 +409,10 @@ test('错误 Auth route、非数组 route、重复 cron 与 JSONC 重复 D1/serv
   ];
   const duplicateCron = healthApiConfig().replace('[env.staging.triggers]\ncrons = ["*/2 * * * *"]', '[env.staging.triggers]\ncrons = ["*/2 * * * *"]\ncrons = ["*/3 * * * *"]');
   for (const [file, config, needle] of [
-    ['auth/wrangler.jsonc', JSON.stringify(wrongRoute), 'auth route'],
-    ['auth/wrangler.jsonc', JSON.stringify(malformedRoutes), 'routes declaration'],
-    ['auth/wrangler.jsonc', JSON.stringify(duplicateBindings), 'duplicate D1 binding'],
-    ['oura/workers/api/wrangler.toml', duplicateCron, 'crons declaration is malformed'],
+    ['services/auth/wrangler.jsonc', JSON.stringify(wrongRoute), 'auth route'],
+    ['services/auth/wrangler.jsonc', JSON.stringify(malformedRoutes), 'routes declaration'],
+    ['services/auth/wrangler.jsonc', JSON.stringify(duplicateBindings), 'duplicate D1 binding'],
+    ['apps/oura/workers/api/wrangler.toml', duplicateCron, 'crons declaration is malformed'],
   ]) {
     const violations = run(legalFiles({ files: { [file]: config } }));
     assert.ok(violations.some(v => v.includes(needle)), `expected ${needle}: ${JSON.stringify(violations)}`);
@@ -425,7 +425,7 @@ test('Auth staging malformed或生产 callback 拒绝且不回显 callback 值',
   const productionCallback = JSON.parse(authConfig());
   productionCallback.env.staging.vars.SSO_EXTRA_REDIRECT_URIS = productionCallback.vars.SSO_EXTRA_REDIRECT_URIS;
   for (const config of [malformed, productionCallback]) {
-    const violations = run(legalFiles({ files: { 'auth/wrangler.jsonc': JSON.stringify(config) } }));
+    const violations = run(legalFiles({ files: { 'services/auth/wrangler.jsonc': JSON.stringify(config) } }));
     assert.ok(violations.some(v => v.includes('auth staging SSO')), JSON.stringify(violations));
     assert.ok(violations.every(v => !v.includes('https://')), `callback leaked: ${JSON.stringify(violations)}`);
   }
@@ -434,7 +434,7 @@ test('Auth staging malformed或生产 callback 拒绝且不回显 callback 值',
 // ---- CLI 负例：退出 1、stderr 点名违规资源、不泄露 secret ----
 
 test('CLI：非法 fixture 退出 1 且 stderr 点名违规资源', () => {
-  const files = legalFiles({ files: { 'oura/apps/web/wrangler.toml': healthPagesConfig({ includeWorker: false }) } });
+  const files = legalFiles({ files: { 'apps/oura/apps/web/wrangler.toml': healthPagesConfig({ includeWorker: false }) } });
   const result = runCli(files);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /health-pages/);

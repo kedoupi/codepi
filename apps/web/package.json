@@ -1,0 +1,28 @@
+{
+  "name": "web",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "pnpm --dir ../../services/auth run build && node --test test/*.test.mjs",
+    "typecheck:desk": "node ../../services/auth/node_modules/typescript/bin/tsc -p tsconfig.desk.json && node ../../services/auth/node_modules/typescript/bin/tsc -p tsconfig.desk-web.json",
+    "build:functions": "wrangler pages functions build --outdir=.wrangler/desk-functions",
+    "build:pages": "npm run build && npm run build:functions && cp .wrangler/desk-functions/index.js dist/_worker.js",
+    "test:browser:desk": "node scripts/browser-desk.mjs",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^6.3.0"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "^3.7.2",
+    "@astrojs/tailwind": "^6.0.2",
+    "tailwindcss": "^3.4.19",
+    "wrangler": "^4.151.0"
+  }
+}

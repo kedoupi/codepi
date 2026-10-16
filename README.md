@@ -2,26 +2,26 @@
 
 `codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`auth/` 与 `shared/` 作为支撑层保留，不单独对外。
+当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/` 与 `packages/shared/` 作为支撑层保留，不单独对外。
 
 原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
 整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
 
-首页是唯一的静态 Astro 站点，通过 `shared/` 与 `@shared/*` alias 复用基础样式和组件。私人应用保留现有技术栈与数据边界。
+首页是唯一的静态 Astro 站点，通过 `packages/shared/` 与 `@shared/*` alias 复用基础样式和组件。所有应用由根 pnpm workspace 统一管理依赖。私人应用保留现有技术栈与数据边界。
 
 ## 产品与支撑层
 
 | Path | Domain | CF project | 说明 |
 | --- | --- | --- | --- |
-| `web/` | `codepi.app` + `www.` | `codepi-www` | 首页、应用介绍、博客与 `desk` 摘要接口 |
-| `gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
-| `gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
-| `oura/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
-| `auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
-| `shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
+| `apps/web/` | `codepi.app` + `www.` | `codepi-www` | 首页、应用介绍、博客与 `desk` 摘要接口 |
+| `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
+| `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
+| `apps/oura/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
+| `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
+| `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`web`、`gu`、`gzh` 是 Cloudflare Pages 项目；`oura/` 是独立 pnpm workspace，前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web`、`apps/gu`、`apps/gzh` 是 Cloudflare Pages 项目；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -50,19 +50,20 @@ To submit to Google Search Console (next step, manual): add `codepi.app` as a pr
 
 从 [规范与工作流导航](docs/development/README.md) 开始：根与局部 `AGENTS.md` 定义项目约束；`.agents/skills/` 提供 `kdp-dev`、`kdp-review`、`kdp-release`、`kdp-handoff` 四个入口；[开发工作流](docs/development/agent-workflow.md) 和 [集成发布流程](docs/development/integration-release.md) 维护执行步骤。各工具按 [兼容说明](docs/development/agent-compatibility.md) 共用这些来源。`node scripts/agent/check.mjs --base <基线SHA>` 只预览检查计划，加 `--run` 才执行。
 
-The homepage is the only Astro project; it imports from `shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`. The private apps use their own stacks.
+The homepage is the only Astro project; it imports from `packages/shared/` via `@shared/*` and from its own `src/site.config.js` via `@site/*`. The private apps use their own stacks. All packages are managed by a single pnpm workspace.
 
 ```bash
-cd web && npm install --legacy-peer-deps && npm run dev    # :4321
-cd web && npm test                                         # builds ../auth, then node:test
-cd web && npm run build                                    # → web/dist
+pnpm install                    # install all workspace dependencies
+cd apps/web && npm run dev      # :4321
+cd apps/web && npm test         # builds services/auth, then node:test
+cd apps/web && npm run build    # → apps/web/dist
 ```
 
-Health runs in its own pnpm workspace: `cd oura && npx pnpm@9.15.9 install --frozen-lockfile`, then `pnpm test`, `pnpm typecheck`, `pnpm build`.
+Health: `cd apps/oura && pnpm test`, `pnpm typecheck`, `pnpm build`.
 
-`npm install` requires `--legacy-peer-deps` because `@astrojs/tailwind@6` declares peer `astro@^3||^4||^5` while we run Astro 6. Every project's `.npmrc` already pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/` so CF Pages and other CI installs work.
+The root `.npmrc` pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/`. `pnpm install` from the repository root installs all workspace packages.
 
-The `shared/` directory has no `package.json` — it's a raw source folder pulled in via Vite alias, and it is consumed by the homepage and by the private app bundles. `shared/auth/client.test.mjs` runs against the Health workspace dependencies.
+`packages/shared/` is a workspace member consumed by the homepage and by the private app bundles. `packages/shared/auth/client.test.mjs` runs against the Health workspace dependencies.
 
 ## Deployment
 
