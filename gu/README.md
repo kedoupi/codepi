@@ -1,6 +1,6 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Pages 项目 `kdp-gu`，访问地址 `https://gu.codepi.app`，兼容入口 `https://kdp-gu.pages.dev`。两个入口均通过 `auth.codepi.app` 统一登录，各自持有独立的本地会话；退出会撤销对应的中心会话。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Pages 项目 `codepi-gu`，生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../docs/development/cloudflare-resource-registry.md)，不再将旧 Pages URL 作为上传或验收目标。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
@@ -35,7 +35,7 @@ cd <workspace>/Documents/独立本地投资工作区
 python3 scripts/build_dashboard.py --output-dir /tmp/gu-live-data
 python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --dry-run
 # 在授权同步的范围内，先通过环境变量配置 GU_UPLOAD_TOKEN：
-python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://kdp-gu.pages.dev
+python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://gu.codepi.app
 ```
 
 只上传明确标记 `live` 的完整批次。`/api/sync` 验证校验和、格式及生成时间后，事务更新 D1 当前批次指针；失败或较旧批次不会覆盖当前数据。令牌、券商原件和真实投资 JSON 不提交到网页仓库。
@@ -52,11 +52,10 @@ python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://
 
 Google 投资日历已于 2026-10-15 完成生产迁移、固定 ID 配置和首份真实只读快照同步；长期 Google 授权和自动调度尚未接入。前端区分未连接、查询为空、失败和过期。快照同步不代表持续连接，过期后须重新实时查询。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
 
-GU CI 只运行测试、类型检查、构建及配置校验，不接触生产凭证。发布后分别检查：
+本地检查与只验证的 CI 不执行部署。远程迁移和发布遵循 [CF 治理规范](../docs/development/cloudflare-governance.md) 的受控入口，不把检查脚本当作发布工具。发布后，对与部署 source SHA 对应的本地构建执行：
 
 ```bash
 npm run check:deploy -- --url https://gu.codepi.app
-npm run check:deploy -- --url https://kdp-gu.pages.dev
 ```
 
 检查会逐字节核对线上 JS/CSS 与本地构建，并检查未登录私有接口 401。验证码真实投递、登录后数据和日历需另行验收；只通过配置检查不代表发布完成。

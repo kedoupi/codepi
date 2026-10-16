@@ -33,26 +33,28 @@ npm run test:browser:desk
 
 Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独立计算有效覆盖天数；当前仅有评分和步数，不能用睡眠贡献评分冒充睡眠时长。GU 始终为当前快照；公众号排除演示稿件，已进箱不代表已发布。
 
-## 上线顺序（本轮尚未执行）
+## 发布与配置核对
 
-1. 先部署支持 `desk` 的 auth 中心代码，保留原三个客户端注册。为新客户端生成独立 secret，在现有 `SSO_CLIENTS` 中增加 `desk`，精确回调为 `https://codepi.app/api/auth/callback`。不要覆盖原客户端配置或把 secret 写进仓库。
-2. 为三个应用分别生成独立 `DESK_SUMMARY_TOKEN`，部署只读接口。Health 是 Worker，GU/公众号是 Pages 应用，各自在其实际运行环境设置 secret。禁止复用 SSO、Oura、上传或 MCP token。Preview 不继承生产凭证。
-3. 创建工作台专用 D1（建议名 `kdp-desk`），仅存 SSO 事务与会话。应用 `web/migrations/0001_desk_sso.sql`；不绑定三个业务库。
-4. 在 `kdp-portal` Production 的 Pages Functions 设置以下绑定和变量：
+远程迁移和发布遵循 [CF 治理规范](../docs/development/cloudflare-governance.md) 的受控入口。以下是 Desk 配置依赖与验收顺序，不代表本次已执行，也不授权重新创建现有资源；实际资源、绑定及未决项见 [CF 资源登记表](../docs/development/cloudflare-resource-registry.md)。
+
+1. 核对 Auth 中心已支持 `desk`，同环境 `SSO_CLIENTS` 中已有对应注册，production 精确回调为 `https://codepi.app/api/auth/callback`。只有注册缺失且获授权时才新增独立 secret；不要覆盖原客户端或无故轮换现有凭证，不把 secret 写进仓库。
+2. 核对三个应用的只读接口和各自独立的 `DESK_SUMMARY_TOKEN`。Health 是 Worker，GU/公众号是 Pages 应用，仅在缺失且获授权时补齐同环境 secret。禁止复用 SSO、Oura、上传或 MCP token。Preview 不继承生产凭证。
+3. 核对工作台专用 D1：production 为 `codepi-desk`，staging 为 `codepi-desk-staging`，仅存 SSO 事务与会话，不绑定三个业务库。迁移来自 `web/migrations/`，是否已应用按对应环境核实，不因本文重复建库。
+4. 核对 `codepi-www` production 的 Pages Functions 绑定和变量；preview 是 staging，使用独立 staging D1 与 `codepi-auth-staging`，不要复制下表的生产绑定：
 
 | 名称 | 值 / 来源 |
 | --- | --- |
-| `DB` | 新工作台 D1 |
-| `AUTH` | service binding → `kdp-auth` |
+| `DB` | `codepi-desk`，ID 以当前配置与登记表为准 |
+| `AUTH` | service binding → `codepi-auth` |
 | `AUTH_ORIGIN` | `https://auth.codepi.app` |
 | `AUTH_CLIENT_ID` | `desk` |
 | `SSO_ENABLED` | `1` |
-| `AUTH_CLIENT_SECRET` | 与中心新 desk 注册一致的独立 secret |
+| `AUTH_CLIENT_SECRET` | 与同环境中心 desk 注册一致的独立 secret |
 | `HEALTH_SUMMARY_TOKEN` | 与 Health 的摘要 token 一致 |
 | `GU_SUMMARY_TOKEN` | 与 GU 的摘要 token 一致 |
 | `WECHAT_SUMMARY_TOKEN` | 与公众号的摘要 token 一致 |
 
-5. 发布 web：Root directory 为 `web`，构建命令 `npm run build:pages`，输出 `dist`。Pages 构建不会自动编译项目根目录之外的 Functions，因此 `build:pages` 先跑 `npm run build:functions` 把 `web/functions/api/` 编译进 `dist/`；`public/_routes.json` 仅让 `/api/*` 进入 Functions，其他公开页面继续静态服务。不需要将整站改为 SSR 或新增 Worker 路由。
+5. 受控 workflow 在 `web/` 执行 `npm run build:pages`，输出 `dist`；这不是 Dashboard 自动构建设置。`build:pages` 先跑 `npm run build:functions` 把 `web/functions/api/` 编译进 `dist/`；`public/_routes.json` 仅让 `/api/*` 进入 Functions，其他公开页面继续静态服务。不需要将整站改为 SSR 或新增 Worker 路由。
 6. 实际验收登录、三来源读取、摘要、退出、其他应用会话撤销。代码已为 www 的工作台页面和 GET API 配置到 apex 的临时跳转；www 的写请求拒绝执行。发布后确认跳转生效，勿额外登记 www 回调。
 7. 回退时撤回 web 部署即可恢复公共站入口；新增源接口没有业务写入。如退役工作台，撤销 desk 注册及三份摘要凭证，保留原应用注册与数据库。
 

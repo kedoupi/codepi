@@ -1,6 +1,6 @@
 # 珂抖屁公众号（kedoupi · 公众号工作台）
 
-生产域名：**https://gzh.codepi.app**（须登录）。域名后续随 P4 迁移到正式公众号子域，Pages 项目名 `gzh` 保持不变。
+生产域名：**https://gzh.codepi.app**（须统一登录），Pages 项目名 `codepi-gzh`。源码目录和产品标识仍为 `gzh`，不再另迁产品域名。
 原 `gzh-preview` 已并入本产品并下线；请勿再使用第二套审稿站。
 
 「过」→ 可推箱；「要改」「拒」→ **需改**（改完可再交审）。不接微信草稿箱 API。
@@ -9,9 +9,9 @@
 
 内部公众号工作台，服务微信公众号 **珂抖屁**。一期只做人审：编辑把档位标成待审并附预览 → 老板手机打开 → 过 / 要改 / 拒 → **可推箱** 后编辑在微信后台人工推草稿箱。
 
-- 生产域名：**https://gzh.codepi.app**（Pages 项目名 `gzh`，已由运维占位）
+- 生产域名：**https://gzh.codepi.app**（Pages 项目名 `codepi-gzh`）
 - 同主机提供看板、`/p/<slug>/` 预览壳（同域正文内嵌进页，外域才降级 iframe）、预览 HTML、`/api/*`，一条 `gzh_session` HttpOnly Cookie 即可在手机里打通
-- 登录：邮箱 + 6 位 OTP。不做 Cloudflare Access / Zero Trust
+- 生产登录由 `auth.codepi.app` 统一处理，`SSO_ENABLED=1` 时旧本地 OTP 接口关闭。staging 的 Access 与认证隔离要求遵循 CF 治理规范，不以旧一期范围替代平台约束。
 - 不接微信草稿箱 API；不要改 `gzh-preview` 仓
 
 ## 产品流
@@ -46,9 +46,11 @@ https://gzh.codepi.app/api/*     Worker：OTP、session、board、review
 
 密钥只走 wrangler secrets，**不要**写进 git / `wrangler.toml` `[vars]`。
 
+下表及 OTP/Cookie 参数描述旧本地登录模式，仅用于 `SSO_ENABLED=0` 的隔离开发/测试，不是生产 SSO 配置清单。生产和 staging 的 Auth binding、SSO 变量与 secret 要求以当前运行配置和下方发布规范为准。
+
 | 名称 | 放哪 | 用途 |
 | --- | --- | --- |
-| `RESEND_API_KEY` | secret | Resend 发信；本地可省略，验证码打日志 |
+| `RESEND_API_KEY` | secret | 旧 OTP 模式发信；本地省略时不发送邮件，合成验证码通过 dev 响应取得，不写日志 |
 | `SESSION_SECRET` | secret | 会话 token 哈希 |
 | `OTP_PEPPER` | secret | OTP 哈希盐 |
 | `ALLOWLIST` | var | 逗号分隔邮箱，默认 `codepi@example.invalid` |
@@ -60,86 +62,40 @@ OTP：6 位数字，`SHA-256(code + OTP_PEPPER)` 存 D1，TTL **8 分钟**。同
 
 Cookie：`gzh_session`；`HttpOnly; Secure; SameSite=Lax; Path=/`；约 7 天。本地 HTTP 开发会去掉 `Secure`，否则浏览器不带 cookie。
 
-## 运维：第一次接到 Pages `gzh`
+## 运维与受控发布
 
-在已登录 `wrangler` 且选对账号的机器上做（本仓不会替你创建远程资源）。
+远程迁移和部署统一遵循 [CF 治理规范](../docs/development/cloudflare-governance.md) 与 [集成发布流程](../docs/development/integration-release.md)，使用规定的 GitHub Actions 入口；不要照旧的一期指引连接 Pages Git 自动构建或直接修改 Dashboard 绑定。
 
-### 1. D1（空库已建，与 oura 隔离）
+### 资源与迁移目标
 
-`wrangler.toml` 已写入：
+- production：Pages `codepi-gzh`，D1 `codepi-gzh`，`AUTH` 指向 `codepi-auth`。
+- staging：同一 Pages 项目的 preview 配置，D1 `codepi-gzh-staging`，`AUTH` 指向 `codepi-auth-staging`；只由 staging branch 发布。
+- 两个环境的 D1 binding 都为 `DB`。准确 UUID 只维护在 [运行配置](wrangler.toml) 和 [资源登记表](../docs/development/cloudflare-resource-registry.md)，这里不复制易过时的 ID。
+- 迁移来自 `migrations/`。不要假定现有库是空库或某一 migration 尚未应用；按目标环境核实状态，再经授权的受控流程执行。
 
-| 项 | 值 |
-| --- | --- |
-| database_name | `gzh` |
-| database_id | `44beaaee-2cfb-4f04-8c5a-242c03ad816e` |
-| binding | `DB` |
+本地初始化使用下方的 `db:migrate:local`。`db:migrate:remote` 显式指向 production 库，不是 staging 命令，也不是默认发布入口；仅在符合治理规范且获授权的例外操作中使用，不能直接追加 preview 环境后假定目标会自动切换。staging 的迁移目标由受控 workflow 明确选择。
 
-库是空的，上线前必须跑迁移（建表 + 种子账号 / 2026-09-17 演示三档 + `desk_meta` + `posts.is_demo`）。已上线的库也要补跑 `0002_desk_meta.sql` 和 `0003_post_is_demo.sql`，否则今天看板读 `desk_meta` 会失败，真稿也清不掉演示标：
+### SSO、密钥与构建
 
-```bash
-npx wrangler d1 migrations apply gzh --remote
-# 或：npm run db:migrate:remote
-```
+`wrangler.toml` 声明本环境的 `AUTH` binding、`AUTH_CLIENT_ID=gzh`、`AUTH_ORIGIN` 和 `SSO_ENABLED=1`。`AUTH_CLIENT_SECRET` 与同环境 Auth 的 `SSO_CLIENTS` 登记保持一致；完整 required-secret 清单见治理规范。不要把本地 OTP 配置当生产登录配置，也不要把生产凭证复制到 staging。
 
-### 2. 绑到 Pages 项目 `gzh`
+构建在 `gzh/` 执行 `npm run build`，产物为 `dist`，其中 `_worker.js` 处理 API 和会话门闩。密钥经最小范围的 secret 操作更新，不把控制面掩码或空值重放为整份配置。
 
-任选其一（Git 连接 Pages 时 `wrangler.toml` 即配置源，需 **V2 build system**）：
+### 发布后验收
 
-- 仓库根目录已有 `wrangler.toml`：`name = "gzh"`，`pages_build_output_dir = "./dist"`，`[[d1_databases]] binding = "DB"`（库名 `gzh`）
-- 或 Dashboard → Workers & Pages → `gzh` → Settings → Bindings → 添加 D1 库 **`gzh`**，变量名必须是 **`DB`**
-
-Pages 构建设置：
-
-| 项 | 值 |
-| --- | --- |
-| 项目名 | `gzh` |
-| 根目录 | `/` |
-| Build command | `npm ci && npm run build` |
-| Build output | `dist` |
-| 自定义域 | `gzh.codepi.app`（已占位则只确认） |
-
-### 3. Secrets 与 ALLOWLIST
-
-```bash
-npx wrangler pages secret put RESEND_API_KEY --project-name=gzh
-npx wrangler pages secret put SESSION_SECRET --project-name=gzh
-npx wrangler pages secret put OTP_PEPPER --project-name=gzh
-```
-
-`SESSION_SECRET` / `OTP_PEPPER` 用足够长的随机串，例如 `openssl rand -hex 32`。
-
-Dashboard → `gzh` → Settings → Environment variables：
-
-- `ALLOWLIST=codepi@example.invalid`（以后加示例编辑：`codepi@example.invalid,huangwei@…`）
-- `OTP_FROM=otp@kdp.cool`
-- `ACCOUNT_BRAND=珂抖屁`
-- `ENVIRONMENT=production`
-
-Resend：在 `kdp.cool` 配好 DKIM 后用 `otp@kdp.cool` 发信。
-
-### 4. 发版后自检
-
-```bash
-curl -sS https://gzh.codepi.app/api/health
-# {"ok":true,"brand":"珂抖屁"}
-```
-
-未登录打开 `/` 或 `/p/kdp-0917-zao/` 应 302 到 `/login`。
+匿名检查 `/api/health` 的 JSON 响应，以及 `/`、`/p/<slug>/` 的预期登录跳转；再完成真实 SSO 回调、稿件加载、预览、退出及无会话访问检查。HTTP 200 不代表业务验收完成。用合成稿件测试写入；真实发信或对外发布另需授权。
 
 ## 本地开发
 
 ```bash
 cp .dev.vars.example .dev.vars
 npm install
-npx wrangler d1 migrations apply gzh --local
+npm run db:migrate:local
 npm run build
 npm run pages:dev
 ```
 
-打开 http://127.0.0.1:8788 。`.dev.vars` 里不要填 `RESEND_API_KEY` 时：
-
-- wrangler 日志会出现 `[gzh-otp] codepi@example.invalid 123456`
-- `ENVIRONMENT=development` 时接口也会带 `dev_otp`，方便本地点
+打开 http://127.0.0.1:8788 。隔离的旧 OTP 本地测试需显式设置 `SSO_ENABLED=0`、`ENVIRONMENT=development`，使用合成身份和测试 secret，且不填写真实 `RESEND_API_KEY`；请求 OTP 的响应提供 `dev_otp`，不会把验证码写日志。不要修改生产/staging 的 SSO 设置来跑本地场景。
 
 ```bash
 npm run typecheck
@@ -152,8 +108,9 @@ npm run build
 ## 路由与表
 
 - `GET /api/health` 公开
-- `POST /api/auth/request-otp` `{ email }`
-- `POST /api/auth/verify-otp` `{ email, code }`
+- `GET /api/auth/login`、`GET /api/auth/callback`：统一登录入口与回调
+- `POST /api/auth/request-otp` `{ email }`：仅旧本地 OTP 模式
+- `POST /api/auth/verify-otp` `{ email, code }`：仅旧本地 OTP 模式
 - `POST /api/auth/logout`
 - `GET /api/me`（需登录）
 - `GET /api/board?date=YYYY-MM-DD`
@@ -169,8 +126,8 @@ D1：`accounts` `sessions` `otp_codes` `posts`（含 `is_demo`）`reviews` `desk
 
 ## 验收
 
-- [ ] 白名单邮箱能要到验证码（生产走 Resend；本地无 key 则看日志 / `dev_otp`）
-- [ ] 白名单邮箱 OTP 登录（不改登录形态）
+- [ ] 生产通过统一登录完成回调、会话与退出；真实验证码投递需明确授权
+- [ ] 本地关闭 SSO 的合成场景通过 `dev_otp` 验证，不能代替生产 SSO 验收
 - [ ] 登录后默认看到 **今天** 三档，每档有标题/状态，不是空卡片
 - [ ] 点待审 → `/p/<slug>/` 里是接近成稿的 H5（同域不套 iframe 双层滚动），底栏先锁「请先通读全文」，滚到底才出现 **过 / 要改 / 拒**
 - [ ] 点过之后才出现 **可推箱**，再点 **已进箱**
@@ -179,4 +136,4 @@ D1：`accounts` `sessions` `otp_codes` `posts`（含 `is_demo`）`reviews` `desk
 
 ## 一期明确不做
 
-Cloudflare Access、微信推箱 API、多公众号切换、合并 `gzh-preview` draft PR#1。
+微信推箱 API、多公众号切换、合并 `gzh-preview` draft PR#1。staging 的 Cloudflare Access 是平台隔离要求，不属于此产品功能排除项。

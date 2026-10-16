@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migrate:local": "wrangler d1 migrations apply gzh --local",
-    "db:migrate:remote": "wrangler d1 migrations apply gzh --remote",
+    "db:migrate:local": "wrangler d1 migrations apply codepi-gzh --local",
+    "db:migrate:remote": "wrangler d1 migrations apply codepi-gzh --remote",
     "pages:dev": "wrangler pages dev dist --ip 127.0.0.1 --port 8788"
   },
   "engines": {

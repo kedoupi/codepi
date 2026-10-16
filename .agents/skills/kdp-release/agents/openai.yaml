@@ -1,0 +1,4 @@
+interface:
+  display_name: "kedoupi 集成与发布"
+  short_description: "核对历史分支与工作树，按证据集成有效改动并执行已授权发布和清理"
+  default_prompt: "使用 $kdp-release 核对当前集成或发布任务，先确认基线和授权，再按证据执行并报告结果。"

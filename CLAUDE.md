@@ -7,4 +7,6 @@ that shared hierarchy, not in a separate Claude-specific copy.
 Use the matching skill in `.claude/skills/`; each entry loads the canonical
 workflow from `.agents/skills/`.
 Tool entry points: `docs/development/agent-compatibility.md`.
-Parallel task ownership and integration: `docs/development/agent-workflow.md`.
+Rule ownership and task routing: `docs/development/README.md`.
+Skills cover development, review, integration/release and handoff; loading a
+skill does not authorize Git or remote mutations.
