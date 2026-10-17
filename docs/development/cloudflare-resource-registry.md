@@ -3,6 +3,12 @@
 账户：`Kedoupi`（`69f1de4c8f3c7411593613711207e7b3`）。本表是版本化登记记录；
 实时状态以当次 Cloudflare 控制面核实为准。治理规则见 [cloudflare-governance.md](./cloudflare-governance.md)。
 
+2026-10-17 GU Hono 迁移核验：PR #59 合并为 `ffe762e`，main 发布 run `38991512923`
+成功；四个 Pages canonical deployment 均为该干净 SHA，Auth / Health API 当前版本已核对。
+GU 线上资源逐字节匹配与 10 项路由边界探测、三产品 Pages smoke、Auth health 和 Health
+16 项接口检查通过。具体版本及真实账号 E2E 未覆盖范围见
+[GU Hono 发布记录](tasks/2026-10-17-gu-hono-router.md)。本轮未重新审计数据库、staging 或 unknown 资源。
+
 2026-10-17 后续核验：`158484c` 的 main 发布 run `38966431148` 成功；四个生产 Pages
 均为该干净 SHA，Auth/Health API 的 deployment/version 已核对，匿名 smoke 与 Health
 16 项接口检查通过。具体版本与未验收边界见
