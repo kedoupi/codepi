@@ -176,6 +176,9 @@ importers:
       esbuild:
         specifier: 0.25.12
         version: 0.25.12
+      hono:
+        specifier: ^4.9.8
+        version: 4.13.13
       typescript:
         specifier: 5.9.3
         version: 5.9.3
