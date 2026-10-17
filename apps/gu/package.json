@@ -16,6 +16,9 @@
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "hono": "^4.9.8"
+  },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.2",
     "@cloudflare/workers-types": "latest",
