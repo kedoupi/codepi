@@ -43,16 +43,38 @@ export function findPagesDeployment(deployments, url) {
   return null;
 }
 
-async function cloudflare(pathname, { token, account }) {
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}${pathname}`, {
+async function cloudflare(pathname, { token, account, request = fetch }) {
+  const response = await request(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}${pathname}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(30_000),
   });
   const body = await response.json().catch(() => null);
-  if (!response.ok || !body?.success) {
+  if (!response.ok || body?.success !== true) {
     throw new Error(`Cloudflare API GET ${pathname} failed (HTTP ${response.status})`);
   }
   return body.result;
+}
+
+// Resolve the real preview origin and inspect binding names, never secret values.
+export async function resolveWorkerOrigin(script, requiredSecrets, api) {
+  const label = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+  if (typeof script !== 'string' || !label.test(script)) throw new Error('invalid Worker name');
+  if (!Array.isArray(requiredSecrets) || requiredSecrets.length === 0
+    || requiredSecrets.some(name => typeof name !== 'string' || !/^[A-Z][A-Z0-9_]*$/.test(name))) {
+    throw new Error('required secret names must be specified');
+  }
+  const secrets = await cloudflare(`/workers/scripts/${script}/secrets`, api);
+  if (!Array.isArray(secrets)) throw new Error('Workers secrets API returned an unexpected payload');
+  const names = new Set(secrets.filter(secret => secret?.type === 'secret_text').map(secret => secret.name));
+  const missing = requiredSecrets.filter(name => !names.has(name));
+  if (missing.length) throw new Error(`Worker ${script} is missing runtime secrets: ${missing.join(', ')}`);
+  const route = await cloudflare(`/workers/scripts/${script}/subdomain`, api);
+  if (route?.enabled !== true) throw new Error(`Worker ${script} workers.dev routing is disabled`);
+  const accountRoute = await cloudflare('/workers/subdomain', api);
+  if (typeof accountRoute?.subdomain !== 'string' || !label.test(accountRoute.subdomain)) {
+    throw new Error('Workers account subdomain is missing or invalid');
+  }
+  return `https://${script}.${accountRoute.subdomain}.workers.dev`;
 }
 
 async function main(args = process.argv.slice(2)) {
@@ -82,6 +104,17 @@ async function main(args = process.argv.slice(2)) {
     console.log(deployment.id);
     return 0;
   }
+  if (command === 'resolve-worker') {
+    const value = flag => {
+      const index = args.indexOf(flag);
+      return index >= 0 ? args[index + 1] : undefined;
+    };
+    const token = process.env.CLOUDFLARE_API_TOKEN;
+    const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+    if (!token || !account) throw new Error('resolve-worker requires CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID');
+    console.log(await resolveWorkerOrigin(value('--script'), value('--required-secrets')?.split(','), { token, account }));
+    return 0;
+  }
   if (command === 'worker-version') {
     const output = readFileSync(0, 'utf8');
     const version = extractWorkerVersion(output);
@@ -96,7 +129,7 @@ async function main(args = process.argv.slice(2)) {
     console.log(url);
     return 0;
   }
-  console.error('Usage: node deployment-evidence.mjs append|resolve-pages|worker-version|pages-url ...');
+  console.error('Usage: node deployment-evidence.mjs append|resolve-pages|resolve-worker|worker-version|pages-url ...');
   return 1;
 }
 
