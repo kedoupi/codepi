@@ -246,9 +246,10 @@ function checkService(spec, cfg, index, violations) {
     if (!token) return;
     const rows = index.get(token);
     if (!rows?.length) { at(`referenced ${label} ${token} has no registry record`); return; }
-    for (const bad of BAD_STATUSES) if (rows.some(row => row.status === bad)) at(`referenced ${label} ${token} is registered as ${bad}`);
-    if (!rows.some(row => row.status === 'managed' && row.environment === env
-      && (typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint))) {
+    // Pages, Workers and D1 can have the same physical name in separate namespaces.
+    const typedRows = rows.filter(row => typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint);
+    for (const bad of BAD_STATUSES) if (typedRows.some(row => row.status === bad)) at(`referenced ${label} ${token} is registered as ${bad}`);
+    if (!typedRows.some(row => row.status === 'managed' && row.environment === env)) {
       at(`referenced ${label} ${token} has no managed ${env} registry row`);
     }
   };
@@ -256,7 +257,8 @@ function checkService(spec, cfg, index, violations) {
     if (!d1?.name || !d1.id) return;
     checkRef(d1.name, env, 'd1', 'D1');
     checkRef(d1.id, env, 'd1', 'D1');
-    const rows = [...new Set([...(index.get(d1.name) ?? []), ...(index.get(d1.id) ?? [])])];
+    const rows = [...new Set([...(index.get(d1.name) ?? []), ...(index.get(d1.id) ?? [])])]
+      .filter(row => row.resource_type === 'd1');
     for (const bad of BAD_STATUSES) {
       if (rows.some(row => row.status === bad)) at(`referenced D1 ${d1.name} is registered as ${bad}`);
     }

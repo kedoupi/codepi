@@ -387,6 +387,27 @@ test('引用 legacy 资源被拒绝', () => {
     `expected legacy violation, got ${JSON.stringify(violations)}`);
 });
 
+test('retired Pages and unknown unrelated resources do not shadow same-name Workers or D1', () => {
+  const rows = [...REGISTRY_ROWS,
+    ['pages-gu-legacy', 'production', 'pages', 'codepi-gu', 'codepi-gu.pages.dev', 'legacy-pending-retirement'],
+    ['r2-auth-unknown', 'production', 'r2', 'codepi-auth', '-', 'unknown'],
+  ];
+  assert.deepEqual(run(legalFiles({ registryRows: rows })), []);
+});
+
+test('a managed duplicate cannot hide legacy or unknown records in the referenced namespace', () => {
+  for (const [id, type, name, status, label] of [
+    ['worker-gu-conflict', 'worker', 'codepi-gu', 'legacy-pending-retirement', 'name'],
+    ['worker-auth-conflict', 'worker', 'codepi-auth', 'unknown', 'service binding'],
+    ['d1-gu-conflict', 'd1', `codepi-gu (${U.gu})`, 'legacy-preview', 'D1'],
+  ]) {
+    const rows = [...REGISTRY_ROWS, [id, 'production', type, name, '-', status]];
+    const violations = run(legalFiles({ registryRows: rows }));
+    assert.ok(violations.some(v => v.includes(`referenced ${label}`) && v.includes(status)),
+      `expected same-namespace conflict for ${id}: ${JSON.stringify(violations)}`);
+  }
+});
+
 // ---- 新增负例 ----
 
 test('Health staging frontend origin 使用生产域名被拒绝', () => {
