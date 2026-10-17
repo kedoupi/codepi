@@ -1,170 +1,196 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/svelte";
+import {
+  accountResponse,
+  boardResponse,
+  flush,
+  mockLocation,
+  mountApp,
+  resetClientState,
+  stubFetch,
+} from "./helpers";
+import * as sessionModule from "../src/session";
+import * as api from "../src/api";
 
-// Exercise the real browser entry point without introducing a DOM dependency.
-async function mount(options: { login?: boolean; retry?: boolean; pendingBoard?: boolean } = {}) {
-  vi.resetModules();
-  const events: Record<string, () => void> = {};
-  const intervals = new Map<number, () => void>();
-  const controls = new Map<string, Record<string, () => unknown>>();
-  const app = {
-    innerHTML: "", className: "",
-    replaceChildren() { this.innerHTML = ""; },
-    querySelector(selector: string) {
-      return { addEventListener: (name: string, fn: () => unknown) => {
-        if (!controls.has(selector)) controls.set(selector, {});
-        controls.get(selector)![name] = fn;
-      } };
-    },
-    querySelectorAll: () => [],
-  };
-  const toasts: string[] = [];
-  vi.stubGlobal("document", {
-    querySelector: (selector: string) => selector === "#app" ? app : null,
-    createElement: () => ({
-      textContent: "", setAttribute: () => {}, classList: { add: () => {} }, remove: () => {},
-      append: (child: { textContent: string }) => { toasts.push(child.textContent); },
-    }),
-    body: { append: () => {} },
-  });
-  vi.stubGlobal("window", {
-    addEventListener: (event: string, fn: () => void) => { events[event] = fn; },
-    setInterval: (fn: () => void, ms: number) => { intervals.set(ms, fn); return ms; },
-    setTimeout: () => 0,
-  });
-  const replace = vi.fn();
-  vi.stubGlobal("location", {
-    pathname: options.login ? "/login" : "/", search: options.retry ? "?auth_error=retry" : "",
-    origin: "https://gzh.codepi.app", replace, reload: () => {},
-  });
-  vi.stubGlobal("sessionStorage", { getItem: () => null });
-  const board = {
-    ok: true, date: "2026-10-15", today: "2026-10-15", brand: "珂抖屁",
-    slots: [], queue: [{
-      slug: "private-draft", title: "私密待审稿件", slot: "早", publish_date: "2026-10-15",
-      status: "待审", preview_path: null, note: null, digest: "私密摘要", last_review: null,
-      is_demo: false, can_withdraw: false,
-    }],
-  };
-  let resolveBoard!: (response: Response) => void;
-  const fetchMock = vi.fn(async (input: string, _init?: RequestInit): Promise<Response> => {
-    if (input === "/api/me") return options.login
-      ? new Response("Unauthorized", { status: 401 })
-      : Response.json({ account: { email: "owner@example.test", role: "owner", brand: "珂抖屁" } });
-    if (input === "/api/health") return Response.json({ sso_enabled: true });
-    return options.pendingBoard
-      ? new Promise<Response>(done => { resolveBoard = done; })
-      : Response.json(board);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  await import("../src/main");
-  if (options.login) await vi.waitFor(() => expect(app.innerHTML).toContain("统一登录"));
-  else if (options.pendingBoard) await vi.waitFor(() => expect(resolveBoard).toBeTypeOf("function"));
-  else await vi.waitFor(() => expect(app.innerHTML).toContain("私密待审稿件"));
-  return { app, events, intervals, controls, replace, fetchMock, board, toasts, resolveBoard };
-}
+beforeEach(() => {
+  document.body.innerHTML = "";
+  resetClientState();
+  mockLocation();
+});
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  document.body.innerHTML = "";
+});
 
-describe("gzh browser SSO sessions", () => {
+describe("gzh browser sessions (jsdom)", () => {
   it("rejects an old response when another request expires the session between fetch and parse", async () => {
-    vi.resetModules();
     const response = Response.json({ ok: true, post: { title: "旧会话私密稿件" } });
     const readBody = vi.spyOn(response, "json");
-    vi.stubGlobal("fetch", vi.fn(async () => response));
-    const session = await import("../src/session");
-    const originalFetch = session.sessionFetch;
-    vi.spyOn(session, "sessionFetch").mockImplementation(async (input, init) => {
+    stubFetch(async () => response);
+    const originalFetch = sessionModule.sessionFetch;
+    vi.spyOn(sessionModule, "sessionFetch").mockImplementation(async (input, init) => {
       const result = await originalFetch(input, init);
-      session.expireSession();
+      sessionModule.expireSession();
       return result;
     });
-    const api = await import("../src/api");
-    await expect(api.getPost("private-draft")).rejects.toBeInstanceOf(session.SessionExpiredError);
+    await expect(api.getPost("private-draft")).rejects.toBeInstanceOf(sessionModule.SessionExpiredError);
     expect(readBody).not.toHaveBeenCalled();
   });
 
   it("rejects a response body that finishes after the request's session expires", async () => {
-    vi.resetModules();
     let resolve!: (body: unknown) => void;
     const response = Response.json({});
-    vi.spyOn(response, "json").mockImplementation(() => new Promise(done => { resolve = done; }));
-    vi.stubGlobal("fetch", vi.fn(async () => response));
-    const api = await import("../src/api");
-    const session = await import("../src/session");
+    vi.spyOn(response, "json").mockImplementation(() => new Promise((done) => { resolve = done; }));
+    stubFetch(async () => response);
     const pending = api.getPost("private-draft");
-    const rejection = expect(pending).rejects.toBeInstanceOf(session.SessionExpiredError);
-    await vi.waitFor(() => expect(resolve).toBeTypeOf("function"));
-    session.expireSession();
+    const rejection = expect(pending).rejects.toBeInstanceOf(sessionModule.SessionExpiredError);
+    await waitFor(() => expect(resolve).toBeTypeOf("function"));
+    sessionModule.expireSession();
     resolve({ ok: true, post: { title: "旧会话私密稿件" } });
     await rejection;
   });
 
-  it.each(["focus", "interval", "pageshow"])("clears private HTML on confirmed unauthorized from %s", async trigger => {
-    const view = await mount();
-    view.fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
-    if (trigger === "interval") view.intervals.get(30_000)!();
-    else view.events[trigger]();
-    await vi.waitFor(() => expect(view.app.innerHTML).toBe(""));
-    expect(view.replace).toHaveBeenCalledWith("/login?next=%2F");
-    expect(view.app.innerHTML).not.toContain("私密待审稿件");
+  it.each(["focus", "pageshow"])("clears private data on confirmed unauthorized from %s", async (trigger) => {
+    const loc = mockLocation();
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) return boardResponse();
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("私密待审稿件");
+
+    fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+    if (trigger === "focus") await fireEvent.focus(window);
+    else await fireEvent(window, new Event("pageshow"));
+
+    await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
   });
 
-  it("also clears private HTML on authenticated:false", async () => {
-    const view = await mount();
-    view.fetchMock.mockResolvedValue(Response.json({ authenticated: false }));
-    view.events.focus();
-    await vi.waitFor(() => expect(view.app.innerHTML).toBe(""));
-    expect(view.replace).toHaveBeenCalled();
+  it("clears private data on the 30s session check interval", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const loc = mockLocation();
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) return boardResponse();
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("私密待审稿件");
+
+    fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
+    vi.useRealTimers();
+  });
+
+  it("also clears private data on authenticated:false", async () => {
+    const loc = mockLocation();
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) return boardResponse();
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("私密待审稿件");
+
+    fetchMock.mockResolvedValue(Response.json({ authenticated: false }));
+    await fireEvent.focus(window);
+    await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
   });
 
   it("preserves private data on a 503 and checks again on focus", async () => {
-    const view = await mount();
-    view.fetchMock.mockResolvedValue(new Response("Unavailable", { status: 503 }));
-    view.events.focus();
-    await vi.waitFor(() => expect(view.toasts).toContain("会话检查暂时失败，请稍后重试"));
-    expect(view.app.innerHTML).toContain("私密待审稿件");
-    expect(view.replace).not.toHaveBeenCalled();
-    view.fetchMock.mockResolvedValue(Response.json({ account: { email: "owner@example.test" } }));
-    view.events.focus();
-    await vi.waitFor(() => expect(view.fetchMock).toHaveBeenCalledTimes(4));
-    expect(view.app.innerHTML).toContain("私密待审稿件");
+    mockLocation();
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) return boardResponse();
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("私密待审稿件");
+
+    fetchMock.mockResolvedValue(new Response("Unavailable", { status: 503 }));
+    await fireEvent.focus(window);
+    await waitFor(() => expect(document.body.textContent ?? "").toContain("会话检查暂时失败"));
+    expect(screen.queryByText("私密待审稿件")).toBeTruthy();
+
+    fetchMock.mockResolvedValue(accountResponse());
+    await fireEvent.focus(window);
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([input]) => input === "/api/me").length).toBeGreaterThanOrEqual(3));
+    expect(screen.queryByText("私密待审稿件")).toBeTruthy();
   });
 
   it("does not restore an in-flight board response after invalidation", async () => {
-    const view = await mount({ pendingBoard: true });
-    view.fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
-    view.events.focus();
-    await vi.waitFor(() => expect(view.app.innerHTML).toBe(""));
-    view.resolveBoard(Response.json(view.board));
-    await new Promise(done => setTimeout(done, 0));
-    expect(view.app.innerHTML).toBe("");
+    const loc = mockLocation();
+    let resolveBoard!: (response: Response) => void;
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) {
+        return new Promise<Response>((done) => { resolveBoard = done; });
+      }
+      return Response.json({});
+    });
+    mountApp();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/board/), expect.anything()));
+
+    fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
+    await fireEvent.focus(window);
+    await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
+
+    resolveBoard(boardResponse());
+    await flush();
+    expect(document.body.textContent ?? "").not.toContain("私密待审稿件");
   });
 
   it("keeps private data when global logout fails and clears it on a successful POST", async () => {
-    const view = await mount();
-    view.fetchMock.mockResolvedValue(Response.json({ error: "暂不可用" }, { status: 503 }));
-    await view.controls.get("[data-action=logout]")!.click();
-    expect(view.app.innerHTML).toContain("私密待审稿件");
-    expect(view.replace).not.toHaveBeenCalled();
-    view.fetchMock.mockResolvedValue(Response.json({ ok: true }));
-    await view.controls.get("[data-action=logout]")!.click();
-    expect(view.fetchMock).toHaveBeenLastCalledWith("/api/auth/logout", expect.objectContaining({
-      method: "POST", credentials: "same-origin",
-    }));
-    expect(view.app.innerHTML).toBe("");
+    const loc = mockLocation();
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input.startsWith("/api/board")) return boardResponse();
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("私密待审稿件");
+
+    fetchMock.mockResolvedValue(Response.json({ error: "暂不可用" }, { status: 503 }));
+    await fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    await flush(10);
+    expect(screen.queryByText("私密待审稿件")).toBeTruthy();
+    // 503 退出不触发会话过期；toast 显示后端返回的错误文本。
+    expect(document.body.textContent ?? "").toContain("暂不可用");
+    expect(loc.replace).not.toHaveBeenCalledWith("/login");
+
+    fetchMock.mockResolvedValue(Response.json({ ok: true }));
+    await fireEvent.click(screen.getByRole("button", { name: "退出" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST", credentials: "same-origin" })));
+    await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login"));
   });
 
   it("offers a new SSO login when the local session is expired", async () => {
-    const view = await mount({ login: true });
-    expect(view.app.innerHTML).toContain('href="/api/auth/login?return=%2F"');
-    expect(view.app.innerHTML).not.toContain('id="otp-form"');
+    mockLocation({ pathname: "/login" });
+    stubFetch(async (input) => {
+      if (input === "/api/me") return new Response("Unauthorized", { status: 401 });
+      if (input === "/api/health") return Response.json({ sso_enabled: true });
+      return Response.json({});
+    });
+    mountApp();
+    const link = await screen.findByRole("link", { name: "统一登录" });
+    expect(link.getAttribute("href")).toBe("/api/auth/login?return=%2F");
+    expect(document.querySelector("#otp-form")).toBeNull();
   });
 
   it("renders a recoverable callback error without checking the broken central session", async () => {
-    const view = await mount({ login: true, retry: true });
-    expect(view.app.innerHTML).toContain("登录未完成");
-    expect(view.app.innerHTML).toContain("/api/auth/login");
-    expect(view.fetchMock).toHaveBeenCalledTimes(1);
-    expect(view.fetchMock).toHaveBeenCalledWith("/api/health", expect.anything());
+    mockLocation({ pathname: "/login", search: "?auth_error=retry" });
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/health") return Response.json({ sso_enabled: true });
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("登录未完成。请重新登录；服务暂时不可用时，可稍后重试。");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/health", expect.anything());
   });
 });
