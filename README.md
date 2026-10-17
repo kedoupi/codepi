@@ -21,7 +21,7 @@
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`apps/web` 是 Cloudflare Pages 项目；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -77,7 +77,7 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 
 | Project | Command working directory | Build cmd | Output relative to working directory |
 | --- | --- | --- | --- |
-| `codepi-www` | `apps/web` | `npm run build:pages` | `dist` |
+| `codepi-www` | `apps/web` | `npm run build` | `dist` |
 | `codepi-gu` | `apps/gu` | `npm run build` | `dist` |
 | `codepi-gzh` | `apps/gzh` | `npm run build` | `dist` |
 | `codepi-health` | `apps/oura` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
@@ -85,9 +85,8 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 这里只列构建命令，不是 Dashboard 自动构建设置，也不代表完整检查与发布步骤。Node、依赖安装和发布参数以当前 workflow 为准。
 > Note: Pages 项目的 pnpm workspace 过滤仍叫 `@oura-kdp/web` / `@oura-kdp/api`（包名未重命名），仅 Pages 项目名统一为 `codepi-*`。
 
-`codepi-www` uses `npm run build:pages` because Pages only auto-compiles the
-Functions folder when it sits next to the project root; the portal's Functions
-(`apps/web/functions/api/`) are compiled into `dist/` by the build script instead.
+`codepi-www` 由 Astro 输出静态文件，Wrangler 打包 `apps/web/worker/index.ts` 并上传资产。
+不再生成 Pages `_worker.js`；静态文件与 Desk API 的路由由 `apps/web/wrangler.toml` 声明。
 
 ### DNS records (CF zone for `codepi.app`)
 

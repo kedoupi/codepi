@@ -92,9 +92,9 @@ export function makePlan(files) {
     if (app === 'web') {
       check(dirOf(app), 'npm', 'test');
       check(dirOf(app), 'npm', 'run', 'typecheck:desk');
-      check(dirOf(app), 'npm', 'run', 'build:functions');
     }
     check(dirOf(app), 'npm', 'run', 'build');
+    if (app === 'web') check(dirOf(app), 'npm', 'run', 'test:assets');
   }
   for (const app of privateApps.filter(app => apps.has(app))) {
     if (app === 'oura') {

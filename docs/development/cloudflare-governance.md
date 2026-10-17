@@ -116,13 +116,13 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   服务；根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` 也标记全部
   服务；否则只标记对应 app 路径。pnpm 版本从根 packageManager 读取，所有 job 从根目录
   frozen install，发布使用 lockfile 中的 Wrangler。
-- DAG：governance gate → auth build/migrate/deploy/smoke → web Pages 与 gu/gzh
+- DAG：governance gate → auth build/migrate/deploy/smoke → web/gu/gzh
   Worker build/migrate/deploy/smoke → health API build/migrate/deploy/contract
   smoke → health Pages build/deploy/smoke。下游 job 只在 predecessor success 或
   skipped 时继续（`!failure() && !cancelled()`），failure 必须停止。
 - 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
   GU、GZH 的配置自 2026-10-17 起以 Workers Static Assets 架构经 `wrangler deploy` 发布
-  （`run_worker_first = true`，全站请求先进 Worker 鉴权），首页与 Health 前端仍为 Pages。
+  （`run_worker_first = true`，全站请求先进 Worker 鉴权），首页同样使用 Workers Static Assets，但仅 `/api/*` 与 `/desk` 路径优先进入 Worker，公开页面由资产服务直出；Health 前端仍为 Pages。
   迁移配置不代表域名已切换，当前控制面状态见资源登记表。
 - production deploy/migrate step 同时有 job 级与 step 级
   `github.ref == 'refs/heads/main'` guard。合并 PR 即授权自动发布，不增加逐次 Environment

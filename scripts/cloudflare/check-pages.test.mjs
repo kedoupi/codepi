@@ -9,6 +9,9 @@ function fixture(app, target, override = {}) {
     requests.push({ url, redirect: options.redirect });
     const { pathname, origin } = new URL(url);
     if (pathname === '/') return new Response('', { status: app === 'web' ? 200 : 302 });
+    if (pathname === '/desk/') return override.desk?.() ?? new Response('<html></html>', {
+      headers: { 'content-type': 'text/html', 'cache-control': 'no-store', 'x-robots-tag': 'noindex, nofollow' },
+    });
     if (pathname.endsWith('/me')) return override.me?.() ?? Response.json({ authenticated: false }, { status: 401 });
     if (pathname.includes('%') || pathname.includes('//')) {
       return override.alias?.() ?? new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
@@ -29,13 +32,18 @@ function fixture(app, target, override = {}) {
   return { request, requests };
 }
 
-test('all Pages clients validate root, anonymous private API and environment-specific login', async () => {
+test('all clients validate root, anonymous private API and environment-specific login', async () => {
   for (const app of ['web', 'gu', 'gzh']) for (const target of ['production', 'staging']) {
     const f = fixture(app, target);
     await checkPages(app, target, f.request);
-    assert.equal(f.requests.length, app === 'gzh' ? 8 : 3);
+    assert.equal(f.requests.length, app === 'gzh' ? 8 : app === 'web' ? 4 : 3);
     assert.ok(f.requests.every(r => r.redirect === 'manual'));
   }
+});
+
+test('Desk smoke rejects loss of static privacy headers', async () => {
+  const f = fixture('web', 'production', { desk: () => new Response('<html></html>', { headers: { 'content-type': 'text/html' } }) });
+  await assert.rejects(checkPages('web', 'production', f.request), /must not be cached/);
 });
 
 test('GZH rejects exposed preview assets and cached private redirects on the new Worker', async () => {
