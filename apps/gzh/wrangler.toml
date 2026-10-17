@@ -33,27 +33,3 @@ ALLOWLIST = "codepi@example.invalid"
 OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"
 ENVIRONMENT = "production"
-
-# staging named environment 保留未启用，不接发布入口。
-# 继承顶层 [assets]；禁止覆盖资产配置绕过会话门。
-[env.staging]
-name = "codepi-gzh-staging"
-
-[[env.staging.services]]
-binding = "AUTH"
-service = "codepi-auth-staging"
-
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "codepi-gzh-staging"
-database_id = "1a57d7d8-6d16-4f16-b9f6-b78f78b714ab"
-migrations_dir = "migrations"
-
-[env.staging.vars]
-SSO_ENABLED = "1"
-AUTH_CLIENT_ID = "gzh"
-AUTH_ORIGIN = "https://auth-staging.codepi.app"
-ALLOWLIST = "codepi@example.invalid"
-OTP_FROM = "otp@kdp.cool"
-ACCOUNT_BRAND = "珂抖屁"
-ENVIRONMENT = "staging"

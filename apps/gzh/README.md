@@ -70,7 +70,7 @@ Cookie：`gzh_session`；`HttpOnly; Secure; SameSite=Lax; Path=/`；约 7 天。
 ### 资源与迁移目标
 
 - production：Worker `codepi-gzh`，D1 `codepi-gzh`，`AUTH` 指向 `codepi-auth`。
-- staging：保留未启用的 Worker named environment `codepi-gzh-staging`，D1 `codepi-gzh-staging`，`AUTH` 指向 `codepi-auth-staging`；当前 workflow 不部署 staging。旧 Pages staging 域名暂留，不能视为新环境已可用。
+- staging：已于 2026-10-18 全面退役，仓库与云端的 named environment、D1 和域名均已删除；只有 local 与 production 两档。
 - 两个环境的 D1 binding 都为 `DB`。准确 UUID 只维护在 [运行配置](wrangler.toml) 和 [资源登记表](../../docs/development/cloudflare-resource-registry.md)，这里不复制易过时的 ID。
 - 迁移来自 `migrations/`。不要假定现有库是空库或某一 migration 尚未应用；按目标环境核实状态，再经授权的受控流程执行。
 

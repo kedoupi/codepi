@@ -1,6 +1,6 @@
 # Health 应用目录与 workspace 命名
 
-- 状态：本地实施与验证完成；尚未创建 PR、合并或发布。
+- 状态：已合并并发布。命名迁移经 PR #76 合并；前端 Static Assets 迁移 PR #77、切换证据 PR #78、Pages 退役记录 PR #79 均已上线（2026-10-18）。后续绑定清理见 cloudflare-resource-registry.md 顶部证据记录。
 - 用户决策：应用目录和包名全面改为 Health，覆盖此前保留 `oura` 应用名的约定。
 - 目标：`apps/health/` 为唯一 Health 应用目录；workspace、CI、开发脚本和现行文档使用新名称；Oura 数据提供方协议和已有身份、数据标识保持各自语义。
 - 基线：`4c5952f46526799c780aa3973dce38cf11dd7895`；本地和远程 main 一致（2026-10-18 核实）。

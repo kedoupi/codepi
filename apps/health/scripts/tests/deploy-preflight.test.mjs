@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { parseWranglerConfig, parseWranglerEnvConfig, readWranglerConfig } from '../lib/wrangler-config.mjs';
+import { parseWranglerConfig, readWranglerConfig } from '../lib/wrangler-config.mjs';
 
 const config = `name = "test-worker"
 main = "src/index.ts"
@@ -61,29 +61,6 @@ test('preflight tolerates comments and multiline schedules without selecting env
     .replace('crons = ["*/2 * * * *"]', '# scheduler\ncrons = [\n"*/2 * * * *"\n]')
     + '[env.preview.triggers]\ncrons = ["0 0 * * *"]\n';
   assert.deepEqual(parseWranglerConfig(text).crons, ['*/2 * * * *']);
-});
-
-test('staging environment parsing remains isolated from production', () => {
-  const staging = `[env.staging]
-name = "test-worker-staging"
-[env.staging.triggers]
-crons = ["0 1 * * *"]
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "test-db-staging"
-`;
-  const text = config + staging;
-  // 只解析所选环境，绝不回落到生产声明。
-  assert.deepEqual(parseWranglerEnvConfig(text, 'staging'), {
-    name: 'test-worker-staging', databaseName: 'test-db-staging', crons: ['0 1 * * *'],
-  });
-  assert.equal(parseWranglerConfig(text).name, 'test-worker');
-  assert.equal(parseWranglerConfig(text).databaseName, 'test-db');
-  assert.throws(() => parseWranglerEnvConfig(text, 'preview'));
-  assert.throws(() => parseWranglerEnvConfig(config, 'staging'));
-  assert.throws(() => parseWranglerEnvConfig(text.replace('name = "test-worker-staging"', ''), 'staging'));
-  assert.throws(() => parseWranglerEnvConfig(text.replace('database_name = "test-db-staging"', ''), 'staging'));
-  assert.throws(() => parseWranglerEnvConfig(text.replace('crons = ["0 1 * * *"]', ''), 'staging'));
 });
 
 async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false } = {}) {

@@ -39,8 +39,8 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 
 1. 核对 Auth 中心已支持 `desk`，同环境 `SSO_CLIENTS` 中已有对应注册，production 精确回调为 `https://codepi.app/api/auth/callback`。只有注册缺失且获授权时才新增独立 secret；不要覆盖原客户端或无故轮换现有凭证，不把 secret 写进仓库。
 2. 核对三个应用 Worker 的只读接口和各自独立的 `DESK_SUMMARY_TOKEN`，仅在缺失或明确获授权轮换时配对写入。禁止复用 SSO、Oura、上传或 MCP token。staging 不继承生产凭证。
-3. 核对工作台专用 D1：production 为 `codepi-desk`，staging 为 `codepi-desk-staging`，仅存 SSO 事务与会话，不绑定三个业务库。迁移来自 `apps/web/migrations/`，是否已应用按对应环境核实，不因本文重复建库。
-4. 核对 `codepi-www` production 的 Worker 绑定和变量；保留的 named environment `codepi-www-staging` 使用独立 staging D1 与 `codepi-auth-staging`，未接入自动发布，不要复制下表的生产绑定：
+3. 核对工作台专用 D1：production 为 `codepi-desk`（staging 库已随 2026-10-18 staging 退役删除），仅存 SSO 事务与会话，不绑定三个业务库。迁移来自 `apps/web/migrations/`，是否已应用按对应环境核实，不因本文重复建库。
+4. 核对 `codepi-www` production 的 Worker 绑定和变量（staging named environment 已于 2026-10-18 退役删除）：
 
 | 名称 | 值 / 来源 |
 | --- | --- |

@@ -3,13 +3,12 @@ import { pathToFileURL } from 'node:url';
 
 export async function checkPages(app, target, request = fetch, { origin } = {}) {
   assert.ok(['web', 'gu', 'gzh'].includes(app), 'Unknown app');
-  assert.ok(['production', 'staging'].includes(target), 'Unknown environment');
-  const staging = target === 'staging';
-  const host = app === 'web' ? (staging ? 'staging' : '') : `${app}${staging ? '-staging' : ''}`;
+  assert.equal(target, 'production', 'staging is retired; only production is smoke-tested');
+  const host = app === 'web' ? '' : app;
   // --origin 用于 Pages → Workers 迁移窗口：域名仍指向旧 Pages 时，
   // smoke 直接命中新 Worker 的 workers.dev 子域（从 Cloudflare API 查询）。
   origin ??= `https://${host ? host + '.' : ''}codepi.app`;
-  const authOrigin = `https://auth${staging ? '-staging' : ''}.codepi.app`;
+  const authOrigin = 'https://auth.codepi.app';
   const get = path => request(origin + path, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
   const root = await get('/');
   await root.body?.cancel();
