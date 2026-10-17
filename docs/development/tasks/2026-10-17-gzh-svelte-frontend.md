@@ -1,6 +1,6 @@
 # GZH 前端 Svelte 迁移
 
-- 状态：实现、本地验证、三轮独立审查和修复、桌面/移动 CDP 浏览器验收完成；PR #63 首轮 CI 暴露 Svelte 配置发现问题，修复后待复核与重跑 CI；合并与线上核验待进行。
+- 状态：已完成。实现、本地验证、四轮独立审查和修复、桌面/移动 CDP 浏览器验收、PR 两轮 CI、合并与线上核验全部通过。
 - 目标与验收：把 `apps/gzh/web` 从 951 行 vanilla TS（手工 innerHTML + 事件绑定）迁移到 Svelte 5（runes）+ Vite，与 `apps/gu/web`、`apps/oura/apps/web` 结构对齐；保持界面、会话生命周期、看板 / 预览 / 审核流程、演示稿操作、阅读闸（read-gate）与文稿语义。
 - 不在范围内：业务规则、D1 schema、共享认证协议、Pages 部署载体、worker 路由、`preview-session.ts` 静态预览探针、其他应用迁移。
 - worktree：`<workspace>/.worktrees/kdp.cool/codex/gzh-svelte-frontend`
@@ -36,7 +36,27 @@
 - PR #63 首轮平台 CI run `39004248266`：GZH 的 94 项测试通过，svelte-check 报 8 项 `No Svelte configuration found in vite config`；其余应用构建和 Health 浏览器检查成功。SSO/GU 专项 run `39004248351` 成功。未合并失败版本。
 - 根因：缺少 `web/svelte.config.js`，所用 Vite 插件不能向当前配置加载器提供所需的 Svelte 配置；隐藏 worktree 路径下的本地自动发现未暴露问题。调用检查器所依赖的 `@sveltejs/load-config` 并加载 `web/`，明确复现 `configDiscovered:false`。
 - 修复：补齐与 GU/Health 相同的 `compilerOptions.runes=true` 配置，并给 typecheck 添加显式 `--config ./web/svelte.config.js`；配置加载器随后确认 `configSource:svelte`、`runes:true`。不跳过配置错误或放宽检查。
+- 修复后 head `2cdbe2b` 的两个 PR workflows 均为 `completed/success`：平台 CI run `39004664708`、SSO/GU 专项 run `39004664706`。独立审查者对该 3 文件增量做第四轮复核，无新增阻塞，结论继续适用于 `2cdbe2b3dacaac47258d5ad45bfb5c1840892284`。
+- 合并前核对 PR head 仍为 `2cdbe2b3dacaac47258d5ad45bfb5c1840892284`，合并 API 使用完整 expected head SHA；squash 合并为 `8cb72fc5fe64163311ca9bbff0ab94f67846f55c`。
+- main 自动发布 run `39004993316`：`completed/success`，2026-10-17 13:10（上海时间）完成；validate run `39004993254` 亦 success。根锁文件变更触发全部产品重发，属预期。
 
-## 生产版本与线上核验（回填）
+## 生产版本与线上核验（2026-10-17）
 
-## 继续工作（回填）
+Cloudflare API 核对四个 Pages canonical deployment：均为 production、完整 source SHA `8cb72fc5fe64163311ca9bbff0ab94f67846f55c` 且 `commit_dirty=false`、latest stage success。
+
+| Pages 项目 | canonical deployment URL |
+| --- | --- |
+| `codepi-www` | `https://35713d04.codepi-www.pages.dev` |
+| `codepi-gu` | `https://b01a5fd9.codepi-gu.pages.dev` |
+| `codepi-gzh` | `https://0d1153c7.codepi-gzh.pages.dev` |
+| `codepi-health` | `https://af7f6df5.codepi-health.pages.dev` |
+
+- `node scripts/cloudflare/check-pages.mjs <web|gu|gzh> production` 三项通过：匿名 root 状态、私有 API 401 JSON、登录跳同环境 Auth PKCE。
+- Auth `https://auth.codepi.app/api/health` 返回 200、JSON。
+- `OURA_EXPECT_BUILD=8cb72fc5fe64 node apps/oura/scripts/check-api.mjs`：16 项全部通过；Health `/api/health` 返回 `build=8cb72fc5fe64`（发布脚本取 GITHUB_SHA 前 12 位）。
+- 以上为匿名运行时证据，不代表已验收真实邮件、账号登录 / 退出、私人数据读取、公众号真实发布或真实 MCP 客户端授权。
+
+## 继续工作
+
+- 本次迁移把 GZH 前端补齐到 Svelte 5 + Vite；`apps/gu`、`apps/gzh`、`apps/oura` 三个私有应用前端栈已统一。后续迁移候选：Health API 与 Auth Worker 的 Hono 化、Pages → Workers Static Assets（注意 `run_worker_first` 鉴权顺序），均需单独任务与用户确认。
+- 审查遗留说明（非本次引入、不阻塞）：`session.ts` 对 `/api/auth/*` 的 401 也执行会话过期；inline 预览模式始终显示手动「已读完」按钮。
