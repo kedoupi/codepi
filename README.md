@@ -95,7 +95,7 @@ Functions folder when it sits next to the project root; the portal's Functions
 | ----------------- | ----- | ---------------------------- | ------- |
 | `codepi.app` (apex) | CNAME | `codepi-www.pages.dev`   | yes (CF flattens at apex) |
 | `www`             | CNAME | `codepi-www.pages.dev`     | yes |
-| `gu`              | CNAME | `codepi-gu.pages.dev`（Workers 迁移后改为 Worker custom domain，切换前保留） | yes |
+| `gu`              | AAAA | `100::`（Worker custom domain `codepi-gu` 自动管理，2026-10-17 已切换） | yes |
 | `gzh`             | CNAME | `codepi-gzh.pages.dev`     | yes |
 | `health`          | CNAME | `codepi-health.pages.dev`  | yes |
 | `auth`            | —     | Worker custom domain `codepi-auth` | yes |
