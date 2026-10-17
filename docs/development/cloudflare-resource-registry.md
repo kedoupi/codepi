@@ -6,7 +6,7 @@
 `auth-staging.codepi.app` workers domain，以及 zone 内残留的 8 条指向
 `codepi-health-api(-staging)` 的 routes（zone routes 清零）。`codepi-health` 前端 Worker
 绑定收敛为 ASSETS + WORKER（`codepi-health-api`），DB/AUTH/vars 全部移除；生产核验
-`/api/health` 200（build `e9734c14c2f5`）与 SPA root 200 不受影响。环境模型收敛为
+`/api/health` 200 与 SPA root 200 不受影响；PR #80 合并后生产 build 为 `3a024e95216e`。环境模型收敛为
 local + production 两档。staging D1 仅含 synthetic fixture，无真实数据损失。
 
 2026-10-17 首页/Desk 切换完成：`codepi.app` 与 `www.codepi.app` 已由 `codepi-www`
@@ -99,21 +99,21 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
-| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 已切换并核验 |
+| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-18 |
 | pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、worker-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
+| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、worker-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-18 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
+| worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-18 |
 | pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-health | production | worker | codepi-health | kedoupi | Health 前端 SPA | private-health-data | 终端用户 | health.codepi.app (custom domain), codepi-health.kedoupi.workers.dev | apps/health/apps/web/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-18 |
 | pages-health-legacy | production | pages | codepi-health | kedoupi | 旧 Health Pages（项目已删除） | private-health-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-gzh、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
-| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | worker-health（service binding）、MCP 客户端 | 无公网 routes，经 worker-health service binding 转发 | apps/health/workers/api/wrangler.toml | managed | 2026-10-17 |
-| d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
-| d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-16 |
-| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
-| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-16 |
-| d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-16 |
+| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-gzh、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-18 |
+| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | worker-health（service binding）、MCP 客户端 | 无公网 routes，经 worker-health service binding 转发 | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 |
+| d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-18 |
+| d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-18 |
+| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-18 |
+| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-18 |
+| d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 |
 | d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
 | d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | worker-www-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
 | d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
