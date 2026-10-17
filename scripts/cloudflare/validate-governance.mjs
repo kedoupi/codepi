@@ -459,7 +459,7 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', stagingName: 'codepi-gu-staging', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-gzh', d1Name: 'codepi-gzh', envKey: 'preview',
+    { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', stagingName: 'codepi-gzh-staging', d1Name: 'codepi-gzh', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'health-pages', file: 'apps/oura/apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-health', d1Name: 'codepi-health', envKey: 'preview', health: true,
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' }, WORKER: { production: 'codepi-health-api', staging: 'codepi-health-api-staging' } } },

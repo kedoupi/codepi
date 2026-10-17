@@ -24,7 +24,7 @@ const U = {
 const REGISTRY_ROWS = [
   ['pages-www', 'production', 'pages', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
-  ['pages-gzh', 'production', 'pages', 'codepi-gzh', 'gzh.codepi.app'],
+  ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
   ['pages-health', 'production', 'pages', 'codepi-health', 'health.codepi.app'],
   ['pages-www-staging-host', 'staging', 'pages-domain', 'staging.codepi.app → staging.codepi-www.pages.dev', 'staging.codepi.app'],
   ['pages-gu-staging-host', 'staging', 'pages-domain', 'gu-staging.codepi.app → staging.codepi-gu.pages.dev', 'gu-staging.codepi.app'],
@@ -33,6 +33,7 @@ const REGISTRY_ROWS = [
   ['worker-auth', 'production', 'worker', 'codepi-auth', 'auth.codepi.app (custom domain)'],
   ['worker-auth-staging', 'staging', 'worker', 'codepi-auth-staging', 'auth-staging.codepi.app (custom domain)'],
   ['worker-gu-staging', 'staging', 'worker', 'codepi-gu-staging', 'gu-staging.codepi.app（待绑定）'],
+  ['worker-gzh-staging', 'staging', 'worker', 'codepi-gzh-staging', 'gzh-staging.codepi.app（待绑定）'],
   ['worker-health-api', 'production', 'worker', 'codepi-health-api', 'health.codepi.app/api/*'],
   ['worker-health-api-staging', 'staging', 'worker', 'codepi-health-api-staging', 'health-staging.codepi.app/api/*'],
   ['d1-www', 'production', 'd1', `codepi-desk (${U.www})`, '-'],
@@ -218,8 +219,8 @@ function legalFiles(overrides = {}) {
   return {
     'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
     'apps/web/wrangler.toml': pagesConfig({ name: 'codepi-www', clientId: 'desk', prodD1Name: 'codepi-desk', prodD1Id: U.www, stgD1Name: 'codepi-desk-staging', stgD1Id: U.wwwStg }),
-    'apps/gu/wrangler.toml': guWorkerConfig(),
-    'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }),
+    'apps/gu/wrangler.toml': privateWorkerConfig(),
+    'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
     'apps/oura/workers/api/wrangler.toml': healthApiConfig(),
     'apps/oura/apps/web/wrangler.toml': healthPagesConfig(),
@@ -255,17 +256,17 @@ function runCli(files) {
   }
 }
 
-function guWorkerConfig({ assetsBlock = `[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = true\n`, envKey = 'staging', stagingName = 'codepi-gu-staging' } = {}) {
+function privateWorkerConfig({ app = 'gu', assetsBlock = `[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = true\n`, envKey = 'staging', stagingName = `codepi-${app}-staging` } = {}) {
   return `
-name = "codepi-gu"
+name = "codepi-${app}"
 main = "worker/index.ts"
 ${assetsBlock}[[services]]
 binding = "AUTH"
 service = "codepi-auth"
 [[d1_databases]]
 binding = "DB"
-database_name = "codepi-gu"
-database_id = "${U.gu}"
+database_name = "codepi-${app}"
+database_id = "${U[app]}"
 [vars]
 ENVIRONMENT = "production"
 AUTH_ORIGIN = "https://auth.codepi.app"
@@ -276,12 +277,12 @@ binding = "AUTH"
 service = "codepi-auth-staging"
 [[env.${envKey}.d1_databases]]
 binding = "DB"
-database_name = "codepi-gu-staging"
-database_id = "${U.guStg}"
+database_name = "codepi-${app}-staging"
+database_id = "${U[`${app}Stg`]}"
 [env.${envKey}.vars]
 ENVIRONMENT = "staging"
 AUTH_ORIGIN = "https://auth-staging.codepi.app"
-AUTH_CLIENT_ID = "gu"
+AUTH_CLIENT_ID = "${app}"
 `;
 }
 
@@ -298,22 +299,22 @@ test('CLI：合法 fixture 退出 0', () => {
 
 // ---- 既有负例 ----
 
-test('preview 指向生产 D1 被拒绝并指出资源', () => {
-  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: U.gzh, stgD1Name: 'codepi-gzh', stgD1Id: U.gzh }) } });
+test('staging 指向生产 D1 被拒绝并指出资源', () => {
+  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }).replace(U.gzhStg, U.gzh) } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('gzh') && v.includes(U.gzh) && v.includes('production D1')),
     `expected D1 violation, got ${JSON.stringify(violations)}`);
 });
 
-test('staging Pages 指向生产 Auth 被拒绝', () => {
-  const files = legalFiles({ files: { 'apps/gu/wrangler.toml': guWorkerConfig().replace('service = "codepi-auth-staging"', 'service = "codepi-auth"') } });
+test('staging Worker 指向生产 Auth 被拒绝', () => {
+  const files = legalFiles({ files: { 'apps/gu/wrangler.toml': privateWorkerConfig().replace('service = "codepi-auth-staging"', 'service = "codepi-auth"') } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('gu') && v.includes('AUTH') && v.includes('codepi-auth')),
     `expected AUTH violation, got ${JSON.stringify(violations)}`);
 });
 
 test('引用未登记资源被拒绝', () => {
-  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': pagesConfig({ name: 'codepi-gzh', clientId: 'gzh', prodD1Name: 'codepi-gzh', prodD1Id: '99999999-9999-4999-8999-999999999999', stgD1Name: 'codepi-gzh-staging', stgD1Id: U.gzhStg }) } });
+  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }).replace(U.gzh, '99999999-9999-4999-8999-999999999999') } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('99999999-9999-4999-8999-999999999999') && v.includes('no registry record')),
     `expected registry violation, got ${JSON.stringify(violations)}`);
@@ -325,60 +326,63 @@ test('Health staging 打开自动同步被拒绝', () => {
     `expected auto-sync violation, got ${JSON.stringify(violations)}`);
 });
 
-test('GU assets 缺少 run_worker_first=true 被拒绝（鉴权不得被资产绕过）', () => {
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\n' }) } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('run_worker_first')),
-    `expected run_worker_first violation, got ${JSON.stringify(violations)}`);
-});
+for (const app of ['gu', 'gzh']) {
+  test(`${app} assets 缺少 run_worker_first=true 被拒绝（鉴权不得被资产绕过）`, () => {
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: privateWorkerConfig({ app, assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\n' }) } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('run_worker_first')),
+      `expected run_worker_first violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU 缺少 [assets] 段被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': guWorkerConfig({ assetsBlock: '' }) } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('[assets]')),
-    `expected assets violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} 缺少 [assets] 段被拒绝`, () => {
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: privateWorkerConfig({ app, assetsBlock: '' }) } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('[assets]')),
+      `expected assets violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU staging 仍用 Pages preview 环境被拒绝', () => {
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': guWorkerConfig({ envKey: 'preview' }) } }));
-  assert.ok(violations.some(v => v.includes('gu')),
-    `expected staging environment violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} staging 仍用 Pages preview 环境被拒绝`, () => {
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: privateWorkerConfig({ app, envKey: 'preview' }) } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':')),
+      `expected staging environment violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU 重复 [assets] 表被拒绝', () => {
-  const doubled = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\n[assets]\nbinding = "ASSETS"\nrun_worker_first = true\n' });
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': doubled } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('exactly once')),
-    `expected duplicate-table violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} 重复 [assets] 表被拒绝`, () => {
+    const doubled = privateWorkerConfig({ app, assetsBlock: '[assets]\ndirectory = "./dist"\n[assets]\nbinding = "ASSETS"\nrun_worker_first = true\n' });
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: doubled } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('exactly once')),
+      `expected duplicate-table violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU run_worker_first 数组形式被拒绝（鉴权应用必须无条件先进 Worker）', () => {
-  const arrayForm = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = ["/api/*"]\n' });
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': arrayForm } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('run_worker_first')),
-    `expected run_worker_first violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} run_worker_first 数组形式被拒绝（鉴权应用必须无条件先进 Worker）`, () => {
+    const arrayForm = privateWorkerConfig({ app, assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = ["/api/*"]\n' });
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: arrayForm } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('run_worker_first')),
+      `expected run_worker_first violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU run_worker_first 双重声明被拒绝', () => {
-  const doubled = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = true\nrun_worker_first = ["/api/*"]\n' });
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': doubled } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('run_worker_first exactly once')),
-    `expected duplicate-declaration violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} run_worker_first 双重声明被拒绝`, () => {
+    const doubled = privateWorkerConfig({ app, assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = true\nrun_worker_first = ["/api/*"]\n' });
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: doubled } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('run_worker_first exactly once')),
+      `expected duplicate-declaration violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU staging 环境 assets 覆盖被拒绝', () => {
-  const overridden = guWorkerConfig() + '\n[env.staging.assets]\nrun_worker_first = false\n';
-  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': overridden } }));
-  assert.ok(violations.some(v => v.includes('gu') && v.includes('per-environment assets')),
-    `expected env-assets violation, got ${JSON.stringify(violations)}`);
-});
+  test(`${app} staging 环境 assets 覆盖被拒绝`, () => {
+    const overridden = privateWorkerConfig({ app }) + '\n[env.staging.assets]\nrun_worker_first = false\n';
+    const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: overridden } }));
+    assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('per-environment assets')),
+      `expected env-assets violation, got ${JSON.stringify(violations)}`);
+  });
 
-test('GU 环境 assets 覆盖的 TOML 写法变体同样被拒绝', () => {
-  for (const header of ['[ env.staging.assets ]', '[env.staging."assets"]', "[env.staging.'assets']", '[env.staging."\\u0061ssets"]']) {
-    const variant = guWorkerConfig() + `\n${header}\nrun_worker_first = false\n`;
-    const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': variant } }));
-    assert.ok(violations.some(v => v.includes('gu') && v.includes('per-environment assets')),
-      `expected env-assets violation for ${header}, got ${JSON.stringify(violations)}`);
-  }
-});
+  test(`${app} 环境 assets 覆盖的 TOML 写法变体同样被拒绝`, () => {
+    for (const header of ['[ env.staging.assets ]', '[env.staging."assets"]', "[env.staging.'assets']", '[env.staging."\\u0061ssets"]']) {
+      const variant = privateWorkerConfig({ app }) + `\n${header}\nrun_worker_first = false\n`;
+      const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: variant } }));
+      assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('per-environment assets')),
+        `expected env-assets violation for ${header}, got ${JSON.stringify(violations)}`);
+    }
+  });
+
+}
 
 test('引用 legacy 资源被拒绝', () => {
   const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-gzh' ? [r[0], r[1], r[2], r[3], r[4], 'legacy-pending-retirement'] : r);

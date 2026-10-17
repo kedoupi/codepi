@@ -5,15 +5,14 @@
   "type": "module",
   "description": "珂抖屁公众号一期：稿件、预览与审核工作台",
   "scripts": {
-    "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8788",
+    "dev": "npm run build && wrangler dev --ip 127.0.0.1 --port 8788",
     "dev:ui": "vite --config web/vite.config.ts",
-    "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
+    "build": "vite build --config web/vite.config.ts && node scripts/build-assets.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json --config ./web/svelte.config.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate:local": "wrangler d1 migrations apply codepi-gzh --local",
-    "db:migrate:remote": "wrangler d1 migrations apply codepi-gzh --remote",
-    "pages:dev": "wrangler pages dev dist --ip 127.0.0.1 --port 8788"
+    "db:migrate:remote": "wrangler d1 migrations apply codepi-gzh --remote"
   },
   "engines": {
     "node": ">=20"

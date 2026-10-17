@@ -30,6 +30,22 @@ export async function checkPages(app, target, request = fetch, { origin } = {}) 
   assert.ok(location.searchParams.get('redirect_uri') === `${origin}/api/auth/callback`, 'Incorrect callback');
   assert.ok(location.searchParams.get('code_challenge_method') === 'S256'
     && location.searchParams.get('code_challenge') && location.searchParams.get('state'), 'Missing PKCE transaction');
+  if (app === 'gzh') {
+    for (const path of ['/p/kdp-0917-zao/', '/previews/kdp-0917-zao/index.html']) {
+      const preview = await get(path);
+      await preview.body?.cancel();
+      assert.equal(preview.status, 302, 'GZH private preview must require a session');
+      const loginUrl = new URL(preview.headers.get('location') || '/', origin);
+      assert.ok(loginUrl.origin === origin && loginUrl.pathname === '/login', 'GZH preview must redirect to its own login');
+      assert.equal(preview.headers.get('cache-control'), 'no-store', 'GZH private preview must not be cached');
+    }
+    for (const path of ['/%70reviews/kdp-0917-zao/', '/previews%2fkdp-0917-zao/', '//previews/kdp-0917-zao/']) {
+      const alias = await get(path);
+      await alias.body?.cancel();
+      assert.equal(alias.status, 404, 'GZH asset aliases must not bypass authentication');
+      assert.equal(alias.headers.get('cache-control'), 'no-store', 'GZH rejected aliases must not be cached');
+    }
+  }
   return `${app} ${target}: root, anonymous private API and same-environment SSO redirect passed`;
 }
 

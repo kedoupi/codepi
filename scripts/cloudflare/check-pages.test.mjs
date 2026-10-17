@@ -10,6 +10,14 @@ function fixture(app, target, override = {}) {
     const { pathname, origin } = new URL(url);
     if (pathname === '/') return new Response('', { status: app === 'web' ? 200 : 302 });
     if (pathname.endsWith('/me')) return override.me?.() ?? Response.json({ authenticated: false }, { status: 401 });
+    if (pathname.includes('%') || pathname.includes('//')) {
+      return override.alias?.() ?? new Response(null, { status: 404, headers: { 'cache-control': 'no-store' } });
+    }
+    if (pathname.startsWith('/p/') || pathname.startsWith('/previews/')) {
+      return override.preview?.() ?? new Response(null, {
+        status: 302, headers: { location: origin + '/login', 'cache-control': 'no-store' },
+      });
+    }
     const location = new URL(`https://${auth}.codepi.app/authorize`);
     location.search = new URLSearchParams({
       client_id: app === 'web' ? 'desk' : app, redirect_uri: `${origin}/api/auth/callback`,
@@ -25,9 +33,25 @@ test('all Pages clients validate root, anonymous private API and environment-spe
   for (const app of ['web', 'gu', 'gzh']) for (const target of ['production', 'staging']) {
     const f = fixture(app, target);
     await checkPages(app, target, f.request);
-    assert.equal(f.requests.length, 3);
+    assert.equal(f.requests.length, app === 'gzh' ? 8 : 3);
     assert.ok(f.requests.every(r => r.redirect === 'manual'));
   }
+});
+
+test('GZH rejects exposed preview assets and cached private redirects on the new Worker', async () => {
+  for (const preview of [
+    () => new Response('<html>private draft</html>'),
+    () => new Response(null, { status: 302, headers: { location: '/login' } }),
+    () => new Response(null, { status: 302, headers: { location: 'https://other.example/login', 'cache-control': 'no-store' } }),
+  ]) {
+    const f = fixture('gzh', 'production', { preview });
+    await assert.rejects(checkPages('gzh', 'production', f.request, { origin: 'https://codepi-gzh.example.workers.dev' }));
+  }
+});
+
+test('GZH probes encoded and duplicate-slash asset aliases', async () => {
+  const f = fixture('gzh', 'production', { alias: () => new Response('<html>private draft</html>') });
+  await assert.rejects(checkPages('gzh', 'production', f.request), /aliases must not bypass/);
 });
 
 test('origin override hits the given Worker origin while keeping SSO assertions', async () => {
