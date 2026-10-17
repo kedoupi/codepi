@@ -1,139 +1,69 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/svelte";
+import { goTo, mountApp, resetClientState, stubFetch } from "./helpers";
 
-afterEach(() => {
+beforeEach(() => {
+  resetClientState();
+});
+
+afterEach(async () => {
+  cleanup();
+  await new Promise((done) => setTimeout(done, 0));
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-/**
- * 最小 DOM 桩：让 render() 能在 vi 里跑起来并触发 mountChrome + renderContent。
- * 重点是 contentEl.innerHTML 被替换的次数，用来断言「同批次不重绘正文」。
- */
-async function mount(initial = "#overview", batchId = "one") {
-  vi.resetModules();
-  let chrome = "";
-  let contentInner = "";
-  let renderContentCalls = 0;
-  const contentEl = {
-    focus: vi.fn(),
-    get innerHTML() {
-      return contentInner;
-    },
-    set innerHTML(v: string) {
-      renderContentCalls++;
-      contentInner = v;
-    },
-    setAttribute: vi.fn(),
-    getAttribute: vi.fn(() => "false"),
-  };
-  const noticeEl = {
-    hidden: true,
-    textContent: "",
-    className: "",
-    setAttribute: vi.fn(),
-  };
-  const refreshEl = { disabled: false, textContent: "刷新数据", onclick: null };
-  const logoutEl = { onclick: null };
-  const app = {
-    set innerHTML(v: string) {
-      chrome = v;
-    },
-    get innerHTML() {
-      return chrome;
-    },
-    querySelectorAll: () => [],
-  };
-  const listeners: Record<string, () => void> = {};
-  vi.stubGlobal("document", {
-    addEventListener: (e: string, fn: () => void) => {
-      listeners[e] = fn;
-    },
-    visibilityState: "visible",
-    querySelectorAll: () => [],
-    querySelector: (sel: string) => {
-      if (sel === "#app") return app;
-      if (sel === "#content") return contentEl;
-      if (sel === "#notice") return noticeEl;
-      if (sel === "#refresh") return refreshEl;
-      if (sel === "#logout") return logoutEl;
-      return null;
-    },
-  });
-  vi.stubGlobal("window", {
-    addEventListener: (e: string, fn: () => void) => {
-      listeners[e] = fn;
-    },
-    scrollTo: vi.fn(),
-  });
-  vi.stubGlobal("sessionStorage", { removeItem: vi.fn() });
-  vi.stubGlobal("location", { hash: initial, search: "" });
-  vi.stubGlobal("history", { replaceState: vi.fn() });
-  const data = {
-    account: [{ total_usd: 1, warnings: "", holdings_as_of: "2026-10-15" }],
-    positions: [],
-    risk: [],
-    market: [],
-    reports: [],
-  };
-  const fetch = vi.fn(async (path: string) =>
-    path === "/api/health"
-      ? Response.json({ sso_enabled: false })
-      : path === "/api/me"
-        ? Response.json({ authenticated: true })
-        : Response.json({ batch_id: batchId, data }),
-  );
-  vi.stubGlobal("fetch", fetch);
-  await import("../src/main");
-  await vi.waitFor(() => expect(contentInner).toContain("估算总资产"));
-  return {
-    app,
-    listeners,
-    fetch,
-    data,
-    getContent: () => contentEl,
-    getContentCalls: () => renderContentCalls,
-  };
-}
-
 describe("stable render shell", () => {
-  it("does not redraw the body when the hashchange points to the same page", async () => {
-    const { listeners, getContentCalls } = await mount("#overview");
-    const baseline = getContentCalls();
-    listeners.hashchange();
-    listeners.hashchange();
-    expect(getContentCalls()).toBe(baseline);
+  it("mounts the chrome exactly once and keeps it across page switches", async () => {
+    stubFetch({ sso: true });
+    mountApp();
+    await screen.findByText("估算总资产 · 美元");
+    const sidebar = document.querySelector(".sidebar");
+    const topbar = document.querySelector(".topbar");
+    await goTo("#positions");
+    await screen.findByText("当前持仓");
+    await goTo("#status");
+    await screen.findByText("当前批次");
+    await goTo("#overview");
+    await screen.findByText("估算总资产 · 美元");
+    expect(document.querySelector(".sidebar")).toBe(sidebar);
+    expect(document.querySelector(".topbar")).toBe(topbar);
+    expect(document.querySelectorAll(".sidebar").length).toBe(1);
   });
 
-  it("redraws the body when the hashchange switches pages", async () => {
-    const { listeners, getContentCalls } = await mount("#overview");
-    const baseline = getContentCalls();
-    location.hash = "#status";
-    listeners.hashchange();
-    expect(getContentCalls()).toBeGreaterThan(baseline);
+  it("keeps the notice as a persistent node outside #content", async () => {
+    stubFetch({ sso: true });
+    mountApp();
+    await screen.findByText("估算总资产 · 美元");
+    const notice = document.querySelector("#notice")!;
+    expect(notice.parentElement?.id).not.toBe("content");
+    await goTo("#positions");
+    await screen.findByText("当前持仓");
+    expect(document.querySelector("#notice")).toBe(notice);
   });
 
-  it("mounts the chrome exactly once across many render calls", async () => {
-    const { app, listeners, getContentCalls } = await mount("#overview");
-    const beforeChrome = app.innerHTML;
-    location.hash = "#positions";
-    listeners.hashchange();
-    location.hash = "#overview";
-    listeners.hashchange();
-    location.hash = "#status";
-    listeners.hashchange();
-    // chrome 模板不变；只有 #content 替换
-    expect(app.innerHTML).toBe(beforeChrome);
-    // contentInner 被多次重写是因为页面切换，符合预期
-    expect(getContentCalls()).toBeGreaterThan(0);
+  it("updates the active nav item without remounting the workspace", async () => {
+    stubFetch({ sso: true });
+    mountApp();
+    await screen.findByText("估算总资产 · 美元");
+    const workspace = document.querySelector(".workspace");
+    await goTo("#positions");
+    await screen.findByText("当前持仓");
+    expect(
+      document.querySelector('[data-nav="positions"]')!.getAttribute("aria-current"),
+    ).toBe("page");
+    expect(document.querySelector('[data-nav="overview"]')!.getAttribute("aria-current")).toBeNull();
+    expect(document.querySelector(".workspace")).toBe(workspace);
   });
 
-  it("keeps the notice as a persistent node, not part of #content", async () => {
-    const { getContent, listeners } = await mount("#overview");
-    const content = getContent();
-    expect(content.innerHTML).not.toContain("data-status");
-    // 直接触发 hashchange 不应改 content innerHTML（只有页面切换才会改）
-    const before = content.innerHTML.length;
-    listeners.hashchange();
-    expect(content.innerHTML.length).toBe(before);
+  it("does not re-fetch when hashchange fires without a hash change", async () => {
+    const stub = stubFetch({ sso: true });
+    mountApp();
+    await screen.findByText("估算总资产 · 美元");
+    const before = stub.fetchMock.mock.calls.length;
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await new Promise((done) => setTimeout(done, 0));
+    expect(stub.fetchMock.mock.calls.length).toBe(before);
   });
 });

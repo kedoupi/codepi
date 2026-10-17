@@ -409,7 +409,7 @@ export function weightHistory(
           `<option value="${e(row.source)}" ${i === rows.length - 1 ? "selected" : ""}>${e(row.date)} · ${row.approx ? "档案" : "本批行情"}</option>`,
       )
       .join("")}</select></label>
-    <div id="history-detail">${historyDetail(rows[rows.length - 1])}</div>
+    <div id="history-detail"></div>
     <p class="fine">横轴按实际日期间隔，连线只连接记录点，不代表每日走势或收益率。历史权重是档案约值，账户分母口径曾变化；最后一点为本批行情估算。
       现金不进本图：早期档案的现金口径不一致（06-25 把 14% 目标值写成了当前值）。</p></div>`;
 }

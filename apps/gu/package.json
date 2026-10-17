@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8791",
     "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json",
     "test": "vitest run",
     "test:scripts": "node --test scripts/check-deploy-regression.mjs scripts/check-sync-status.mjs",
     "db:local": "wrangler d1 migrations apply gu-production --local",
@@ -23,9 +23,14 @@
     "@cloudflare/vitest-plugin": "^1.4.2",
     "@cloudflare/workers-types": "latest",
     "@kedoupi/shared": "workspace:*",
+    "@sveltejs/vite-plugin-svelte": "^5.1.1",
+    "@testing-library/svelte": "^5.2.8",
     "esbuild": "^0.25.9",
+    "jsdom": "^26.1.0",
+    "svelte": "^5.38.6",
+    "svelte-check": "^4.3.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.5",
+    "vite": "^6.0.7",
     "vitest": "^4.1.11",
     "wrangler": "^4.37.0"
   }
