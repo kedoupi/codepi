@@ -3,7 +3,7 @@
   import type { Account, BoardData, BoardPost } from "../api";
   import { board, shiftDate, todayShanghai } from "../api";
   import { isSessionCurrent, sessionVersion } from "../session";
-  import { bindBrokenCovers, formatZhDate, slotHint, statusChipClass, statusLabel, thumbHtml } from "../format";
+  import { bindBrokenCovers, coverSrc, formatZhDate, slotHint, statusChipClass, statusLabel, thumbClass } from "../format";
   import { drainFlash, errText } from "../lib/toast";
   import Masthead from "./Masthead.svelte";
   import ComposeForm from "./ComposeForm.svelte";
@@ -113,7 +113,7 @@
                 <h2 class="empty-title">{row.slot}档空着</h2>
                 <p class="digest">还没有稿。点下方交本档，或等「今天三档都空」时自动补演示。</p>
               </div>
-              {@html thumbHtml(null)}
+              <div class={thumbClass(null)} aria-hidden="true"></div>
             </div>
             <details class="compose">
               <summary>交本档真稿</summary>
@@ -133,7 +133,11 @@
                 <h2>{post.title}</h2>
                 <p class="digest">{post.digest || post.note || "点开先看预览"}</p>
               </div>
-              {@html thumbHtml(post.preview_path)}
+              {#if coverSrc(post.preview_path)}
+                <div class={thumbClass(post.preview_path)} aria-hidden="true"><img src={coverSrc(post.preview_path)} alt="" loading="lazy" decoding="async" data-cover /></div>
+              {:else}
+                <div class={thumbClass(post.preview_path)} aria-hidden="true"></div>
+              {/if}
             </a>
           </article>
         {/if}
@@ -159,7 +163,11 @@
                   <h2>{post.title}</h2>
                   <p class="digest">{post.digest || post.note || "点开预览审核"}</p>
                 </div>
-                {@html thumbHtml(post.preview_path)}
+                {#if coverSrc(post.preview_path)}
+                <div class={thumbClass(post.preview_path)} aria-hidden="true"><img src={coverSrc(post.preview_path)} alt="" loading="lazy" decoding="async" data-cover /></div>
+              {:else}
+                <div class={thumbClass(post.preview_path)} aria-hidden="true"></div>
+              {/if}
               </a>
             </article>
           {/each}
