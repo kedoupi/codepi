@@ -34,6 +34,7 @@ export function mockLocation(options: { pathname?: string; search?: string } = {
 }
 
 export function resetClientState() {
+  sessionModule.onSessionExpired(() => {});
   appState.route = "desk";
   appState.account = null;
   appState.booted = false;

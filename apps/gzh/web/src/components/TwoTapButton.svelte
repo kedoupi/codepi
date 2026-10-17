@@ -1,14 +1,18 @@
 <script lang="ts">
-    let {
+  import { showToast, errText } from "../lib/toast";
+
+  let {
     label,
     confirmLabel,
     onConfirm,
     class: klass = "text-btn",
+    disabled = false,
   }: {
     label: string;
     confirmLabel: string;
     onConfirm: () => Promise<void>;
     class?: string;
+    disabled?: boolean;
   } = $props();
 
   let armed = $state(false);
@@ -18,6 +22,7 @@
   async function handleClick(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
+    if (disabled || busy) return;
     if (!armed) {
       armed = true;
       window.clearTimeout(timer);
@@ -27,13 +32,16 @@
     window.clearTimeout(timer);
     armed = false;
     busy = true;
-    // onConfirm 自行处理错误（toast）并可靠返回；成功后通常整页跳转/重载。
-    // 无论结果如何都复位 busy，避免失败后按钮永久 disabled 无法重试。
-    await onConfirm();
-    busy = false;
+    try {
+      await onConfirm();
+    } catch (error) {
+      showToast(errText(error, "操作失败"), "err");
+    } finally {
+      busy = false;
+    }
   }
 </script>
 
-<button class={klass} class:is-armed={armed} type="button" disabled={busy} onclick={handleClick}>
+<button class={klass} class:is-armed={armed} type="button" disabled={disabled || busy} onclick={handleClick}>
   {armed ? confirmLabel : label}
 </button>

@@ -340,6 +340,7 @@
           class="btn-reject"
           label="拒"
           confirmLabel="确认拒绝？再点一次"
+          disabled={reviewLocked || reviewBusy !== ""}
           onConfirm={() => runReview("拒")}
         />
       </div>
