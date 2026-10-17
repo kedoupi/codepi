@@ -1,6 +1,6 @@
 # GZH 前端 Svelte 迁移
 
-- 状态：实现、本地验证、两轮独立审查和修复、桌面/移动 CDP 浏览器验收完成；最终复核、PR CI、合并与线上核验待进行。
+- 状态：实现、本地验证、三轮独立审查和修复、桌面/移动 CDP 浏览器验收完成；PR #63 首轮 CI 暴露 Svelte 配置发现问题，修复后待复核与重跑 CI；合并与线上核验待进行。
 - 目标与验收：把 `apps/gzh/web` 从 951 行 vanilla TS（手工 innerHTML + 事件绑定）迁移到 Svelte 5（runes）+ Vite，与 `apps/gu/web`、`apps/oura/apps/web` 结构对齐；保持界面、会话生命周期、看板 / 预览 / 审核流程、演示稿操作、阅读闸（read-gate）与文稿语义。
 - 不在范围内：业务规则、D1 schema、共享认证协议、Pages 部署载体、worker 路由、`preview-session.ts` 静态预览探针、其他应用迁移。
 - worktree：`/Users/codepi/.worktrees/kdp.cool/codex/gzh-svelte-frontend`
@@ -28,10 +28,14 @@
 - GZH `npm test` 11 文件 94 项通过；`npm run typecheck`（tsc ×2 + svelte-check）0 错误、0 警告；`npm run build` 通过（vite 6.4.4）。Workers 测试运行时提示 compatibility date 回退到 `2025-09-06`，未在本任务升级运行时。
 - 新增 `scripts/browser-smoke.mjs`：CDP 无头 Chrome 走真实 `wrangler pages dev`（ENVIRONMENT=development, SSO_ENABLED=0，先本地 D1 migrate），覆盖 dev OTP 登录 → 桌面(1440×900)/移动(390×844)看板 → 演示稿内联预览 → 滚动到底解锁三枚审核按钮 → 退出，断言无横向溢出、零控制台错误/异常，本地已通过。截图位于本地 `/tmp/gzh-browser-smoke/`，已查看桌面预览与移动看板。
 - 全仓 `node scripts/agent/check.mjs --base 13d31e4… --run`：23 项全部通过。
-- 独立审查者 Singer：第一轮绑定 `d16f163`，提出两次确认按钮 busy 复位、App/Login 启动失败重试、会话过期清空断言与真实入口验证、预览 `#app.is-review` class 等问题，修复于 `21ee27b`；第二轮绑定 `21ee27b`，要求补回操作失败统一捕获、显式卸载入口测试实例和真实阅读闸覆盖，现已修复并增加测试，最终复核待进行。
+- 独立审查者 Singer：第一轮绑定 `d16f163`，提出两次确认按钮 busy 复位、App/Login 启动失败重试、会话过期清空断言与真实入口验证、预览 `#app.is-review` class 等问题，修复于 `21ee27b`；第二轮绑定 `21ee27b`，要求补回操作失败统一捕获、显式卸载入口测试实例和真实阅读闸覆盖；第三轮绑定 `42ed375`，确认上述发现全部关闭、无新增阻塞，独立执行 GZH test/typecheck/build。
 - 未覆盖：真实 SSO 登录跳转（本地 AUTH 绑定未连接）、真实邮件投递、迁移前后 UI 视觉对照、真实公众号发布；浏览器操作限于本地合成稿件。
 
-## PR 与自动发布（回填）
+## PR 与自动发布
+
+- PR #63 首轮平台 CI run `39004248266`：GZH 的 94 项测试通过，svelte-check 报 8 项 `No Svelte configuration found in vite config`；其余应用构建和 Health 浏览器检查成功。SSO/GU 专项 run `39004248351` 成功。未合并失败版本。
+- 根因：缺少 `web/svelte.config.js`，所用 Vite 插件不能向当前配置加载器提供所需的 Svelte 配置；隐藏 worktree 路径下的本地自动发现未暴露问题。调用检查器所依赖的 `@sveltejs/load-config` 并加载 `web/`，明确复现 `configDiscovered:false`。
+- 修复：补齐与 GU/Health 相同的 `compilerOptions.runes=true` 配置，并给 typecheck 添加显式 `--config ./web/svelte.config.js`；配置加载器随后确认 `configSource:svelte`、`runes:true`。不跳过配置错误或放宽检查。
 
 ## 生产版本与线上核验（回填）
 

@@ -8,7 +8,7 @@
     "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8788",
     "dev:ui": "vite --config web/vite.config.ts",
     "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json --config ./web/svelte.config.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate:local": "wrangler d1 migrations apply codepi-gzh --local",
