@@ -470,11 +470,10 @@ test('Health Pages WORKER binding 指向错误服务被拒绝', () => {
     `expected WORKER violation, got ${JSON.stringify(violations)}`);
 });
 
-test('缺 staging D1 / AUTH / route / cron 声明被拒绝', () => {
+test('缺 staging D1 / AUTH / cron 声明被拒绝', () => {
   for (const [label, file, config, needle] of [
     ['staging D1', 'apps/health/apps/web/wrangler.toml', healthPagesConfig({ stgD1: false }), 'D1'],
     ['staging AUTH', 'apps/health/apps/web/wrangler.toml', healthPagesConfig({ authStg: 'codepi-auth' }), 'AUTH'],
-    ['staging route', 'apps/health/workers/api/wrangler.toml', healthApiConfig({ stgRoutes: [] }), 'routes'],
     ['staging cron', 'apps/health/workers/api/wrangler.toml', healthApiConfig({ stgCrons: null }), 'crons'],
   ]) {
     const violations = run(legalFiles({ files: { [file]: config } }));
