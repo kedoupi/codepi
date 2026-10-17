@@ -361,17 +361,25 @@ function checkService(spec, cfg, index, violations) {
     if (tomlStringCount(assetsBody, 'binding') !== 1 || tomlString(assetsBody, 'binding') !== 'ASSETS') {
       at('[assets] must declare binding = "ASSETS" exactly once');
     }
-    // 全量匹配赋值：布尔数组或重复声明都不满足"唯一 true"。
+    // 首页公开资产直出；API 和 Desk 规范域名/缓存策略由 Worker 处理。
     const workerFirstAll = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=/gm)];
-    const workerFirst = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm)];
+    const workerFirst = [...assetsBody.matchAll(spec.id === 'www'
+      ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/desk"\s*,\s*"\/desk\/\*"\s*\][ \t]*(?:#[^\n]*)?$/gm
+      : /^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm)];
     if (workerFirstAll.length !== 1) {
       at(`[assets] must declare run_worker_first exactly once (got ${workerFirstAll.length})`);
     }
     if (workerFirstAll.length === 1 && workerFirst.length !== 1) {
-      at('[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
+      at(spec.id === 'www'
+        ? '[assets] must declare run_worker_first = ["/api/*", "/desk", "/desk/*"] exactly once (Desk APIs and canonical redirects must not be shadowed by static assets)'
+        : '[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
     }
-    if (tomlStringCount(assetsBody, 'not_found_handling') > 0) {
-      at('[assets] must not declare not_found_handling (404/page semantics stay in the Hono router)');
+    if (spec.id === 'www') {
+      if (tomlStringCount(assetsBody, 'not_found_handling') !== 1 || tomlString(assetsBody, 'not_found_handling') !== '404-page') {
+        at('[assets] must declare not_found_handling = "404-page" exactly once (preserve the public 404 page)');
+      }
+    } else if (tomlStringCount(assetsBody, 'not_found_handling') > 0) {
+      at('[assets] must not declare not_found_handling (preserve application 404/page semantics)');
     }
     if (envAssetsHeaders.length > 0) {
       at(`per-environment assets overrides are forbidden; staging inherits the top-level [assets] (found ${envAssetsHeaders.join(', ')})`);
@@ -455,7 +463,7 @@ function checkService(spec, cfg, index, violations) {
 
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
-    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'preview',
+    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', stagingName: 'codepi-www-staging', d1Name: 'codepi-desk', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', stagingName: 'codepi-gu-staging', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },

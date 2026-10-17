@@ -4,5 +4,5 @@
     "typeRoots": ["../../services/auth/node_modules/@cloudflare"],
     "types": ["workers-types"]
   },
-  "include": ["server/**/*.ts", "functions/**/*.ts"]
+  "include": ["server/**/*.ts", "worker/**/*.ts"]
 }
