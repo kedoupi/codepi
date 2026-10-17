@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Private investment dashboard",
   "scripts": {
-    "dev": "npm run build && wrangler pages dev dist --ip 127.0.0.1 --port 8791",
-    "build": "vite build --config web/vite.config.ts && node scripts/bundle-worker.mjs",
+    "dev": "npm run build && wrangler dev --ip 127.0.0.1 --port 8791",
+    "build": "vite build --config web/vite.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json",
     "test": "vitest run",
     "test:scripts": "node --test scripts/check-deploy-regression.mjs scripts/check-sync-status.mjs",
@@ -25,7 +25,6 @@
     "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@testing-library/svelte": "^5.2.8",
-    "esbuild": "^0.25.9",
     "jsdom": "^26.1.0",
     "svelte": "^5.38.6",
     "svelte-check": "^4.3.1",

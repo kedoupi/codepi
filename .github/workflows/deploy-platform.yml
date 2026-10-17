@@ -464,12 +464,59 @@ jobs:
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler deploy)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
-          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+          version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: verify runtime secrets (bootstrap gate)
+        # Pages → Workers 迁移窗口的显式两阶段门控：
+        # 阶段 A（secrets 未写入）：本 step 失败，发布链在此停下——此时只有
+        #   新 Worker 的代码上线，gu.codepi.app 仍由旧 Pages 服务，线上无影响。
+        #   人工按任务文档 2026-10-17-gu-static-assets.md 一次性写入 secrets。
+        # 阶段 B：在 GitHub Environment `production` 配置 GU_SECRETS_BOOTSTRAPPED=1
+        #   并 re-run failed jobs。本 step 校验 Workers secret API 里
+        #   AUTH_CLIENT_SECRET 与 SESSION_SECRET 存在（只读名称，不读值），
+        #   然后 pre-cutover smoke 才允许执行。
+        if: github.ref == 'refs/heads/main'
+        env:
+          GU_SECRETS_BOOTSTRAPPED: ${{ vars.GU_SECRETS_BOOTSTRAPPED }}
+        run: |
+          set -o pipefail
+          if [ "${GU_SECRETS_BOOTSTRAPPED:-}" != "1" ]; then
+            echo "::error::GU runtime secrets not yet written to the new Worker. Follow docs/development/tasks/2026-10-17-gu-static-assets.md cutover step 2, then set GU_SECRETS_BOOTSTRAPPED=1 in the production environment and re-run failed jobs."
+            exit 1
+          fi
+          curl -sf --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/codepi-gu/secrets" \
+            | node -e "
+          let raw = '';
+          process.stdin.on('data', chunk => raw += chunk).on('end', () => {
+            const body = JSON.parse(raw);
+            if (body.success !== true || !Array.isArray(body.result)) {
+              console.error('::error::Workers secrets API returned an unexpected payload');
+              process.exit(1);
+            }
+            const names = new Set(body.result.filter(s => s?.type === 'secret_text').map(s => s.name));
+            const missing = ['AUTH_CLIENT_SECRET', 'SESSION_SECRET'].filter(name => !names.has(name));
+            if (missing.length) {
+              console.error('::error::Worker codepi-gu is missing runtime secrets: ' + missing.join(', '));
+              process.exit(1);
+            }
+            console.log('Worker runtime secrets present (names only, values never read).');
+          });"
+      - name: smoke new Worker (pre-cutover)
+        # 域名切换前 gu.codepi.app 仍指向旧 Pages；直接探测新 Worker 的
+        # workers.dev 子域，让 evidence 的 --smoke pass 真正关联本次 version。
+        # WORKERS_DEV_SUBDOMAIN 须在 GitHub Environment `production` 的
+        # environment variables 中显式配置（账户 workers.dev 子域，非机密）。
+        if: github.ref == 'refs/heads/main'
+        env:
+          WORKERS_DEV_SUBDOMAIN: ${{ vars.WORKERS_DEV_SUBDOMAIN }}
+        run: |
+          origin="https://codepi-gu.${WORKERS_DEV_SUBDOMAIN:?WORKERS_DEV_SUBDOMAIN must be set as a production environment variable}.workers.dev"
+          node ../../scripts/cloudflare/check-pages.mjs gu production --origin "$origin"
       - name: smoke
+        # 域名切换完成前该项探测的是旧 Pages（回归监控）；切换后即为新 Worker。
         if: github.ref == 'refs/heads/main'
         run: node ../../scripts/cloudflare/check-pages.mjs gu production
       - name: record deployment evidence
@@ -478,7 +525,7 @@ jobs:
           node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gu --target production --sha "$GITHUB_SHA"
-          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
       - name: upload deployment evidence
         if: always()
         uses: actions/upload-artifact@v4

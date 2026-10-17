@@ -118,7 +118,7 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 | 应用 | 前端 | 服务端 | 包管理 |
 |---|---|---|---|
 | web | Astro 6 + Tailwind v3 | Pages Functions (desk) | pnpm workspace |
-| gu | Svelte 5 + Vite | Hono Worker（Pages bundle） | pnpm workspace |
+| gu | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | gzh | Svelte 5 + Vite | Hono Worker（Pages bundle） | pnpm workspace |
 | oura | Svelte 5 + Vite | Hono Worker | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
@@ -132,4 +132,4 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 
 GU 先迁移服务端路由，再独立迁移 Svelte 前端；业务接口和部署载体在路由迁移中保持不变。实施与验收状态见 [GU Hono 迁移记录](../development/tasks/2026-10-17-gu-hono-router.md)。三个私有应用前端已统一到 Svelte 5 + Vite（GU、GZH 迁移验收分别见 `2026-10-17-gu-svelte-frontend.md`、`2026-10-17-gzh-svelte-frontend.md`）；Health API 与 Auth 服务端已迁 Hono（验收分别见 `2026-10-17-health-hono-api.md`、[Auth Hono 迁移记录](../development/tasks/2026-10-17-auth-hono.md)）。
 
-下一阶段是部署载体统一：按 GU → GZH → 首页/Desk → Health 的顺序，分别评估并迁移到 Workers Static Assets。先核实 Worker 与静态文件的请求顺序、运行时 secrets 的安全来源、现有 Service Binding 和域名切换/回退步骤；每个产品独立验证后再切换。当前四个站点仍部署在 Pages，staging 仍为保留但未启用。
+部署载体统一按 GU → GZH → 首页/Desk → Health 的顺序推进：GU 已迁移为 Workers Static Assets 架构的 Worker（`run_worker_first = true`，全部请求先进 Hono 鉴权链；staging 从 Pages preview 环境迁移为 named environment `codepi-gu-staging`，保留未启用），实施与切换验收见 [GU Static Assets 迁移记录](../development/tasks/2026-10-17-gu-static-assets.md)。GZH、首页/Desk、Health 仍部署在 Pages，按同样方式逐个评估迁移：先核实 Worker 与静态文件的请求顺序、运行时 secrets 的安全来源、现有 Service Binding 和域名切换/回退步骤，每个产品独立验证后再切换。

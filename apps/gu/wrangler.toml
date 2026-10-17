@@ -1,7 +1,14 @@
 name = "codepi-gu"
-pages_build_output_dir = "./dist"
+main = "worker/index.ts"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+# 全站鉴权应用：所有请求（包括静态资产）必须先进 Worker，资产不得绕过会话门。
+# 不配置 not_found_handling：404/页面语义由 Hono 路由链承担，与 Pages 时期一致。
+run_worker_first = true
 
 [[services]]
 binding = "AUTH"
@@ -20,20 +27,25 @@ database_name = "codepi-gu"
 database_id = "4d3b6713-85dd-4f61-ac55-9925db72394b"
 migrations_dir = "migrations"
 
-# Pages preview 环境 = staging runtime（治理规范第 4 节）：仅由 staging branch
-# 通过 Actions 上传，绑定 staging D1 与 codepi-auth-staging。
-[env.preview.vars]
+# staging runtime（治理规范第 4 节）：Workers named environment，保留未启用；
+# 绑定 staging D1 与 codepi-auth-staging，不接发布入口。
+[env.staging]
+name = "codepi-gu-staging"
+# 禁止环境覆盖资产拓扑：staging 继承顶层 [assets]（run_worker_first=true）。
+# 治理守门会拒绝任何 [env.staging.assets] 声明，防止资产绕过 Worker 鉴权。
+
+[env.staging.vars]
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "gu"
 OTP_FROM = "otp@kdp.cool"
 AUTH_ORIGIN = "https://auth-staging.codepi.app"
 ENVIRONMENT = "staging"
 
-[[env.preview.services]]
+[[env.staging.services]]
 binding = "AUTH"
 service = "codepi-auth-staging"
 
-[[env.preview.d1_databases]]
+[[env.staging.d1_databases]]
 binding = "DB"
 database_name = "codepi-gu-staging"
 database_id = "86d7d48c-ef12-4cd6-932c-38c0a53bcded"

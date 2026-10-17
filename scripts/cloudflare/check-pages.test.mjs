@@ -30,6 +30,16 @@ test('all Pages clients validate root, anonymous private API and environment-spe
   }
 });
 
+test('origin override hits the given Worker origin while keeping SSO assertions', async () => {
+  const f = fixture('gu', 'production');
+  await checkPages('gu', 'production', f.request, { origin: 'https://codepi-gu.example.workers.dev' });
+  assert.deepEqual(f.requests.map(r => r.url), [
+    'https://codepi-gu.example.workers.dev/',
+    'https://codepi-gu.example.workers.dev/api/me',
+    'https://codepi-gu.example.workers.dev/api/auth/login',
+  ]);
+});
+
 test('public homepage 200 cannot hide broken Desk authentication or a private-data leak', async () => {
   for (const status of [200, 503]) {
     const f = fixture('web', 'production', { me: () => Response.json({ error: 'auth_not_configured' }, { status }) });
