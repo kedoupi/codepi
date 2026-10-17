@@ -17,8 +17,8 @@ const js = 'console.log("public build fixture")';
 const css = 'body { color: #0f172a; }';
 await Promise.all([writeFile(path.join(dir, 'index.html'), index), writeFile(path.join(dir, 'assets/index-fixture.js'), js), writeFile(path.join(dir, 'assets/index-fixture.css'), css)]);
 const prod = { binding: 'DB', database_name: 'production-fixture', database_id: '11111111-1111-4111-8111-111111111111' };
-const prev = { binding: 'DB', database_name: 'codepi-gu-staging', database_id: '22222222-2222-4222-8222-222222222222' };
-const config = () => ({ name: 'codepi-gu', pages_build_output_dir: './dist', vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }], env: { preview: { vars: { ENVIRONMENT: 'staging', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth-staging.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth-staging' }], d1_databases: [{ ...prev }] } } });
+const stg = { binding: 'DB', database_name: 'codepi-gu-staging', database_id: '22222222-2222-4222-8222-222222222222' };
+const config = () => ({ name: 'codepi-gu', main: 'worker/index.ts', assets: { directory: './dist', binding: 'ASSETS', run_worker_first: true }, vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }], env: { staging: { name: 'codepi-gu-staging', vars: { ENVIRONMENT: 'staging', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth-staging.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth-staging' }], d1_databases: [{ ...stg }] } } });
 const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
 const routes = () => ({ '/api/health': () => json({ ok: true, sso_enabled: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401), '/api/calendar': () => json({ error: 'Login required' }, 401) });
 function fetcher(overrides = {}) {
@@ -38,20 +38,27 @@ const auth = (overrides = {}) => checkAuth('https://gu.example', { fetcher: fetc
 test('configuration accepts isolated real-shaped IDs', () => validateConfig(config()));
 for (const [name, mutate] of [
   ['production placeholder', c => { c.d1_databases[0].database_id = '00000000-0000-0000-0000-000000000001'; }],
-  ['preview placeholder', c => { c.env.preview.d1_databases[0].database_id = '00000000-0000-0000-0000-000000000002'; }],
-  ['shared database ID', c => { c.env.preview.d1_databases[0].database_id = prod.database_id; }],
-  ['shared database name', c => { c.env.preview.d1_databases[0].database_name = prod.database_name; }],
-  ['missing preview binding', c => { delete c.env.preview.d1_databases; }],
+  ['staging placeholder', c => { c.env.staging.d1_databases[0].database_id = '00000000-0000-0000-0000-000000000002'; }],
+  ['shared database ID', c => { c.env.staging.d1_databases[0].database_id = prod.database_id; }],
+  ['shared database name', c => { c.env.staging.d1_databases[0].database_name = prod.database_name; }],
+  ['missing staging binding', c => { delete c.env.staging.d1_databases; }],
   ['missing production binding', c => { delete c.d1_databases; }],
-  ['missing environment marker', c => { delete c.env.preview.vars; }],
+  ['missing environment marker', c => { delete c.env.staging.vars; }],
   ['malformed ID', c => { c.d1_databases[0].database_id = 'invalid'; }],
   ['disabled SSO', c => { c.vars.SSO_ENABLED = '0'; }],
   ['missing AUTH service', c => { c.services = []; }],
-  ['preview marker not staging', c => { c.env.preview.vars.ENVIRONMENT = 'preview'; }],
-  ['staging bound to production Auth', c => { c.env.preview.services[0].service = 'codepi-auth'; }],
-  ['missing staging AUTH service', c => { c.env.preview.services = []; }],
-  ['staging AUTH_ORIGIN not staging host', c => { c.env.preview.vars.AUTH_ORIGIN = 'https://auth.codepi.app'; }],
-  ['staging D1 missing -staging suffix', c => { c.env.preview.d1_databases[0].database_name = 'preview-fixture'; }],
+  ['staging marker not staging', c => { c.env.staging.vars.ENVIRONMENT = 'preview'; }],
+  ['staging bound to production Auth', c => { c.env.staging.services[0].service = 'codepi-auth'; }],
+  ['missing staging AUTH service', c => { c.env.staging.services = []; }],
+  ['staging AUTH_ORIGIN not staging host', c => { c.env.staging.vars.AUTH_ORIGIN = 'https://auth.codepi.app'; }],
+  ['staging D1 missing -staging suffix', c => { c.env.staging.d1_databases[0].database_name = 'preview-fixture'; }],
+  ['missing Worker main', c => { delete c.main; }],
+  ['assets not worker-first', c => { c.assets.run_worker_first = false; }],
+  ['missing assets binding', c => { delete c.assets.binding; }],
+  ['wrong assets directory', c => { c.assets.directory = './public'; }],
+  ['staging name missing', c => { delete c.env.staging.name; }],
+  ['Pages output dir left behind', c => { c.pages_build_output_dir = './dist'; }],
+  ['Pages preview env left behind', c => { c.env.preview = { vars: { ENVIRONMENT: 'staging' } }; }],
 ]) test(`configuration rejects ${name}`, () => { const c = config(); mutate(c); assert.throws(() => validateConfig(c)); });
 test('origin accepts HTTPS and loopback HTTP', () => { assert.equal(deploymentOrigin('https://gu.example/'), 'https://gu.example'); assert.equal(deploymentOrigin('http://127.0.0.1:8787'), 'http://127.0.0.1:8787'); });
 for (const url of ['http://gu.example', 'https://user:value@gu.example', 'https://:value@gu.example', 'https://gu.example/path', 'https://gu.example/?query=value', 'https://gu.example/#fragment', undefined]) test(`origin rejects unsafe shape ${String(url).replace(/\/\/.*@/, '//[credentials]@')}`, () => assert.throws(() => deploymentOrigin(url)));

@@ -464,11 +464,10 @@ jobs:
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-gu --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler deploy)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-gu --url "$url")
-          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+          version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: smoke
         if: github.ref == 'refs/heads/main'
         run: node ../../scripts/cloudflare/check-pages.mjs gu production
@@ -478,7 +477,7 @@ jobs:
           node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service gu --target production --sha "$GITHUB_SHA"
-          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
       - name: upload deployment evidence
         if: always()
         uses: actions/upload-artifact@v4

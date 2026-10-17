@@ -61,7 +61,7 @@
 
 Pages 只有 production/preview 两级配置，preview bindings 不按分支隔离。因此：
 
-- 每个 Pages 项目的 `preview` 环境即 staging runtime：`ENVIRONMENT="staging"`，
+- 每个保留的 Pages 项目的 `preview` 环境即 staging runtime：`ENVIRONMENT="staging"`，
   绑定 staging D1 与 `codepi-auth-staging`。
 - 保留的 `staging` Pages deployment alias 是 provider 路由标签，不要求仓库存在同名
   长期分支；启用时须明确其 source SHA。
@@ -73,7 +73,7 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
 ### Workers
 
 - staging 使用 Wrangler named environment：`codepi-auth-staging`、
-  `codepi-health-api-staging` 等。
+  `codepi-gu-staging`、`codepi-health-api-staging` 等。
 - 每个 `[env.staging]` 显式声明 route、vars、D1、service binding、Cron 与 secret 名，
   不依赖顶层 bindings 继承。
 - 所有 staging service binding 只能连接 `*-staging` Worker。
@@ -113,11 +113,13 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   服务；根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` 也标记全部
   服务；否则只标记对应 app 路径。pnpm 版本从根 packageManager 读取，所有 job 从根目录
   frozen install，发布使用 lockfile 中的 Wrangler。
-- DAG：governance gate → auth build/migrate/deploy/smoke → web/gu/gzh Pages
-  build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke →
-  health Pages build/deploy/smoke。下游 job 只在 predecessor success 或 skipped
-  时继续（`!failure() && !cancelled()`），failure 必须停止。
+- DAG：governance gate → auth build/migrate/deploy/smoke → web/gzh Pages 与 gu
+  Worker build/migrate/deploy/smoke → health API build/migrate/deploy/contract
+  smoke → health Pages build/deploy/smoke。下游 job 只在 predecessor success 或
+  skipped 时继续（`!failure() && !cancelled()`），failure 必须停止。
 - 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
+  GU 自 2026-10-17 起以 Workers Static Assets 架构经 `wrangler deploy` 发布
+  （`run_worker_first = true`，全站请求先进 Worker 鉴权），其余站点仍为 Pages。
 - production deploy/migrate step 同时有 job 级与 step 级
   `github.ref == 'refs/heads/main'` guard。合并 PR 即授权自动发布，不增加逐次 Environment
   approval。GitHub `production` Environment 应仅允许 main，并配置发布凭证；`environment:`
@@ -156,8 +158,10 @@ Health API migration/deploy/contract smoke → Health Pages。
   回滚窗口结束、登记表标记无消费者。
 - D1/KV/R2 的数据删除不与计算资源退役绑定；无单独用户授权不得删除任何数据资源。
 - `unknown` 资源不得重命名、迁移或删除。
-- 域名切换顺序：先使 Pages custom domain `active`，再切 zone CNAME 到对应
-  `*.pages.dev`；domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
+- 域名切换顺序：Pages 间切换先使 Pages custom domain `active`，再切 zone CNAME 到对应
+  `*.pages.dev`；Pages → Worker 切换先确认新 Worker version 探针通过、secrets 以同值
+  写入，再为 Worker 绑定 custom domain，最后移除 Pages 侧绑定（Pages 项目与 deployment
+  保留作为回退路径）。domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
   匿名首页/登录页 200 或预期 302、Auth health 200 JSON、未登录私有接口 401/302、
   SSO callback 同环境精确匹配、登出、Health `/api/*`、`/mcp`、两个
   `/.well-known/*` 返回 JSON 而非 SPA HTML。正式生产路径不得返回 522。

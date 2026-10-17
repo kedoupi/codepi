@@ -1,13 +1,13 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Pages 项目 `codepi-gu`，生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../docs/development/cloudflare-resource-registry.md)，不再将旧 Pages URL 作为上传或验收目标。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../docs/development/cloudflare-resource-registry.md)。2026-10-17 起从 Pages 迁移到 Workers，发布走 `wrangler deploy`；域名切换前的过渡期内 `gu.codepi.app` 仍由 Pages 项目服务，切换记录见 [GU Static Assets 迁移记录](../docs/development/tasks/2026-10-17-gu-static-assets.md)。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
 ## 代码与验证
 
 - `web/src/`：Vite + TypeScript 前端；`charts.ts` 生成配置缺口、风控距离和历史权重图。
-- `worker/app.ts`：Hono 路由与中间件，处理登录、数据校验与同步；`worker/index.ts` 保留 Pages Worker 入口和统一安全响应头。
+- `worker/app.ts`：Hono 路由与中间件，处理登录、数据校验与同步；`worker/index.ts` 是 Worker 入口（`main = "worker/index.ts"`，由 wrangler 直接编译，不再需要 esbuild 预打包）和统一安全响应头。
 - `migrations/`：D1 结构；生产与预览使用独立数据库。
 - `test/app.test.ts`：认证、同步、旧批次兼容与图表语义回归测试。
 - `test/routing.test.ts`：路由顺序、精确路径与方法、Origin、静态资源边界和错误响应回归测试。
@@ -25,7 +25,7 @@ npm run dev
 
 站点保持 `style-src 'self'`。动态图形位置通过 `data-*` 与 `web/src/dom.ts` 的 CSSOM 赋值实现；不要在生成的 HTML 中写内联 `style`。
 
-服务端路由按内部摘要独立鉴权、HTTPS、公开 GET 与令牌上传、浏览器 Origin、登录与退出、私有 API 会话、静态资源依次处理。API 的 GET 仅接受 GET，HEAD 不启动 SSO 登录或消费回调；编码路径和末尾斜杠保留原有精确匹配语义。业务处理函数仍在各自模块，前端和 Pages 部署方式未随 Hono 迁移改变。
+服务端路由按内部摘要独立鉴权、HTTPS、公开 GET 与令牌上传、浏览器 Origin、登录与退出、私有 API 会话、静态资源依次处理。API 的 GET 仅接受 GET，HEAD 不启动 SSO 登录或消费回调；编码路径和末尾斜杠保留原有精确匹配语义。业务处理函数仍在各自模块；部署载体已随后续 Static Assets 迁移切换到 Workers。
 
 ## 数据来源与同步
 

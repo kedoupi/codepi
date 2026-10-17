@@ -14,6 +14,7 @@ const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 const ENV_SUFFIX = /-(staging|pr-\d+)$/;
+const ASSETS_HEADER = '[assets]';
 
 // ---- 轻量解析（沿用 oura/scripts/lib/wrangler-config.mjs 的分段模式，不引入依赖）----
 
@@ -135,7 +136,11 @@ function parseTomlEnv(root, tables, prefix) {
 
 function normalizeTomlService(text, envKey) {
   const { root, tables } = splitToml(text);
-  return { production: parseTomlEnv(root, tables, null), staging: parseTomlEnv(root, tables, `env.${envKey}`) };
+  return {
+    production: parseTomlEnv(root, tables, null),
+    staging: parseTomlEnv(root, tables, `env.${envKey}`),
+    assetsBody: tomlTableBodies(tables, ASSETS_HEADER).join('\n'),
+  };
 }
 
 function normalizeJsoncService(text) {
@@ -216,7 +221,7 @@ const BAD_STATUSES = ['legacy-pending-retirement', 'legacy-preview', 'unknown'];
 
 function checkService(spec, cfg, index, violations) {
   const at = (msg) => violations.push(`${spec.id}: ${msg}`);
-  const { production: prod, staging } = cfg;
+  const { production: prod, staging, assetsBody = '' } = cfg;
   const environments = [['production', prod], ['staging', staging]];
   const checkRef = (token, env, typeHint, label) => {
     if (!token) return;
@@ -322,6 +327,24 @@ function checkService(spec, cfg, index, violations) {
       }
     }
   }
+
+  if (spec.kind === 'worker-assets') {
+    if (!assetsBody || tomlStringCount(assetsBody, 'directory') !== 1
+      || tomlString(assetsBody, 'directory') !== './dist') {
+      at('[assets] must declare directory = "./dist" exactly once');
+    }
+    if (tomlStringCount(assetsBody, 'binding') !== 1 || tomlString(assetsBody, 'binding') !== 'ASSETS') {
+      at('[assets] must declare binding = "ASSETS" exactly once');
+    }
+    const workerFirst = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=[ \t]*(\w+)[ \t]*(?:#[^\n]*)?$/gm)];
+    if (workerFirst.length !== 1 || workerFirst[0][1] !== 'true') {
+      at('[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker)');
+    }
+    if (assetsBody && tomlStringCount(assetsBody, 'not_found_handling') > 0) {
+      at('[assets] must not declare not_found_handling (404/page semantics stay in the Hono router)');
+    }
+  }
+
   if (spec.requiredRoutes) {
     for (const [envName, env] of environments) {
       const actual = [...env.routePatterns].sort();
@@ -380,7 +403,7 @@ function checkService(spec, cfg, index, violations) {
     }
   }
 
-  const refs = [[prod.name, 'production', spec.kind === 'worker' ? 'worker' : 'pages', 'name']];
+  const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name']];
   if (spec.stagingName) refs.push([staging.name, 'staging', 'worker', 'staging name']);
   for (const [envName, env] of environments) {
     for (const service of env.servicesAll) refs.push([service.service, envName, 'worker', `service binding ${service.binding}`]);
@@ -401,7 +424,7 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
   const specs = [
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'preview',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'preview',
+    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', stagingName: 'codepi-gu-staging', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-gzh', d1Name: 'codepi-gzh', envKey: 'preview',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },

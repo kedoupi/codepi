@@ -10,6 +10,13 @@ main 发布 run `39021027068` 的 13 个 job 全部成功。四个 Pages canonic
 资源的 provider 标识和真实流程未覆盖项见 [Auth Hono 发布记录](tasks/2026-10-17-auth-hono.md)。
 本轮未重新审计数据库、staging、DNS 或 unknown 资源；下文 2026-10-16 记录保留为历史证据。
 
+2026-10-17 GU 部署载体迁移登记：GU 从 Pages 项目迁移为 Workers Static Assets 架构的
+Worker `codepi-gu`（`pages-gu` → `worker-gu`），staging 承载从 Pages preview 环境迁移为
+named environment Worker `codepi-gu-staging`（`worker-gu-staging`，保留未启用、不接发布入口）。
+本注记登记的是仓库配置侧的载体决策与治理形态；Worker 的 provider 标识、custom domain
+切换结果与线上核验证据见 [GU Static Assets 迁移记录](tasks/2026-10-17-gu-static-assets.md)，
+在切换完成前 `gu.codepi.app` 仍由 Pages 项目 `codepi-gu` 服务。
+
 2026-10-17 GU Hono 迁移核验：PR #59 合并为 `ffe762e`，main 发布 run `38991512923`
 成功；四个 Pages canonical deployment 均为该干净 SHA，Auth / Health API 当前版本已核对。
 GU 线上资源逐字节匹配与 10 项路由边界探测、三产品 Pages smoke、Auth health 和 Health
@@ -46,22 +53,23 @@ secret 值、个人数据或 OAuth refresh token。
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
 | pages-www | production | pages | codepi-www | kedoupi | 首页与 Desk 摘要 | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 |
-| pages-gu | production | pages | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户 | gu.codepi.app | apps/gu/wrangler.toml | managed | 2026-10-17 |
+| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户 | gu.codepi.app（custom domain 待切换）, codepi-gu.workers.dev | apps/gu/wrangler.toml | managed | 2026-10-17 |
 | pages-gzh | production | pages | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户 | gzh.codepi.app | apps/gzh/wrangler.toml | managed | 2026-10-17 |
 | pages-health | production | pages | codepi-health | kedoupi | Health 前端 | private-health-data | 终端用户 | health.codepi.app | apps/oura/apps/web/wrangler.toml | managed | 2026-10-17 |
 | worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
 | worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | pages-health, MCP 客户端 | health.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml | managed | 2026-10-17 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | pages-www | - | apps/web/wrangler.toml | managed | 2026-10-16 |
-| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | pages-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
+| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
 | d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | pages-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-16 |
 | d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/oura/workers/api/wrangler.toml | managed | 2026-10-16 |
 | d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
 | d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | pages-www preview | - | apps/web/wrangler.toml [env.preview] | managed | 2026-10-16 |
-| d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | pages-gu preview | - | apps/gu/wrangler.toml [env.preview] | managed | 2026-10-16 |
+| d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-16 |
 | d1-gzh-staging | staging | d1 | codepi-gzh-staging (1a57d7d8-6d16-4f16-b9f6-b78f78b714ab) | kedoupi | staging GZH 数据（0001–0004 migration 与既有 demo seed） | synthetic | pages-gzh preview（配置已更新；上传待 release gate） | - | apps/gzh/wrangler.toml [env.preview]、Pages preview DB PATCH | managed | 2026-10-16 |
 | d1-health-staging | staging | d1 | codepi-health-staging (36430305-83df-4af6-961f-64abedca02fe) | kedoupi | staging Health 数据（仅 synthetic fixture） | synthetic | worker-health-api-staging | - | apps/oura/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
 | worker-auth-staging | staging | worker | codepi-auth-staging | kedoupi | staging SSO/OTP 认证 | synthetic | staging Pages、worker-health-api-staging | auth-staging.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
+| worker-gu-staging | staging | worker | codepi-gu-staging | kedoupi | staging GU（保留未启用，不接发布入口） | synthetic | staging 访问者 | gu-staging.codepi.app（待绑定） | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-17 |
 | worker-health-api-staging | staging | worker | codepi-health-api-staging | kedoupi | staging Health API | synthetic | pages-health preview | health-staging.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
 | pages-www-staging-host | staging | pages-domain | staging.codepi.app → staging.codepi-www.pages.dev | kedoupi | staging 首页/Desk 域名（branch alias） | synthetic | staging 访问者 | staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | pages-gu-staging-host | staging | pages-domain | gu-staging.codepi.app → staging.codepi-gu.pages.dev | kedoupi | staging GU 域名（branch alias） | synthetic | staging 访问者 | gu-staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
