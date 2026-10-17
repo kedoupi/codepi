@@ -371,6 +371,15 @@ test('GU staging 环境 assets 覆盖被拒绝', () => {
     `expected env-assets violation, got ${JSON.stringify(violations)}`);
 });
 
+test('GU 环境 assets 覆盖的 TOML 写法变体同样被拒绝', () => {
+  for (const header of ['[ env.staging.assets ]', '[env.staging."assets"]']) {
+    const variant = guWorkerConfig() + `\n${header}\nrun_worker_first = false\n`;
+    const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': variant } }));
+    assert.ok(violations.some(v => v.includes('gu') && v.includes('per-environment assets')),
+      `expected env-assets violation for ${header}, got ${JSON.stringify(violations)}`);
+  }
+});
+
 test('引用 legacy 资源被拒绝', () => {
   const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-gzh' ? [r[0], r[1], r[2], r[3], r[4], 'legacy-pending-retirement'] : r);
   const violations = run(legalFiles({ registryRows: rows }));

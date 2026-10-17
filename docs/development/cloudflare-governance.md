@@ -159,9 +159,12 @@ Health API migration/deploy/contract smoke → Health Pages。
 - D1/KV/R2 的数据删除不与计算资源退役绑定；无单独用户授权不得删除任何数据资源。
 - `unknown` 资源不得重命名、迁移或删除。
 - 域名切换顺序：Pages 间切换先使 Pages custom domain `active`，再切 zone CNAME 到对应
-  `*.pages.dev`；Pages → Worker 切换先确认新 Worker version 探针通过、secrets 以同值
-  写入，再为 Worker 绑定 custom domain，最后移除 Pages 侧绑定（Pages 项目与 deployment
-  保留作为回退路径）。domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
+  `*.pages.dev`；Pages → Worker 切换按以下顺序执行：新 Worker version 探针通过、
+  secrets 经授权渠道以同值写入 → 删除 zone 内指向 `*.pages.dev` 的旧 CNAME（Workers
+  custom domain 绑定要求 hostname 无冲突记录，必须先移除旧记录）→ 为 Worker 绑定
+  custom domain → 探针通过后移除 Pages 项目的 custom domain 绑定（Pages 项目与
+  deployment 保留作为回退路径）。回退 = 恢复 Pages 绑定与旧 CNAME。除本步骤明确
+  授权的迁移 CNAME 删除外，domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
   匿名首页/登录页 200 或预期 302、Auth health 200 JSON、未登录私有接口 401/302、
   SSO callback 同环境精确匹配、登出、Health `/api/*`、`/mcp`、两个
   `/.well-known/*` 返回 JSON 而非 SPA HTML。正式生产路径不得返回 522。

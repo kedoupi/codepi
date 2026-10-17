@@ -22,10 +22,23 @@ function splitToml(text) {
   const headers = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
   const root = text.slice(0, headers[0]?.index ?? text.length);
   const tables = headers.map((match, i) => ({
-    header: match[1],
+    header: normalizeTomlHeader(match[1]),
     body: text.slice(match.index + match[0].length, headers[i + 1]?.index ?? text.length),
   }));
   return { root, tables };
+}
+
+// TOML 表头规范化：去空格、去掉 quoted key 的引号，使
+// [ env.staging.assets ] / [env.staging."assets"] 等合法变体都归一为
+// 规范拼写再比较。守门是 fail-closed，不能因为写法变体放过覆盖声明。
+function normalizeTomlHeader(header) {
+  const double = header.startsWith('[[');
+  const inner = header.slice(double ? 2 : 1, double ? -2 : -1).trim();
+  const parts = inner.split('.').map(part => {
+    const p = part.trim();
+    return p.length >= 2 && p.startsWith('"') && p.endsWith('"') ? p.slice(1, -1) : p;
+  });
+  return `${double ? '[[' : '['}${parts.join('.')}${double ? ']]' : ']'}`;
 }
 
 function tomlString(section, key) {
@@ -140,7 +153,7 @@ function normalizeTomlService(text, envKey) {
     production: parseTomlEnv(root, tables, null),
     staging: parseTomlEnv(root, tables, `env.${envKey}`),
     assetsTables: tomlTableBodies(tables, ASSETS_HEADER),
-    envAssetsHeaders: tables.filter(t => /^\[env\.[^.\]]+\.assets\]$/.test(t.header)).map(t => t.header),
+    envAssetsHeaders: tables.filter(t => /^\[env\..+\.assets\]$/.test(t.header)).map(t => t.header),
   };
 }
 

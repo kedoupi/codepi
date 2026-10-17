@@ -132,3 +132,19 @@ test('Pages deployment smoke includes private endpoints and SSO, not just homepa
     assert.ok(job?.includes(`node ../../scripts/cloudflare/check-pages.mjs ${app} ${target}`));
   }
 });
+
+test('GU Workers release gates pre-cutover smoke on the explicit secrets bootstrap', async () => {
+  const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
+  const job = workflow.split('\n  gu-deploy-production:')[1]?.split(/\n  [a-z][a-z-]+:/)[0];
+  assert.ok(job, 'gu-deploy-production must exist');
+  const steps = [...job.matchAll(/- name: ([^\n]+)/g)].map(match => match[1]);
+  const order = ['deploy', 'verify runtime secrets (bootstrap gate)', 'smoke new Worker (pre-cutover)', 'smoke', 'record deployment evidence'];
+  const positions = order.map(name => steps.findIndex(step => step.startsWith(name)));
+  assert.ok(positions.every(index => index !== -1), `missing steps in ${steps.join(', ')}`);
+  assert.deepEqual([...positions].sort((a, b) => a - b), positions, 'evidence must follow both smokes; bootstrap gate must precede pre-cutover smoke');
+  const gate = job.split('verify runtime secrets (bootstrap gate)')[1]?.split('- name:')[0];
+  assert.match(gate, /GU_SECRETS_BOOTSTRAPPED/, 'gate must be explicitly armed via the production environment');
+  assert.match(gate, /workers\/scripts\/codepi-gu\/secrets/, 'gate must verify secret names through the Workers API');
+  const preCutover = job.split('smoke new Worker (pre-cutover)')[1]?.split('- name:')[0];
+  assert.match(preCutover, /WORKERS_DEV_SUBDOMAIN/, 'pre-cutover smoke must target the new Worker origin, not the domain still on Pages');
+});

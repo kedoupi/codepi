@@ -27,12 +27,13 @@
 
 **前置事实（2026-10-17 核实）**：Pages 与 Workers 运行时 secret 互不可见。已用临时探针 secret 实证：`wrangler pages secret bulk` 写入的 secret 只出现在 `pages secret list`，Workers API 侧 `secret list --name codepi-gu` 报 Worker 不存在（探针 secret 已删除）。Pages secrets API 不回显值，CI 的 API token 无法把 Pages secret 的值复制到 Worker。因此 secrets 的首次写入必须来自 CI 之外的授权渠道。
 
-1. 合并 PR，main 自动发布产出新 Worker `codepi-gu` 的首个 version。CI 依次执行：`wrangler deploy` → pre-cutover smoke 直接探测 `codepi-gu.<account-subdomain>.workers.dev`（`check-pages.mjs gu production --origin`，root 302、匿名私有 API 401 JSON、SSO 302 跳转生成）→ 旧 `check-pages.mjs gu production`（此时仍探测旧 Pages，作回归监控）→ 证据记录 `--provider worker --identifier <version>`。pre-cutover smoke 失败会阻断证据记录与后续 job。
+1. **阶段 A：合并 PR，main 自动发布产出新 Worker `codepi-gu` 的首个 version**。CI 执行 `wrangler deploy` 后在 bootstrap gate 停下（`GU_SECRETS_BOOTSTRAPPED` 未配置时明确报错）：此时只有新 Worker 代码上线，`gu.codepi.app` 仍由旧 Pages 服务，线上无影响。
 2. **secrets 一次性人工写入（cloud 侧 break-glass，授权动作）**：把 Pages 侧 secrets（`AUTH_CLIENT_SECRET`、`SESSION_SECRET`、`OTP_PEPPER`、`UPLOAD_TOKEN`、`DESK_SUMMARY_TOKEN`、`INVESTMENT_CALENDAR_ID`；`RESEND_API_KEY` 当前 Pages 侧未配置，以 `pages secret list` 实际清单为准，只列名不读值）以同名同值写入新 Worker。执行人需在本地持有这些值（密码管理器/轮换记录），用 `wrangler secret bulk`（空目录运行，避免 Pages 项目检测）写入，并在登记表写入执行人、SHA、原因；本任务 Codex 不持有也不读取这些值。
-3. secrets 就位后重新跑 pre-cutover 探针（workers.dev 匿名集合 + `check-deploy.mjs --url https://codepi-gu.<subdomain>.workers.dev --dist dist` 的资产逐字节比对）。
-4. 域名切换（顺序严格）：先删除 zone 内 `gu.codepi.app → codepi-gu.pages.dev` 的 CNAME（Workers custom domain 绑定要求 hostname 无冲突记录）→ 为新 Worker 绑定 custom domain `gu.codepi.app` → 探针通过后移除 Pages 项目的 custom domain 绑定。Pages 项目与全部 deployment 保留，不删除。
-5. 回退预案：Pages custom domain 重新绑定 + 恢复 CNAME 到 `codepi-gu.pages.dev`（Pages 项目与 deployment 未动，即刻恢复），探针复核。
-6. 全部通过后更新登记表 `last_verified`、README DNS 表与本文。
+3. **阶段 B：同 SHA 重跑发布链**。在 GitHub Environment `production` 配置两项：`GU_SECRETS_BOOTSTRAPPED=1`（environment variable）与 `WORKERS_DEV_SUBDOMAIN`（账户 workers.dev 子域，非机密）。在失败的发布 run 上 re-run failed jobs：bootstrap gate 通过 Workers secrets API 只读校验 `AUTH_CLIENT_SECRET`/`SESSION_SECRET` 名称存在 → pre-cutover smoke 直接探测 `codepi-gu.<subdomain>.workers.dev`（root 302、匿名私有 API 401 JSON、SSO 302 跳转生成；此时 `AUTH_CLIENT_SECRET` 已就位，探测真实通过）→ 旧 `check-pages.mjs gu production`（仍探测旧 Pages，作回归监控）→ 证据记录 `--provider worker --identifier <version>`，与本次部署 version 关联。
+4. workers.dev 补充验收：`check-deploy.mjs --url https://codepi-gu.<subdomain>.workers.dev --dist dist` 的资产逐字节比对（登录闭环不做，Auth 未登记 workers.dev callback）。
+5. 域名切换（顺序严格）：先删除 zone 内 `gu.codepi.app → codepi-gu.pages.dev` 的 CNAME（Workers custom domain 绑定要求 hostname 无冲突记录）→ 为新 Worker 绑定 custom domain `gu.codepi.app` → 探针通过后移除 Pages 项目的 custom domain 绑定。Pages 项目与全部 deployment 保留，不删除。
+6. 回退预案：Pages custom domain 重新绑定 + 恢复 CNAME 到 `codepi-gu.pages.dev`（Pages 项目与 deployment 未动，即刻恢复），探针复核。
+7. 全部通过后更新登记表 `last_verified`、README DNS 表与本文。
 
 ## 验证证据
 
@@ -61,6 +62,11 @@
   - P2（域名切换遗漏 CNAME 冲突）：切换步骤补「先删 CNAME → 绑 Worker custom domain → 通过后移除 Pages 绑定」的明确顺序与回退动作。
   - P3（文档收尾）：状态行过期、`apps/gu/README.md` 的 `../docs` 相对链接错误（应为 `../../docs`），均已修正。
 - 审查者复核（待补）
+- 复审（同一审查者，绑定 `d7493b111e38687b9f995bb9f223fedbe6b420c7`）**结论：不可合并**，剩余 2×P1 + 2×P2 已修复：
+  - P1（`WORKERS_DEV_SUBDOMAIN` 未注入）：发布链新增显式 bootstrap gate step；`WORKERS_DEV_SUBDOMAIN` 与 `GU_SECRETS_BOOTSTRAPPED` 均要求在 GitHub Environment `production` 显式配置，workflow 注释与任务文档写明。
+  - P1（首次部署仍先跑鉴权 smoke）：发布链改为显式两阶段——阶段 A deploy 后 bootstrap gate 停止（旧 Pages 不受影响）；人工写入 secrets 并配置 `GU_SECRETS_BOOTSTRAPPED=1` 后 re-run failed jobs，gate 只读校验 secret 名称存在才放行 pre-cutover smoke。证据记录始终在完成验收的同一 run 内。
+  - P2（治理规范未同步 CNAME 顺序）：`cloudflare-governance.md` 域名切换条款已写明删旧 CNAME → 绑 Worker custom domain → 移除 Pages 绑定的顺序与回退。
+  - P2（环境 assets 覆盖的 TOML 变体逃逸）：守门新增表头规范化（去空格、去 quoted key 引号），`[ env.staging.assets ]`、`[env.staging."assets"]` 等合法变体统一归一后拒绝；新增对应负例（守门测试 30 项全过）。
 
 ## PR 与自动发布
 
