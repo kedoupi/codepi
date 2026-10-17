@@ -481,6 +481,7 @@ jobs:
         env:
           GU_SECRETS_BOOTSTRAPPED: ${{ vars.GU_SECRETS_BOOTSTRAPPED }}
         run: |
+          set -o pipefail
           if [ "${GU_SECRETS_BOOTSTRAPPED:-}" != "1" ]; then
             echo "::error::GU runtime secrets not yet written to the new Worker. Follow docs/development/tasks/2026-10-17-gu-static-assets.md cutover step 2, then set GU_SECRETS_BOOTSTRAPPED=1 in the production environment and re-run failed jobs."
             exit 1
