@@ -67,6 +67,12 @@
   - P1（首次部署仍先跑鉴权 smoke）：发布链改为显式两阶段——阶段 A deploy 后 bootstrap gate 停止（旧 Pages 不受影响）；人工写入 secrets 并配置 `GU_SECRETS_BOOTSTRAPPED=1` 后 re-run failed jobs，gate 只读校验 secret 名称存在才放行 pre-cutover smoke。证据记录始终在完成验收的同一 run 内。
   - P2（治理规范未同步 CNAME 顺序）：`cloudflare-governance.md` 域名切换条款已写明删旧 CNAME → 绑 Worker custom domain → 移除 Pages 绑定的顺序与回退。
   - P2（环境 assets 覆盖的 TOML 变体逃逸）：守门新增表头规范化（去空格、去 quoted key 引号），`[ env.staging.assets ]`、`[env.staging."assets"]` 等合法变体统一归一后拒绝；新增对应负例（守门测试 30 项全过）。
+- 第三轮审查（同一审查者，绑定 `6964752008773a776a3908c30972c502d582366c`）**结论：不可合并**，1×P1 + 3×P2 已在 `a0279fb` 修复：
+  - P1（Environment 变量未映射 shell）：gate 与 pre-cutover smoke 两个 step 显式 `env:` 映射 `${{ vars.GU_SECRETS_BOOTSTRAPPED }}` 与 `${{ vars.WORKERS_DEV_SUBDOMAIN }}`；PyYAML 解析全 workflow 验证，gate 脚本提取后按未武装/武装/缺 secret 三种场景实际 bash 执行通过。
+  - P2（grep 匹配 JSON）：gate 改 node 解析，校验 `success===true`、数组形态与 `secret_text` 类型；5 种本地场景验证（紧凑/格式化 JSON 接受，success:false/缺 secret/type 不符拒绝）。
+  - P2（顺序测试不锁定）：改精确 step 名 + 严格递增断言，新增 vars→env 接线、JSON.parse、`--origin` 断言。
+  - P2（TOML quoted key 残余变体）：表头规范化支持单引号 literal 与双引号 `\uXXXX` 转义解码，新增 2 个负例（守门测试 31 项全过）。
+- 终审（同一审查者，绑定 `a0279fbcb50c499d061fa4fb93edeae4c3cce8f2`）**结论：可以合并**；残余非阻塞建议（gate 管道启用 `pipefail` 传播 curl 失败）已在 `28d43df` 修复。
 
 ## PR 与自动发布
 
