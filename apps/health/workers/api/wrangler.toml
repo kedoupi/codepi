@@ -2,12 +2,9 @@ name = "codepi-health-api"
 main = "src/index.ts"
 rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
 compatibility_date = "2025-01-01"
-routes = [
-  { pattern = "health.codepi.app/api/*", zone_name = "codepi.app" },
-  { pattern = "health.codepi.app/mcp", zone_name = "codepi.app" },
-  { pattern = "health.codepi.app/oauth*", zone_name = "codepi.app" },
-  { pattern = "health.codepi.app/.well-known*", zone_name = "codepi.app" }
-]
+# 无公网 routes：health.codepi.app 整体绑定到前端 SPA Worker（apps/web），
+# API/MCP/OAuth 请求由前端 Worker 经 WORKER service binding 转发到本 Worker。
+# 保留 cron 触发器用于自动同步；域名切换后 zone 内不得残留本 Worker 的兜底路由。
 
 [vars]
 ENVIRONMENT = "production"
@@ -46,19 +43,14 @@ migrations_dir = "../../migrations"
 # Production URLs and the API route are declared above.
 # ALLOW_DEV_LOGIN=1 on preview/test Workers; unset / 0 in production.
 
-# staging 环境：唯一持久云端集成环境。独立 D1、独立 Auth service binding、
-# staging 域名 routes；关闭自动同步与生产副作用，不配置 production provider
+# staging 环境：唯一持久云端集成环境。独立 D1、独立 Auth service binding；
+# 关闭自动同步与生产副作用，不配置 production provider
 # credentials。secret 名同生产（OURA_CLIENT_ID、OURA_CLIENT_SECRET、
 # TOKEN_ENCRYPTION_KEY、SESSION_SECRET、AUTH_CLIENT_SECRET、PERSONAL_OWNER_ID），
 # 用 `wrangler secret put --env staging` 设置 staging 专属值。
 [env.staging]
 name = "codepi-health-api-staging"
-routes = [
-  { pattern = "health-staging.codepi.app/api/*", zone_name = "codepi.app" },
-  { pattern = "health-staging.codepi.app/mcp", zone_name = "codepi.app" },
-  { pattern = "health-staging.codepi.app/oauth*", zone_name = "codepi.app" },
-  { pattern = "health-staging.codepi.app/.well-known*", zone_name = "codepi.app" }
-]
+# 无公网 routes：staging 域名整体绑定到 staging 前端 Worker，API 走 service binding。
 
 [env.staging.vars]
 ENVIRONMENT = "staging"

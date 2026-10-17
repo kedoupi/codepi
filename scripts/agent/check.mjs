@@ -104,6 +104,7 @@ export function makePlan(files) {
       check(dirOf(app), 'pnpm', 'test');
       check(dirOf(app), 'pnpm', 'typecheck');
       check(dirOf(app), 'pnpm', 'build');
+      check(dirOf(app), 'pnpm', 'test:assets');
       check(dirOf(app), 'pnpm', 'test:browser:built');
     } else {
       check(dirOf(app), 'npm', 'test');
