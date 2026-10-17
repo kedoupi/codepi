@@ -2,11 +2,11 @@ import { api } from "./app";
 import { handleDeskSummary } from "./desk-summary";
 import { handleSsoCallback, handleSsoLogin, requireAccount } from "./auth";
 import { ssoErrorResponse } from "@kedoupi/shared/auth/client";
-import { isSpaPath, needsSession } from "./gate";
+import { isCanonicalPath, isSpaPath, needsSession } from "./gate";
 
 async function fetchStatic(env: Env, url: URL): Promise<Response> {
   let res = await env.ASSETS!.fetch(new Request(url, { method: "GET" }));
-  // Pages pretty-URL 会把 /index.html 308 到 /，ASSETS 再取一次即可拿到 HTML
+  // Static Assets 的 pretty-URL 重定向需在 binding 内解析，避免绕过会话门。
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("Location");
     if (location) {
@@ -28,9 +28,15 @@ async function serveAsset(request: Request, env: Env, pathname: string): Promise
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const pathname = new URL(request.url).pathname;
+    if (!isCanonicalPath(pathname)) {
+      return new Response("not found", {
+        status: 404,
+        headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+      });
+    }
     try {
       const response = await route(request, env, ctx);
-      const pathname = new URL(request.url).pathname;
       if (pathname.startsWith("/api/") || pathname.startsWith("/login") || needsSession(pathname)) {
         const secured = new Response(response.body, response);
         secured.headers.set("Cache-Control", "no-store");

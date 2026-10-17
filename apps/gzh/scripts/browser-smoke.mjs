@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { launchBrowser } from "../../oura/scripts/browser-cdp.mjs";
 
 /**
- * GZH 本地浏览器冒烟：构建产物 + `wrangler pages dev` 已在 --port 8788 运行。
+ * GZH 本地浏览器冒烟：构建产物 + `wrangler dev` 已在 --port 8788 运行。
  * 覆盖：dev OTP 登录、桌面/移动看板与预览、阅读解锁、退出（真实 worker + D1 local）。
- * 运行：node scripts/browser-smoke.mjs（需 dist/ 与 pages dev 已启动）。
+ * 运行：node scripts/browser-smoke.mjs（需 dist/ 与本地 Worker 已启动）。
  */
 
 const BASE = process.env.GZH_SMOKE_BASE || "http://127.0.0.1:8788";
