@@ -1,6 +1,6 @@
 # Health API Hono 迁移
 
-- 状态：进行中。目标、边界与验收已锁定；实现与验证未完成。
+- 状态：已发布。目标、边界与验收已锁定；实现、验证、合并与生产核验完成。
 - 目标与验收：把 `apps/oura/workers/api`（`src/index.ts`，184 行手写 switch 路由）迁移到 Hono 4，与 `apps/gu/worker`、`apps/gzh/worker` 保持同一套写法；路由表、405 语义、CORS、安全响应头、错误响应逐字节保持现有契约，`check-api` 16 项与全部集成测试不改语义继续通过。
 - 不在范围内：业务规则、D1 schema、自动同步逻辑、MCP/OAuth 协议、部署载体（仍是独立 Worker + routes）、Auth Worker（下一个独立任务）、`check-api` 探针语义。
 - worktree：`/Users/codepi/.worktrees/kdp.cool/codex/health-hono-api`
@@ -40,8 +40,31 @@
 - 修复后用同样方法复刻对照探针（esbuild 内存打包基线 `d45dcec` 旧入口 vs 新入口，UUID 归一化）：42 组 7 路径 × GET/OPTIONS × 3 Origin 全部一致（status + headers + body），探针为一次性脚本未入库。
 - 修复后重跑：typecheck 0 错误、116 项集成测试全过。审查者的 build/integration 失败是其只读沙箱 EPERM 所致，非代码问题；本任务环境已实际通过。
 
-## PR 与自动发布（回填）
+## PR 与自动发布
 
-## 生产版本与线上核验（回填）
+- PR #65 平台 CI run `39009723930`：`health-build` 的「Browser regression (normal and SSO)」步骤两次失败。第一次（attempt 1）在 `write budget defers details` 用例等待「数据库写入额度」告警 15 秒超时；第二次（attempt 2）`Browser normal` 场景 Chrome 冷启动 15 秒超时。两次失败点不固定，且均在环境侧。
+- 判断为既有测试稳定性 flake 而非迁移回归：本 PR diff 只覆盖 `apps/oura/workers/api/`（API Worker 源码）+ 本文 + 根锁文件，`apps/oura/scripts/`（冒烟脚本）与 `apps/oura/apps/web/`（Pages 构建产物来源）零变化；冒烟 fixture server 不读 `workers/api` 源码。CI 上 116 项集成测试跑 44 秒（本地约 26 秒，慢约 1.7 倍），机器负载敏感。
+- 第三次重跑（attempt 3）同一步骤全绿，`health-build` 与其余 12 个 job 全部 success；SSO/GU 专项 run `39009723888` success。
+- 合并前核对 PR head 仍为 `5d13b91a800b61356bf099bed21a386884af8278`，合并 API 使用完整 expected head SHA；squash 合并为 `c9354e05b7bac9d2353ae57cc0dd7ba77bbae3e0`。
+- main 自动发布 run `39011019991`：全 19 个 job `completed/success`，2026-10-17 14:48（上海时间）完成；validate run `39011019982` 亦 success。根锁文件变更触发全部产品重发，属预期。
 
-## 继续工作（回填）
+## 生产版本与线上核验（2026-10-17）
+
+Cloudflare API 核对四个 Pages canonical deployment：均为 production、完整 source SHA `c9354e05b7bac9d2353ae57cc0dd7ba77bbae3e0` 且 `commit_dirty=false`、branch=main、latest stage success。
+
+| Pages 项目 | canonical deployment URL |
+| --- | --- |
+| `codepi-www` | `https://d4e59ddb.codepi-www.pages.dev` |
+| `codepi-gu` | `https://fe92ada6.codepi-gu.pages.dev` |
+| `codepi-gzh` | `https://b5f379ce.codepi-gzh.pages.dev` |
+| `codepi-health` | `https://fa6cc156.codepi-health.pages.dev` |
+
+- `node scripts/cloudflare/check-pages.mjs <web|gu|gzh> production` 三项通过：匿名 root 状态、私有 API 401 JSON、登录跳同环境 Auth PKCE。
+- Auth `https://auth.codepi.app/api/health` 返回 200、JSON。
+- `OURA_EXPECT_BUILD=c9354e05b7ba node apps/oura/scripts/check-api.mjs`：16 项全部通过；Health `/api/health` 返回 `build=c9354e05b7ba`（发布脚本取 GITHUB_SHA 前 12 位），证明线上跑的就是 Hono 版 Worker。
+- 以上为匿名运行时证据，不代表已验收真实邮件、账号登录 / 退出、私人数据读取、真实 Oura 提供方授权/同步或真实 MCP 客户端授权。
+
+## 继续工作
+
+- 本次迁移把 Health API 服务端补齐到 Hono；`apps/gu`、`apps/gzh`、`apps/oura` 三个私有应用服务端栈已统一（GU Pages bundle、GZH/oura 独立 Worker）。后续迁移候选：Auth Worker 的 Hono 化（`services/auth/`，317 行 `index.ts`，独立任务）、Pages → Workers Static Assets（注意 `run_worker_first` 鉴权顺序），均需单独任务与用户确认。
+- 既有问题记账（非本次引入、不阻塞）：CI 浏览器冒烟对机器负载敏感（见「PR 与自动发布」段），`write budget` 用例 15 秒等待与 Chrome 冷启动 15 秒超时在慢机器上可能耗尽，值得单独加固。
