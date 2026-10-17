@@ -61,18 +61,6 @@ app.use("*", async (c, next) => {
   // third argument); handlers must keep their previous "no ctx" path.
   try { c.set("executionCtx", c.executionCtx as ExecutionContext | undefined); }
   catch { c.set("executionCtx", undefined); }
-  const origin = c.req.header("Origin");
-  // Bearer-token OAuth endpoints accept cross-origin API clients. The
-  // authorization screen itself is cookie-backed, so consent POSTs are
-  // checked again in mcp-oauth.ts before a code can be issued.
-  if (!isMcpPath(c.req.path) && origin && origin !== new URL(c.req.url).origin
-    && origin !== c.env.FRONTEND_ORIGIN) {
-    return Response.json({ error: "origin_not_allowed" }, { status: 403 });
-  }
-  if (c.req.method === "OPTIONS") {
-    if (isMcpPath(c.req.path)) return handleMcp(c.req.raw, c.env);
-    return new Response(null, { status: 204, headers: cors(c.req.raw, c.env) });
-  }
   return next();
 });
 
@@ -135,12 +123,24 @@ app.notFound(() => Response.json({ error: "not found" }, { status: 404 }));
 // fill whatever the route did not set itself.
 export async function dispatch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const requestId = crypto.randomUUID();
+  const url = new URL(request.url);
   const origin = request.headers.get("Origin");
+  // Early returns happen before any header post-processing, exactly as the
+  // previous hand-written dispatcher: cross-origin rejects carry the JSON
+  // requestId and no no-store/X-Request-ID headers, and OPTIONS responses
+  // keep their original header set.
+  if (!isMcpPath(url.pathname) && origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
+    return Response.json({ error: "origin_not_allowed", requestId }, { status: 403 });
+  }
+  if (request.method === "OPTIONS") {
+    if (isMcpPath(url.pathname)) return handleMcp(request, env);
+    return new Response(null, { status: 204, headers: cors(request, env) });
+  }
   const res = await app.fetch(request, env, ctx);
   const headers = new Headers(res.headers);
   headers.set("Cache-Control", "no-store");
   headers.set("X-Request-ID", requestId);
-  if (isMcpPath(new URL(request.url).pathname) && origin && !headers.has("Access-Control-Allow-Origin")) {
+  if (isMcpPath(url.pathname) && origin && !headers.has("Access-Control-Allow-Origin")) {
     headers.set("Access-Control-Allow-Origin", "*");
   }
   for (const [k, v] of Object.entries(cors(request, env))) {
