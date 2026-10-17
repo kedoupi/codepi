@@ -68,14 +68,10 @@ export function coverSrc(previewPath: string | null | undefined): string | null 
   return appendCover("", pathOnly);
 }
 
-/** Square thumb: real <img> when coverSrc exists; clean empty otherwise. */
-export function thumbHtml(previewPath: string | null | undefined, extraClass = ""): string {
+/** Square thumb class; cover URL comes from coverSrc (component renders the <img>). */
+export function thumbClass(previewPath: string | null | undefined, extraClass = ""): string {
   const src = coverSrc(previewPath);
-  const cls = `thumb${extraClass ? ` ${extraClass}` : ""}${src ? "" : " is-empty"}`;
-  if (!src) {
-    return `<div class="${cls}" aria-hidden="true"></div>`;
-  }
-  return `<div class="${cls}" aria-hidden="true"><img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" data-cover /></div>`;
+  return `thumb${extraClass ? ` ${extraClass}` : ""}${src ? "" : " is-empty"}`;
 }
 
 export function bindBrokenCovers(root: ParentNode = document): void {
