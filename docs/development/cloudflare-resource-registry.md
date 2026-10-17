@@ -3,6 +3,13 @@
 账户：`Kedoupi`（`69f1de4c8f3c7411593613711207e7b3`）。本表是版本化登记记录；
 实时状态以当次 Cloudflare 控制面核实为准。治理规则见 [cloudflare-governance.md](./cloudflare-governance.md)。
 
+2026-10-17 GU 配置重建：执行者为当前 Codex，代码基线 `33207cd`。用户明确允许按最终
+方案重建旧测试状态，因此通过 API 新生成并配对 GU SSO 与 Desk 摘要凭证，替代恢复旧值
+的人工流程；仅失效 GU 的 6 条 SSO 会话与 2 条登录事务，业务数据未改。新 Worker
+匿名探针与 2 个资产逐字节比对通过；待新门禁合并后由 main workflow 回填发布证据，
+正式域名尚未切换。范围、验证和未接入的上传/日历见
+[GU 运行配置重建](tasks/2026-10-17-gu-runtime-bootstrap.md)。这不是完整登录验收记录。
+
 2026-10-17 Auth Hono 迁移核验：PR #67 合并为 `ad8352202ed406357afd0f3c140a1c84b6e67cf9`，
 main 发布 run `39021027068` 的 13 个 job 全部成功。四个 Pages canonical deployment 均为该
 干净 SHA；Auth 当前 version 与 CI 发布日志一致，Health API 线上 build 为 `ad8352202ed4`。
