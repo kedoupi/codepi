@@ -57,14 +57,19 @@ describe("chart geometry after a refresh", () => {
     const widthBefore = () =>
       document.querySelector<HTMLElement>(".composition-segment")?.style.width ?? "";
     await vi.waitFor(() => expect(widthBefore()).not.toBe(""));
-    // 新批次：{@html} 替换图表节点，action 必须重新经 CSSOM 写入几何。
+    // 新批次且权重/风控距离实际变化：{@html} 替换图表节点，
+    // action 必须重新经 CSSOM 写入几何（相同 HTML 会保留旧节点，测不出回归）。
+    const { baseData } = await import("./helpers");
+    const changed = baseData();
+    changed.positions[0].weight_raw = 0.4;
+    changed.risk[0].distance = 0.32;
     stub.setHandler(async (path) =>
       path === "/api/me"
         ? Response.json({ authenticated: true })
         : Response.json({
             batch_id: "two",
             received_at: "2026-10-15T03:00:00Z",
-            data: (await import("./helpers")).baseData(),
+            data: changed,
           }),
     );
     document.querySelector<HTMLButtonElement>("#refresh")!.click();
