@@ -1,12 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseWranglerEnvConfig, readWranglerConfig, withBuildSha } from './lib/wrangler-config.mjs';
+import { readWranglerConfig, withBuildSha } from './lib/wrangler-config.mjs';
 
 const cwd = fileURLToPath(new URL('../workers/api', import.meta.url));
 const preflightOnly = process.argv.includes('--preflight-only');
-const envFlag = process.argv[process.argv.indexOf('--env') + 1];
-const deployEnv = process.argv.includes('--env') && envFlag && !envFlag.startsWith('-') ? envFlag : '';
+// staging 已退役：只发布 production 根配置。
+if (process.argv.includes('--env')) {
+  console.error('Deploy aborted before any remote change: --env is no longer supported (staging is retired).');
+  process.exit(1);
+}
 const PREFLIGHT_OUTDIR = '.deploy-preflight';
 
 function wrangler(args, extraEnv = {}) {
@@ -22,11 +25,7 @@ function wrangler(args, extraEnv = {}) {
 
 async function main() {
   const configText = readFileSync(`${cwd}/wrangler.toml`, 'utf8');
-  // production（无 --env）行为不变：只读生产根配置。staging 通过 --env staging
-  // 选择 [env.staging] 的 name/D1/cron，绝不回落到生产声明。
-  const { name, databaseName, crons } = deployEnv
-    ? parseWranglerEnvConfig(configText, deployEnv, { dir: cwd })
-    : readWranglerConfig(`${cwd}/wrangler.toml`, { dir: cwd });
+  const { name, databaseName, crons } = readWranglerConfig(`${cwd}/wrangler.toml`, { dir: cwd });
   // Every step that touches production, in order, so a failure can say where it stopped.
   let completed = 'nothing (no remote change was made)';
 
@@ -63,7 +62,7 @@ async function main() {
 
   process.stdout.write('Preflight: validating the bundle with a local dry run...\n');
   try {
-    wrangler(['deploy', '--dry-run', `--outdir=${PREFLIGHT_OUTDIR}`, ...(deployEnv ? ['--env', deployEnv] : [])]);
+    wrangler(['deploy', '--dry-run', `--outdir=${PREFLIGHT_OUTDIR}`]);
   } finally {
     rmSync(`${cwd}/${PREFLIGHT_OUTDIR}`, { recursive: true, force: true });
   }
@@ -98,7 +97,7 @@ async function main() {
     //    wrangler exits non-zero if any migration fails, so a bad schema stops
     //    the deploy instead of shipping a Worker against missing tables.
     //    CI=true makes the confirmation prompt non-interactive.
-    wrangler(['d1', 'migrations', 'apply', databaseName, '--remote', ...(deployEnv ? ['--env', deployEnv] : [])]);
+    wrangler(['d1', 'migrations', 'apply', databaseName, '--remote']);
     completed = 'D1 migrations applied (the previous Worker version is still serving)';
 
     // 3. Stamp the build so /api/health and the smoke check can prove the new
@@ -113,23 +112,7 @@ async function main() {
     const stampedConfig = '.deploy-build.toml';
     let output;
     try {
-      writeFileSync(`${cwd}/${stampedConfig}`, withBuildSha(configText, buildSha, deployEnv));
-      if (deployEnv) {
-        // staging 走受控 deploy：wrangler 直接发布 [env.staging] 并携带
-        // BUILD_SHA；必须从输出解析真实 Current Version ID，否则视为失败。
-        output = wrangler(['deploy', '--config', stampedConfig, '--env', deployEnv]);
-        const current = output.match(/Current Version ID:\s*([a-f0-9-]{36})/i)?.[1];
-        if (!current) throw new Error('Deploy did not return a Current Version ID; refusing to record evidence');
-        completed = `version ${current} live (build=${buildSha}, env=${deployEnv})`;
-        // 与 production 同等校验：installed Cron 必须与所选环境的声明一致。
-        const verified = await cloudflare(schedulesUrl);
-        if (JSON.stringify((verified.schedules || []).map(row => row.cron).sort()) !== JSON.stringify([...crons].sort())) {
-          throw new Error(`Installed Cron triggers do not match wrangler.toml [env.${deployEnv}]`);
-        }
-        console.log(`Verified Cron schedule: ${crons.join(', ')}`);
-        console.log(`Deployed ${current} build=${buildSha} env=${deployEnv}`);
-        return;
-      }
+      writeFileSync(`${cwd}/${stampedConfig}`, withBuildSha(configText, buildSha));
       output = wrangler(['versions', 'upload', '--config', stampedConfig]);
     } finally {
       rmSync(`${cwd}/${stampedConfig}`, { force: true });
@@ -157,10 +140,7 @@ async function main() {
     console.log(`Deployed ${version} build=${buildSha}`);
   } catch (error) {
     console.error(`\nDeploy stopped at: ${completed}`);
-    if (deployEnv) {
-      console.error(`The ${deployEnv} Worker may be partially updated; re-run this script to re-verify.`);
-      console.error('Production was not touched by this staging deploy.');
-    } else if (completed.includes('serving 100%')) {
+    if (completed.includes('serving 100%')) {
       console.error('The new version is serving traffic but the deploy did not finish.');
       console.error(previousVersion
         ? `Roll back with: pnpm exec wrangler versions deploy ${previousVersion}@100% --yes  (from apps/health/workers/api)`

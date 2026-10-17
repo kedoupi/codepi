@@ -702,7 +702,7 @@ jobs:
         working-directory: apps/health/apps/web
         run: |
           origin=$(node ../../../../scripts/cloudflare/deployment-evidence.mjs resolve-worker \
-            --script codepi-health --required-secrets AUTH_CLIENT_SECRET)
+            --script codepi-health)
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
       - name: smoke new Worker (pre-cutover)
         if: github.ref == 'refs/heads/main'

@@ -101,7 +101,7 @@ and recovery steps in the [integration/release workflow](../../docs/development/
 Do not use an ad hoc `npm run deploy` as the default release path.
 
 The committed `wrangler.jsonc` selects production D1 `codepi-auth` and, under
-`env.staging`, `codepi-auth-staging`, both through binding `DB`. Verify the selected
+production only; the retired `env.staging` (`codepi-auth-staging`) was removed on 2026-10-18. Verify the selected
 environment and resource ID against the registry before any authorized remote
 migration. Migration state is not inferred from this README.
 

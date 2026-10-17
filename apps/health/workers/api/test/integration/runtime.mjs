@@ -1,87 +1,113 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { readFile, readdir } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
 
 // Use Wrangler's locked runtime; no second emulator or new dependency.
 const require = createRequire(import.meta.url);
 const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare, Response } = wranglerRequire('miniflare');
 
+// Miniflare v5（wrangler 4.151+）：workers[].config 形态——模块在 manifest
+// 里声明（dist/index.js 引用的 Text 模块 tokens.css 必须一并提供），绑定在
+// env 里以带 type 的对象声明；fetch stub 经 dev.outboundService 接管。
+const dist = fileURLToPath(new URL('../../dist/', import.meta.url));
+const modules = {
+  'index.js': { type: 'esm', contents: readFileSync(`${dist}index.js`, 'utf8') },
+};
+for (const name of readdirSync(dist)) {
+  if (name.endsWith('.css')) {
+    modules[name] = { type: 'text', contents: readFileSync(`${dist}${name}`, 'utf8') };
+  }
+}
+
 export function createRuntime(options = {}) {
-  const { providerResponse, variedDailyData, autoSync = false, sso = false, bindings = {}, ...runtimeOptions } = options;
+  const { providerResponse, variedDailyData, autoSync = false, sso = false, bindings = {}, serviceBindings = {}, ...runtimeOptions } = options;
+  const env = { DB: { type: 'd1', name: 'DB' } };
+  for (const [key, value] of Object.entries({
+    ALLOW_DEV_LOGIN: '0',
+    FRONTEND_ORIGIN: 'https://oura.example',
+    OURA_REDIRECT_URI: 'https://oura.example/api/auth/oura/callback',
+    OURA_CLIENT_ID: 'integration-client',
+    OURA_CLIENT_SECRET: 'integration-client-secret',
+    SESSION_SECRET: 'integration-session-secret',
+    TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
+    PERSONAL_OWNER_ID: 'test-user',
+    AUTO_SYNC_ENABLED: autoSync ? '1' : '0',
+    ...(sso ? {
+      SSO_ENABLED: '1', AUTH_CLIENT_ID: 'oura', AUTH_CLIENT_SECRET: 'test-sso-secret',
+      AUTH_ORIGIN: 'https://auth.example',
+    } : {}),
+    ...bindings,
+  })) env[key] = { type: 'json', value };
+  for (const [key, handler] of Object.entries(serviceBindings)) {
+    env[key] = { type: 'fetcher', handler };
+  }
   return new Miniflare({
-    modules: true,
-    modulesRules: [{ type: 'Text', include: ['**/*.css'], fallthrough: true }],
-    scriptPath: fileURLToPath(new URL('../../dist/index.js', import.meta.url)),
-    compatibilityDate: '2025-01-01',
-    d1Databases: ['DB'],
-    bindings: {
-      ALLOW_DEV_LOGIN: '0',
-      FRONTEND_ORIGIN: 'https://oura.example',
-      OURA_REDIRECT_URI: 'https://oura.example/api/auth/oura/callback',
-      OURA_CLIENT_ID: 'integration-client',
-      OURA_CLIENT_SECRET: 'integration-client-secret',
-      SESSION_SECRET: 'integration-session-secret',
-      TOKEN_ENCRYPTION_KEY: 'integration-encryption-secret',
-      PERSONAL_OWNER_ID: 'test-user',
-      AUTO_SYNC_ENABLED: autoSync ? '1' : '0',
-      ...(sso ? {
-        SSO_ENABLED: '1', AUTH_CLIENT_ID: 'oura', AUTH_CLIENT_SECRET: 'test-sso-secret',
-        AUTH_ORIGIN: 'https://auth.example',
-      } : {}),
-      ...bindings,
-    },
-    // Only the upstream provider is stubbed. Routing, crypto, sessions, D1,
-    // token storage, daily mapping and reports execute the built Worker.
-    outboundService(request) {
-      const url = new URL(request.url);
-      if (url.origin !== 'https://api.ouraring.com') {
-        throw new Error(`Unexpected outbound host: ${url.hostname}`);
-      }
-      const custom = providerResponse?.(url, request);
-      if (custom !== undefined) return custom;
-      if (url.pathname === '/oauth/token') {
-        return Response.json({
-          access_token: 'test-access',
-          refresh_token: 'test-refresh',
-          expires_in: 86400,
-        });
-      }
-      if (url.pathname === '/v2/usercollection/personal_info') {
-        return Response.json({ id: 'test-user', email: 'test@example.invalid' });
-      }
-      if (/^\/v2\/usercollection\/daily_(sleep|readiness|activity)$/.test(url.pathname)) {
-        const data = [];
-        const end = url.searchParams.get('end_date');
-        for (let day = url.searchParams.get('start_date'); day <= end;) {
-          const varied = typeof variedDailyData === 'function'
-            ? variedDailyData(day)
-            : null;
-          data.push({
-            id: `${url.pathname.split('/').at(-1)}-${day}`,
-            day,
-            score: varied?.score ?? 80,
-            steps: varied?.steps ?? 8000,
-            active_calories: 400,
-            contributors: { deep_sleep: 80, hrv_balance: 80 },
-          });
-          day = new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10);
-        }
-        return Response.json({ data, next_token: null });
-      }
-      if (url.pathname === '/v2/usercollection/sleep') {
-        return Response.json({ data: [{
-          id: 'sleep-main', day: url.searchParams.get('start_date'),
-          total_sleep_duration: 28800, average_hrv: 42, average_heart_rate: 55,
-          hrv: { interval: 300, items: [40, 44], timestamp: '2026-01-01T00:00:00Z' },
-        }], next_token: null });
-      }
-      if (/^\/v2\/usercollection\/(heartrate|daily_spo2|daily_stress|daily_resilience|daily_cardiovascular_age|vO2_max|workout|enhanced_tag|session|sleep_time|rest_mode_period|ring_configuration|ring_battery_level)$/.test(url.pathname)) {
-        return Response.json({ data: [], next_token: null });
-      }
-      throw new Error(`Unexpected outbound path: ${url.pathname}`);
-    },
-    ...runtimeOptions,
+    workers: [{
+      config: {
+        name: 'health-api-test',
+        compatibilityDate: '2025-01-01',
+        manifest: { mainModule: 'index.js', modules },
+        env,
+        ...runtimeOptions,
+      },
+      dev: {
+        // Only the upstream provider is stubbed. Routing, crypto, sessions, D1,
+        // token storage, daily mapping and reports execute the built Worker.
+        outboundService: {
+          type: 'fetcher',
+          handler(request) {
+              const url = new URL(request.url);
+              if (url.origin !== 'https://api.ouraring.com') {
+                throw new Error(`Unexpected outbound host: ${url.hostname}`);
+              }
+              const custom = providerResponse?.(url, request);
+              if (custom !== undefined) return custom;
+              if (url.pathname === '/oauth/token') {
+                return Response.json({
+                  access_token: 'test-access',
+                  refresh_token: 'test-refresh',
+                  expires_in: 86400,
+                });
+              }
+              if (url.pathname === '/v2/usercollection/personal_info') {
+                return Response.json({ id: 'test-user', email: 'test@example.invalid' });
+              }
+              if (/^\/v2\/usercollection\/daily_(sleep|readiness|activity)$/.test(url.pathname)) {
+                const data = [];
+                const end = url.searchParams.get('end_date');
+                for (let day = url.searchParams.get('start_date'); day <= end;) {
+                  const varied = typeof variedDailyData === 'function'
+                    ? variedDailyData(day)
+                    : null;
+                  data.push({
+                    id: `${url.pathname.split('/').at(-1)}-${day}`,
+                    day,
+                    score: varied?.score ?? 80,
+                    steps: varied?.steps ?? 8000,
+                    active_calories: 400,
+                    contributors: { deep_sleep: 80, hrv_balance: 80 },
+                  });
+                  day = new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10);
+                }
+                return Response.json({ data, next_token: null });
+              }
+              if (url.pathname === '/v2/usercollection/sleep') {
+                return Response.json({ data: [{
+                  id: 'sleep-main', day: url.searchParams.get('start_date'),
+                  total_sleep_duration: 28800, average_hrv: 42, average_heart_rate: 55,
+                  hrv: { interval: 300, items: [40, 44], timestamp: '2026-01-01T00:00:00Z' },
+                }], next_token: null });
+              }
+              if (/^\/v2\/usercollection\/(heartrate|daily_spo2|daily_stress|daily_resilience|daily_cardiovascular_age|vO2_max|workout|enhanced_tag|session|sleep_time|rest_mode_period|ring_configuration|ring_battery_level)$/.test(url.pathname)) {
+                return Response.json({ data: [], next_token: null });
+              }
+              throw new Error(`Unexpected outbound path: ${url.pathname}`);
+          },
+        },
+      },
+    }],
   });
 }
 

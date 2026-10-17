@@ -4,7 +4,7 @@ import { checkPages } from './check-pages.mjs';
 
 function fixture(app, target, override = {}) {
   const requests = [];
-  const auth = target === 'staging' ? 'auth-staging' : 'auth';
+  const auth = 'auth';
   const request = async (url, options) => {
     requests.push({ url, redirect: options.redirect });
     const { pathname, origin } = new URL(url);
@@ -32,13 +32,18 @@ function fixture(app, target, override = {}) {
   return { request, requests };
 }
 
-test('all clients validate root, anonymous private API and environment-specific login', async () => {
-  for (const app of ['web', 'gu', 'gzh']) for (const target of ['production', 'staging']) {
-    const f = fixture(app, target);
-    await checkPages(app, target, f.request);
+test('all clients validate root, anonymous private API and same-environment login', async () => {
+  for (const app of ['web', 'gu', 'gzh']) {
+    const f = fixture(app, 'production');
+    await checkPages(app, 'production', f.request);
     assert.equal(f.requests.length, app === 'gzh' ? 8 : app === 'web' ? 4 : 3);
     assert.ok(f.requests.every(r => r.redirect === 'manual'));
   }
+});
+
+test('staging target is rejected: staging is retired', async () => {
+  const f = fixture('gu', 'production');
+  await assert.rejects(checkPages('gu', 'staging', f.request), /staging is retired/);
 });
 
 test('Desk smoke rejects loss of static privacy headers', async () => {
@@ -83,14 +88,14 @@ test('public homepage 200 cannot hide broken Desk authentication or a private-da
 
 test('rejects wrong Auth environment, callback, client and missing PKCE without exposing URLs', async () => {
   for (const location of [
-    url => { url.hostname = 'auth.codepi.app'; },
+    url => { url.hostname = 'auth-staging.codepi.app'; },
     url => { url.pathname = '/login'; },
-    url => url.searchParams.set('client_id', 'desk'),
-    url => url.searchParams.set('redirect_uri', 'https://gu.codepi.app/api/auth/callback'),
+    url => url.searchParams.set('client_id', 'gzh'),
+    url => url.searchParams.set('redirect_uri', 'https://gzh.codepi.app/api/auth/callback'),
     url => url.searchParams.delete('state'),
     url => url.searchParams.delete('code_challenge'),
   ]) {
-    const f = fixture('gu', 'staging', { location });
-    await assert.rejects(checkPages('gu', 'staging', f.request), error => !error.message.includes('synthetic'));
+    const f = fixture('gu', 'production', { location });
+    await assert.rejects(checkPages('gu', 'production', f.request), error => !error.message.includes('synthetic'));
   }
 });

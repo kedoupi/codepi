@@ -1,4 +1,4 @@
-import { KEDOUPI_BOARD_SAMPLE as kedoupiBoardJson } from "../data/kedoupi-board.ts";
+import { SYNTHETIC_BOARD_SAMPLE } from "../data/synthetic-board.ts";
 import type { SyncInfo } from "./sync-cache.ts";
 import type { OuraDailyDoc } from "./oura.ts";
 import { calendarDay, shiftDay } from "../../../../shared/dates.ts";
@@ -54,16 +54,8 @@ export type BoardDailyPayload = {
   days: NestedDay[];
 };
 
-/** Bundled live sample: `GET https://api.xiaotaozi.cc/oura/daily?user_id=kedoupi&days=30`. */
-export const KEDOUPI_BOARD_SAMPLE = kedoupiBoardJson as BoardDailyPayload;
-
-export const KEDOUPI_BOARD_DAILY_URL = "https://api.xiaotaozi.cc/oura/daily";
-
 export const DEV_BOARD_LABEL =
-  "DEV · kedoupi 个人看板真实样本（bundled 30d）· 待 per-user OAuth";
-
-export const DEV_BOARD_LIVE_LABEL =
-  "DEV · 现网个人看板实时数据（kedoupi / api.xiaotaozi.cc）· 待 per-user OAuth";
+  "DEV · 合成演示数据（30 天）";
 
 export function dateWindow(
   days: number,
@@ -116,50 +108,25 @@ export function decorateDaily(
 }
 
 /**
- * DEV path: serve the real kedoupi board days (not a synthetic sine wave).
- * `days=90` returns the 30 bundled rows when live fetch is unavailable —
- * we do not fabricate a 90-day series.
+ * DEV uses only generated data. Requests beyond the fixture window keep their
+ * actual sample count instead of inventing additional calendar rows.
  */
 export function buildDevDaily(days: number): DailyResponse {
   const windowDays = clampDays(days);
-  const sliced = sliceBoardDays(KEDOUPI_BOARD_SAMPLE.days, windowDays);
-  const truncated = windowDays > KEDOUPI_BOARD_SAMPLE.days.length;
+  const sliced = sliceBoardDays(SYNTHETIC_BOARD_SAMPLE.days, windowDays);
+  const truncated = windowDays > SYNTHETIC_BOARD_SAMPLE.days.length;
   return decorateDaily(sliced, {
-    user_id: KEDOUPI_BOARD_SAMPLE.user_id ?? "kedoupi",
+    user_id: SYNTHETIC_BOARD_SAMPLE.user_id,
     source: "dev",
     dev: true,
-    dataset: "kedoupi-personal-board",
+    dataset: "synthetic-board",
     label: truncated
-      ? `${DEV_BOARD_LABEL} · 请求 ${windowDays} 天仅有 ${sliced.length} 天真实样本`
+      ? `${DEV_BOARD_LABEL} · 请求 ${windowDays} 天仅有 ${sliced.length} 天合成样本`
       : DEV_BOARD_LABEL,
   });
 }
 
-/** DEV-only live board fetch. Never used on the OAuth user path. */
-export async function fetchKedoupiBoardDaily(
-  days: 7 | 30 | 90,
-): Promise<DailyResponse | null> {
-  const url = `${KEDOUPI_BOARD_DAILY_URL}?user_id=kedoupi&days=${days}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) return null;
-  const json: unknown = await res.json();
-  if (!isBoardDailyPayload(json)) return null;
-  return decorateDaily(json.days, {
-    user_id: json.user_id ?? "kedoupi",
-    source: "dev",
-    dev: true,
-    dataset: "kedoupi-personal-board-live",
-    label: DEV_BOARD_LIVE_LABEL,
-  });
-}
-
 export async function loadDevDaily(days: 7 | 30 | 90): Promise<DailyResponse> {
-  try {
-    const live = await fetchKedoupiBoardDaily(days);
-    if (live && live.days.length) return live;
-  } catch {
-    // Bundled 30d sample is the contract fallback.
-  }
   return buildDevDaily(days);
 }
 

@@ -18,27 +18,5 @@
     "database_id": "ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1",
     "migrations_dir": "migrations"
   }],
-  "triggers": { "crons": ["17 3 * * *"] },
-  // staging 是唯一持久云端集成环境：独立 D1、独立 session/OTP/SSO secret，
-  // 只登记四个 staging callback；production callback 一个也不登记。
-  // secret 名：SESSION_SECRET、OTP_PEPPER、SSO_CLIENTS、OWNER_EMAIL、OTP_FROM、RESEND_API_KEY
-  // 用 `wrangler secret put --env staging` 设置，值与 production 完全独立。
-  "env": {
-    "staging": {
-      "name": "codepi-auth-staging",
-      "routes": [{ "pattern": "auth-staging.codepi.app", "custom_domain": true }],
-      "vars": {
-        "ENVIRONMENT": "staging",
-        "AUTH_ORIGIN": "https://auth-staging.codepi.app",
-        "SSO_EXTRA_REDIRECT_URIS": "{\"gu\":[\"https://gu-staging.codepi.app/api/auth/callback\"],\"oura\":[\"https://health-staging.codepi.app/api/auth/callback\"],\"gzh\":[\"https://gzh-staging.codepi.app/api/auth/callback\"],\"desk\":[\"https://staging.codepi.app/api/auth/callback\"]}"
-      },
-      "d1_databases": [{
-        "binding": "DB",
-        "database_name": "codepi-auth-staging",
-        "database_id": "fc9c02d7-96e3-48ea-a568-a2362fa198ea",
-        "migrations_dir": "migrations"
-      }],
-      "triggers": { "crons": ["17 3 * * *"] }
-    }
-  }
+  "triggers": { "crons": ["17 3 * * *"] }
 }

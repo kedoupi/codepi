@@ -1,4 +1,13 @@
 # Cloudflare 资源登记表
+2026-10-18 staging 全面退役与前端代理清理：仓库内全部 `[env.staging]` 配置已移除
+（www/gu/gzh/auth/health-api/health-pages），治理守门改为 fail-closed 拒绝任何 staging
+段、staging 主机或 `-staging` 资源名。云端同步删除：`codepi-auth-staging` 与
+`codepi-health-api-staging` Workers、5 个 `-staging` D1 与 `codepi-health-preview`、
+`auth-staging.codepi.app` workers domain，以及 zone 内残留的 8 条指向
+`codepi-health-api(-staging)` 的 routes（zone routes 清零）。`codepi-health` 前端 Worker
+绑定收敛为 ASSETS + WORKER（`codepi-health-api`），DB/AUTH/vars 全部移除；生产核验
+`/api/health` 200（build `e9734c14c2f5`）与 SPA root 200 不受影响。环境模型收敛为
+local + production 两档。staging D1 仅含 synthetic fixture，无真实数据损失。
 
 2026-10-17 首页/Desk 切换完成：`codepi.app` 与 `www.codepi.app` 已由 `codepi-www`
 Worker（Static Assets）服务，旧 Pages 正式域名绑定已移除。版本、凭证和域名切换证据见
@@ -105,22 +114,22 @@ secret 值、个人数据或 OAuth refresh token。
 | d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
 | d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-16 |
 | d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-16 |
-| d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
-| d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | worker-www-staging | - | apps/web/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| worker-gzh-staging | staging | worker | codepi-gzh-staging | kedoupi | staging GZH（配置保留未启用，不接发布入口） | synthetic | staging 访问者 | gzh-staging.codepi.app（待绑定） | apps/gzh/wrangler.toml [env.staging] | managed | 2026-10-17 |
-| d1-gzh-staging | staging | d1 | codepi-gzh-staging (1a57d7d8-6d16-4f16-b9f6-b78f78b714ab) | kedoupi | staging GZH 数据（0001–0004 migration 与既有 demo seed） | synthetic | worker-gzh-staging（配置保留未启用） | - | apps/gzh/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| d1-health-staging | staging | d1 | codepi-health-staging (36430305-83df-4af6-961f-64abedca02fe) | kedoupi | staging Health 数据（仅 synthetic fixture） | synthetic | worker-health-api-staging | - | apps/health/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| worker-auth-staging | staging | worker | codepi-auth-staging | kedoupi | staging SSO/OTP 认证 | synthetic | staging Pages、worker-health-api-staging | auth-staging.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
-| worker-www-staging | staging | worker | codepi-www-staging | kedoupi | staging 首页/Desk（配置保留未启用） | synthetic | staging 访问者 | staging.codepi.app（待绑定） | apps/web/wrangler.toml [env.staging] | managed | 2026-10-17 配置登记，未发布 |
-| worker-gu-staging | staging | worker | codepi-gu-staging | kedoupi | staging GU（保留未启用，不接发布入口） | synthetic | staging 访问者 | gu-staging.codepi.app（待绑定） | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-17 |
-| worker-health-staging | staging | worker | codepi-health-staging | kedoupi | staging Health 前端 SPA（配置保留未启用） | synthetic | staging 访问者 | health-staging.codepi.app (custom domain, 待绑定) | apps/health/apps/web/wrangler.toml [env.staging] | managed | 2026-10-18 配置登记，未发布 |
-| worker-health-api-staging | staging | worker | codepi-health-api-staging | kedoupi | staging Health API | synthetic | worker-health-staging（service binding） | 无公网 routes，经 worker-health-staging service binding 转发 | apps/health/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
+| d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
+| d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | worker-www-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
+| d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
+| worker-gzh-staging | staging | worker | codepi-gzh-staging | kedoupi | staging GZH（配置保留未启用，不接发布入口） | synthetic | staging 访问者 | gzh-staging.codepi.app（待绑定） | retired | 2026-10-18 已删除 | 2026-10-17 |
+| d1-gzh-staging | staging | d1 | codepi-gzh-staging (1a57d7d8-6d16-4f16-b9f6-b78f78b714ab) | kedoupi | staging GZH 数据（0001–0004 migration 与既有 demo seed） | synthetic | worker-gzh-staging（配置保留未启用） | - | retired | 2026-10-18 已删除 | 2026-10-16 |
+| d1-health-staging | staging | d1 | codepi-health-staging (36430305-83df-4af6-961f-64abedca02fe) | kedoupi | staging Health 数据（仅 synthetic fixture） | synthetic | worker-health-api-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
+| worker-auth-staging | staging | worker | codepi-auth-staging | kedoupi | staging SSO/OTP 认证 | synthetic | staging Pages、worker-health-api-staging | auth-staging.codepi.app (custom domain), cron 17 3 * * * | retired | 2026-10-18 已删除 | 2026-10-16 |
+| worker-www-staging | staging | worker | codepi-www-staging | kedoupi | staging 首页/Desk（配置保留未启用） | synthetic | staging 访问者 | staging.codepi.app（待绑定） | retired | 2026-10-18 已删除 | 2026-10-17 配置登记，未发布 |
+| worker-gu-staging | staging | worker | codepi-gu-staging | kedoupi | staging GU（保留未启用，不接发布入口） | synthetic | staging 访问者 | gu-staging.codepi.app（待绑定） | retired | 2026-10-18 已删除 | 2026-10-17 |
+| worker-health-staging | staging | worker | codepi-health-staging | kedoupi | staging Health 前端 SPA（配置保留未启用） | synthetic | staging 访问者 | health-staging.codepi.app (custom domain, 待绑定) | retired | 2026-10-18 已删除 | 2026-10-18 配置登记，未发布 |
+| worker-health-api-staging | staging | worker | codepi-health-api-staging | kedoupi | staging Health API | synthetic | worker-health-staging（service binding） | 无公网 routes，经 worker-health-staging service binding 转发 | retired | 2026-10-18 已删除 | 2026-10-16 |
 | pages-www-staging-host | staging | pages-domain | staging.codepi.app → staging.codepi-www.pages.dev | kedoupi | staging 首页/Desk 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
 | pages-gu-staging-host | staging | pages-domain | gu-staging.codepi.app → staging.codepi-gu.pages.dev | kedoupi | staging GU 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
 | pages-gzh-staging-host | staging | pages-domain | gzh-staging.codepi.app → staging.codepi-gzh.pages.dev | kedoupi | staging GZH 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
 | pages-health-staging-host | staging | pages-domain | health-staging.codepi.app → staging.codepi-health.pages.dev | kedoupi | staging Health 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
-| d1-health-preview | staging | d1 | codepi-health-preview (4a4ce46a-ff7e-4eda-b9f0-e0691b45e30b) | kedoupi | 早期 Health preview 库 | legacy | 无 | - | 历史配置 | legacy-preview | 2026-10-16 |
+| d1-health-preview | staging | d1 | codepi-health-preview (4a4ce46a-ff7e-4eda-b9f0-e0691b45e30b) | kedoupi | 早期 Health preview 库 | legacy | 无 | - | retired | 2026-10-18 已删除 | 2026-10-16 |
 | worker-wechat-proxy | production | worker | wechat-proxy | kedoupi | 微信代理（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
 | kv-covers | production | kv | COVERS (4cbe9ae8f79e41bda85fa5bc391a77a4) | kedoupi | 未知（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
 | r2-sub2api-backups | production | r2 | sub2api-backups | kedoupi | 备份（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |

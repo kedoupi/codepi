@@ -16,9 +16,11 @@
 | `local` | 开发者本机 | 默认本地 D1；显式联调可连接产品共用的远程业务 D1 | 自动测试用合成配置；联调凭证不入 Git、不输出 |
 | `production` | 日常使用与外部集成 | 各产品生产 D1 | Worker/Pages runtime secrets 与 CI 发布凭证分开管理 |
 
-`staging` 资源（wrangler named environment、staging D1、staging secrets）保留但不自动部署。
-仅在需要云端联调（统一登录、MCP、跨应用调用）时再启用。目前 workflow 不提供 staging
-入口，不能把保留配置视为可用环境。staging 不再作为发布的必经路径。
+`staging` 已于 2026-10-18 全面退役：仓库内所有 `[env.staging]` 配置、云端 staging
+Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。环境模型收敛为
+`local` + `production` 两档；云端联调直接在 production 上以合成数据或显式授权方式
+进行，不维护第二套长期环境。守门 fail-closed 拒绝任何 staging 段、staging 主机名或
+`-staging` 资源名再次出现。
 
 业务数据不要求环境隔离，这是当前阶段的有意决策：所有数据均为个人测试数据，可重建。
 现有开发命令默认本地 D1；接入远程业务数据需显式配置并验证运行方式支持的 binding，
@@ -30,7 +32,7 @@
 物理名称规则（静态守门强制）：
 
 - production：`codepi-<service>[-<role>]`（无环境后缀）
-- staging：`codepi-<service>[-<role>]-staging`
+- staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
 `service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`。
@@ -45,56 +47,31 @@
 
 - production：`codepi.app`、`www.codepi.app`、`<service>.codepi.app`；
   `auth.codepi.app` 为 Workers custom domain。
-- staging：`staging.codepi.app`（首页/Desk）与 `<service>-staging.codepi.app`。
+- staging 域名（`staging.codepi.app` 与 `<service>-staging.codepi.app`）已随 staging
+  退役全部删除，重新出现即违规。
 - 生产 API 默认附着在对应服务的 `/api/*`；没有明确独立 API 边界时不得新增
   `api.codepi.app`。
 - PR 默认使用 Pages/Workers provider URL（`*.pages.dev` / `*.workers.dev`），
   不分配 `codepi.app` wildcard host。
 - 同一 hostname 不得同时映射到 production 与 staging。
 
-## 4. 保留的 staging 配置
+## 4. staging 已退役
 
-以下是未启用的存量配置边界，用于防止误部署接入生产资源，不是日常发布要求。
-重新启用时必须先完成独立认证、域名与发布入口核验；不得为此建立第二条长期 Git 分支。
+2026-10-18 起 staging 不再是平台的一部分：仓库配置、云端 Workers/D1/custom domain、
+zone routes 与 DNS 中的 staging 条目均已删除。治理守门会拒绝重新引入任何 staging
+named environment、staging 主机名或 `-staging` 资源名。
 
-### Pages
-
-Pages 只有 production/preview 两级配置，preview bindings 不按分支隔离。因此：
-
-- 每个保留的 Pages 项目的 `preview` 环境即 staging runtime：`ENVIRONMENT="staging"`，
-  绑定 staging D1 与 `codepi-auth-staging`。
-- 保留的 `staging` Pages deployment alias 是 provider 路由标签，不要求仓库存在同名
-  长期分支；启用时须明确其 source SHA。
-- 该 alias 对应 `<service>-staging.codepi.app`；启用前验证 Cloudflare Access 或等效的
-  访问限制，当前不能声称 Access 已配置。
-- 非 staging 的 PR 不发布有状态 Pages preview，避免所有 preview 共享一套 binding
-  时写入 staging 数据。
-
-### Workers
-
-- staging 使用 Wrangler named environment：`codepi-auth-staging`、
-  `codepi-gu-staging`、`codepi-health-api-staging` 等。
-- 每个 `[env.staging]` 显式声明 route、vars、D1、service binding、Cron 与 secret 名，
-  不依赖顶层 bindings 继承。
-- 所有 staging service binding 只能连接 `*-staging` Worker。
-- staging 不得配置生产副作用：`AUTO_SYNC_ENABLED="0"`、`ALLOW_DEV_LOGIN="0"`、
-  不配置 production provider credentials 或 production Cron side effects。
-
-### SSO 隔离
-
-- staging Auth 只登记 staging GU/GZH/Health/Desk 的精确 `/api/auth/callback` URL。
-- production Auth 不得登记任何 `*-staging.codepi.app` callback；staging Auth 不得
-  登记任何 production callback。
-- 同环境精确匹配：跨环境使用 callback 必须被拒绝。
+历史背景：staging 曾以 Pages preview 环境与 Workers named environment 承载，仅含
+synthetic fixture；删除不涉及真实业务数据。若未来确需云端联调环境，须作为新的架构
+决策重新设计（例如按 PR 的临时 preview Worker），而不是恢复 staging。
 
 ## 5. 密钥与数据
 
 - 所有云端 secret 通过 Cloudflare secret store（`wrangler secret put` /
   `wrangler pages secret put`）设置；Git 只声明 required secret 名，禁止提交
   secret 值或真实 `.dev.vars`。
-- staging 与 production 使用相互独立的 session/OTP/SSO client-secret registry。
-- 保留的 staging D1 仅作 synthetic fixture 使用，不复制生产会话或 provider token，
-  也不作为强制维护的第二份业务数据。日常共享业务数据按第 1 节显式联调。
+- session/OTP/SSO client-secret registry 只有 production 一套；staging registry 已随
+  staging 退役删除。共享业务数据按第 1 节显式联调。
 - 数据分级：`public-dns`、`synthetic`、`auth-session-data`、`private-user-data`、
   `private-health-data`、`legacy`、`unknown`。公开首页与私有健康/投资/稿件数据不得
   混入同一数据边界。
@@ -121,9 +98,9 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
   smoke → health Pages build/deploy/smoke。下游 job 只在 predecessor success 或
   skipped 时继续（`!failure() && !cancelled()`），failure 必须停止。
 - 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
-  GU、GZH 的配置自 2026-10-17 起以 Workers Static Assets 架构经 `wrangler deploy` 发布
-  （`run_worker_first = true`，全站请求先进 Worker 鉴权），首页同样使用 Workers Static Assets，但仅 `/api/*` 与 `/desk` 路径优先进入 Worker，公开页面由资产服务直出；Health 前端仍为 Pages。
-  迁移配置不代表域名已切换，当前控制面状态见资源登记表。
+  GU、GZH 自 2026-10-17 起以 Workers Static Assets 架构经 `wrangler deploy` 发布
+  （`run_worker_first = true`，全站请求先进 Worker 鉴权），首页同样使用 Workers Static Assets，但仅 `/api/*` 与 `/desk` 路径优先进入 Worker，公开页面由资产服务直出；Health 前端自 2026-10-18 起为 Workers Static Assets SPA（`codepi-health`），API/MCP/OAuth 经其 WORKER service binding 转发到 `codepi-health-api`，前端不持有 DB、AUTH 或 vars。
+  当前控制面状态见资源登记表。
 - production deploy/migrate step 同时有 job 级与 step 级
   `github.ref == 'refs/heads/main'` guard。合并 PR 即授权自动发布，不增加逐次 Environment
   approval。GitHub `production` Environment 应仅允许 main，并配置发布凭证；`environment:`
@@ -179,25 +156,25 @@ Health API migration/deploy/contract smoke → Health Pages。
 `scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、
 gzh、auth、health-api、health-pages）与登记表，对每个 declared service 强制：
 
-1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`；
-2. non-production 资源名以 `-staging` 或 `-pr-<number>` 收尾；
-3. production 与 preview/staging 的 D1 `database_id` 不同，且任一环境缺失 D1
-   声明即违规（fail-closed）；重复/冲突的 D1 或 service binding 即违规；
-4. preview/staging 的 `AUTH` service、`AUTH_ORIGIN`、frontend origin 与环境同名；
-   每个服务必需的 service binding（Pages 与各 health 组件的 `AUTH`、
-   health-pages 的 `WORKER`）必须精确等于约定的 production/staging 目标；
-5. Health（API 与 Pages）staging 的 routes、`AUTH_ORIGIN`、`FRONTEND_ORIGIN(S)`、
-   `OURA_REDIRECT_URI` 不得出现任何生产 hostname；Health API staging 必须
-   `AUTO_SYNC_ENABLED="0"`、`ALLOW_DEV_LOGIN="0"`，且 routes 必须是精确的服务
-   边界集合（`/api/*`、`/mcp`、`/oauth*`、`/.well-known*`）；
+1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
+   纯代理除外：它不得声明 ENVIRONMENT 等 vars）；
+2. staging 已退役：任何 `[env.staging]` 段、staging 主机名或 `-staging` 资源名
+   出现即违规（fail-closed）；
+3. 每个有状态服务恰好声明一个 D1 `DB` binding；重复/冲突的 D1 或 service binding
+   即违规；Health 前端不得声明 D1；
+4. 每个服务必需的 service binding 必须精确等于约定的 production 目标
+   （www/gu/gzh/health-api 的 `AUTH` → `codepi-auth`；health 前端的 `WORKER` →
+   `codepi-health-api`，且不得再有 `AUTH`）；
+5. Health API 的 `AUTH_ORIGIN`、`FRONTEND_ORIGIN(S)`、`OURA_REDIRECT_URI` 必须是
+   精确的 `https://(auth|health).codepi.app` 形态；`ALLOW_DEV_LOGIN="0"`；Health API
+   不得声明公网 routes（流量由前端 Worker 经 service binding 转发）；
 6. 所有 public hostname 符合第 3 节域名规则；
-7. 运行配置引用的 Pages、Worker、D1、custom domain 都有登记表 `managed` 记录，
-   且 environment 与 resource_type 兼容（production 引用 production 行、staging
-   引用 staging 行）；
+7. 运行配置引用的 Worker、D1、custom domain 都有登记表 `managed` 记录，
+   且 environment 与 resource_type 兼容；
 8. `legacy-pending-retirement`、`legacy-preview` 或 `unknown` 项不得被当前运行
    配置引用；
-9. 必需声明（worker routes、staging cron triggers、Auth SSO callback registry）
-   缺失即违规。
+9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
+   Auth SSO callback registry）缺失即违规。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`

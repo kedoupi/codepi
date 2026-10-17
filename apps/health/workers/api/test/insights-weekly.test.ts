@@ -1,8 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
 import { capabilities } from "../src/lib/capabilities.ts";
 import type { BoardDailyPayload } from "../src/lib/daily.ts";
 import {
@@ -14,11 +11,8 @@ import {
   weeklyForAccess,
 } from "../src/lib/weekly-report.ts";
 
-const fixturePath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../src/data/oura_daily_kedoupi_30d.json",
-);
-const kedoupiSample = JSON.parse(readFileSync(fixturePath, "utf8")) as BoardDailyPayload;
+import { SYNTHETIC_BOARD_SAMPLE as syntheticSample } from "../src/data/synthetic-board.ts";
+
 
 describe("weekly insight templates", () => {
   const end = "2026-10-15";
@@ -63,7 +57,7 @@ describe("weekly insight templates", () => {
 
   it("filters calendar windows, excludes future records, and counts unique valid days", () => {
     const data = [
-      row("2026-09-15"), row("2026-09-16"), row("2026-10-01", 20), row("2026-10-08"),
+      row("2000-01-30"), row("2026-09-16"), row("2026-10-01", 20), row("2026-10-08"),
       row("2026-10-09", 60), row(end), row(end), row("2026-10-16", 10),
       { date: "2026-10-12", sleep: null, activity: null },
     ];
@@ -103,23 +97,23 @@ describe("weekly insight templates", () => {
     assert.match(report.tips[0], /没有足够/);
   });
 
-  it("emits 3 Chinese summaries + up to 3 tips from kedoupi days", () => {
-    const report = buildWeeklyReport(kedoupiSample.days, "2026-09-15");
+  it("emits 3 Chinese summaries + up to 3 tips from synthetic days", () => {
+    const report = buildWeeklyReport(syntheticSample.days, "2000-01-30");
     assert.equal(report.summaries.length, 3);
     assert.equal(report.teaser.length, TEASER_LINE_COUNT);
     assert.ok(report.tips.length >= 1 && report.tips.length <= 3);
     assert.equal(report.disclaimer, "非医疗建议");
-    assert.equal(report.thisPeriod.from, "2026-09-09");
-    assert.equal(report.thisPeriod.to, "2026-09-15");
-    assert.equal(report.lastPeriod.from, "2026-09-02");
-    assert.equal(report.lastPeriod.to, "2026-09-08");
+    assert.equal(report.thisPeriod.from, "2000-01-24");
+    assert.equal(report.thisPeriod.to, "2000-01-30");
+    assert.equal(report.lastPeriod.from, "2000-01-17");
+    assert.equal(report.lastPeriod.to, "2000-01-23");
     for (const line of report.summaries) {
       assert.match(line, /睡眠|准备度|活动/);
     }
   });
 
   it("keeps the teaser and hides tips from accounts without owner access", () => {
-    const report = buildWeeklyReport(kedoupiSample.days, "2026-09-15");
+    const report = buildWeeklyReport(syntheticSample.days, "2000-01-30");
     const locked = weeklyForAccess(report, false);
     assert.equal(locked.locked, true);
     assert.equal(locked.summaries.length, 3);
@@ -132,12 +126,12 @@ describe("weekly insight templates", () => {
   });
 
   it("compare week vs range uses official scores only", () => {
-    const week = buildCompareReport(kedoupiSample.days, "week", "2026-09-15");
+    const week = buildCompareReport(syntheticSample.days, "week", "2000-01-30");
     assert.equal(week.left.label, "近 7 天");
     assert.equal(week.right.label, "此前 7 天");
     assert.equal(week.left.days, 7);
     assert.ok(typeof week.left.sleep === "number");
-    const range = buildCompareReport(kedoupiSample.days, "range", "2026-09-15");
+    const range = buildCompareReport(syntheticSample.days, "range", "2000-01-30");
     assert.equal(range.left.label, "近 7 天");
     assert.equal(range.right.label, "近 30 天");
     assert.equal(range.right.days, 30);
@@ -148,7 +142,7 @@ describe("weekly insight templates", () => {
   });
 
   it("rolling weeks do not invent extra days", () => {
-    const { thisWeek, lastWeek } = splitRollingWeeks(kedoupiSample.days.slice(0, 10), kedoupiSample.days[9].date);
+    const { thisWeek, lastWeek } = splitRollingWeeks(syntheticSample.days.slice(0, 10), syntheticSample.days[9].date);
     assert.equal(thisWeek.length, 7);
     assert.equal(lastWeek.length, 3);
   });

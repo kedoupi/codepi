@@ -12,10 +12,6 @@ function requireCheck(condition, message) {
 }
 
 export function validateConfig(config) {
-  const production = config.d1_databases?.find(db => db.binding === "DB");
-  const stagingDb = config.env?.staging?.d1_databases?.find(db => db.binding === "DB");
-  const productionAuth = config.services?.find(service => service.binding === "AUTH");
-  const stagingAuth = config.env?.staging?.services?.find(service => service.binding === "AUTH");
   requireCheck(config.name === "codepi-gu" && config.main === "worker/index.ts",
     "GU Worker name/main configuration is missing.");
   // Workers Static Assets：全站鉴权要求所有请求先进 Worker，资产不得绕过会话门。
@@ -24,32 +20,20 @@ export function validateConfig(config) {
     "GU assets must bind ASSETS from ./dist with run_worker_first=true (authenticated app).");
   requireCheck(!config.pages_build_output_dir && !config.env?.preview,
     "Pages configuration (pages_build_output_dir / env.preview) must be removed after the Workers migration.");
-  requireCheck(!config.env?.staging?.assets,
-    "Staging must inherit the top-level [assets] topology; per-environment assets overrides are forbidden.");
-  // staging named environment = staging runtime（治理规范第 4 节）：必须声明
-  // ENVIRONMENT="staging"，且只允许连接 *-staging 资源。
-  requireCheck(config.env?.staging?.name === "codepi-gu-staging",
-    "Staging named environment must deploy as codepi-gu-staging.");
-  requireCheck(config.vars?.ENVIRONMENT === "production" && config.env?.staging?.vars?.ENVIRONMENT === "staging",
-    "Production and staging environment markers must be explicit (production/production, staging/staging).");
+  // staging 已退役：任何 named environment 都不允许再出现。
+  requireCheck(!config.env || Object.keys(config.env).length === 0,
+    "Staging is retired; the GU Worker must not declare any named environment.");
+  const production = config.d1_databases?.find(db => db.binding === "DB");
+  const productionAuth = config.services?.find(service => service.binding === "AUTH");
+  requireCheck(config.vars?.ENVIRONMENT === "production",
+    "Production environment marker must be explicit (ENVIRONMENT=production).");
   requireCheck(config.vars?.SSO_ENABLED === "1" && config.vars?.AUTH_CLIENT_ID === "gu"
     && config.vars?.AUTH_ORIGIN === "https://auth.codepi.app"
     && productionAuth?.service === "codepi-auth",
     "Production must preserve the GU SSO configuration and AUTH service binding.");
-  for (const db of [production, stagingDb]) {
-    requireCheck(db?.database_name && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(db.database_id)
-      && !db.database_id.startsWith("00000000-0000-0000-0000-"),
-    "Provision real production and staging D1 DB bindings; placeholders are not accepted.");
-  }
-  requireCheck(production.database_id.toLowerCase() !== stagingDb.database_id.toLowerCase()
-    && production.database_name !== stagingDb.database_name, "Production and staging D1 databases must be separate.");
-  // staging 契约：绑定 staging Auth 与 staging 域名，禁止回落到生产 Auth。
-  requireCheck(stagingAuth?.service === "codepi-auth-staging",
-    "Staging Worker must bind the codepi-auth-staging AUTH service; binding production codepi-auth is a cross-environment violation.");
-  requireCheck(config.env?.staging?.vars?.AUTH_ORIGIN === "https://auth-staging.codepi.app",
-    "Staging AUTH_ORIGIN must be https://auth-staging.codepi.app.");
-  requireCheck(stagingDb.database_name.endsWith("-staging"),
-    "Staging D1 database_name must carry the -staging suffix.");
+  requireCheck(production?.database_name === "codepi-gu" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(production.database_id)
+    && !production.database_id.startsWith("00000000-0000-0000-0000-"),
+    "Provision a real production D1 DB binding; placeholders are not accepted.");
 }
 
 export async function checkConfig() {
@@ -62,7 +46,7 @@ export async function checkConfig() {
     throw new Error("Unable to parse GU wrangler.toml.");
   }
   validateConfig(rawConfig);
-  return "Production/staging Worker, assets and D1 configuration and isolation passed (secrets and deployment not checked).";
+  return "Production Worker, assets and D1 configuration passed; no staging environment remains (secrets and deployment not checked).";
 }
 
 export function deploymentOrigin(value) {

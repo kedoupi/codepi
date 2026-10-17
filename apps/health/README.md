@@ -79,12 +79,12 @@ curl -sI -c /tmp/oura-cookies -b /tmp/oura-cookies http://localhost:8787/api/aut
 # 期望: 302 到 http://localhost:5173/?login=dev 且 Set-Cookie: oura_session=...; HttpOnly
 
 curl -s -b /tmp/oura-cookies 'http://localhost:8787/api/me/daily?days=7'
-# 期望: 现网个人看板形状
-# { ok:true, from, to, count:7, days:[{ date, sleep:{score,contributors}, readiness:{score,temperature_*,contributors}, activity:{score,steps,active_calories}|null }], source:"dev", user_id:"kedoupi" }
-# 数字来自 kedoupi 真实样本（例如 2026-09-15 activity.steps=10273），不是正弦波假数据
+# 期望: 看板形状
+# { ok:true, from, to, count:7, days:[{ date, sleep:{score,contributors}, readiness:{score,temperature_*,contributors}, activity:{score,steps,active_calories}|null }], source:"dev", user_id:"synthetic-user" }
+# 数字来自仓库内生成式合成样本（synthetic-board.ts），不来自任何真实个人数据
 ```
 
-`?days=7|30|90`。bundled 样本是 30 天（2026-08-17 → 2026-09-15）；请求 90 天时不编造额外日期，只返回已有真实行（DEV 运行时会先尝试拉 `api.xiaotaozi.cc/oura/daily?user_id=kedoupi&days=…`）。
+`?days=7|30|90`。bundled 合成样本是 30 天（2000-01-01 → 2000-01-30）；请求 90 天时不编造额外日期。2026-10-18 起 DEV 不再拉取任何真实个人看板数据（原 `api.xiaotaozi.cc` 实时回退与 `oura_daily_kedoupi_30d.json` 均已删除）。
 
 浏览器：落地页页脚点 **DEV 演示登录** → 出现睡眠/准备度/活动摘要卡与 7/30/90 趋势图。已登录会跳过落地页，直接进看板。
 
@@ -426,15 +426,15 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 
 ## Phase 0 — `/api/me/daily` 契约（2026-09-15）
 
-对照真源：`GET https://api.xiaotaozi.cc/oura/daily?user_id=kedoupi&days=30`（已入库 `workers/api/src/data/oura_daily_kedoupi_30d.json`）。
+契约形状对齐现网公开看板接口；仓库内不再保存真实个人数据样本，演示数据由 `workers/api/src/data/synthetic-board.ts` 生成。
 
 **主 payload**（与现网一致）：`ok`, `days[]`, `from`, `to`, `count`。会话 extras：`source`, `dev`, `label`, `user_id`, `dataset`。
 
-**DEV**：在 per-user OAuth token 就绪之前，演示登录走个人公开看板数据集（kedoupi / `api.xiaotaozi.cc`），保证 UI 看到的 contributors / steps / active_calories 是生产数字。
+**DEV**：在 per-user OAuth token 就绪之前，演示登录走仓库内合成数据集（`synthetic-board.ts`），UI 字段形状与生产一致，数值为合成值。
 
 **OAuth**：Cloud 日接口经 pick* 映射；缺密钥时该路径保持 503 / 未登录 401，类型与 mapper 已就绪。
 
-**看板**：`apps/web` 已按现网 `h5.xiaotaozi.cc/health/`（build 20260914-1735-ai-now）整页迁入（chrome / 周滑块 / 三卡 spark / SRA / 仪表 / 步数档 / 步数柱 / 雷达 / 热力 / 均值表 / 30vs90 / 洞察 / 贡献条 / AI 抽屉）。未登录是 `#landing-view` 营销页；登录后看板不变。前端一次拉 `?days=90` 再本地切片，默认周视图。DEV 的 `/api/me/ai` 代理现网 kedoupi AI；OAuth 用户该接口暂 501，抽屉壳保留。
+**看板**：`apps/web` 已按现网 `h5.xiaotaozi.cc/health/`（build 20260914-1735-ai-now）整页迁入（chrome / 周滑块 / 三卡 spark / SRA / 仪表 / 步数档 / 步数柱 / 雷达 / 热力 / 均值表 / 30vs90 / 洞察 / 贡献条 / AI 抽屉）。未登录是 `#landing-view` 营销页；登录后看板不变。前端一次拉 `?days=90` 再本地切片，默认周视图。DEV 的 `/api/me/ai` 为演示接口；OAuth 用户该接口暂 501，抽屉壳保留。
 
 ## Svelte pilot（2026-09-16）
 
