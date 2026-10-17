@@ -62,7 +62,7 @@ test('brand, styles, email and new shared modules fall back to all apps', () => 
 
 test('Health keeps both browser modes via its existing runner', () => {
   assert.deepEqual(makePlan(['apps/health/apps/web/src/App.svelte']).checks.map(check => check.argv), [
-    ['pnpm', 'test'], ['pnpm', 'typecheck'], ['pnpm', 'build'], ['pnpm', 'test:browser:built'],
+    ['pnpm', 'test'], ['pnpm', 'typecheck'], ['pnpm', 'build'], ['pnpm', 'test:assets'], ['pnpm', 'test:browser:built'],
   ]);
 });
 

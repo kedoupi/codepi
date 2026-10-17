@@ -248,8 +248,13 @@ function checkService(spec, cfg, index, violations) {
     if (!rows?.length) { at(`referenced ${label} ${token} has no registry record`); return; }
     // Pages, Workers and D1 can have the same physical name in separate namespaces.
     const typedRows = rows.filter(row => typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint);
-    for (const bad of BAD_STATUSES) if (typedRows.some(row => row.status === bad)) at(`referenced ${label} ${token} is registered as ${bad}`);
-    if (!typedRows.some(row => row.status === 'managed' && row.environment === env)) {
+    const hasManaged = typedRows.some(row => row.status === 'managed' && row.environment === env);
+    // 域名迁移过渡：同一 host 可同时有 managed 新资源行和 legacy 旧资源行（域名待切换）。
+    // 仅对 host 放宽——只要存在覆盖该 env 的 managed 行，legacy 行视为如实记录的过渡状态。
+    // worker/d1 等同名资源不适用：managed 行不得掩盖同命名空间的 legacy/unknown 冲突。
+    const transitional = typeHint === 'host' && hasManaged;
+    if (!transitional) for (const bad of BAD_STATUSES) if (typedRows.some(row => row.status === bad)) at(`referenced ${label} ${token} is registered as ${bad}`);
+    if (!hasManaged) {
       at(`referenced ${label} ${token} has no managed ${env} registry row`);
     }
   };
@@ -363,20 +368,29 @@ function checkService(spec, cfg, index, violations) {
     }
     // 首页公开资产直出；API 和 Desk 规范域名/缓存策略由 Worker 处理。
     const workerFirstAll = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=/gm)];
-    const workerFirst = [...assetsBody.matchAll(spec.id === 'www'
+    const workerFirstPattern = spec.id === 'www'
       ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/desk"\s*,\s*"\/desk\/\*"\s*\][ \t]*(?:#[^\n]*)?$/gm
-      : /^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm)];
+      : spec.spa
+        ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/mcp"\s*,\s*"\/oauth\/\*"\s*,\s*"\/\.well-known\/\*"\s*,\s*"\/well-known\/\*"\s*\][ \t]*(?:#[^\n]*)?$/gm
+        : /^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm;
+    const workerFirst = [...assetsBody.matchAll(workerFirstPattern)];
     if (workerFirstAll.length !== 1) {
       at(`[assets] must declare run_worker_first exactly once (got ${workerFirstAll.length})`);
     }
     if (workerFirstAll.length === 1 && workerFirst.length !== 1) {
       at(spec.id === 'www'
         ? '[assets] must declare run_worker_first = ["/api/*", "/desk", "/desk/*"] exactly once (Desk APIs and canonical redirects must not be shadowed by static assets)'
-        : '[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
+        : spec.spa
+          ? '[assets] must declare run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"] exactly once (Health API/MCP/OAuth must be forwarded by the Worker, not shadowed by SPA assets)'
+          : '[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
     }
     if (spec.id === 'www') {
       if (tomlStringCount(assetsBody, 'not_found_handling') !== 1 || tomlString(assetsBody, 'not_found_handling') !== '404-page') {
         at('[assets] must declare not_found_handling = "404-page" exactly once (preserve the public 404 page)');
+      }
+    } else if (spec.spa) {
+      if (tomlStringCount(assetsBody, 'not_found_handling') !== 1 || tomlString(assetsBody, 'not_found_handling') !== 'single-page-application') {
+        at('[assets] must declare not_found_handling = "single-page-application" exactly once (Health SPA must fall back to index.html)');
       }
     } else if (tomlStringCount(assetsBody, 'not_found_handling') > 0) {
       at('[assets] must not declare not_found_handling (preserve application 404/page semantics)');
@@ -469,17 +483,13 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', stagingName: 'codepi-gzh-staging', d1Name: 'codepi-gzh', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-health', d1Name: 'codepi-health', envKey: 'preview', health: true,
+    { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', stagingName: 'codepi-health-staging', d1Name: 'codepi-health', envKey: 'staging', health: true, spa: true,
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' }, WORKER: { production: 'codepi-health-api', staging: 'codepi-health-api-staging' } } },
     { id: 'auth', file: 'services/auth/wrangler.jsonc', format: 'jsonc', kind: 'worker', prodName: 'codepi-auth', stagingName: 'codepi-auth-staging', d1Name: 'codepi-auth', envKey: 'staging',
       routesRequired: true, cronsRequired: true, authRoutes: true },
     { id: 'health-api', file: 'apps/health/workers/api/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-health-api', stagingName: 'codepi-health-api-staging', d1Name: 'codepi-health', envKey: 'staging',
-      health: true, routesRequired: true, cronsRequired: true,
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } },
-      requiredRoutes: {
-        prod: ['health.codepi.app/api/*', 'health.codepi.app/mcp', 'health.codepi.app/oauth*', 'health.codepi.app/.well-known*'],
-        staging: ['health-staging.codepi.app/api/*', 'health-staging.codepi.app/mcp', 'health-staging.codepi.app/oauth*', 'health-staging.codepi.app/.well-known*'],
-      } },
+      health: true, cronsRequired: true,
+      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
   ];
   const registryPath = path.join(root, registryFile);
   if (!existsSync(registryPath)) throw new Error(`registry not found: ${registryPath}`);

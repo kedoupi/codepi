@@ -277,6 +277,7 @@ jobs:
       - run: pnpm test
       - run: pnpm typecheck
       - run: pnpm --filter @health-kdp/web build
+      - run: pnpm test:assets
       - name: Install Chinese fonts for browser screenshots
         run: |
           sudo apt-get update
@@ -684,18 +685,31 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: build
         run: pnpm --filter @health-kdp/web build
-      - name: publish frontend
-        # Wrangler discovers Pages Functions from process.cwd()/functions, so the
-        # deploy must run in apps/web (where functions/ lives), not workers/api.
+      - name: deploy
+        # The frontend is now a Workers Static Assets Worker; Wrangler bundles
+        # worker/index.ts and uploads dist. Deploy runs in apps/health/apps/web.
         id: deploy
         if: github.ref == 'refs/heads/main'
         working-directory: apps/health/apps/web
         run: |
-          out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler deploy)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../../../../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../../../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-health --url "$url")
-          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+          version=$(printf '%s' "$out" | node ../../../../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: verify runtime configuration
+        id: runtime
+        if: github.ref == 'refs/heads/main'
+        working-directory: apps/health/apps/web
+        run: |
+          origin=$(node ../../../../scripts/cloudflare/deployment-evidence.mjs resolve-worker \
+            --script codepi-health --required-secrets AUTH_CLIENT_SECRET)
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
+      - name: smoke new Worker (pre-cutover)
+        if: github.ref == 'refs/heads/main'
+        working-directory: apps/health
+        env:
+          HEALTH_CHECK_ALT_ORIGIN: ${{ steps.runtime.outputs.origin }}
+        run: pnpm check:branding
       - name: check deployment
         if: github.ref == 'refs/heads/main'
         run: |
@@ -710,7 +724,7 @@ jobs:
           node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service health-pages --target production --sha "$GITHUB_SHA"
-          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
       - name: upload deployment evidence
         if: always()
         uses: actions/upload-artifact@v4

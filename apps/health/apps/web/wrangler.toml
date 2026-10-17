@@ -1,16 +1,25 @@
-# Health 前端 Pages 项目 `codepi-health` 的仓库内配置（治理规范第 4/6 节）。
-# production 由 main branch 通过 deploy-platform.yml direct upload；
-# preview 环境 = staging runtime，仅由 staging branch 上传（branch alias）。
-# 密钥禁止写入本文件，只用 `wrangler pages secret put`（值存 Cloudflare secret store）。
+# Health 前端 Worker `codepi-health` 的仓库内配置（治理规范第 4/6 节）。
+# production 由 main branch 通过 deploy-platform.yml 用 Wrangler 发布；
+# staging 是 Workers named environment，保留未启用。
+# 密钥禁止写入本文件，只用 `wrangler secret put`（值存 Cloudflare secret store）。
 # 需要声明的 secret 名（本文件不含值）：
 #   AUTH_CLIENT_SECRET
 name = "codepi-health"
-pages_build_output_dir = "./dist"
+main = "worker/index.ts"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
 
-# Pages Functions（api/*、mcp、oauth、well-known）通过 WORKER service binding
-# 转发到 Health API Worker；AUTH/D1 与 API 保持同环境，避免跨环境引用。
+# Svelte SPA：未命中资产或未命中 API 路由的请求回退到 index.html。
+# /api/*、/mcp、/oauth/*、/.well-known/*、/well-known/* 由 Worker 经 WORKER
+# service binding 转发到 Health API Worker；其余请求直出静态资产。
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"]
+
+# API/MCP/OAuth 通过 WORKER service binding 转发到 Health API Worker；
+# AUTH/D1 与 API 保持同环境，避免跨环境引用。
 [[services]]
 binding = "WORKER"
 service = "codepi-health-api"
@@ -35,25 +44,27 @@ FRONTEND_ORIGINS = "https://health.codepi.app"
 OURA_REDIRECT_URI = "https://health.codepi.app/api/auth/oura/callback"
 ALLOW_DEV_LOGIN = "0"
 
-# Pages preview 环境 = staging runtime（治理规范第 4 节）：独立 staging D1、
-# staging Auth 与 staging Health API；禁止连接生产资源。
-[env.preview]
+# staging runtime（治理规范第 4 节）：Workers named environment，保留未启用。
+# 独立 staging D1、staging Auth 与 staging Health API；禁止连接生产资源。
+# 禁止环境覆盖资产拓扑：staging 继承顶层 [assets]（run_worker_first 数组）。
+[env.staging]
+name = "codepi-health-staging"
 
-[[env.preview.services]]
+[[env.staging.services]]
 binding = "WORKER"
 service = "codepi-health-api-staging"
 
-[[env.preview.services]]
+[[env.staging.services]]
 binding = "AUTH"
 service = "codepi-auth-staging"
 
-[[env.preview.d1_databases]]
+[[env.staging.d1_databases]]
 binding = "DB"
 database_name = "codepi-health-staging"
 database_id = "36430305-83df-4af6-961f-64abedca02fe"
 migrations_dir = "../../migrations"
 
-[env.preview.vars]
+[env.staging.vars]
 ENVIRONMENT = "staging"
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "oura"
