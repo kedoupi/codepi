@@ -21,7 +21,7 @@
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`apps/web` 是 Cloudflare Pages 项目；`apps/gu` 自 2026-10-17 起是 Workers Static Assets 架构的 Worker `codepi-gu`（`run_worker_first = true`，经 `wrangler deploy` 发布）；`apps/gzh` 已改为相同 Worker 配置，正式域名切换状态见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web` 是 Cloudflare Pages 项目；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -96,7 +96,7 @@ Functions folder when it sits next to the project root; the portal's Functions
 | `codepi.app` (apex) | CNAME | `codepi-www.pages.dev`   | yes (CF flattens at apex) |
 | `www`             | CNAME | `codepi-www.pages.dev`     | yes |
 | `gu`              | AAAA | `100::`（Worker custom domain `codepi-gu` 自动管理，2026-10-17 已切换） | yes |
-| `gzh`             | CNAME | `codepi-gzh.pages.dev`     | yes |
+| `gzh`             | AAAA | `100::`（Worker custom domain `codepi-gzh` 自动管理，2026-10-17 已切换） | yes |
 | `health`          | CNAME | `codepi-health.pages.dev`  | yes |
 | `auth`            | —     | Worker custom domain `codepi-auth` | yes |
 
