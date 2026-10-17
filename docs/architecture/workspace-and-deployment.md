@@ -118,7 +118,7 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 | 应用 | 前端 | 服务端 | 包管理 |
 |---|---|---|---|
 | web | Astro 6 + Tailwind v3 | Pages Functions (desk) | pnpm workspace |
-| gu | Vite（vanilla TS） | Bundled Worker | pnpm workspace |
+| gu | Vite（vanilla TS） | Hono Worker（Pages bundle） | pnpm workspace |
 | gzh | Vite（vanilla TS） | Hono Worker | pnpm workspace |
 | oura | Svelte 5 + Vite | Worker API（自有路由） | pnpm workspace |
 | auth | — | Worker (TS) | pnpm workspace |
@@ -129,3 +129,5 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 - 服务端统一 TypeScript + Hono + Cloudflare Workers
 - 内部调用逐步迁移到 Service Binding
 - 不引入 Turborepo/Nx、ORM、SSR 全栈框架、完整组件库
+
+GU 先迁移服务端路由，再独立迁移 Svelte 前端；业务接口和部署载体在路由迁移中保持不变。实施与验收状态见 [GU Hono 迁移记录](../development/tasks/2026-10-17-gu-hono-router.md)。

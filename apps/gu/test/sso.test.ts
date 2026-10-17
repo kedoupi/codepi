@@ -71,6 +71,22 @@ beforeEach(async () => {
 });
 
 describe("GU SSO adapter", () => {
+  it("does not start or consume an SSO transaction on HEAD requests", async () => {
+    const sso = setup();
+    const loginHead = await sso.call("/api/auth/login", "", "HEAD");
+    expect(loginHead.status).toBe(401);
+    expect(loginHead.headers.get("Location")).toBeNull();
+    expect(loginHead.headers.get("Set-Cookie")).toBeNull();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM kdp_sso_transactions").first("n")).toBe(0);
+    const tx = await sso.begin();
+    const callbackHead = await sso.call(tx.path, tx.transaction, "HEAD");
+    expect(callbackHead.status).toBe(401);
+    expect(callbackHead.headers.get("Set-Cookie")).toBeNull();
+    expect(sso.central).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM kdp_sso_transactions").first("n")).toBe(1);
+    expect((await sso.call(tx.path, tx.transaction)).status).toBe(303);
+  });
+
   it("maps only the central owner to gu-owner with a seven-day local session", async () => {
     const sso = setup();
     const { response, cookie, tx } = await sso.login();
