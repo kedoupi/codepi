@@ -478,24 +478,39 @@ jobs:
         #   AUTH_CLIENT_SECRET 与 SESSION_SECRET 存在（只读名称，不读值），
         #   然后 pre-cutover smoke 才允许执行。
         if: github.ref == 'refs/heads/main'
+        env:
+          GU_SECRETS_BOOTSTRAPPED: ${{ vars.GU_SECRETS_BOOTSTRAPPED }}
         run: |
           if [ "${GU_SECRETS_BOOTSTRAPPED:-}" != "1" ]; then
             echo "::error::GU runtime secrets not yet written to the new Worker. Follow docs/development/tasks/2026-10-17-gu-static-assets.md cutover step 2, then set GU_SECRETS_BOOTSTRAPPED=1 in the production environment and re-run failed jobs."
             exit 1
           fi
-          names=$(curl -sf --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/codepi-gu/secrets")
-          for required in AUTH_CLIENT_SECRET SESSION_SECRET; do
-            printf '%s' "$names" | grep -q "\"name\":\"$required\"" \
-              || { echo "::error::Worker codepi-gu is missing runtime secret $required"; exit 1; }
-          done
-          echo "Worker runtime secrets present (names only, values never read)."
+          curl -sf --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/codepi-gu/secrets" \
+            | node -e "
+          let raw = '';
+          process.stdin.on('data', chunk => raw += chunk).on('end', () => {
+            const body = JSON.parse(raw);
+            if (body.success !== true || !Array.isArray(body.result)) {
+              console.error('::error::Workers secrets API returned an unexpected payload');
+              process.exit(1);
+            }
+            const names = new Set(body.result.filter(s => s?.type === 'secret_text').map(s => s.name));
+            const missing = ['AUTH_CLIENT_SECRET', 'SESSION_SECRET'].filter(name => !names.has(name));
+            if (missing.length) {
+              console.error('::error::Worker codepi-gu is missing runtime secrets: ' + missing.join(', '));
+              process.exit(1);
+            }
+            console.log('Worker runtime secrets present (names only, values never read).');
+          });"
       - name: smoke new Worker (pre-cutover)
         # 域名切换前 gu.codepi.app 仍指向旧 Pages；直接探测新 Worker 的
         # workers.dev 子域，让 evidence 的 --smoke pass 真正关联本次 version。
         # WORKERS_DEV_SUBDOMAIN 须在 GitHub Environment `production` 的
         # environment variables 中显式配置（账户 workers.dev 子域，非机密）。
         if: github.ref == 'refs/heads/main'
+        env:
+          WORKERS_DEV_SUBDOMAIN: ${{ vars.WORKERS_DEV_SUBDOMAIN }}
         run: |
           origin="https://codepi-gu.${WORKERS_DEV_SUBDOMAIN:?WORKERS_DEV_SUBDOMAIN must be set as a production environment variable}.workers.dev"
           node ../../scripts/cloudflare/check-pages.mjs gu production --origin "$origin"

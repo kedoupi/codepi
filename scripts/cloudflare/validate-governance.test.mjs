@@ -372,7 +372,7 @@ test('GU staging 环境 assets 覆盖被拒绝', () => {
 });
 
 test('GU 环境 assets 覆盖的 TOML 写法变体同样被拒绝', () => {
-  for (const header of ['[ env.staging.assets ]', '[env.staging."assets"]']) {
+  for (const header of ['[ env.staging.assets ]', '[env.staging."assets"]', "[env.staging.'assets']", '[env.staging."\\u0061ssets"]']) {
     const variant = guWorkerConfig() + `\n${header}\nrun_worker_first = false\n`;
     const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': variant } }));
     assert.ok(violations.some(v => v.includes('gu') && v.includes('per-environment assets')),

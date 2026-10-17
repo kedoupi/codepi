@@ -28,15 +28,20 @@ function splitToml(text) {
   return { root, tables };
 }
 
-// TOML 表头规范化：去空格、去掉 quoted key 的引号，使
-// [ env.staging.assets ] / [env.staging."assets"] 等合法变体都归一为
+// TOML 表头规范化：去空格、单/双引号 quoted key 去引号并解码 basic-string
+// 转义，使 [ env.staging.assets ] / [env.staging."assets"] /
+// [env.staging.'assets'] / [env.staging."ssets"] 等合法变体都归一为
 // 规范拼写再比较。守门是 fail-closed，不能因为写法变体放过覆盖声明。
 function normalizeTomlHeader(header) {
   const double = header.startsWith('[[');
   const inner = header.slice(double ? 2 : 1, double ? -2 : -1).trim();
   const parts = inner.split('.').map(part => {
     const p = part.trim();
-    return p.length >= 2 && p.startsWith('"') && p.endsWith('"') ? p.slice(1, -1) : p;
+    if (p.length >= 2 && p.startsWith("'") && p.endsWith("'")) return p.slice(1, -1);
+    if (p.length >= 2 && p.startsWith('"') && p.endsWith('"')) {
+      try { return JSON.parse(p); } catch { return p.slice(1, -1); }
+    }
+    return p;
   });
   return `${double ? '[[' : '['}${parts.join('.')}${double ? ']]' : ']'}`;
 }
