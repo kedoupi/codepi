@@ -112,6 +112,10 @@ test('production releases serialize and include changes from failed or coalesced
   git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', 'revert partially deployed applications');
   assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' },
     'a revert must redeploy consumers even when the net application diff is empty');
+  const beforeHealth = git('rev-parse', 'HEAD');
+  await commit('apps/health/change.ts');
+  assert.deepEqual(await run(beforeHealth), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes' },
+    'Health changes must be detected under the current application directory');
 });
 
 test('isolated www-build installs cross-product fixture dependencies before Desk tests', async () => {

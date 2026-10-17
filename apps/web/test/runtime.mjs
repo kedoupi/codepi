@@ -11,7 +11,7 @@ const bundle = async contents => (await build({
 })).outputFiles[0].text;
 const deskScript = await bundle(`export {default} from './web/worker/index.ts';`);
 const providers = {
-  health: 'oura/workers/api/src/index.ts',
+  health: 'health/workers/api/src/index.ts',
   gu: 'gu/worker/index.ts',
   wechat: 'gzh/worker/index.ts',
 };

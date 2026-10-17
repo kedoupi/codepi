@@ -1,6 +1,6 @@
 # Shared SSO client
 
-Raw TypeScript source imported by the GU, Oura, gzh and personal desk bundles. This
+Raw TypeScript source imported by the GU, Health, gzh and personal desk bundles. This
 directory is not a package and introduces no runtime dependency. Keep application
 roles, data access and provider OAuth in the individual applications.
 
@@ -13,7 +13,7 @@ Required configuration when `SSO_ENABLED=1`:
 - `DB`: the application's existing database with the SSO migration applied.
 - `AUTH`: service binding to the central auth Worker.
 - `AUTH_ORIGIN`: the central HTTPS origin, without a path or query.
-- `AUTH_CLIENT_ID`: `gu`, `oura`, `gzh` or `desk`.
+- `AUTH_CLIENT_ID`: `gu`, `oura` (Health's existing client ID), `gzh` or `desk`.
 - `AUTH_CLIENT_SECRET`: a separate secret per application, also registered centrally.
 
 Only the central subject `kdp-owner` is accepted. The application supplies the
@@ -32,16 +32,14 @@ Call `readSsoSession` for every protected request. `null` means absent, expired 
 revoked authentication; an exception means infrastructure or configuration failure.
 Never turn the latter into a successful logout or a new anonymous session.
 
-Run the tests with Node 24 after installing the Oura workspace dependencies:
+Run the tests with Node 24 from the repository root after installing the workspace dependencies:
 
 ```sh
-cd oura
 pnpm install --frozen-lockfile
-cd ..
-node --experimental-strip-types --test shared/auth/client.test.mjs
+node --experimental-strip-types --test packages/shared/auth/client.test.mjs
 ```
 
-The tests reuse Miniflare from the existing Oura Wrangler dependency and run SQL
+The tests reuse Miniflare from the existing Health Wrangler dependency and run SQL
 against D1. The central auth and each application also have their own integration
-tests. See the [protocol](../../docs/superpowers/plans/2026-10-15-kdp-sso-contract.md)
-and [rollout checklist](../../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md).
+tests. See the [protocol](../../../docs/superpowers/plans/2026-10-15-kdp-sso-contract.md)
+and [rollout checklist](../../../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md).

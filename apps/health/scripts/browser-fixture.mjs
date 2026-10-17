@@ -8,9 +8,9 @@ import { failingDb } from '../workers/api/test/integration/failing-db.mjs';
 import { calendarDay, calendarWindow, shiftDay, DISPLAY_TIME_ZONE } from '../shared/dates.ts';
 import { shortAutomaticQueue } from './browser-sync-fixture.mjs';
 
-const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
+const origin = `http://127.0.0.1:${process.env.HEALTH_BROWSER_PORT || '4178'}`;
 const root = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
-const sso = process.env.OURA_BROWSER_SSO === '1';
+const sso = process.env.HEALTH_BROWSER_SSO === '1';
 const central = centralFixture();
 const workerOrigin = sso ? origin : 'https://oura.example';
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports).

@@ -6,7 +6,7 @@ This is the shared project contract for all coding agents working in this reposi
 
 - Start at `docs/development/README.md` for rule ownership and task routing. Follow `docs/development/agent-workflow.md` for development and handoff, and `docs/development/integration-release.md` for branch audits, integration, release and retirement. Small changes do not require a plan document.
 - Verify the actual Git root; a chat's old worktree path may no longer be a checkout. Reuse a suitable task worktree; create new independent worktrees under `~/.worktrees/<project-directory>/<branch>` (for example `~/.worktrees/kdp.cool/codex/task-name`). Record the starting SHA and inspect existing changes before editing. Detached HEAD is supported.
-- Read the target directory's `AGENTS.md` before modifying `services/auth/`, `apps/gu/`, `apps/gzh/`, `apps/oura/` or `packages/shared/`, including when starting from the repository root.
+- Read the target directory's `AGENTS.md` before modifying `services/auth/`, `apps/gu/`, `apps/gzh/`, `apps/health/` or `packages/shared/`, including when starting from the repository root.
 - Project skills live in `.agents/skills/`: `kdp-dev` for implementation, `kdp-review` for review, `kdp-release` for integration/release/retirement, `kdp-handoff` for continuity. Keep these skill names stable across product/domain renaming.
 - Tool entry points and portable invocation are documented in `docs/development/agent-compatibility.md`. If native skill discovery is unavailable, read the selected `SKILL.md` directly; `$skill` and `/skill` syntax are tool-specific conveniences.
 - In a multi-agent task, record the coordinator, each writer's worktree and allowed paths, shared-contract owner, dependencies and integration owner before parallel edits. Role names do not grant permission to message other agents or execute Git/remote actions.
@@ -21,17 +21,17 @@ transactional email and cross-product identity. KDP is a technical abbreviation;
 existing service names, database names and cookie identifiers do not need renaming.
 Reuse `packages/shared/brand.ts` and `packages/shared/email/otp.ts` for brand and OTP mail content.
 
-Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The repository keeps exactly four products: the homepage (`apps/web/`), GU (`apps/gu/`), the WeChat workbench GZH (`apps/gzh/`) and Health (`apps/oura/`). `services/auth/` and `packages/shared/` are support layers, not products. The former static tool sites (`calc/`, `convert/`, `text/`, `dev/`, `ai/`), the homepage calculator and guide pages, `/tools/`, and the `kdp.cool` and `oura.kdp.cool` domains are retired and must not be reintroduced. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract. In-flight scope and cutover order live in `docs/development/tasks/2026-10-15-codepi-cutover.md`. Read `README.md` for the domain table, DNS records, and per-project CF settings — do not duplicate that content here.
+Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The repository keeps exactly four products: the homepage (`apps/web/`), GU (`apps/gu/`), the WeChat workbench GZH (`apps/gzh/`) and Health (`apps/health/`). `services/auth/` and `packages/shared/` are support layers, not products. The former static tool sites (`calc/`, `convert/`, `text/`, `dev/`, `ai/`), the homepage calculator and guide pages, `/tools/`, and the `kdp.cool` and `oura.kdp.cool` domains are retired and must not be reintroduced. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract. In-flight scope and cutover order live in `docs/development/tasks/2026-10-15-codepi-cutover.md`. Read `README.md` for the domain table, DNS records, and per-project CF settings — do not duplicate that content here.
 
 ## Architecture in one screen
 
 ```
 kdp.cool/
 ├── apps/
-│   ├── web/   → personal homepage and private desk (Astro)
-│   ├── gu/    → private investment app (Vite + Worker)
-│   ├── gzh/   → private WeChat workbench (Vite + Worker)
-│   └── oura/  → Health (Svelte + Workers, pnpm workspace member)
+│   ├── web/     → personal homepage and private desk (Astro)
+│   ├── gu/      → private investment app (Vite + Worker)
+│   ├── gzh/     → private WeChat workbench (Vite + Worker)
+│   └── health/  → Health (Svelte + Workers, pnpm workspace member)
 ├── services/
 │   └── auth/  → shared login Worker
 ├── packages/
@@ -54,7 +54,7 @@ Install all dependencies from the repository root:
 pnpm install                     # installs all workspace packages
 ```
 
-Then run commands from a specific app directory (`apps/web/`, `apps/gu/`, `apps/gzh/`, `apps/oura/`, or `services/auth/`):
+Then run commands from a specific app directory (`apps/web/`, `apps/gu/`, `apps/gzh/`, `apps/health/`, or `services/auth/`):
 
 ```bash
 cd apps/web
@@ -64,7 +64,7 @@ npm run preview                    # serves apps/web/dist
 npm test                           # builds services/auth first, then node:test
 ```
 
-Health (oura): `cd apps/oura && pnpm test`, `pnpm typecheck`, `pnpm build`.
+Health: `cd apps/health && pnpm test`, `pnpm typecheck`, `pnpm build`.
 
 Run a single test file:
 
@@ -89,7 +89,7 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 - **No advertising.** Shared ad injection, components and placements have been retired. Do not reintroduce them.
 - **Public pages are independent of private data.** The homepage, `/apps/`, `/about/`, `/privacy/`, `/terms/` and `/contact/` must not embed health, investment or unpublished draft data. Private apps stay behind unified login.
 - **Product registry is shared.** `packages/shared/products.ts` is the single list of public product entries; update it when a product is added or retired, and keep it free of private business data.
-- **Health keeps its source vocabulary.** The source directory and package names retain `oura` even though the product and domain are Health; do not rename them just to match the UI. Cloudflare physical resource names follow the governance document and resource registry, not legacy package names.
+- **Health names the application; Oura names its provider.** Application code lives in `apps/health/`, with workspace packages `health-kdp`, `@health-kdp/web` and `@health-kdp/api`. Keep `oura` in provider modules, OAuth endpoints and credentials. Existing SSO client IDs, cookies and persisted provider fields are protocol/data identifiers; changing them requires an explicit migration, not a text replacement. Cloudflare physical resource names follow the governance document and resource registry.
 - **No new dependencies without asking.** The homepage stack is locked at Astro 6 + `@astrojs/tailwind@6` + Tailwind v3 + `@astrojs/sitemap` + zero JS framework. Private apps retain their existing stacks. Any addition needs explicit user approval.
 
 ## Adding work

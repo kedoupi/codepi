@@ -97,9 +97,9 @@ importers:
         specifier: ^4.37.0
         version: 4.151.0(@cloudflare/workers-types@5.20261016.1)(@types/node@24.19.2)
 
-  apps/oura: {}
+  apps/health: {}
 
-  apps/oura/apps/web:
+  apps/health/apps/web:
     devDependencies:
       '@kedoupi/shared':
         specifier: workspace:*
@@ -120,7 +120,7 @@ importers:
         specifier: ^6.0.7
         version: 6.4.4(@types/node@24.19.2)(jiti@1.21.7)(yaml@2.9.1)
 
-  apps/oura/workers/api:
+  apps/health/workers/api:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20250109.0

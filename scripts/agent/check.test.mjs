@@ -61,7 +61,7 @@ test('brand, styles, email and new shared modules fall back to all apps', () => 
 });
 
 test('Health keeps both browser modes via its existing runner', () => {
-  assert.deepEqual(makePlan(['apps/oura/apps/web/src/App.svelte']).checks.map(check => check.argv), [
+  assert.deepEqual(makePlan(['apps/health/apps/web/src/App.svelte']).checks.map(check => check.argv), [
     ['pnpm', 'test'], ['pnpm', 'typecheck'], ['pnpm', 'build'], ['pnpm', 'test:browser:built'],
   ]);
 });
@@ -78,7 +78,7 @@ test('Cloudflare configs, governance scripts and docs select the static governan
     { cwd: '.', argv: ['node', 'scripts/cloudflare/validate-governance.mjs'] },
   ];
   for (const file of ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-    'services/auth/wrangler.jsonc', 'apps/oura/workers/api/wrangler.toml', 'apps/oura/apps/web/wrangler.toml',
+    'services/auth/wrangler.jsonc', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml',
     'scripts/cloudflare/validate-governance.mjs',
     'docs/development/cloudflare-resource-registry.md',
     'docs/development/cloudflare-governance.md']) {
@@ -91,7 +91,7 @@ test('Cloudflare configs, governance scripts and docs select the static governan
 });
 
 test('docs skip application builds but product Markdown remains covered', () => {
-  assert.deepEqual(makePlan(['docs/architecture/example.md', 'apps/oura/AGENTS.md', 'README.md']).checks, []);
+  assert.deepEqual(makePlan(['docs/architecture/example.md', 'apps/health/AGENTS.md', 'README.md']).checks, []);
   assert.deepEqual(makePlan(['apps/web/src/content/post.md']).apps, ['web']);
   assert.deepEqual(makePlan(['.agents/skills/kdp-dev/SKILL.md']).checks, [
     { cwd: '.', argv: ['node', '--test', 'scripts/agent/check.test.mjs'] },
@@ -170,6 +170,20 @@ test('cross-app rename retains both old and new consumers', t => {
   const result = changedFiles(f.cwd, base);
   assert.deepEqual(result.files, ['apps/gu/file.txt', 'apps/web/file.txt']);
   assert.deepEqual(makePlan(result.files).apps, ['web', 'gu']);
+});
+
+test('Health directory move validates the current application for both sides of the rename', t => {
+  const f = fixture(t);
+  f.write('apps/oura/workers/api/src/index.ts');
+  const base = f.commit();
+  renameSync(path.join(f.cwd, 'apps/oura'), path.join(f.cwd, 'apps/health'));
+  f.commit();
+  const result = changedFiles(f.cwd, base);
+  assert.deepEqual(result.files, ['apps/health/workers/api/src/index.ts', 'apps/oura/workers/api/src/index.ts']);
+  const plan = makePlan(result.files);
+  assert.deepEqual(plan.apps, ['health']);
+  assert.deepEqual(plan.manual, []);
+  assert.ok(plan.checks.every(check => check.cwd === 'apps/health'));
 });
 
 test('staged changes are retained even when working copy restores HEAD content', t => {

@@ -37,7 +37,7 @@ async function healthyWorker({ sso = false, oauthConfigured = true, authOrigin =
     // in discovery documents, exactly like the Worker derives issuer(request).
     const selfOrigin = `http://${req.headers.host}`;
     if (url.pathname === '/api/health') {
-      return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured, allowDevLogin: false, release: 'test-release', build: process.env.OURA_EXPECT_BUILD || 'local' });
+      return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured, allowDevLogin: false, release: 'test-release', build: process.env.HEALTH_EXPECT_BUILD || 'local' });
     }
     if (url.pathname === '/api/me') {
       return json(res, 200, { authenticated: false, ssoEnabled: sso, websiteAccount: null, ouraConnection: null, oauthConfigured, allowDevLogin: false, localePref: null, capabilities: { personal: false, weeklyFull: false, compare: false } });
@@ -86,12 +86,12 @@ function runCheck(origin, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script, origin], {
       env: {
-        ...process.env, OURA_EXPECT_BUILD: '', OURA_EXPECT_OAUTH_CONFIGURED: '', OURA_EXPECT_SSO_ENABLED: '', OURA_CHECK_ALT_ORIGIN: '', OURA_CHECK_EDGE_BLOCK: '',
+        ...process.env, HEALTH_EXPECT_BUILD: '', HEALTH_EXPECT_OAUTH_CONFIGURED: '', HEALTH_EXPECT_SSO_ENABLED: '', HEALTH_CHECK_ALT_ORIGIN: '', HEALTH_CHECK_EDGE_BLOCK: '',
         // A contract failure must not turn into a real 60s retry loop in tests.
-        OURA_CHECK_HEALTH_TIMEOUT_MS: '200',
+        HEALTH_CHECK_HEALTH_TIMEOUT_MS: '200',
         // The mock Worker advertises this hostname as its configured callback,
         // like the deployed Worker does with OURA_REDIRECT_URI.
-        OURA_CHECK_PUBLIC_ORIGIN: PUBLIC_ORIGIN,
+        HEALTH_CHECK_PUBLIC_ORIGIN: PUBLIC_ORIGIN,
         ...env,
       },
     });
@@ -126,9 +126,9 @@ test('staging contract retains SSO, discovery, MCP and anonymous isolation witho
   const worker = await healthyWorker({ sso: true, oauthConfigured: false, authOrigin });
   t.after(() => worker.close());
   const run = await runCheck(worker.origin, {
-    OURA_EXPECT_OAUTH_CONFIGURED: 'false',
-    OURA_EXPECT_SSO_ENABLED: 'true',
-    OURA_CHECK_AUTH_ORIGIN: authOrigin,
+    HEALTH_EXPECT_OAUTH_CONFIGURED: 'false',
+    HEALTH_EXPECT_SSO_ENABLED: 'true',
+    HEALTH_CHECK_AUTH_ORIGIN: authOrigin,
   });
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, /PASS \/api\/auth\/login: HTTP 302; SSO redirect/);
@@ -148,7 +148,7 @@ test('strict mode fails when the edge answers instead of the Worker', async t =>
 test('warn mode without a fallback hostname fails closed', async t => {
   const edge = await blockingEdge();
   t.after(() => edge.close());
-  const run = await runCheck(edge.origin, { OURA_CHECK_EDGE_BLOCK: 'warn' });
+  const run = await runCheck(edge.origin, { HEALTH_CHECK_EDGE_BLOCK: 'warn' });
   assert.equal(run.status, 1, run.output);
   assert.match(run.output, /FAIL edge-block-fallback: .*NOT verified/);
 });
@@ -157,7 +157,7 @@ test('warn mode verifies the same Worker on the fallback hostname', async t => {
   const edge = await blockingEdge();
   const worker = await healthyWorker();
   t.after(() => Promise.all([edge.close(), worker.close()]));
-  const run = await runCheck(edge.origin, { OURA_CHECK_EDGE_BLOCK: 'warn', OURA_CHECK_ALT_ORIGIN: worker.origin });
+  const run = await runCheck(edge.origin, { HEALTH_CHECK_EDGE_BLOCK: 'warn', HEALTH_CHECK_ALT_ORIGIN: worker.origin });
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, new RegExp(`PASS /api/me \\[${worker.origin}\\]`));
   assert.match(run.output, /WARN: edge returned 403 HTML/);
@@ -167,7 +167,7 @@ test('warn mode fails when the fallback hostname is also challenged', async t =>
   const edge = await blockingEdge();
   const fallback = await blockingEdge();
   t.after(() => Promise.all([edge.close(), fallback.close()]));
-  const run = await runCheck(edge.origin, { OURA_CHECK_EDGE_BLOCK: 'warn', OURA_CHECK_ALT_ORIGIN: fallback.origin });
+  const run = await runCheck(edge.origin, { HEALTH_CHECK_EDGE_BLOCK: 'warn', HEALTH_CHECK_ALT_ORIGIN: fallback.origin });
   assert.equal(run.status, 1, run.output);
   assert.match(run.output, /FAIL edge-block-fallback: .*fallback hostname also returned an edge challenge/);
 });
@@ -177,9 +177,9 @@ test('a fallback hostname serving the wrong build still fails the gate', async t
   const worker = await healthyWorker();
   t.after(() => Promise.all([edge.close(), worker.close()]));
   const run = await runCheck(edge.origin, {
-    OURA_CHECK_EDGE_BLOCK: 'warn',
-    OURA_CHECK_ALT_ORIGIN: worker.origin,
-    OURA_EXPECT_BUILD: 'deadbeef1234',
+    HEALTH_CHECK_EDGE_BLOCK: 'warn',
+    HEALTH_CHECK_ALT_ORIGIN: worker.origin,
+    HEALTH_EXPECT_BUILD: 'deadbeef1234',
   });
   assert.equal(run.status, 1, run.output);
   assert.match(run.output, /FAIL \/api\/health/);

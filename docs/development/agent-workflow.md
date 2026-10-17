@@ -10,7 +10,7 @@
 
 ```text
 读取 AGENTS.md 和 .agents/skills/kdp-dev/SKILL.md。
-修复 Health 的……。完成标准：……。范围限于 apps/oura/。
+修复 Health 的……。完成标准：……。范围限于 apps/health/。
 先调查根因，完成实现和本地验证，最后交付改动与未覆盖项。
 ```
 
@@ -86,7 +86,7 @@ git worktree add -b codex/task-name ~/.worktrees/kdp.cool/codex/task-name <已�
 
 说明分配表由谁维护、在哪个工作目录，所有参与者确认同一版分配后再开工。Git 跟踪的任务文档在各 worktree 中各有副本，不能作为实时锁或自动同步的任务队列。不能访问协调者记录的 agent 由用户转交分配内容，不推测其他 agent 的状态。
 
-按业务边界拆：首页 `apps/web/`、健康 `apps/oura/`、投资 `apps/gu/`、公众号 GZH `apps/gzh/`、统一登录 `services/auth/`。`packages/shared/`、根规范和 CI 作为公共改动由一个任务统一负责。
+按业务边界拆：首页 `apps/web/`、健康 `apps/health/`、投资 `apps/gu/`、公众号 GZH `apps/gzh/`、统一登录 `services/auth/`。`packages/shared/`、根规范和 CI 作为公共改动由一个任务统一负责。
 
 例如“统一登录接口 + GU 页面适配”先确定接口字段、错误码、兼容方式及回调规则；一个 agent 改公共契约，另一个在独立 worktree 改 GU 消费端。未集成前明确记录依赖和未验证项，不能把本地假实现当作完整联调。
 
@@ -127,7 +127,7 @@ node --test scripts/agent/check.test.mjs
 | `services/auth/` 或 `packages/shared/auth/` | auth、首页/Desk、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
 | `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
 | `apps/gzh/` | test、typecheck、build |
-| `apps/oura/` | test、typecheck、build、正常与 SSO 浏览器回归 |
+| `apps/health/` | test、typecheck、build、正常与 SSO 浏览器回归 |
 | CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |

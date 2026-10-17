@@ -2,9 +2,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', oura: 'apps/oura', auth: 'services/auth' };
+export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth' };
 export const staticApps = ['web'];
-export const privateApps = ['auth', 'gu', 'gzh', 'oura'];
+export const privateApps = ['auth', 'gu', 'gzh', 'health'];
 const allApps = [...staticApps, ...privateApps];
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -37,7 +37,7 @@ export function makePlan(files) {
   const addAll = () => { add(allApps); sharedAuth = true; };
 
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-    'services/auth/wrangler.jsonc', 'apps/oura/workers/api/wrangler.toml', 'apps/oura/apps/web/wrangler.toml'];
+    'services/auth/wrangler.jsonc', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
   for (const file of files) {
     if (file.startsWith('scripts/cloudflare/')
       || file === '.github/workflows/deploy-platform.yml'
@@ -59,6 +59,9 @@ export function makePlan(files) {
     } else if (['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'].some(prefix => file.startsWith(prefix))) {
       // Retirement and directory moves must validate the remaining consumers.
       addAll();
+    } else if (file.startsWith('apps/oura/')) {
+      // A rename diff includes deleted paths from before the Health directory move.
+      add(['health']);
     } else if (file.startsWith('docs/') || /(^|\/)(README|AGENTS)\.md$/.test(file)) {
       continue;
     } else if (file.startsWith('.github/')) {
@@ -97,7 +100,7 @@ export function makePlan(files) {
     if (app === 'web') check(dirOf(app), 'npm', 'run', 'test:assets');
   }
   for (const app of privateApps.filter(app => apps.has(app))) {
-    if (app === 'oura') {
+    if (app === 'health') {
       check(dirOf(app), 'pnpm', 'test');
       check(dirOf(app), 'pnpm', 'typecheck');
       check(dirOf(app), 'pnpm', 'build');
