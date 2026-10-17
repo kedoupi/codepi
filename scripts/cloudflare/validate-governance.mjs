@@ -13,7 +13,8 @@ const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
   'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
-const ENV_SUFFIX = /-(staging|pr-\d+)$/;
+// staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
+const STAGING_NAME = /-(staging|pr-\d+)$/;
 const ASSETS_HEADER = '[assets]';
 
 // ---- 轻量解析（沿用 apps/health/scripts/lib/wrangler-config.mjs 的分段模式，不引入依赖）----
@@ -119,7 +120,7 @@ function normalizeBindings(value, fields) {
   return { all, malformed: all.some(item => fields.some(field => typeof item[field] !== 'string' || !item[field])) };
 }
 
-// ---- 配置归一化：每个服务产出 production 与 staging 两份完整描述 ----
+// ---- 配置归一化：staging 已退役，只归一化 production；staging 段一律违规 ----
 
 function parseTomlEnv(root, tables, prefix) {
   const section = prefix ? tomlTableBodies(tables, `[${prefix}]`).join('\n') : root;
@@ -156,7 +157,7 @@ function normalizeTomlService(text, envKey) {
   const { root, tables } = splitToml(text);
   return {
     production: parseTomlEnv(root, tables, null),
-    staging: parseTomlEnv(root, tables, `env.${envKey}`),
+    stagingPresent: tables.some(t => t.header === `[env.${envKey}]` || t.header.startsWith(`[env.${envKey}.`) || t.header.startsWith(`[[env.${envKey}.`)),
     assetsTables: tomlTableBodies(tables, ASSETS_HEADER),
     envAssetsHeaders: tables.filter(t => /^\[env\..+\.assets\]$/.test(t.header)).map(t => t.header),
   };
@@ -193,7 +194,7 @@ function normalizeJsoncService(text) {
   };
   return {
     production: pick(cfg, true),
-    staging: cfg.env?.staging ? pick(cfg.env.staging, true) : pick({}, false),
+    stagingPresent: cfg.env?.staging !== undefined,
   };
 }
 
@@ -240,8 +241,10 @@ const BAD_STATUSES = ['legacy-pending-retirement', 'legacy-preview', 'unknown'];
 
 function checkService(spec, cfg, index, violations) {
   const at = (msg) => violations.push(`${spec.id}: ${msg}`);
-  const { production: prod, staging, assetsTables = [], envAssetsHeaders = [] } = cfg;
-  const environments = [['production', prod], ['staging', staging]];
+  const { production: prod, stagingPresent, assetsTables = [], envAssetsHeaders = [] } = cfg;
+  // staging 已退役：配置文件不得再声明 staging 环境。
+  if (stagingPresent) at('staging environment is retired; remove the [env.staging] section');
+  const environments = [['production', prod]];
   const checkRef = (token, env, typeHint, label) => {
     if (!token) return;
     const rows = index.get(token);
@@ -289,7 +292,11 @@ function checkService(spec, cfg, index, violations) {
     }
   };
   const checkD1s = (env, envName) => {
-    const expectedName = envName === 'production' ? spec.d1Name : `${spec.d1Name}-staging`;
+    const expectedName = spec.d1Name;
+    if (spec.noD1) {
+      if (env.d1All.length !== 0) at(`${envName} must not declare a D1 binding`);
+      return;
+    }
     if (env.d1All.length !== 1) at(`${envName} must declare exactly one D1 DB binding (got ${env.d1All.length})`);
     if (env.d1Malformed) at(`${envName} has malformed D1 declaration`);
     for (const binding of env.duplicateD1Bindings) at(`${envName} has duplicate D1 binding "${binding}"`);
@@ -308,19 +315,21 @@ function checkService(spec, cfg, index, violations) {
   }
 
   if (prod.name !== spec.prodName) at(`production name ${prod.name} != ${spec.prodName}`);
-  if (ENV_SUFFIX.test(prod.name || '')) at(`production name ${prod.name} carries an environment suffix`);
-  if (prod.environment !== 'production') at(`production ENVIRONMENT must be "production", got ${prod.environment}`);
-  if (spec.stagingName && staging.name !== spec.stagingName) at(`staging name ${staging.name} != ${spec.stagingName}`);
-  if (staging.environment !== 'staging') at(`staging ENVIRONMENT must be "staging", got ${staging.environment}`);
+  if (STAGING_NAME.test(prod.name || '')) at(`production name ${prod.name} carries an environment suffix`);
+  if (!spec.noVars && prod.environment !== 'production') at(`production ENVIRONMENT must be "production", got ${prod.environment}`);
 
   for (const [envName, env] of environments) {
     checkD1s(env, envName);
     checkServices(env, envName);
-    const expectedAuthOrigin = envName === 'production' ? 'https://auth.codepi.app' : 'https://auth-staging.codepi.app';
+    if (spec.noVars) {
+      if (env.authOrigin !== undefined || env.frontendOrigin !== undefined || env.frontendOrigins !== undefined
+        || env.ouraRedirect !== undefined || env.environment !== undefined) {
+        at(`${envName} must not declare AUTH_ORIGIN/FRONTEND_ORIGIN/FRONTEND_ORIGINS/OURA_REDIRECT_URI/ENVIRONMENT vars (the frontend is a pure proxy)`);
+      }
+      continue;
+    }
+    const expectedAuthOrigin = 'https://auth.codepi.app';
     if (env.authOrigin !== expectedAuthOrigin) at(`${envName} AUTH_ORIGIN must be ${expectedAuthOrigin}`);
-  }
-  if (prod.d1All[0]?.id && staging.d1All[0]?.id && prod.d1All[0].id === staging.d1All[0].id) {
-    at(`staging D1 database_id ${staging.d1All[0].id} equals production D1 (${prod.d1All[0].name})`);
   }
 
   for (const [envName, env] of environments) {
@@ -328,9 +337,13 @@ function checkService(spec, cfg, index, violations) {
       const host = pattern.replace(/\/.*$/, '');
       if (host.endsWith('.kdp.cool') || host === 'kdp.cool') at(`route host ${host} uses retired kdp.cool`);
       if (host === 'api.codepi.app') at('api.codepi.app is not allowed without an explicit API boundary');
-      if (envName === 'staging' && PROD_HOSTS.has(host)) at(`health staging route ${pattern} uses a production hostname`);
-      const hosts = envName === 'production' ? PROD_HOSTS : STAGING_HOSTS;
-      if (!hosts.has(host) && !host.endsWith('.workers.dev')) at(`${envName} route host ${host} violates the hostname contract`);
+      if (STAGING_HOSTS.has(host) || STAGING_NAME.test(host.split('.')[0] ?? '')) at(`route host ${host} uses retired staging`);
+      if (!PROD_HOSTS.has(host) && !host.endsWith('.workers.dev')) at(`${envName} route host ${host} violates the hostname contract`);
+    }
+    // Health API 已走前端 Worker 的 service binding：公网 routes 一律禁止，
+    // 防止 zone 内残留指向本 Worker 的兜底路由。
+    if (spec.noRoutes && env.routePatterns.length) {
+      at(`${envName} must not declare public routes (the frontend Worker forwards /api via the WORKER binding)`);
     }
   }
 
@@ -347,7 +360,7 @@ function checkService(spec, cfg, index, violations) {
 
   if (spec.authRoutes) {
     for (const [envName, env] of environments) {
-      const expected = envName === 'production' ? 'auth.codepi.app' : 'auth-staging.codepi.app';
+      const expected = 'auth.codepi.app';
       if (env.routeEntries.length !== 1 || env.routeEntries[0]?.pattern !== expected || env.routeEntries[0]?.customDomain !== true) {
         at(`${envName} auth route must be exactly custom_domain ${expected}`);
       }
@@ -396,33 +409,27 @@ function checkService(spec, cfg, index, violations) {
       at('[assets] must not declare not_found_handling (preserve application 404/page semantics)');
     }
     if (envAssetsHeaders.length > 0) {
-      at(`per-environment assets overrides are forbidden; staging inherits the top-level [assets] (found ${envAssetsHeaders.join(', ')})`);
+      at(`per-environment assets overrides are forbidden (found ${envAssetsHeaders.join(', ')})`);
     }
   }
 
   if (spec.requiredRoutes) {
     for (const [envName, env] of environments) {
       const actual = [...env.routePatterns].sort();
-      const expected = [...spec.requiredRoutes[envName === 'production' ? 'prod' : 'staging']].sort();
+      const expected = [...spec.requiredRoutes.prod].sort();
       if (JSON.stringify(actual) !== JSON.stringify(expected)) at(`${envName} routes must be exactly [${expected.join(', ')}]`);
     }
   }
 
   if (spec.health) {
     for (const [envName, env] of environments) {
-      const host = envName === 'production' ? 'health.codepi.app' : 'health-staging.codepi.app';
+      const host = 'health.codepi.app';
       const origin = `https://${host}`;
-      if (envName === 'staging') {
-        for (const [label, value] of [['FRONTEND_ORIGIN', env.frontendOrigin], ['FRONTEND_ORIGINS', env.frontendOrigins], ['OURA_REDIRECT_URI', env.ouraRedirect]]) {
-          if (PROD_HOSTS.has(hostOf(value))) at(`health staging ${label} uses a production hostname`);
-        }
-      }
       if (env.frontendOrigin !== origin) at(`${envName} FRONTEND_ORIGIN must be ${origin}`);
       if (env.frontendOrigins !== origin) at(`${envName} FRONTEND_ORIGINS must be ${origin}`);
       if (env.ouraRedirect !== `${origin}/api/auth/oura/callback`) at(`${envName} OURA_REDIRECT_URI must be the Health callback`);
       if (env.allowDevLogin !== '0') at(`health ${envName} ALLOW_DEV_LOGIN must be "0"`);
     }
-    if (spec.id === 'health-api' && staging.autoSync !== '0') at(`health staging AUTO_SYNC_ENABLED must be "0"`);
   }
 
   if (spec.id === 'auth') {
@@ -432,12 +439,6 @@ function checkService(spec, cfg, index, violations) {
         oura: ['https://health.kdp.cool/api/auth/callback', 'https://health.codepi.app/api/auth/callback'],
         gzh: ['https://gzh.codepi.app/api/auth/callback'],
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
-      },
-      staging: {
-        gu: ['https://gu-staging.codepi.app/api/auth/callback'],
-        oura: ['https://health-staging.codepi.app/api/auth/callback'],
-        gzh: ['https://gzh-staging.codepi.app/api/auth/callback'],
-        desk: ['https://staging.codepi.app/api/auth/callback'],
       },
     };
     for (const [envName, env] of environments) {
@@ -459,7 +460,6 @@ function checkService(spec, cfg, index, violations) {
   }
 
   const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name']];
-  if (spec.stagingName) refs.push([staging.name, 'staging', 'worker', 'staging name']);
   for (const [envName, env] of environments) {
     for (const service of env.servicesAll) refs.push([service.service, envName, 'worker', `service binding ${service.binding}`]);
     for (const pattern of env.routePatterns) refs.push([pattern.replace(/\/.*$/, ''), envName, 'host', 'route host']);
@@ -477,19 +477,21 @@ function checkService(spec, cfg, index, violations) {
 
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
-    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', stagingName: 'codepi-www-staging', d1Name: 'codepi-desk', envKey: 'staging',
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', stagingName: 'codepi-gu-staging', d1Name: 'codepi-gu', envKey: 'staging',
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', stagingName: 'codepi-gzh-staging', d1Name: 'codepi-gzh', envKey: 'staging',
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', stagingName: 'codepi-health-staging', d1Name: 'codepi-health', envKey: 'staging', health: true, spa: true,
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' }, WORKER: { production: 'codepi-health-api', staging: 'codepi-health-api-staging' } } },
-    { id: 'auth', file: 'services/auth/wrangler.jsonc', format: 'jsonc', kind: 'worker', prodName: 'codepi-auth', stagingName: 'codepi-auth-staging', d1Name: 'codepi-auth', envKey: 'staging',
+    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'staging',
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', d1Name: 'codepi-gzh', envKey: 'staging',
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    // Health 前端只做静态资产与 API 代理：无 AUTH 绑定、无 D1、无 vars。
+    { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', envKey: 'staging', spa: true,
+      noD1: true, noVars: true,
+      serviceBindings: { WORKER: { production: 'codepi-health-api' } } },
+    { id: 'auth', file: 'services/auth/wrangler.jsonc', format: 'jsonc', kind: 'worker', prodName: 'codepi-auth', d1Name: 'codepi-auth', envKey: 'staging',
       routesRequired: true, cronsRequired: true, authRoutes: true },
-    { id: 'health-api', file: 'apps/health/workers/api/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-health-api', stagingName: 'codepi-health-api-staging', d1Name: 'codepi-health', envKey: 'staging',
-      health: true, cronsRequired: true,
-      serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
+    { id: 'health-api', file: 'apps/health/workers/api/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-health-api', d1Name: 'codepi-health', envKey: 'staging',
+      health: true, cronsRequired: true, noRoutes: true,
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
   ];
   const registryPath = path.join(root, registryFile);
   if (!existsSync(registryPath)) throw new Error(`registry not found: ${registryPath}`);

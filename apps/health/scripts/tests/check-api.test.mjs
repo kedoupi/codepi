@@ -121,8 +121,10 @@ test('SSO contract uses central login and rejects unauthenticated provider linki
   assert.match(run.output, /PASS \/api\/auth\/oura\/start: HTTP 401/);
 });
 
-test('staging contract retains SSO, discovery, MCP and anonymous isolation without Oura credentials', async t => {
-  const authOrigin = 'https://auth-staging.codepi.app';
+test('the contract retains SSO, discovery, MCP and anonymous isolation without Oura credentials', async t => {
+  // 以自定义 auth origin 驱动同一份契约；staging 域名已退役，这里用 example 主机避免
+  // 暗示仍存在 staging 环境。
+  const authOrigin = 'https://auth.example.invalid';
   const worker = await healthyWorker({ sso: true, oauthConfigured: false, authOrigin });
   t.after(() => worker.close());
   const run = await runCheck(worker.origin, {

@@ -14,9 +14,18 @@ const request = (path, cookie = '', init = {}) => new Request(origin + path, {
 const sessionCookie = response => response.headers.getSetCookie().find(v => v.includes('_session=')).split(';')[0];
 
 async function fixture(t) {
+  // Miniflare v5（wrangler 4.151+）：workers[].config 形态；只需要一个本地 D1。
   const runtime = new Miniflare({
-    modules: true, script: 'export default { fetch() { return new Response("ok"); } }',
-    d1Databases: ['DB'], compatibilityDate: '2025-01-01',
+    workers: [{
+      config: {
+        name: 'shared-auth-test',
+        compatibilityDate: '2025-01-01',
+        manifest: { mainModule: 'index.js', modules: {
+          'index.js': { type: 'esm', contents: 'export default { fetch() { return new Response("ok"); } }' },
+        } },
+        env: { DB: { type: 'd1', name: 'DB' } },
+      },
+    }],
   });
   t.after(() => runtime.dispose());
   const db = await runtime.getD1Database('DB');

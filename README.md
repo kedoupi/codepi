@@ -96,14 +96,14 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 | `www`             | —     | Worker custom domain `codepi-www`（2026-10-17 已切换） | yes |
 | `gu`              | AAAA | `100::`（Worker custom domain `codepi-gu` 自动管理，2026-10-17 已切换） | yes |
 | `gzh`             | AAAA | `100::`（Worker custom domain `codepi-gzh` 自动管理，2026-10-17 已切换） | yes |
-| `health`          | CNAME | `codepi-health.pages.dev`  | yes |
+| `health`          | —     | Worker custom domain `codepi-health`（2026-10-18 已切换） | yes |
 | `auth`            | —     | Worker custom domain `codepi-auth` | yes |
 
 上表描述产品域名映射，不是本次实时 DNS 查询。`kdp.cool` 与 `oura.kdp.cool` 的产品网站已退役，不再作为产品入口或跳转目标；实际残留与兼容入口按资源登记表核实。原 `kdp.cool` 的邮件路由与邮件身份、用户指定保留的 `wechat-proxy` 不在网站退役范围，不能随旧站一并删除。
 
 ## Adding or retiring a product
 
-经批准新增应用时同步更新 `packages/shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处，且必须保持 production/staging 隔离。
+经批准新增应用时同步更新 `packages/shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处。staging 环境已于 2026-10-18 退役，只保留 local 与 production。
 
 退役产品时按顺序执行：先移除代码与入口，再更新 `packages/shared/products.ts` 和文档，然后撤下 Cloudflare Pages 自定义域，最后删除 DNS 记录与项目。数据（D1、对象存储）单独确认后再处理。
 
@@ -125,7 +125,7 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 | P4 | 公众号工作台（GZH）视觉统一 | 已上线 |
 | P5 | 博客栏目上线（`/blog/`），公开笔记与内容发布 | 博客已上线 |
 | P6 | 本人工作台与按需摘要（`/desk/`） | 已实现，摘要 token 待配置 |
-| P9 | 五站下线、codepi.app 迁域、四产品收尾 | 进行中 |
+| P9 | 五站下线、codepi.app 迁域、四产品收尾 | 已完成（Pages 全部退役，四产品均为 Workers Static Assets） |
 | P7 | 公开内容 MCP | 待实施 |
 | P8 | 私人应用的授权 AI 能力 | 按实际使用逐步接入 |
 

@@ -61,6 +61,12 @@ test('Health frontend Workers release deploys and evidences from its nested fron
   assert.match(deploy, /pnpm exec wrangler deploy/);
   assert.doesNotMatch(job, /wrangler pages deploy|--provider pages|resolve-pages/);
   assert.doesNotMatch(workflow, /npx wrangler(?:@|\s)/, 'deploy with the workspace-locked Wrangler');
+  // 前端是纯代理：secrets/D1/vars 都归 API Worker，部署门禁不得再要求
+  // AUTH_CLIENT_SECRET（该 secret 已从 codepi-health 删除）。
+  const gate = job.split('verify runtime configuration')[1]?.split('- name:')[0];
+  assert.match(gate, /deployment-evidence\.mjs resolve-worker/);
+  assert.ok(gate.includes('--script codepi-health'), 'gate must target codepi-health');
+  assert.doesNotMatch(gate, /required-secrets/, 'frontend proxy must not gate on secrets that belong to the API Worker');
 });
 
 test('production releases serialize and include changes from failed or coalesced pushes', async t => {

@@ -1,8 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
 import {
   allowDevLogin,
   DEV_PLACEHOLDER_CLIENT_ID,
@@ -11,6 +8,7 @@ import {
 import { decryptJson, encryptJson, hmacSign, hmacVerify } from "../src/lib/crypto.ts";
 import {
   buildDevDaily,
+  loadDevDaily,
   clampDays,
   dateWindow,
   isBoardDailyPayload,
@@ -28,11 +26,8 @@ import {
   SLEEP_CONTRIBUTOR_KEYS,
 } from "../src/lib/pickers.ts";
 
-const fixturePath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../src/data/oura_daily_kedoupi_30d.json",
-);
-const kedoupiSample = JSON.parse(readFileSync(fixturePath, "utf8")) as BoardDailyPayload;
+import { SYNTHETIC_BOARD_SAMPLE as syntheticSample } from "../src/data/synthetic-board.ts";
+
 
 function fakeEnv(overrides: Record<string, string | undefined> = {}) {
   return overrides as import("../src/env.ts").Env;
@@ -136,48 +131,41 @@ function assertLiveDayShape(day: BoardDailyPayload["days"][number], label: strin
   }
 }
 
-describe("kedoupi live sample is the contract", () => {
+describe("synthetic sample follows the daily contract", () => {
   it("parses as the personal board payload", () => {
-    assert.equal(isBoardDailyPayload(kedoupiSample), true);
-    assert.equal(kedoupiSample.ok, true);
-    assert.equal(kedoupiSample.user_id, "kedoupi");
-    assert.equal(kedoupiSample.from, "2026-08-17");
-    assert.equal(kedoupiSample.to, "2026-09-15");
-    assert.equal(kedoupiSample.count, 30);
-    assert.equal(kedoupiSample.days.length, 30);
+    assert.equal(isBoardDailyPayload(syntheticSample), true);
+    assert.equal(syntheticSample.ok, true);
+    assert.equal(syntheticSample.user_id, "synthetic-user");
+    assert.equal(syntheticSample.from, "2000-01-01");
+    assert.equal(syntheticSample.to, "2000-01-30");
+    assert.equal(syntheticSample.count, 30);
+    assert.equal(syntheticSample.days.length, 30);
   });
 
   it("every day has nested sleep/readiness and live contributor keys", () => {
-    for (const day of kedoupiSample.days) {
+    for (const day of syntheticSample.days) {
       assertLiveDayShape(day, day.date);
       assert.ok(day.sleep, `${day.date} sleep`);
       assert.ok(day.readiness, `${day.date} readiness`);
     }
-    const missingActivity = kedoupiSample.days.filter((d) => d.activity == null);
+    const missingActivity = syntheticSample.days.filter((d) => d.activity == null);
     assert.deepEqual(
       missingActivity.map((d) => d.date),
-      ["2026-09-07", "2026-09-08"],
+      ["2000-01-22", "2000-01-23"],
     );
   });
 
-  it("keeps real kedoupi numbers (not a generated wave)", () => {
-    const first = kedoupiSample.days[0]!;
-    assert.equal(first.date, "2026-08-17");
-    assert.equal(first.sleep?.score, 76);
-    assert.equal(first.sleep?.contributors.deep_sleep, 95);
-    assert.equal(first.readiness?.contributors.recovery_index, 62);
-    assert.equal(first.activity?.steps, 6861);
-    assert.equal(first.activity?.active_calories, 486);
-    const last = kedoupiSample.days[29]!;
-    assert.equal(last.date, "2026-09-15");
-    assert.equal(last.activity?.steps, 10273);
-    assert.equal(last.readiness?.temperature_deviation, 0.07);
+  it("generates deterministic scores without a provider or personal identity", () => {
+    assert.equal(syntheticSample.days[0]?.sleep?.score, 70);
+    assert.equal(syntheticSample.days[0]?.activity?.steps, 4000);
+    assert.equal(syntheticSample.days[29]?.activity?.steps, 6900);
+    assert.equal(syntheticSample.user_id, "synthetic-user");
   });
 });
 
 describe("daily nested shape", () => {
   it("maps Oura Cloud docs through pick* onto the live nested shape", () => {
-    const { dates } = dateWindow(7, new Date("2026-09-15T12:00:00Z"));
+    const { dates } = dateWindow(7, new Date("2000-01-30T12:00:00Z"));
     const first = dates[0]!;
     const body = mapOuraToDaily({
       dates,
@@ -252,20 +240,20 @@ describe("daily nested shape", () => {
   it("pick* keep the production field set including activity extras", () => {
     const sleep = pickSleep({
       id: "s",
-      day: "2026-09-15",
+      day: "2000-01-30",
       score: 79,
       contributors: { deep_sleep: 96, efficiency: 98 },
     });
     const readiness = pickReadiness({
       id: "r",
-      day: "2026-09-15",
+      day: "2000-01-30",
       score: 76,
       temperature_deviation: 0.07,
       contributors: { hrv_balance: 94 },
     });
     const activity = pickActivity({
       id: "a",
-      day: "2026-09-15",
+      day: "2000-01-30",
       score: 96,
       steps: 10273,
       active_calories: 703,
@@ -289,30 +277,26 @@ describe("daily nested shape", () => {
     assert.equal(pickActivity(null), null);
   });
 
-  it("DEV daily is the kedoupi sample, not invented scores", () => {
+  it("DEV daily is explicitly synthetic", () => {
     const body = buildDevDaily(30);
     assert.equal(body.ok, true);
     assert.equal(body.source, "dev");
     assert.equal(body.dev, true);
-    assert.equal(body.user_id, "kedoupi");
+    assert.equal(body.user_id, "synthetic-user");
     assert.equal(body.count, 30);
-    assert.equal(body.from, kedoupiSample.from);
-    assert.equal(body.to, kedoupiSample.to);
-    assert.match(body.label ?? "", /kedoupi/);
-    assert.deepEqual(body.days, kedoupiSample.days);
+    assert.equal(body.from, syntheticSample.from);
+    assert.equal(body.to, syntheticSample.to);
+    assert.match(body.label ?? "", /合成/);
+    assert.deepEqual(body.days, syntheticSample.days);
     assertLiveDayShape(body.days[0]!, "dev[0]");
-    assert.equal(body.days[0]?.activity?.steps, 6861);
-    assert.equal(body.days[29]?.sleep?.contributors.deep_sleep, 96);
   });
 
   it("supports days=7|30|90 without fabricating extra rows", () => {
     const week = buildDevDaily(7);
     assert.equal(week.count, 7);
-    assert.deepEqual(week.days, sliceBoardDays(kedoupiSample.days, 7));
-    assert.equal(week.from, "2026-09-09");
-    assert.equal(week.to, "2026-09-15");
-    assert.equal(week.days[0]?.readiness?.contributors.hrv_balance, 94);
-    assert.equal(week.days[6]?.activity?.steps, 10273);
+    assert.deepEqual(week.days, sliceBoardDays(syntheticSample.days, 7));
+    assert.equal(week.from, "2000-01-24");
+    assert.equal(week.to, "2000-01-30");
 
     const month = buildDevDaily(30);
     assert.equal(month.count, 30);
@@ -320,7 +304,7 @@ describe("daily nested shape", () => {
     const quarter = buildDevDaily(90);
     assert.equal(quarter.count, 30);
     assert.equal(quarter.days.length, 30);
-    assert.match(quarter.label ?? "", /仅有 30 天真实样本/);
+    assert.match(quarter.label ?? "", /仅有 30 天合成样本/);
   });
 
   it("clamps days to 7|30|90", () => {
@@ -329,4 +313,13 @@ describe("daily nested shape", () => {
     assert.equal(clampDays(12), 30);
     assert.equal(buildDevDaily(12).count, 30);
   });
+});
+
+// A local DEV session must never fetch the owner's live board.
+it("DEV data cannot use the network", async t => {
+  const network = t.mock.method(globalThis, "fetch", async () => { throw Error("network forbidden"); });
+  const response = await loadDevDaily(30);
+  assert.equal(network.mock.callCount(), 0);
+  assert.equal(response.user_id, "synthetic-user");
+  assert.match(response.label ?? "", /合成/);
 });

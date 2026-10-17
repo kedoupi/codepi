@@ -24,23 +24,3 @@ SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "desk"
 AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
-
-# staging named environment 保留未启用，继承顶层 assets，不接发布入口。
-[env.staging]
-name = "codepi-www-staging"
-
-[[env.staging.services]]
-binding = "AUTH"
-service = "codepi-auth-staging"
-
-[[env.staging.d1_databases]]
-binding = "DB"
-database_name = "codepi-desk-staging"
-database_id = "cbbe0037-4132-4ec2-bf6b-2c1ff4363977"
-migrations_dir = "migrations"
-
-[env.staging.vars]
-SSO_ENABLED = "1"
-AUTH_CLIENT_ID = "desk"
-AUTH_ORIGIN = "https://auth-staging.codepi.app"
-ENVIRONMENT = "staging"

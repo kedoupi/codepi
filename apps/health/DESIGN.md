@@ -1,5 +1,7 @@
 # health.codepi.app 设计摘要
 
+> 历史设计背景（2026-09）。其中 `xiaotaozi.cc` 前端与 `api.xiaotaozi.cc` 数据真源、看板 CSS 锁定等约定已随个人空间重构失效；2026-10-18 起 DEV 演示数据改为仓库内合成样本（`workers/api/src/data/synthetic-board.ts`），现行实现以代码与现行文档为准。
+
 ## 1. 现网数据链路
 
 - 前端：`https://h5.xiaotaozi.cc/health/` — 静态 COS HTML（非 SPA）+ Chart.js
