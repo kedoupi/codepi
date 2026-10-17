@@ -1,3 +1,9 @@
+export function isCanonicalPath(pathname: string): boolean {
+  // App routes and asset names use plain segments. ASSETS normalizes aliases
+  // after this gate, so reject encoded paths and repeated separators first.
+  return !/[%\\]|\/{2,}/.test(pathname);
+}
+
 export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname === "/login/") return true;
   if (pathname === "/api/health") return true;

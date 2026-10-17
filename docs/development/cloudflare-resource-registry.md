@@ -1,5 +1,9 @@
 # Cloudflare 资源登记表
 
+2026-10-17 GZH 配置迁移：仓库改为 Workers Static Assets，控制面 Worker 已预创建为无业务绑定的 503 占位服务，
+正式域名仍由旧 Pages 服务。staging named environment 仅登记未启用，旧 Pages staging
+绑定保留。实施、凭证重建与切换证据见 [GZH 迁移记录](tasks/2026-10-17-gzh-static-assets.md)。
+
 账户：`Kedoupi`（`69f1de4c8f3c7411593613711207e7b3`）。本表是版本化登记记录；
 实时状态以当次 Cloudflare 控制面核实为准。治理规则见 [cloudflare-governance.md](./cloudflare-governance.md)。
 
@@ -63,19 +67,21 @@ secret 值、个人数据或 OAuth refresh token。
 | pages-www | production | pages | codepi-www | kedoupi | 首页与 Desk 摘要 | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 |
 | worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、pages-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（正式域名已移除，staging 待决） | private-user-data | 保留的 staging 配置；无生产自定义域名 | codepi-gu.pages.dev, gu-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
-| pages-gzh | production | pages | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户 | gzh.codepi.app | apps/gzh/wrangler.toml | managed | 2026-10-17 |
+| worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH（已初始化，待应用发布） | private-user-data | 终端用户、pages-www | gzh.codepi.app（待切换）, codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml | managed | 2026-10-17 |
+| pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（迁移窗口仍服务正式域名） | private-user-data | 正式域名待切换；保留 staging 配置 | codepi-gzh.pages.dev | 历史 Pages 配置；gzh.codepi.app 仍绑定于此 | legacy-pending-retirement | 2026-10-17 |
 | pages-health | production | pages | codepi-health | kedoupi | Health 前端 | private-health-data | 终端用户 | health.codepi.app | apps/oura/apps/web/wrangler.toml | managed | 2026-10-17 |
-| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
+| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-gzh、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
 | worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | pages-health, MCP 客户端 | health.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml | managed | 2026-10-17 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | pages-www | - | apps/web/wrangler.toml | managed | 2026-10-16 |
 | d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-16 |
-| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | pages-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-16 |
+| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-16 |
 | d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/oura/workers/api/wrangler.toml | managed | 2026-10-16 |
 | d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
 | d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | pages-www preview | - | apps/web/wrangler.toml [env.preview] | managed | 2026-10-16 |
 | d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| d1-gzh-staging | staging | d1 | codepi-gzh-staging (1a57d7d8-6d16-4f16-b9f6-b78f78b714ab) | kedoupi | staging GZH 数据（0001–0004 migration 与既有 demo seed） | synthetic | pages-gzh preview（配置已更新；上传待 release gate） | - | apps/gzh/wrangler.toml [env.preview]、Pages preview DB PATCH | managed | 2026-10-16 |
+| worker-gzh-staging | staging | worker | codepi-gzh-staging | kedoupi | staging GZH（配置保留未启用，不接发布入口） | synthetic | staging 访问者 | gzh-staging.codepi.app（待绑定） | apps/gzh/wrangler.toml [env.staging] | managed | 2026-10-17 |
+| d1-gzh-staging | staging | d1 | codepi-gzh-staging (1a57d7d8-6d16-4f16-b9f6-b78f78b714ab) | kedoupi | staging GZH 数据（0001–0004 migration 与既有 demo seed） | synthetic | worker-gzh-staging（配置保留未启用） | - | apps/gzh/wrangler.toml [env.staging] | managed | 2026-10-16 |
 | d1-health-staging | staging | d1 | codepi-health-staging (36430305-83df-4af6-961f-64abedca02fe) | kedoupi | staging Health 数据（仅 synthetic fixture） | synthetic | worker-health-api-staging | - | apps/oura/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
 | worker-auth-staging | staging | worker | codepi-auth-staging | kedoupi | staging SSO/OTP 认证 | synthetic | staging Pages、worker-health-api-staging | auth-staging.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc [env.staging] | managed | 2026-10-16 |
 | worker-gu-staging | staging | worker | codepi-gu-staging | kedoupi | staging GU（保留未启用，不接发布入口） | synthetic | staging 访问者 | gu-staging.codepi.app（待绑定） | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-17 |
