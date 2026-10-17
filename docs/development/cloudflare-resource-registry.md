@@ -21,6 +21,15 @@ Worker（Static Assets）服务，旧 Pages 正式域名绑定已移除。版本
 `health-staging.codepi.app` 仍绑定旧 Pages，staging named environment 未启用。
 [GZH 迁移记录](tasks/2026-10-17-gzh-static-assets.md)。
 
+2026-10-18 旧 Pages 体系退役：四个旧 Pages 项目（`codepi-www`、`codepi-gu`、
+`codepi-gzh`、`codepi-health`）连同各自 staging 自定义域名绑定与 zone 内
+`staging`/`gu-staging`/`gzh-staging`/`health-staging` 四条 CNAME 已全部删除。
+`auth-staging.codepi.app`（AAAA `100::`，`codepi-auth-staging` Worker custom domain）保留。
+生产域名核验不受影响：`codepi.app`/`www.codepi.app` 200、`gu.codepi.app`/`gzh.codepi.app`
+302、`health.codepi.app` 200、`auth.codepi.app` 根路径 404。staging 域名此后由仓库内
+Workers named environment（`codepi-*-staging`）在需要时重新发布绑定；删除前这些 staging
+域名指向的旧 Pages 均未启用。
+
 账户：`Kedoupi`（`69f1de4c8f3c7411593613711207e7b3`）。本表是版本化登记记录；
 实时状态以当次 Cloudflare 控制面核实为准。治理规则见 [cloudflare-governance.md](./cloudflare-governance.md)。
 
@@ -82,13 +91,13 @@ secret 值、个人数据或 OAuth refresh token。
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
 | worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 已切换并核验 |
-| pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（已解除生产域名，项目保留待退役） | private-user-data(desk) | 保留的 staging 配置 | codepi-www.pages.dev, staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 生产域名已移除 |
+| pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、worker-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
-| pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（正式域名已移除，staging 待决） | private-user-data | 保留的 staging 配置；无生产自定义域名 | codepi-gu.pages.dev, gu-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
+| pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
-| pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（正式域名已移除，staging 待决） | private-user-data | 保留的 staging 配置；无生产自定义域名 | codepi-gzh.pages.dev, gzh-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
+| pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-health | production | worker | codepi-health | kedoupi | Health 前端 SPA | private-health-data | 终端用户 | health.codepi.app (custom domain), codepi-health.kedoupi.workers.dev | apps/health/apps/web/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-18 |
-| pages-health-legacy | production | pages | codepi-health | kedoupi | 旧 Health Pages（正式域名已移除，staging 待决） | private-health-data | 保留的 staging 配置；无生产自定义域名 | codepi-health.pages.dev, health-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-18 |
+| pages-health-legacy | production | pages | codepi-health | kedoupi | 旧 Health Pages（项目已删除） | private-health-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-gzh、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
 | worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | worker-health（service binding）、MCP 客户端 | 无公网 routes，经 worker-health service binding 转发 | apps/health/workers/api/wrangler.toml | managed | 2026-10-17 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
@@ -107,10 +116,10 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-gu-staging | staging | worker | codepi-gu-staging | kedoupi | staging GU（保留未启用，不接发布入口） | synthetic | staging 访问者 | gu-staging.codepi.app（待绑定） | apps/gu/wrangler.toml [env.staging] | managed | 2026-10-17 |
 | worker-health-staging | staging | worker | codepi-health-staging | kedoupi | staging Health 前端 SPA（配置保留未启用） | synthetic | staging 访问者 | health-staging.codepi.app (custom domain, 待绑定) | apps/health/apps/web/wrangler.toml [env.staging] | managed | 2026-10-18 配置登记，未发布 |
 | worker-health-api-staging | staging | worker | codepi-health-api-staging | kedoupi | staging Health API | synthetic | worker-health-staging（service binding） | 无公网 routes，经 worker-health-staging service binding 转发 | apps/health/workers/api/wrangler.toml [env.staging] | managed | 2026-10-16 |
-| pages-www-staging-host | staging | pages-domain | staging.codepi.app → staging.codepi-www.pages.dev | kedoupi | staging 首页/Desk 域名（branch alias） | synthetic | staging 访问者 | staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
-| pages-gu-staging-host | staging | pages-domain | gu-staging.codepi.app → staging.codepi-gu.pages.dev | kedoupi | staging GU 域名（branch alias） | synthetic | staging 访问者 | gu-staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
-| pages-gzh-staging-host | staging | pages-domain | gzh-staging.codepi.app → staging.codepi-gzh.pages.dev | kedoupi | staging GZH 域名（branch alias） | synthetic | staging 访问者 | gzh-staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
-| pages-health-staging-host | staging | pages-domain | health-staging.codepi.app → staging.codepi-health.pages.dev | kedoupi | staging Health 域名（branch alias） | synthetic | staging 访问者 | health-staging.codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
+| pages-www-staging-host | staging | pages-domain | staging.codepi.app → staging.codepi-www.pages.dev | kedoupi | staging 首页/Desk 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
+| pages-gu-staging-host | staging | pages-domain | gu-staging.codepi.app → staging.codepi-gu.pages.dev | kedoupi | staging GU 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
+| pages-gzh-staging-host | staging | pages-domain | gzh-staging.codepi.app → staging.codepi-gzh.pages.dev | kedoupi | staging GZH 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
+| pages-health-staging-host | staging | pages-domain | health-staging.codepi.app → staging.codepi-health.pages.dev | kedoupi | staging Health 域名（已随旧 Pages 项目删除） | synthetic | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 域名绑定与 DNS 已删除 |
 | d1-health-preview | staging | d1 | codepi-health-preview (4a4ce46a-ff7e-4eda-b9f0-e0691b45e30b) | kedoupi | 早期 Health preview 库 | legacy | 无 | - | 历史配置 | legacy-preview | 2026-10-16 |
 | worker-wechat-proxy | production | worker | wechat-proxy | kedoupi | 微信代理（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
 | kv-covers | production | kv | COVERS (4cbe9ae8f79e41bda85fa5bc391a77a4) | kedoupi | 未知（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
