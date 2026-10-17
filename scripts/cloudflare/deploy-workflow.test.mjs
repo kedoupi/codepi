@@ -47,15 +47,19 @@ test('workspace-only changes trigger validation and deployment of all consumers'
   }
 });
 
-test('Health Pages deployment evidence resolves from its nested frontend directory', async () => {
+test('Health frontend Workers release deploys and evidences from its nested frontend directory', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
   const job = workflow.split('\n  health-pages-deploy-production:')[1];
-  const publish = job.split('      - name: publish frontend')[1]?.split('      - name: check deployment')[0];
-  const cwd = publish?.match(/working-directory: ([^\n]+)/)?.[1];
+  const deploy = job.split('      - name: deploy')[1]?.split('      - name: verify runtime configuration')[0];
+  assert.ok(deploy, 'health-pages deploy step must exist');
+  const cwd = deploy?.match(/working-directory: ([^\n]+)/)?.[1];
   assert.ok(cwd);
-  for (const [, script] of publish.matchAll(/node (\S+deployment-evidence\.mjs)/g)) {
+  for (const [, script] of deploy.matchAll(/node (\S+deployment-evidence\.mjs)/g)) {
     assert.ok(existsSync(new URL(`${cwd}/${script}`, root)), `${cwd}/${script} must exist`);
   }
+  // Static Assets deploy must use the Worker flow, never the retired Pages flow.
+  assert.match(deploy, /pnpm exec wrangler deploy/);
+  assert.doesNotMatch(job, /wrangler pages deploy|--provider pages|resolve-pages/);
   assert.doesNotMatch(workflow, /npx wrangler(?:@|\s)/, 'deploy with the workspace-locked Wrangler');
 });
 

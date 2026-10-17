@@ -26,7 +26,7 @@ const REGISTRY_ROWS = [
   ['worker-www-staging', 'staging', 'worker', 'codepi-www-staging', 'staging.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
   ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
-  ['pages-health', 'production', 'pages', 'codepi-health', 'health.codepi.app'],
+  ['worker-health', 'production', 'worker', 'codepi-health', 'health.codepi.app'],
   ['pages-www-staging-host', 'staging', 'pages-domain', 'staging.codepi.app → staging.codepi-www.pages.dev', 'staging.codepi.app'],
   ['pages-gu-staging-host', 'staging', 'pages-domain', 'gu-staging.codepi.app → staging.codepi-gu.pages.dev', 'gu-staging.codepi.app'],
   ['pages-gzh-staging-host', 'staging', 'pages-domain', 'gzh-staging.codepi.app → staging.codepi-gzh.pages.dev', 'gzh-staging.codepi.app'],
@@ -35,6 +35,7 @@ const REGISTRY_ROWS = [
   ['worker-auth-staging', 'staging', 'worker', 'codepi-auth-staging', 'auth-staging.codepi.app (custom domain)'],
   ['worker-gu-staging', 'staging', 'worker', 'codepi-gu-staging', 'gu-staging.codepi.app（待绑定）'],
   ['worker-gzh-staging', 'staging', 'worker', 'codepi-gzh-staging', 'gzh-staging.codepi.app（待绑定）'],
+  ['worker-health-staging', 'staging', 'worker', 'codepi-health-staging', 'health-staging.codepi.app（待绑定）'],
   ['worker-health-api', 'production', 'worker', 'codepi-health-api', 'health.codepi.app/api/*'],
   ['worker-health-api-staging', 'staging', 'worker', 'codepi-health-api-staging', 'health-staging.codepi.app/api/*'],
   ['d1-www', 'production', 'd1', `codepi-desk (${U.www})`, '-'],
@@ -90,18 +91,23 @@ function healthPagesConfig({ stgFrontend = 'https://health-staging.codepi.app', 
   const worker = includeWorker ? `[[services]]
 binding = "WORKER"
 service = "codepi-health-api"
-[[env.preview.services]]
+[[env.staging.services]]
 binding = "WORKER"
 service = "${workerStg}"
 ` : '';
-  const d1 = stgD1 ? `[[env.preview.d1_databases]]
+  const d1 = stgD1 ? `[[env.staging.d1_databases]]
 binding = "DB"
 database_name = "codepi-health-staging"
 database_id = "${U.healthStg}"
 ` : '';
   return `
 name = "codepi-health"
-pages_build_output_dir = "./dist"
+main = "worker/index.ts"
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"]
 ${worker}[[services]]
 binding = "AUTH"
 service = "codepi-auth"
@@ -116,12 +122,13 @@ FRONTEND_ORIGIN = "https://health.codepi.app"
 FRONTEND_ORIGINS = "https://health.codepi.app"
 OURA_REDIRECT_URI = "https://health.codepi.app/api/auth/oura/callback"
 ALLOW_DEV_LOGIN = "0"
-[env.preview]
-[[env.preview.services]]
+[env.staging]
+name = "codepi-health-staging"
+[[env.staging.services]]
 binding = "AUTH"
 service = "${authStg}"
 ${d1}
-[env.preview.vars]
+[env.staging.vars]
 ENVIRONMENT = "staging"
 AUTH_ORIGIN = "https://auth-staging.codepi.app"
 FRONTEND_ORIGIN = "${stgFrontend}"
