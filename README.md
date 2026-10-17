@@ -92,8 +92,8 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 
 | Name              | Type  | Target                       | Proxied |
 | ----------------- | ----- | ---------------------------- | ------- |
-| `codepi.app` (apex) | CNAME | `codepi-www.pages.dev`   | yes (CF flattens at apex) |
-| `www`             | CNAME | `codepi-www.pages.dev`     | yes |
+| `codepi.app` (apex) | —    | Worker custom domain `codepi-www`（2026-10-17 已切换） | yes |
+| `www`             | —     | Worker custom domain `codepi-www`（2026-10-17 已切换） | yes |
 | `gu`              | AAAA | `100::`（Worker custom domain `codepi-gu` 自动管理，2026-10-17 已切换） | yes |
 | `gzh`             | AAAA | `100::`（Worker custom domain `codepi-gzh` 自动管理，2026-10-17 已切换） | yes |
 | `health`          | CNAME | `codepi-health.pages.dev`  | yes |
