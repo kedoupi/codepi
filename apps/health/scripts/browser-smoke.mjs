@@ -5,7 +5,7 @@ const existingSpace = options.spaceId;
 const task = await taskSpace(existingSpace || 'Oura browser regression');
 console.log({ spaceId: task.spaceId });
 const page = task.page(options.page || 'p1');
-const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
+const origin = `http://127.0.0.1:${process.env.HEALTH_BROWSER_PORT || '4178'}`;
 await page.cdp('Emulation.clearDeviceMetricsOverride');
 const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__smokeFailures = [];
@@ -660,7 +660,7 @@ try {
   await assertSyncWrites(1, 503);
   assert.equal((await fixture('sync-scenario')).tasks.length, 0, 'failed admission must not fabricate an accepted job');
   assert.equal(quota.fits, true, 'quota recovery message fits mobile');
-  await page.screenshot({ path: '/tmp/oura-quota-mobile.png' });
+  await page.screenshot({ path: '/tmp/health-quota-mobile.png' });
   await observeAutomaticPoll(40000);
   await assertSyncWrites(1, 503);
   assert.equal((await fixture('storage-quota')).attempts, 1, 'idle polling after a quota error must never retry POST');

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { beginLogin, finishLogin, readSsoSession, logoutSso, ssoEnabled } from './client.ts';
 
-const require = createRequire(new URL('../../../apps/oura/workers/api/package.json', import.meta.url));
+const require = createRequire(new URL('../../../apps/health/workers/api/package.json', import.meta.url));
 const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare } = wranglerRequire('miniflare');
 const origin = 'https://oura.example';

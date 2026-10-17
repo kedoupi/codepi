@@ -1,6 +1,8 @@
 # 健康 Health
 
-kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`，`health.codepi.app` 保留兼容访问。当前数据来源为 Oura；内部目录、Worker、Pages、D1 和 client ID 保留原技术名称。
+kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`。应用源码位于 `apps/health/`，workspace 包为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`；云资源为 `codepi-health`、`codepi-health-api`。
+
+当前数据来源为 Oura。`OURA_CLIENT_ID` / `OURA_CLIENT_SECRET`、提供方 OAuth 回调、数据字段保留 Oura 名称；现有 SSO client ID `oura` 与会话 Cookie 属于兼容协议，本次目录改名不迁移它们。开发工具变量使用 `HEALTH_BROWSER_*`、`HEALTH_CHECK_*`、`HEALTH_EXPECT_*` 和 `HEALTH_PREVIOUS_VERSION`，它们与 Oura 提供方凭证分开命名。
 
 未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../../packages/shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../../docs/architecture/health-domain-migration.md)。
 
@@ -17,7 +19,9 @@ kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`，`h
 需要 Node ≥ 20 与 [pnpm](https://pnpm.io/) 9+。
 
 ```bash
-pnpm i
+cd <repository-root>
+pnpm install --frozen-lockfile
+cd apps/health
 cp .env.example workers/api/.dev.vars   # placeholders only; never commit real secrets
 pnpm dev
 ```
@@ -43,6 +47,10 @@ pnpm dev:api
 - 本地可用 **DEV 演示登录**（`GET /api/auth/dev/session`）写入 HttpOnly session；`/api/me/daily` 返回 **kedoupi 个人看板真实日数据**（嵌套 `days[]`），不是编造序列
 
 真实 OAuth：在 [Oura applications](https://cloud.ouraring.com/oauth/applications) 创建应用，把 `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET` 写入 `.dev.vars` 或 `wrangler secret put`。callback 用 `TOKEN_ENCRYPTION_KEY` 做 AES-GCM 后把 **refresh_token** 写入 D1；前端永不拿到 token。
+
+## 历史开发记录
+
+以下各阶段记录保留当时的行为和接口描述；当前生产登录与开发入口以上文为准。历史任务中的 `apps/oura/`、`@oura-kdp/*` 是改名前的名称，当前命令使用 `apps/health/`、`@health-kdp/*`。
 
 ## Tonight verify（无真实 Oura 密钥）
 
@@ -152,7 +160,7 @@ Oura 应用里的 Redirect URL 必须与 `OURA_REDIRECT_URI` 完全一致。
 生产 Pages 必须部署 **Svelte 构建产物**，不要把仓库根目录或旧的 vanilla `index.html`（登录卡片 + DEV 按钮）当作 Pages 根目录。
 
 ```bash
-pnpm --filter @oura-kdp/web build
+pnpm --filter @health-kdp/web build
 ```
 
 输出目录：`apps/web/dist`。部署后打开站点应看到营销落地页（H1「Oura 健康看板」+「用 Oura 登录」），不是旧的 login-card HTML。
@@ -176,7 +184,7 @@ PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitH
 再以只读请求校验目标 Worker 访问权限、读取现有 Cron 和活跃版本，成功后才应用迁移与切流。
 可用 `node scripts/deploy-api.mjs --preflight-only` 仅执行这些预检，不修改生产资源。
 
-发布后在 `oura/` 执行：
+发布后在 `apps/health/` 执行：
 
 ```bash
 pnpm check:api
@@ -195,7 +203,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 ### 自动化测试与覆盖边界
 
-在 `oura/` 使用 Node 24、仓库锁定的 pnpm 和依赖：
+在 `apps/health/` 使用 Node 24、仓库锁定的 pnpm 和依赖：
 
 | 命令 | 覆盖 |
 | --- | --- |
@@ -223,7 +231,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 同时验证稀疏周报、日期跨午夜、375px 移动端、键盘交互及 SSO 中断/恢复。
 GitHub PR 与上线 workflow 均在部署前执行浏览器回归；失败会阻止部署。
 截图、浏览器/网络诊断与 fixture 日志作为 CI artifacts 保留 7 天；
-本地默认写入系统临时目录，可通过 `OURA_BROWSER_ARTIFACTS` 指定位置。
+本地默认写入系统临时目录，可通过 `HEALTH_BROWSER_ARTIFACTS` 指定位置。
 
 真实 Oura 登录/授权与账户会员资格不属于模拟测试保证范围。
 `/api/me/ai` 始终返回可用的规则解读（`source: "template"`）；只有配置了
@@ -263,7 +271,7 @@ https://health.codepi.app/mcp
 接入步骤（两个平台相同）：添加自定义连接器 → 填上面的 URL → 平台自动完成
 注册与授权 → 浏览器打开同意页 → 先登录 Oura，再点「允许连接」。
 
-`oura-kdp-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
+`codepi-health-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
 OAuth 登录回调固定在 `health.codepi.app`，跨域名浏览器会话无法完成授权。
 
 连接器图标沿用看板的原创橙色仪表圆环：
@@ -396,7 +404,7 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
   使用 D1 中的原子计数；达到预算后等待 UTC 次日 01:00（北京时间 09:00）续跑。
   该预算不是 Cloudflare 账户剩余额度，既有单窗口 API/MCP 调用和其他项目仍会共享平台额度。
   不自动升级套餐；初次历史补齐可能分多日完成。
-- `.github/workflows/retry-oura-deploy.yml` 每天 UTC 00:10（北京时间 08:10）
+- `.github/workflows/retry-health-deploy.yml` 每天 UTC 00:10（北京时间 08:10）
   检查最近的主分支产品发布。只有 Oura API 发布步骤明确因 D1 当日写入额度失败，
   才重跑该次发布失败的 job；成功、正在执行和其他失败一律不重试。GitHub 定时触发可能延迟。
 - D1 当日写入额度超限时，API 返回 `503 storage_write_quota_exceeded`、

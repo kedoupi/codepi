@@ -87,7 +87,7 @@ database_name = "test-db-staging"
 });
 
 async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false } = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'oura-deploy-preflight-'));
+  const root = await mkdtemp(join(tmpdir(), 'health-deploy-preflight-'));
   const requests = [];
   const server = createServer((req, res) => {
     requests.push({ method: req.method, path: req.url });
@@ -144,7 +144,7 @@ process.exit(${dryRunFails ? 1 : 0});
           CLOUDFLARE_API_TOKEN: 'test-token',
           CLOUDFLARE_ACCOUNT_ID: 'test-account',
           CLOUDFLARE_API_BASE_URL: `http://127.0.0.1:${server.address().port}/client/v4`,
-          OURA_PREVIOUS_VERSION: '',
+          HEALTH_PREVIOUS_VERSION: '',
           PREFLIGHT_COMMAND_LOG: join(root, 'commands.jsonl'),
           ...overrides,
         },

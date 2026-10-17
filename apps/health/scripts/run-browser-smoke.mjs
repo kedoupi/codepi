@@ -33,7 +33,7 @@ async function nativeScenario(script, artifactDir) {
 async function runScenario(scenario, artifactDir, ego) {
   await mkdir(artifactDir, { recursive: true });
   const script = scenario === 'sso' ? './browser-sso-smoke.mjs' : './browser-smoke.mjs';
-  const env = { ...process.env, OURA_BROWSER_SSO: scenario === 'sso' ? '1' : '0', OURA_BROWSER_ARTIFACTS: artifactDir };
+  const env = { ...process.env, HEALTH_BROWSER_SSO: scenario === 'sso' ? '1' : '0', HEALTH_BROWSER_ARTIFACTS: artifactDir };
   let fixtureLog = '';
   let suiteLog = '';
   let child;
@@ -55,8 +55,8 @@ async function runScenario(scenario, artifactDir, ego) {
       });
     });
     const options = {
-      spaceId: process.env.OURA_BROWSER_SPACE ? Number(process.env.OURA_BROWSER_SPACE) : undefined,
-      page: process.env.OURA_BROWSER_PAGE,
+      spaceId: process.env.HEALTH_BROWSER_SPACE ? Number(process.env.HEALTH_BROWSER_SPACE) : undefined,
+      page: process.env.HEALTH_BROWSER_PAGE,
     };
     child = ego
       ? spawn('ego-browser', ['nodejs'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -96,14 +96,14 @@ async function runScenario(scenario, artifactDir, ego) {
 }
 
 if (process.argv[2] === '--native-child') {
-  await nativeScenario(process.argv[3], process.env.OURA_BROWSER_ARTIFACTS);
+  await nativeScenario(process.argv[3], process.env.HEALTH_BROWSER_ARTIFACTS);
 } else {
-  const artifactRoot = process.env.OURA_BROWSER_ARTIFACTS
-    ? resolve(process.env.OURA_BROWSER_ARTIFACTS)
-    : await mkdtemp(join(tmpdir(), 'oura-browser-artifacts-'));
+  const artifactRoot = process.env.HEALTH_BROWSER_ARTIFACTS
+    ? resolve(process.env.HEALTH_BROWSER_ARTIFACTS)
+    : await mkdtemp(join(tmpdir(), 'health-browser-artifacts-'));
   console.log(`Browser artifacts: ${artifactRoot}`);
-  const scenarios = process.env.OURA_BROWSER_SSO === '1' ? ['sso']
-    : process.env.OURA_BROWSER_SSO === '0' ? ['normal'] : ['normal', 'sso'];
+  const scenarios = process.env.HEALTH_BROWSER_SSO === '1' ? ['sso']
+    : process.env.HEALTH_BROWSER_SSO === '0' ? ['normal'] : ['normal', 'sso'];
   const failures = [];
   for (const scenario of scenarios) {
     try { await runScenario(scenario, join(artifactRoot, scenario), process.argv.includes('--ego')); }

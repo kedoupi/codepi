@@ -17,11 +17,11 @@
 | `apps/web/` | `codepi.app` + `www.` | `codepi-www` | 首页、应用介绍、博客与 `desk` 摘要接口 |
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
-| `apps/oura/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
+| `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/oura` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -59,7 +59,7 @@ cd apps/web && npm test         # builds services/auth, then node:test
 cd apps/web && npm run build    # → apps/web/dist
 ```
 
-Health: `cd apps/oura && pnpm test`, `pnpm typecheck`, `pnpm build`.
+Health: `cd apps/health && pnpm test`, `pnpm typecheck`, `pnpm build`.
 
 The root `.npmrc` pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/`. `pnpm install` from the repository root installs all workspace packages.
 
@@ -80,10 +80,10 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 | `codepi-www` | `apps/web` | `npm run build` | `dist` |
 | `codepi-gu` | `apps/gu` | `npm run build` | `dist` |
 | `codepi-gzh` | `apps/gzh` | `npm run build` | `dist` |
-| `codepi-health` | `apps/oura` | `pnpm --filter @oura-kdp/web build` | `apps/web/dist` |
+| `codepi-health` | `apps/health` | `pnpm --filter @health-kdp/web build` | `apps/web/dist` |
 
 这里只列构建命令，不是 Dashboard 自动构建设置，也不代表完整检查与发布步骤。Node、依赖安装和发布参数以当前 workflow 为准。
-> Note: Pages 项目的 pnpm workspace 过滤仍叫 `@oura-kdp/web` / `@oura-kdp/api`（包名未重命名），仅 Pages 项目名统一为 `codepi-*`。
+Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`；Oura 是其中一个数据提供方。命名调整记录见 [Health 应用命名](docs/development/tasks/2026-10-18-health-naming.md)。
 
 `codepi-www` 由 Astro 输出静态文件，Wrangler 打包 `apps/web/worker/index.ts` 并上传资产。
 不再生成 Pages `_worker.js`；静态文件与 Desk API 的路由由 `apps/web/wrangler.toml` 声明。

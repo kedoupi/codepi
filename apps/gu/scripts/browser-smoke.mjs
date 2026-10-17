@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { launchBrowser, stopChild } from "../../oura/scripts/browser-cdp.mjs";
+import { launchBrowser, stopChild } from "../../health/scripts/browser-cdp.mjs";
 
 /**
  * GU 本地浏览器冒烟：构建产物 + `wrangler pages dev` 已在 --port 8791 运行。

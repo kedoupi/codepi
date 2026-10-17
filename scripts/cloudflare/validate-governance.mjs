@@ -16,7 +16,7 @@ const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
 const ENV_SUFFIX = /-(staging|pr-\d+)$/;
 const ASSETS_HEADER = '[assets]';
 
-// ---- 轻量解析（沿用 oura/scripts/lib/wrangler-config.mjs 的分段模式，不引入依赖）----
+// ---- 轻量解析（沿用 apps/health/scripts/lib/wrangler-config.mjs 的分段模式，不引入依赖）----
 
 function splitToml(text) {
   const headers = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
@@ -469,11 +469,11 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', stagingName: 'codepi-gzh-staging', d1Name: 'codepi-gzh', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'health-pages', file: 'apps/oura/apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-health', d1Name: 'codepi-health', envKey: 'preview', health: true,
+    { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-health', d1Name: 'codepi-health', envKey: 'preview', health: true,
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' }, WORKER: { production: 'codepi-health-api', staging: 'codepi-health-api-staging' } } },
     { id: 'auth', file: 'services/auth/wrangler.jsonc', format: 'jsonc', kind: 'worker', prodName: 'codepi-auth', stagingName: 'codepi-auth-staging', d1Name: 'codepi-auth', envKey: 'staging',
       routesRequired: true, cronsRequired: true, authRoutes: true },
-    { id: 'health-api', file: 'apps/oura/workers/api/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-health-api', stagingName: 'codepi-health-api-staging', d1Name: 'codepi-health', envKey: 'staging',
+    { id: 'health-api', file: 'apps/health/workers/api/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-health-api', stagingName: 'codepi-health-api-staging', d1Name: 'codepi-health', envKey: 'staging',
       health: true, routesRequired: true, cronsRequired: true,
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } },
       requiredRoutes: {

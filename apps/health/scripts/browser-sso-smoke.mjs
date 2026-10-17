@@ -4,7 +4,7 @@ const options = globalThis.ouraSmokeOptions || {};
 const task = await taskSpace(options.spaceId || 'Oura SSO regression');
 console.log({ spaceId: task.spaceId });
 const page = task.page(options.page || 'p1');
-const origin = `http://127.0.0.1:${process.env.OURA_BROWSER_PORT || '4178'}`;
+const origin = `http://127.0.0.1:${process.env.HEALTH_BROWSER_PORT || '4178'}`;
 const instrument = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
   source: `window.__ssoConsole = [];
     for (const level of ['error','warn']) {

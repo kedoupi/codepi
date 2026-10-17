@@ -13,7 +13,7 @@ kdp.cool/
 │   ├── web/      → 首页 + Desk（Astro）
 │   ├── gu/       → 投资工作台（Vite + Worker）
 │   ├── gzh/      → 公众号工作台（Vite + Worker）
-│   └── oura/     → Health（Svelte + Workers）
+│   └── health/   → Health（Svelte + Workers）
 ├── services/
 │   └── auth/     → 统一登录 Worker
 ├── packages/
@@ -46,7 +46,12 @@ kdp.cool/
 - `packages/shared/` 只放跨应用契约：auth client、desk contract、样式 tokens、
   品牌信息、邮件模板。业务逻辑留在各产品目录。
 - 共享包不依赖应用源码。依赖方向永远是 app → packages/shared。
-- `apps/oura/shared/` 是 Health 内部共享（日期工具等），不进 `packages/shared/`。
+- `apps/health/shared/` 是 Health 内部共享（日期工具等），不进 `packages/shared/`。
+
+2026-10-18 起 Health 应用目录统一为 `apps/health/`，workspace 包使用 `health-kdp`、
+`@health-kdp/web` 与 `@health-kdp/api`。Oura 是数据提供方；提供方协议与现有会话标识
+不随应用目录改名。此前任务记录中的旧目录和包名表示当时的实际路径，见
+[命名调整记录](../development/tasks/2026-10-18-health-naming.md)。
 
 ## 部署模型
 
@@ -128,7 +133,7 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 | web | Astro 6 + Tailwind v3 | TypeScript Worker（Workers Static Assets + Desk） | pnpm workspace |
 | gu | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | gzh | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
-| oura | Svelte 5 + Vite | Hono Worker | pnpm workspace |
+| health | Svelte 5 + Vite | Hono Worker | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
 
 目标方向（逐步迁移，不强制时间表）：

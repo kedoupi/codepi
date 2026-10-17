@@ -28,7 +28,7 @@ on:
       - 'apps/web/**'
       - 'apps/gu/**'
       - 'apps/gzh/**'
-      - 'apps/oura/**'
+      - 'apps/health/**'
       - 'packages/shared/**'
       - 'scripts/cloudflare/**'
       - '.github/workflows/deploy-platform.yml'
@@ -154,7 +154,7 @@ jobs:
           if printf '%s\n' "$changed" | grep -qE '^apps/gzh/'; then
             echo 'gzh=yes' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^apps/oura/'; then
+          if printf '%s\n' "$changed" | grep -qE '^apps/health/'; then
             echo 'health=yes' >> "$GITHUB_OUTPUT"
           fi
 
@@ -261,7 +261,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/oura
+        working-directory: apps/health
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -276,7 +276,7 @@ jobs:
       - run: node --experimental-strip-types --test ../../packages/shared/auth/client.test.mjs
       - run: pnpm test
       - run: pnpm typecheck
-      - run: pnpm --filter @oura-kdp/web build
+      - run: pnpm --filter @health-kdp/web build
       - name: Install Chinese fonts for browser screenshots
         run: |
           sudo apt-get update
@@ -285,13 +285,13 @@ jobs:
         timeout-minutes: 15
         run: pnpm test:browser:built
         env:
-          OURA_BROWSER_ARTIFACTS: ${{ runner.temp }}/oura-browser-artifacts
+          HEALTH_BROWSER_ARTIFACTS: ${{ runner.temp }}/health-browser-artifacts
       - name: Upload browser screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: oura-browser-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/oura-browser-artifacts
+          name: health-browser-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/health-browser-artifacts
           if-no-files-found: ignore
           retention-days: 7
 
@@ -607,7 +607,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: apps/oura
+        working-directory: apps/health
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -635,8 +635,8 @@ jobs:
         # A challenged 403 is a deployment failure, not a warning.
         if: github.ref == 'refs/heads/main'
         run: >-
-          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}"
-          OURA_CHECK_ALT_ORIGIN="https://codepi-health-api.kedoupi.workers.dev"
+          HEALTH_EXPECT_BUILD="${GITHUB_SHA:0:12}"
+          HEALTH_CHECK_ALT_ORIGIN="https://codepi-health-api.kedoupi.workers.dev"
           pnpm check:api
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
@@ -667,7 +667,7 @@ jobs:
       cancel-in-progress: false
     defaults:
       run:
-        working-directory: apps/oura
+        working-directory: apps/health
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -683,13 +683,13 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
-        run: pnpm --filter @oura-kdp/web build
+        run: pnpm --filter @health-kdp/web build
       - name: publish frontend
         # Wrangler discovers Pages Functions from process.cwd()/functions, so the
         # deploy must run in apps/web (where functions/ lives), not workers/api.
         id: deploy
         if: github.ref == 'refs/heads/main'
-        working-directory: apps/oura/apps/web
+        working-directory: apps/health/apps/web
         run: |
           out=$(../../workers/api/node_modules/.bin/wrangler pages deploy dist --project-name=codepi-health --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
           echo "$out"
@@ -699,7 +699,7 @@ jobs:
       - name: check deployment
         if: github.ref == 'refs/heads/main'
         run: |
-          OURA_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
+          HEALTH_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
           pnpm check:branding
           ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://health.codepi.app/.well-known/oauth-protected-resource)
           echo "well-known content-type: $ct"
