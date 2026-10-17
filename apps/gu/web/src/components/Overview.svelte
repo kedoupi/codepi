@@ -233,7 +233,7 @@
   <div class="section-title"><h2>持仓变化</h2><span class="muted">按持仓档案逐次确认</span></div>
   <div use:chartStyles>{@html historyHtml}</div>
   {#if historyRows.length}
-    <div class="history-controls">
+    <div>
       <label class="history-picker" for="history-date"
         >查看记录<select
           id="history-date"

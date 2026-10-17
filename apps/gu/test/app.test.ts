@@ -379,8 +379,9 @@ describe("charts", () => {
       { date: "2026-10-14", weights: { NVDA: .071 }, approx: false, source: "quote" },
     ]);
     expect(sameDay).not.toMatch(/NaN|Infinity/);
-    expect(sameDay).toContain('value="snapshot"');
-    expect(sameDay).toContain('value="quote" selected');
+    // 记录选择器改由 Overview 组件渲染；图表本体不再内嵌 select/detail。
+    expect(sameDay).not.toContain("<select");
+    expect(sameDay).not.toContain('id="history-detail"');
   });
   it("shows the selected record's values and escapes its provenance", () => {
     const detail = historyDetail({ date: "2026-06-11", approx: true,

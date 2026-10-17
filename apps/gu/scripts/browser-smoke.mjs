@@ -79,12 +79,20 @@ async function smokeOtpJourney(browser) {
   await expectNoFailures(browser.page, "otp login → overview");
 
   for (const [hash, marker] of [
+    // 断言限定在 #content：侧栏常驻相同文案，整页匹配会假阳性。
     ["#positions", "当前持仓"],
-    ["#reports", "研究与报告"],
-    ["#status", "数据状态"],
+    ["#reports", "把判断留在时间里"],
+    ["#status", "当前批次"],
   ]) {
     await browser.page.evaluate((h) => (location.hash = h), hash);
-    await browser.page.waitForFunction((m) => document.body.innerText.includes(m), marker);
+    await browser.page.waitForFunction(
+      (m) => document.querySelector("#content")?.innerText.includes(m),
+      marker,
+    );
+    const current = await browser.page.evaluate(
+      () => document.querySelector("[aria-current='page']")?.dataset.nav ?? "",
+    );
+    assert.equal(current, hash.slice(1), `nav aria-current tracks ${hash}`);
   }
   await expectNoFailures(browser.page, "hash navigation");
 

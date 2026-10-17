@@ -1438,10 +1438,6 @@ footer {
 .mobile-chart-hint {
   display: none;
 }
-/* 记录选择器与明细改由 Overview 组件驱动，图表模板里的占位控件保持隐藏。 */
-.history-controls {
-  display: none;
-}
 .history-picker {
   display: flex;
   gap: 14px;
