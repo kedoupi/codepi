@@ -14,6 +14,7 @@ const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 const ENV_SUFFIX = /-(staging|pr-\d+)$/;
+const ASSETS_HEADER = '[assets]';
 
 // ---- 轻量解析（沿用 oura/scripts/lib/wrangler-config.mjs 的分段模式，不引入依赖）----
 
@@ -21,10 +22,28 @@ function splitToml(text) {
   const headers = [...text.matchAll(/^[ \t]*(\[\[?[^\]\r\n]+\]\]?)[ \t]*(?:#[^\n]*)?$/gm)];
   const root = text.slice(0, headers[0]?.index ?? text.length);
   const tables = headers.map((match, i) => ({
-    header: match[1],
+    header: normalizeTomlHeader(match[1]),
     body: text.slice(match.index + match[0].length, headers[i + 1]?.index ?? text.length),
   }));
   return { root, tables };
+}
+
+// TOML 表头规范化：去空格、单/双引号 quoted key 去引号并解码 basic-string
+// 转义，使 [ env.staging.assets ] / [env.staging."assets"] /
+// [env.staging.'assets'] / [env.staging."ssets"] 等合法变体都归一为
+// 规范拼写再比较。守门是 fail-closed，不能因为写法变体放过覆盖声明。
+function normalizeTomlHeader(header) {
+  const double = header.startsWith('[[');
+  const inner = header.slice(double ? 2 : 1, double ? -2 : -1).trim();
+  const parts = inner.split('.').map(part => {
+    const p = part.trim();
+    if (p.length >= 2 && p.startsWith("'") && p.endsWith("'")) return p.slice(1, -1);
+    if (p.length >= 2 && p.startsWith('"') && p.endsWith('"')) {
+      try { return JSON.parse(p); } catch { return p.slice(1, -1); }
+    }
+    return p;
+  });
+  return `${double ? '[[' : '['}${parts.join('.')}${double ? ']]' : ']'}`;
 }
 
 function tomlString(section, key) {
@@ -135,7 +154,12 @@ function parseTomlEnv(root, tables, prefix) {
 
 function normalizeTomlService(text, envKey) {
   const { root, tables } = splitToml(text);
-  return { production: parseTomlEnv(root, tables, null), staging: parseTomlEnv(root, tables, `env.${envKey}`) };
+  return {
+    production: parseTomlEnv(root, tables, null),
+    staging: parseTomlEnv(root, tables, `env.${envKey}`),
+    assetsTables: tomlTableBodies(tables, ASSETS_HEADER),
+    envAssetsHeaders: tables.filter(t => /^\[env\..+\.assets\]$/.test(t.header)).map(t => t.header),
+  };
 }
 
 function normalizeJsoncService(text) {
@@ -216,7 +240,7 @@ const BAD_STATUSES = ['legacy-pending-retirement', 'legacy-preview', 'unknown'];
 
 function checkService(spec, cfg, index, violations) {
   const at = (msg) => violations.push(`${spec.id}: ${msg}`);
-  const { production: prod, staging } = cfg;
+  const { production: prod, staging, assetsTables = [], envAssetsHeaders = [] } = cfg;
   const environments = [['production', prod], ['staging', staging]];
   const checkRef = (token, env, typeHint, label) => {
     if (!token) return;
@@ -322,6 +346,36 @@ function checkService(spec, cfg, index, violations) {
       }
     }
   }
+
+  if (spec.kind === 'worker-assets') {
+    if (assetsTables.length !== 1) {
+      at(`[assets] must be declared exactly once (got ${assetsTables.length})`);
+    }
+    const assetsBody = assetsTables[0] ?? '';
+    if (tomlStringCount(assetsBody, 'directory') !== 1
+      || tomlString(assetsBody, 'directory') !== './dist') {
+      at('[assets] must declare directory = "./dist" exactly once');
+    }
+    if (tomlStringCount(assetsBody, 'binding') !== 1 || tomlString(assetsBody, 'binding') !== 'ASSETS') {
+      at('[assets] must declare binding = "ASSETS" exactly once');
+    }
+    // 全量匹配赋值：布尔数组或重复声明都不满足"唯一 true"。
+    const workerFirstAll = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=/gm)];
+    const workerFirst = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm)];
+    if (workerFirstAll.length !== 1) {
+      at(`[assets] must declare run_worker_first exactly once (got ${workerFirstAll.length})`);
+    }
+    if (workerFirstAll.length === 1 && workerFirst.length !== 1) {
+      at('[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
+    }
+    if (tomlStringCount(assetsBody, 'not_found_handling') > 0) {
+      at('[assets] must not declare not_found_handling (404/page semantics stay in the Hono router)');
+    }
+    if (envAssetsHeaders.length > 0) {
+      at(`per-environment assets overrides are forbidden; staging inherits the top-level [assets] (found ${envAssetsHeaders.join(', ')})`);
+    }
+  }
+
   if (spec.requiredRoutes) {
     for (const [envName, env] of environments) {
       const actual = [...env.routePatterns].sort();
@@ -380,7 +434,7 @@ function checkService(spec, cfg, index, violations) {
     }
   }
 
-  const refs = [[prod.name, 'production', spec.kind === 'worker' ? 'worker' : 'pages', 'name']];
+  const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name']];
   if (spec.stagingName) refs.push([staging.name, 'staging', 'worker', 'staging name']);
   for (const [envName, env] of environments) {
     for (const service of env.servicesAll) refs.push([service.service, envName, 'worker', `service binding ${service.binding}`]);
@@ -401,7 +455,7 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
   const specs = [
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'preview',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
-    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'preview',
+    { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', stagingName: 'codepi-gu-staging', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },
     { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'pages', prodName: 'codepi-gzh', d1Name: 'codepi-gzh', envKey: 'preview',
       serviceBindings: { AUTH: { production: 'codepi-auth', staging: 'codepi-auth-staging' } } },

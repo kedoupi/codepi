@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
-export async function checkPages(app, target, request = fetch) {
+export async function checkPages(app, target, request = fetch, { origin } = {}) {
   assert.ok(['web', 'gu', 'gzh'].includes(app), 'Unknown Pages app');
   assert.ok(['production', 'staging'].includes(target), 'Unknown environment');
   const staging = target === 'staging';
   const host = app === 'web' ? (staging ? 'staging' : '') : `${app}${staging ? '-staging' : ''}`;
-  const origin = `https://${host ? host + '.' : ''}codepi.app`;
+  // --origin 用于 Pages → Workers 迁移窗口：域名仍指向旧 Pages 时，
+  // smoke 直接命中新 Worker 的 workers.dev 子域（官方环境提供 WORKERS_DEV_SUBDOMAIN）。
+  origin ??= `https://${host ? host + '.' : ''}codepi.app`;
   const authOrigin = `https://auth${staging ? '-staging' : ''}.codepi.app`;
   const get = path => request(origin + path, { redirect: 'manual', signal: AbortSignal.timeout(15000) });
   const root = await get('/');
@@ -32,6 +34,8 @@ export async function checkPages(app, target, request = fetch) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try { console.log(await checkPages(process.argv[2], process.argv[3])); }
+  const args = process.argv.slice(2);
+  const originFlag = args.includes('--origin') ? args[args.indexOf('--origin') + 1] : undefined;
+  try { console.log(await checkPages(args[0], args[1], fetch, { origin: originFlag })); }
   catch (error) { console.error(error.message); process.exitCode = 1; }
 }
