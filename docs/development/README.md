@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 个人语言、协作与授权偏好 | 用户级 AGENTS / 工具配置 | 不复制到每个项目 skill |
 | 产品范围、现有技术栈、共享契约 | [根 AGENTS.md](../../AGENTS.md) | 四个产品：首页、GU、GZH、Health；auth/shared 是支撑层 |
-| 应用内部约束 | [Auth](../../services/auth/AGENTS.md)、[GU](../../apps/gu/AGENTS.md)、[GZH](../../apps/gzh/AGENTS.md)、[Health](../../apps/oura/AGENTS.md)、[shared](../../packages/shared/AGENTS.md) | 改对应目录前读取；实现、调用方与测试也要核对 |
+| 应用内部约束 | [Auth](../../services/auth/AGENTS.md)、[GU](../../apps/gu/AGENTS.md)、[GZH](../../apps/gzh/AGENTS.md)、[Health](../../apps/health/AGENTS.md)、[shared](../../packages/shared/AGENTS.md) | 改对应目录前读取；实现、调用方与测试也要核对 |
 | 开发、验证、协作与交接 | [Agent 开发工作流](agent-workflow.md) | 小任务不强制建计划，多任务明确文件所有权 |
 | 分支核对、集成、发布与退役 | [集成与发布工作流](integration-release.md) | 先核实事实，再执行已授权的变更 |
 | Cloudflare 平台约束 | [CF 治理规范](cloudflare-governance.md) | 命名、环境、密钥、发布门禁与退役条件 |

@@ -75,7 +75,7 @@ async function main() {
   // token verification alone does not prove its resource permissions.
   const before = await cloudflare(schedulesUrl);
   const installedCrons = (before.schedules || []).map(row => row.cron).sort();
-  let previousVersion = process.env.OURA_PREVIOUS_VERSION || '';
+  let previousVersion = process.env.HEALTH_PREVIOUS_VERSION || '';
   if (!previousVersion) {
     const deployments = await cloudflare(`${script}/deployments`);
     const versions = deployments?.deployments?.[0]?.versions ?? [];
@@ -163,7 +163,7 @@ async function main() {
     } else if (completed.includes('serving 100%')) {
       console.error('The new version is serving traffic but the deploy did not finish.');
       console.error(previousVersion
-        ? `Roll back with: pnpm exec wrangler versions deploy ${previousVersion}@100% --yes  (from oura/workers/api)`
+        ? `Roll back with: pnpm exec wrangler versions deploy ${previousVersion}@100% --yes  (from apps/health/workers/api)`
         : 'The previously active version id could not be read; check the Cloudflare dashboard before rolling back.');
       console.error('Re-running this script is safe: it uploads a new version and re-verifies the schedule.');
     } else {

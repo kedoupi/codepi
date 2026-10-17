@@ -1,41 +1,41 @@
 const origin = new URL(process.argv[2] || 'https://health.codepi.app').origin;
 // Expected build SHA for the just-deployed Worker. When provided, /api/health
 // must report it; this turns the smoke check into a real deploy gate.
-const expectedBuild = process.env.OURA_EXPECT_BUILD || '';
+const expectedBuild = process.env.HEALTH_EXPECT_BUILD || '';
 const expectedOauthConfigured = (() => {
-  const value = process.env.OURA_EXPECT_OAUTH_CONFIGURED;
+  const value = process.env.HEALTH_EXPECT_OAUTH_CONFIGURED;
   if (!value || value === 'true') return true;
   if (value === 'false') return false;
-  throw new Error('OURA_EXPECT_OAUTH_CONFIGURED must be "true" or "false"');
+  throw new Error('HEALTH_EXPECT_OAUTH_CONFIGURED must be "true" or "false"');
 })();
 const expectedSsoEnabled = (() => {
-  const value = process.env.OURA_EXPECT_SSO_ENABLED;
+  const value = process.env.HEALTH_EXPECT_SSO_ENABLED;
   if (!value) return undefined;
   if (value === 'true') return true;
   if (value === 'false') return false;
-  throw new Error('OURA_EXPECT_SSO_ENABLED must be "true" or "false"');
+  throw new Error('HEALTH_EXPECT_SSO_ENABLED must be "true" or "false"');
 })();
 // The zone's edge challenges datacenter IPs on this hostname (cf-mitigated:
 // challenge) and the free-plan rules cannot exempt a path. The Worker is also
 // reachable on its workers.dev hostname, which has no zone bot rules, so that
 // hostname verifies the same Worker from a blocked vantage point.
-const altOrigin = process.env.OURA_CHECK_ALT_ORIGIN
-  ? new URL(process.env.OURA_CHECK_ALT_ORIGIN).origin
+const altOrigin = process.env.HEALTH_CHECK_ALT_ORIGIN
+  ? new URL(process.env.HEALTH_CHECK_ALT_ORIGIN).origin
   : '';
-// OURA_CHECK_EDGE_BLOCK=warn downgrades "edge 403 HTML" (WAF/Bot Fight
+// HEALTH_CHECK_EDGE_BLOCK=warn downgrades "edge 403 HTML" (WAF/Bot Fight
 // challenging datacenter IPs such as GitHub runners) to a warning. It is NOT a
 // free pass: once the edge blocks this client, the whole contract has to pass
-// on OURA_CHECK_ALT_ORIGIN, otherwise the run fails — nothing would have been
+// on HEALTH_CHECK_ALT_ORIGIN, otherwise the run fails — nothing would have been
 // verified at all.
-const edgeBlockMode = process.env.OURA_CHECK_EDGE_BLOCK || 'fail';
+const edgeBlockMode = process.env.HEALTH_CHECK_EDGE_BLOCK || 'fail';
 // OAuth redirect_uri stays pinned to the deployed public hostname even when the
 // fallback hostname answers the probe: that is the value the Worker was given.
 // A deployment whose Worker is configured with another public hostname can pin
 // it explicitly instead of relying on this default.
-const callbackOrigin = process.env.OURA_CHECK_PUBLIC_ORIGIN
-  ? new URL(process.env.OURA_CHECK_PUBLIC_ORIGIN).origin
+const callbackOrigin = process.env.HEALTH_CHECK_PUBLIC_ORIGIN
+  ? new URL(process.env.HEALTH_CHECK_PUBLIC_ORIGIN).origin
   : origin;
-const authOrigin = new URL(process.env.OURA_CHECK_AUTH_ORIGIN || 'https://auth.codepi.app').origin;
+const authOrigin = new URL(process.env.HEALTH_CHECK_AUTH_ORIGIN || 'https://auth.codepi.app').origin;
 
 async function check(targetOrigin, path, expectedStatus = 200, blocked, ssoEnabled = false) {
   try {
@@ -195,7 +195,7 @@ const results = await contractFor(origin, blocked);
  * A blocked request is never retried: the edge answered, the Worker did not.
  */
 async function checkHealth() {
-  const deadline = Date.now() + Number(process.env.OURA_CHECK_HEALTH_TIMEOUT_MS || 60_000);
+  const deadline = Date.now() + Number(process.env.HEALTH_CHECK_HEALTH_TIMEOUT_MS || 60_000);
   let last = await check(origin, '/api/health', 200, blocked);
   while (!last.ok && !blocked.seen && Date.now() < deadline) {
     await new Promise(resolve => setTimeout(resolve, Math.min(5_000, Math.max(0, deadline - Date.now()))));
@@ -228,7 +228,7 @@ if (blocked.seen && edgeBlockMode === 'warn') {
     results.push({
       path: 'edge-block-fallback',
       ok: false,
-      detail: 'the edge answered every request with 403 HTML and OURA_CHECK_ALT_ORIGIN is not set: the API contract was NOT verified',
+      detail: 'the edge answered every request with 403 HTML and HEALTH_CHECK_ALT_ORIGIN is not set: the API contract was NOT verified',
     });
   }
 }

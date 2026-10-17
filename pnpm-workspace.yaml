@@ -2,8 +2,8 @@ packages:
   - apps/web
   - apps/gu
   - apps/gzh
-  - apps/oura
-  - apps/oura/apps/*
-  - apps/oura/workers/*
+  - apps/health
+  - apps/health/apps/*
+  - apps/health/workers/*
   - services/auth
   - packages/shared

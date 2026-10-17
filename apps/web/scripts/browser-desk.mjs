@@ -4,7 +4,7 @@ import { readFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { join, resolve, extname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../../oura/scripts/browser-cdp.mjs';
+import { launchBrowser } from '../../health/scripts/browser-cdp.mjs';
 import { deskFixture } from '../test/runtime.mjs';
 import { calendarDay, shiftDay } from '@kedoupi/shared/desk/contract';
 

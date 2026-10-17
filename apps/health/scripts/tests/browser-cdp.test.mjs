@@ -80,7 +80,7 @@ test('page evaluation awaits promises and propagates browser exceptions', async 
 });
 
 test('failure diagnostics retain console/network events even if screenshot or DOM capture fails', async () => {
-  const artifactDir = await mkdtemp(join(tmpdir(), 'oura-cdp-test-'));
+  const artifactDir = await mkdtemp(join(tmpdir(), 'health-cdp-test-'));
   const socket = new Socket();
   const connection = new CdpConnection(socket);
   const page = new CdpPage(connection, artifactDir);

@@ -225,7 +225,7 @@ export async function launchBrowser(artifactDir) {
     try { await access(candidate); executable = candidate; break; } catch {}
   }
   if (!executable) throw new Error('Chrome not found; set CHROME_BIN to an installed Chrome executable');
-  const profile = await mkdtemp(join(tmpdir(), 'oura-browser-'));
+  const profile = await mkdtemp(join(tmpdir(), 'health-browser-'));
   const child = spawn(executable, [
     '--headless=new', '--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
     '--no-first-run', '--no-default-browser-check', '--disable-background-networking',

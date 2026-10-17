@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { launchBrowser } from "../../oura/scripts/browser-cdp.mjs";
+import { launchBrowser } from "../../health/scripts/browser-cdp.mjs";
 
 /**
  * GZH 本地浏览器冒烟：构建产物 + `wrangler dev` 已在 --port 8788 运行。
