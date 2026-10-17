@@ -133,25 +133,26 @@ test('Pages deployment smoke includes private endpoints and SSO, not just homepa
   }
 });
 
-test('GU Workers release gates pre-cutover smoke on the explicit secrets bootstrap', async () => {
+test('GU Workers release checks runtime metadata before probing the new Worker', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
   const job = workflow.split('\n  gu-deploy-production:')[1]?.split(/\n  [a-z][a-z-]+:/)[0];
   assert.ok(job, 'gu-deploy-production must exist');
   const steps = [...job.matchAll(/- name: ([^\n]+)/g)].map(match => match[1]);
-  const order = ['deploy', 'verify runtime secrets (bootstrap gate)', 'smoke new Worker (pre-cutover)', 'smoke', 'record deployment evidence'];
+  const order = ['deploy', 'verify runtime configuration', 'smoke new Worker (pre-cutover)', 'smoke', 'record deployment evidence'];
   const positions = order.map(name => steps.indexOf(name));
   assert.ok(positions.every(index => index !== -1), `missing exact steps in ${steps.join(', ')}`);
   for (let i = 1; i < positions.length; i += 1) {
     assert.ok(positions[i] > positions[i - 1], `step order must be strictly increasing: ${order.join(' → ')}`);
   }
-  const gate = job.split('verify runtime secrets (bootstrap gate)')[1]?.split('- name:')[0];
-  assert.match(gate, /GU_SECRETS_BOOTSTRAPPED: \$\{\{ vars\.GU_SECRETS_BOOTSTRAPPED \}\}/,
-    'gate must map the production environment variable into the step env');
-  assert.match(gate, /workers\/scripts\/codepi-gu\/secrets/, 'gate must read the Workers secrets API');
-  assert.match(gate, /JSON\.parse/, 'gate must parse the API response instead of grep-matching JSON');
-  assert.match(gate, /body\.success !== true/, 'gate must reject unsuccessful API responses');
+  const gate = job.split('verify runtime configuration')[1]?.split('- name:')[0];
+  assert.match(gate, /id: runtime/);
+  assert.match(gate, /deployment-evidence\.mjs resolve-worker/);
+  assert.match(gate, /--script codepi-gu --required-secrets AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN/);
+  assert.match(gate, /echo "origin=\$origin" >> "\$GITHUB_OUTPUT"/);
+  assert.doesNotMatch(job, /GU_SECRETS_BOOTSTRAPPED|WORKERS_DEV_SUBDOMAIN|SESSION_SECRET|OTP_PEPPER/,
+    'release must not require manual attestations or unused legacy OTP secrets');
   const preCutover = job.split('smoke new Worker (pre-cutover)')[1]?.split('- name:')[0];
-  assert.match(preCutover, /WORKERS_DEV_SUBDOMAIN: \$\{\{ vars\.WORKERS_DEV_SUBDOMAIN \}\}/,
-    'pre-cutover smoke must map the workers.dev subdomain variable into the step env');
+  assert.match(preCutover, /WORKER_ORIGIN: \$\{\{ steps\.runtime\.outputs\.origin \}\}/,
+    'smoke must use the origin verified by the Cloudflare API');
   assert.match(preCutover, /check-pages\.mjs gu production --origin/, 'pre-cutover smoke must target the new Worker origin, not the domain still on Pages');
 });

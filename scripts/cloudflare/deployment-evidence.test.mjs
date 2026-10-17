@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { appendEntry, buildEntry, extractPagesUrl, extractWorkerVersion, findPagesDeployment } from './deployment-evidence.mjs';
+import { appendEntry, buildEntry, extractPagesUrl, extractWorkerVersion, findPagesDeployment, resolveWorkerOrigin } from './deployment-evidence.mjs';
 
 test('extractWorkerVersion 解析 Current/Worker Version ID', () => {
   const id = '0a1b2c3d-4e5f-6789-abcd-ef0123456789';
@@ -56,4 +56,83 @@ test('appendEntry 追加 JSONL', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+const requiredSecrets = ['AUTH_CLIENT_SECRET', 'DESK_SUMMARY_TOKEN'];
+function workerApi(overrides = {}) {
+  const results = {
+    '/workers/scripts/codepi-gu/secrets': requiredSecrets.map(name => ({ name, type: 'secret_text' })),
+    '/workers/scripts/codepi-gu/subdomain': { enabled: true },
+    '/workers/subdomain': { subdomain: 'synthetic-account' },
+    ...overrides,
+  };
+  const calls = [];
+  return { calls, token: 'synthetic-api-token', account: 'test-account',
+    request: async (url, options) => {
+      assert.equal(options.headers.Authorization, 'Bearer synthetic-api-token');
+      assert.ok(options.signal);
+      const prefix = 'https://api.cloudflare.com/client/v4/accounts/test-account';
+      assert.ok(url.startsWith(prefix));
+      const pathname = url.slice(prefix.length);
+      calls.push(pathname);
+      assert.ok(Object.hasOwn(results, pathname), `unexpected API request: ${pathname}`);
+      return Response.json({ success: true, result: results[pathname] });
+    },
+  };
+}
+
+test('resolveWorkerOrigin checks required names and enabled routing without legacy secrets or manual variables', async () => {
+  const api = workerApi();
+  assert.equal(await resolveWorkerOrigin('codepi-gu', requiredSecrets, api),
+    'https://codepi-gu.synthetic-account.workers.dev');
+  assert.equal(api.calls.length, 3);
+});
+
+test('resolveWorkerOrigin rejects missing secrets, wrong binding types and malformed payloads', async () => {
+  for (const result of [[], null, {}, [
+    { name: 'AUTH_CLIENT_SECRET', type: 'plain_text' },
+    { name: 'DESK_SUMMARY_TOKEN', type: 'secret_text' },
+  ]]) {
+    const api = workerApi({ '/workers/scripts/codepi-gu/secrets': result });
+    await assert.rejects(resolveWorkerOrigin('codepi-gu', requiredSecrets, api), /runtime secrets|unexpected payload/);
+    assert.equal(api.calls.length, 1, 'missing secrets must stop before routing discovery');
+  }
+});
+
+test('resolveWorkerOrigin fails closed on API errors without printing response contents', async () => {
+  for (const response of [
+    Response.json({ success: false, errors: [{ message: 'private-provider-detail' }] }),
+    Response.json({ success: true, result: [] }, { status: 403 }),
+    Response.json({ success: 'true', result: [] }),
+    new Response('private-provider-detail', { status: 502 }),
+  ]) {
+    const api = { ...workerApi(), request: async () => response };
+    await assert.rejects(resolveWorkerOrigin('codepi-gu', requiredSecrets, api), error => {
+      assert.match(error.message, /Cloudflare API GET/);
+      assert.doesNotMatch(error.message, /private-provider-detail|synthetic-api-token/);
+      return true;
+    });
+  }
+});
+
+test('resolveWorkerOrigin rejects disabled routes and malformed account subdomains', async () => {
+  for (const enabled of [false, undefined, 'true']) {
+    await assert.rejects(resolveWorkerOrigin('codepi-gu', requiredSecrets,
+      workerApi({ '/workers/scripts/codepi-gu/subdomain': { enabled } })), /routing is disabled/);
+  }
+  for (const subdomain of ['', undefined, '-invalid', 'account.example', 'account\norigin=https://invalid', 123]) {
+    await assert.rejects(resolveWorkerOrigin('codepi-gu', requiredSecrets,
+      workerApi({ '/workers/subdomain': { subdomain } })), /subdomain is missing or invalid/);
+  }
+});
+
+test('resolveWorkerOrigin requires a Worker name and explicit secret names before requesting metadata', async () => {
+  const api = workerApi();
+  for (const script of ['', undefined, '../auth', 'gu\nmalicious', 'gu.example']) {
+    await assert.rejects(resolveWorkerOrigin(script, requiredSecrets, api), /invalid Worker name/);
+  }
+  for (const secrets of [undefined, [], [''], ['AUTH_CLIENT_SECRET\n'], [null]]) {
+    await assert.rejects(resolveWorkerOrigin('codepi-gu', secrets, api), /required secret names/);
+  }
+  assert.equal(api.calls.length, 0);
 });

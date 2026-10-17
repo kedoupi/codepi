@@ -98,6 +98,9 @@ Pages 只有 production/preview 两级配置，preview bindings 不按分支隔�
 - 数据分级：`public-dns`、`synthetic`、`auth-session-data`、`private-user-data`、
   `private-health-data`、`legacy`、`unknown`。公开首页与私有健康/投资/稿件数据不得
   混入同一数据边界。
+- 重构允许重建项目自有凭证：在授权 API 执行环境中生成随机值并配对写入服务端与消费者，
+  不要求恢复旧值，不输出或落地。第三方凭证不能用随机值代替。初始化/轮换与日常部署分开，
+  轮换时明确旧登录态、外部上传客户端及回退版本的影响。
 
 ## 6. 发布路径（唯一入口）
 
@@ -160,10 +163,11 @@ Health API migration/deploy/contract smoke → Health Pages。
 - `unknown` 资源不得重命名、迁移或删除。
 - 域名切换顺序：Pages 间切换先使 Pages custom domain `active`，再切 zone CNAME 到对应
   `*.pages.dev`；Pages → Worker 切换按以下顺序执行：新 Worker version 探针通过、
-  secrets 经授权渠道以同值写入 → 删除 zone 内指向 `*.pages.dev` 的旧 CNAME（Workers
+  当前方案所需 secrets 经授权渠道配置并验证配对（可生成新值）→ 删除 zone 内指向 `*.pages.dev` 的旧 CNAME（Workers
   custom domain 绑定要求 hostname 无冲突记录，必须先移除旧记录）→ 为 Worker 绑定
   custom domain → 探针通过后移除 Pages 项目的 custom domain 绑定（Pages 项目与
-  deployment 保留作为回退路径）。回退 = 恢复 Pages 绑定与旧 CNAME。除本步骤明确
+  deployment 保留）。只有运行配置仍兼容时，恢复 Pages 绑定与旧 CNAME 才是可用回退；
+  已轮换凭证时需同时恢复配对配置或修复新 Worker。除本步骤明确
   授权的迁移 CNAME 删除外，domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
   匿名首页/登录页 200 或预期 302、Auth health 200 JSON、未登录私有接口 401/302、
   SSO callback 同环境精确匹配、登出、Health `/api/*`、`/mcp`、两个
