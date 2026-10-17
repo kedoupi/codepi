@@ -31,6 +31,8 @@ migrations_dir = "migrations"
 # 绑定 staging D1 与 codepi-auth-staging，不接发布入口。
 [env.staging]
 name = "codepi-gu-staging"
+# 禁止环境覆盖资产拓扑：staging 继承顶层 [assets]（run_worker_first=true）。
+# 治理守门会拒绝任何 [env.staging.assets] 声明，防止资产绕过 Worker 鉴权。
 
 [env.staging.vars]
 SSO_ENABLED = "1"

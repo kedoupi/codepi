@@ -139,7 +139,8 @@ function normalizeTomlService(text, envKey) {
   return {
     production: parseTomlEnv(root, tables, null),
     staging: parseTomlEnv(root, tables, `env.${envKey}`),
-    assetsBody: tomlTableBodies(tables, ASSETS_HEADER).join('\n'),
+    assetsTables: tomlTableBodies(tables, ASSETS_HEADER),
+    envAssetsHeaders: tables.filter(t => /^\[env\.[^.\]]+\.assets\]$/.test(t.header)).map(t => t.header),
   };
 }
 
@@ -221,7 +222,7 @@ const BAD_STATUSES = ['legacy-pending-retirement', 'legacy-preview', 'unknown'];
 
 function checkService(spec, cfg, index, violations) {
   const at = (msg) => violations.push(`${spec.id}: ${msg}`);
-  const { production: prod, staging, assetsBody = '' } = cfg;
+  const { production: prod, staging, assetsTables = [], envAssetsHeaders = [] } = cfg;
   const environments = [['production', prod], ['staging', staging]];
   const checkRef = (token, env, typeHint, label) => {
     if (!token) return;
@@ -329,19 +330,31 @@ function checkService(spec, cfg, index, violations) {
   }
 
   if (spec.kind === 'worker-assets') {
-    if (!assetsBody || tomlStringCount(assetsBody, 'directory') !== 1
+    if (assetsTables.length !== 1) {
+      at(`[assets] must be declared exactly once (got ${assetsTables.length})`);
+    }
+    const assetsBody = assetsTables[0] ?? '';
+    if (tomlStringCount(assetsBody, 'directory') !== 1
       || tomlString(assetsBody, 'directory') !== './dist') {
       at('[assets] must declare directory = "./dist" exactly once');
     }
     if (tomlStringCount(assetsBody, 'binding') !== 1 || tomlString(assetsBody, 'binding') !== 'ASSETS') {
       at('[assets] must declare binding = "ASSETS" exactly once');
     }
-    const workerFirst = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=[ \t]*(\w+)[ \t]*(?:#[^\n]*)?$/gm)];
-    if (workerFirst.length !== 1 || workerFirst[0][1] !== 'true') {
-      at('[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker)');
+    // 全量匹配赋值：布尔数组或重复声明都不满足"唯一 true"。
+    const workerFirstAll = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=/gm)];
+    const workerFirst = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm)];
+    if (workerFirstAll.length !== 1) {
+      at(`[assets] must declare run_worker_first exactly once (got ${workerFirstAll.length})`);
     }
-    if (assetsBody && tomlStringCount(assetsBody, 'not_found_handling') > 0) {
+    if (workerFirstAll.length === 1 && workerFirst.length !== 1) {
+      at('[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
+    }
+    if (tomlStringCount(assetsBody, 'not_found_handling') > 0) {
       at('[assets] must not declare not_found_handling (404/page semantics stay in the Hono router)');
+    }
+    if (envAssetsHeaders.length > 0) {
+      at(`per-environment assets overrides are forbidden; staging inherits the top-level [assets] (found ${envAssetsHeaders.join(', ')})`);
     }
   }
 

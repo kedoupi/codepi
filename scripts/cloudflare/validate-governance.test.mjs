@@ -343,6 +343,34 @@ test('GU staging 仍用 Pages preview 环境被拒绝', () => {
     `expected staging environment violation, got ${JSON.stringify(violations)}`);
 });
 
+test('GU 重复 [assets] 表被拒绝', () => {
+  const doubled = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\n[assets]\nbinding = "ASSETS"\nrun_worker_first = true\n' });
+  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': doubled } }));
+  assert.ok(violations.some(v => v.includes('gu') && v.includes('exactly once')),
+    `expected duplicate-table violation, got ${JSON.stringify(violations)}`);
+});
+
+test('GU run_worker_first 数组形式被拒绝（鉴权应用必须无条件先进 Worker）', () => {
+  const arrayForm = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = ["/api/*"]\n' });
+  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': arrayForm } }));
+  assert.ok(violations.some(v => v.includes('gu') && v.includes('run_worker_first')),
+    `expected run_worker_first violation, got ${JSON.stringify(violations)}`);
+});
+
+test('GU run_worker_first 双重声明被拒绝', () => {
+  const doubled = guWorkerConfig({ assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\nrun_worker_first = true\nrun_worker_first = ["/api/*"]\n' });
+  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': doubled } }));
+  assert.ok(violations.some(v => v.includes('gu') && v.includes('run_worker_first exactly once')),
+    `expected duplicate-declaration violation, got ${JSON.stringify(violations)}`);
+});
+
+test('GU staging 环境 assets 覆盖被拒绝', () => {
+  const overridden = guWorkerConfig() + '\n[env.staging.assets]\nrun_worker_first = false\n';
+  const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': overridden } }));
+  assert.ok(violations.some(v => v.includes('gu') && v.includes('per-environment assets')),
+    `expected env-assets violation, got ${JSON.stringify(violations)}`);
+});
+
 test('引用 legacy 资源被拒绝', () => {
   const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-gzh' ? [r[0], r[1], r[2], r[3], r[4], 'legacy-pending-retirement'] : r);
   const violations = run(legalFiles({ registryRows: rows }));

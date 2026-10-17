@@ -59,6 +59,7 @@ for (const [name, mutate] of [
   ['staging name missing', c => { delete c.env.staging.name; }],
   ['Pages output dir left behind', c => { c.pages_build_output_dir = './dist'; }],
   ['Pages preview env left behind', c => { c.env.preview = { vars: { ENVIRONMENT: 'staging' } }; }],
+  ['staging assets override', c => { c.env.staging.assets = { run_worker_first: false }; }],
 ]) test(`configuration rejects ${name}`, () => { const c = config(); mutate(c); assert.throws(() => validateConfig(c)); });
 test('origin accepts HTTPS and loopback HTTP', () => { assert.equal(deploymentOrigin('https://gu.example/'), 'https://gu.example'); assert.equal(deploymentOrigin('http://127.0.0.1:8787'), 'http://127.0.0.1:8787'); });
 for (const url of ['http://gu.example', 'https://user:value@gu.example', 'https://:value@gu.example', 'https://gu.example/path', 'https://gu.example/?query=value', 'https://gu.example/#fragment', undefined]) test(`origin rejects unsafe shape ${String(url).replace(/\/\/.*@/, '//[credentials]@')}`, () => assert.throws(() => deploymentOrigin(url)));

@@ -24,6 +24,8 @@ export function validateConfig(config) {
     "GU assets must bind ASSETS from ./dist with run_worker_first=true (authenticated app).");
   requireCheck(!config.pages_build_output_dir && !config.env?.preview,
     "Pages configuration (pages_build_output_dir / env.preview) must be removed after the Workers migration.");
+  requireCheck(!config.env?.staging?.assets,
+    "Staging must inherit the top-level [assets] topology; per-environment assets overrides are forbidden.");
   // staging named environment = staging runtime（治理规范第 4 节）：必须声明
   // ENVIRONMENT="staging"，且只允许连接 *-staging 资源。
   requireCheck(config.env?.staging?.name === "codepi-gu-staging",

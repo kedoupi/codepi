@@ -468,7 +468,15 @@ jobs:
           echo "$out"
           version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: smoke new Worker (pre-cutover)
+        # 域名切换前 gu.codepi.app 仍指向旧 Pages；直接探测新 Worker 的
+        # workers.dev 子域，让 evidence 的 --smoke pass 真正关联本次 version。
+        if: github.ref == 'refs/heads/main'
+        run: |
+          origin="https://codepi-gu.${WORKERS_DEV_SUBDOMAIN:?WORKERS_DEV_SUBDOMAIN secret is required for pre-cutover smoke}.workers.dev"
+          node ../../scripts/cloudflare/check-pages.mjs gu production --origin "$origin"
       - name: smoke
+        # 域名切换完成前该项探测的是旧 Pages（回归监控）；切换后即为新 Worker。
         if: github.ref == 'refs/heads/main'
         run: node ../../scripts/cloudflare/check-pages.mjs gu production
       - name: record deployment evidence

@@ -1,6 +1,6 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../docs/development/cloudflare-resource-registry.md)。2026-10-17 起从 Pages 迁移到 Workers，发布走 `wrangler deploy`；域名切换前的过渡期内 `gu.codepi.app` 仍由 Pages 项目服务，切换记录见 [GU Static Assets 迁移记录](../docs/development/tasks/2026-10-17-gu-static-assets.md)。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。2026-10-17 起从 Pages 迁移到 Workers，发布走 `wrangler deploy`；域名切换前的过渡期内 `gu.codepi.app` 仍由 Pages 项目服务，切换记录见 [GU Static Assets 迁移记录](../../docs/development/tasks/2026-10-17-gu-static-assets.md)。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 

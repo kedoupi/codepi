@@ -1,6 +1,6 @@
 # GU 部署载体迁移：Pages → Workers Static Assets
 
-- 状态：进行中。本文刚建立，代码未修改。
+- 状态：已实现并通过本地验证与独立审查修复，待合并发布。
 - 目标与验收：把 GU 从 Pages 项目 `codepi-gu`（`vite build` + esbuild 产出 `dist/_worker.js` 的 Pages advanced mode）迁移为 Workers Static Assets 架构的 Worker：`main` 指向 `worker/index.ts`，`dist/` 作为静态资产目录，`assets.run_worker_first = true` 保证所有请求先经 Hono 鉴权链（资产不绕过会话门）。路由表、405/404/403/401/302 语义、安全响应头、SSO/PKCE 行为、`npm test`、`npm run typecheck`、`npm run build` 不改语义继续通过；发布链（workflow、证据、smoke、治理文档）同步从 `wrangler pages deploy` 切到 `wrangler deploy`。
 - 不在范围内：业务路由与数据口径、SSO 协议、D1 schema、前端 UI、staging 去留决策（staging 资源保留，迁移后 staging runtime 的承载形式单独记录）、域名切换与 secret 写入的执行（本次 PR 只改代码与发布链；生产切换在合并发布后按本文「切换方案」执行）。
 - worktree：`/Users/codepi/.worktrees/kdp.cool/codex/gu-static-assets`
@@ -19,17 +19,20 @@
 - 迁移要点：`main = "worker/index.ts"` + `[assets] directory = "./dist" binding = "ASSETS" run_worker_first = true`；`dist/_worker.js` 不再生成（esbuild bundle 步骤删除）；wrangler 直接以 Worker 模块格式运行 `worker/index.ts`（TS 由 wrangler 编译）。`ASSETS` binding 名与代码中 `env.ASSETS` 一致，handler 内 503 兜底保留。
 - 命名决策：新 Worker 命名为 `codepi-gu`，与现有 Pages 项目同名。Pages 与 Workers 是不同资源命名空间，官方迁移指南明确允许同名；登记表将 `pages-gu` 改为 `worker-gu`，`resource_type` 由 `pages` 改为 `worker`。
 - staging 承载：Pages 的 `[env.preview]` 是 Pages preview runtime；Workers named environment 用 `[env.staging]`（与 Health API、Auth 的 `codepi-*-staging` 命名一致），staging 域名后续单独接。staging 去留的最终决策不变（见 workspace-and-deployment.md），本任务只保证配置可表达、不接发布入口。治理守门 `validate-governance.mjs` 为 GU 增加 `kind: 'worker-assets'` 分支：`envKey` 从 `preview` 变 `staging`，staging 名称 `codepi-gu-staging`（登记在案），不要求 routes/crons，并要求 `[assets] run_worker_first = true`。
-- 域名与 SSO 兼容窗口：GU Worker 同时服务 `gu.codepi.app`（custom domain，切换时绑定）与 `codepi-gu.workers.dev`（默认启用，用于切换前验收）。代码按请求 origin 生成 redirect_uri 与 cookie（`app.test.ts`/`sso.test.ts` 已对多 host 建模），因此切换窗口内两个域名都可完整登录，无需 Auth 侧新增回调登记。
+- 域名与 SSO 兼容窗口：GU Worker 同时服务 `gu.codepi.app`（custom domain，切换时绑定）与 `codepi-gu.<account-subdomain>.workers.dev`（默认启用）。代码按请求 origin 生成 redirect_uri 与 cookie（`app.test.ts`/`sso.test.ts` 已对多 host 建模），**但 Auth 对 callback 做精确匹配**（`services/auth/src/app.ts`）：切换前对 `*.workers.dev` 只能做匿名探针（root 302、login 200、资产、匿名 API 401、SSO `/api/auth/login` 302 跳转生成——跳转目标 URL 本身由 GU 生成，不触发 Auth callback 校验）；workers.dev 域名的完整登录闭环需要在 Auth `SSO_EXTRA_REDIRECT_URIS` 临时登记 workers.dev callback，本任务不登记，workers.dev 不做完整登录验收。
 - esbuild 依赖：`scripts/bundle-worker.mjs` 随 Pages advanced mode 一起删除（Worker 源码由 wrangler 直接编译），`esbuild` 从 `apps/gu/package.json` devDependencies 移除并刷新根 lockfile；GZH 仍保留自己的 esbuild，不受影响。
 - 发布链：`gu-deploy-production` 改为 `wrangler deploy`，证据解析复用 `deployment-evidence.mjs worker-version`（Auth 已用）；`check-pages.mjs` 的探针（root 302、匿名私有 API 401 JSON、SSO 跳转）与载体无关，保持可用；`apps/gu/scripts/check-deploy.mjs` 的配置校验需从 Pages 字段（`pages_build_output_dir`）改为 Worker 字段（`main`、`assets`）。
 
 ## 切换方案（合并发布后执行，属生产变更，单独记录证据）
 
-1. 合并 PR，main 自动发布产出新 Worker `codepi-gu` 的首个 version；先核 `*.workers.dev` 全路径探针（root 302→login、login 200、资产逐字节、匿名 API 401、SSO 跳转、编码路径/HEAD 语义）。
-2. 把 Pages 侧 secrets（`AUTH_CLIENT_SECRET`、`SESSION_SECRET`、`OTP_PEPPER`、`UPLOAD_TOKEN`、`RESEND_API_KEY` 等，以 Pages 项目实际 secret 清单为准，只列名不读值）以同名同值写入新 Worker。
-3. 新 Worker 绑定 custom domain `gu.codepi.app`（Workers custom domain 与 Pages custom domain 同 zone 切换，顺序：Worker 绑定成功且探针通过后再移除 Pages 侧绑定）。
-4. 回退预案：重新把 `gu.codepi.app` 指回 Pages 项目（Pages 项目与 deployment 保留，不删除），DNS/绑定恢复后探针复核。
-5. 全部通过后更新登记表 `last_verified` 与本文。
+**前置事实（2026-10-17 核实）**：Pages 与 Workers 运行时 secret 互不可见。已用临时探针 secret 实证：`wrangler pages secret bulk` 写入的 secret 只出现在 `pages secret list`，Workers API 侧 `secret list --name codepi-gu` 报 Worker 不存在（探针 secret 已删除）。Pages secrets API 不回显值，CI 的 API token 无法把 Pages secret 的值复制到 Worker。因此 secrets 的首次写入必须来自 CI 之外的授权渠道。
+
+1. 合并 PR，main 自动发布产出新 Worker `codepi-gu` 的首个 version。CI 依次执行：`wrangler deploy` → pre-cutover smoke 直接探测 `codepi-gu.<account-subdomain>.workers.dev`（`check-pages.mjs gu production --origin`，root 302、匿名私有 API 401 JSON、SSO 302 跳转生成）→ 旧 `check-pages.mjs gu production`（此时仍探测旧 Pages，作回归监控）→ 证据记录 `--provider worker --identifier <version>`。pre-cutover smoke 失败会阻断证据记录与后续 job。
+2. **secrets 一次性人工写入（cloud 侧 break-glass，授权动作）**：把 Pages 侧 secrets（`AUTH_CLIENT_SECRET`、`SESSION_SECRET`、`OTP_PEPPER`、`UPLOAD_TOKEN`、`DESK_SUMMARY_TOKEN`、`INVESTMENT_CALENDAR_ID`；`RESEND_API_KEY` 当前 Pages 侧未配置，以 `pages secret list` 实际清单为准，只列名不读值）以同名同值写入新 Worker。执行人需在本地持有这些值（密码管理器/轮换记录），用 `wrangler secret bulk`（空目录运行，避免 Pages 项目检测）写入，并在登记表写入执行人、SHA、原因；本任务 Codex 不持有也不读取这些值。
+3. secrets 就位后重新跑 pre-cutover 探针（workers.dev 匿名集合 + `check-deploy.mjs --url https://codepi-gu.<subdomain>.workers.dev --dist dist` 的资产逐字节比对）。
+4. 域名切换（顺序严格）：先删除 zone 内 `gu.codepi.app → codepi-gu.pages.dev` 的 CNAME（Workers custom domain 绑定要求 hostname 无冲突记录）→ 为新 Worker 绑定 custom domain `gu.codepi.app` → 探针通过后移除 Pages 项目的 custom domain 绑定。Pages 项目与全部 deployment 保留，不删除。
+5. 回退预案：Pages custom domain 重新绑定 + 恢复 CNAME 到 `codepi-gu.pages.dev`（Pages 项目与 deployment 未动，即刻恢复），探针复核。
+6. 全部通过后更新登记表 `last_verified`、README DNS 表与本文。
 
 ## 验证证据
 
@@ -48,7 +51,16 @@
 
 ## 独立审查与修复
 
-（待补）
+- 审查者 Euclid（独立 Codex subagent，只读），绑定 `953cc0e83b603c8efc79aad35982cbe9bd7070e7`。**初审结论：不可合并**，两项 P1 与四项 P2/P3 全部成立并已修复：
+  - P1（部署证据错配）：smoke 固定探测 `gu.codepi.app`，切换前该域名仍指旧 Pages，新 Worker 故障也能拿到 `--smoke pass`。修复：deploy 后新增 pre-cutover smoke，`check-pages.mjs` 支持 `--origin` 直接探测 `codepi-gu.<subdomain>.workers.dev`，失败阻断证据记录。
+  - P1（切换顺序）：原方案把认证验收排在 secret 配置之前，`SSO_ENABLED=1` 缺 `AUTH_CLIENT_SECRET` 时全是 503，顺序不可通过。修复：切换方案改为 deploy → secrets 一次性写入 → workers.dev 验收 → 域名切换。
+  - P2（secrets 复制不可行）：初版 CI step 用不存在的 `wrangler pages secret put --worker` 复制 secrets；实证 Pages/Workers secret 命名空间互不可见且 API 不回显值，已在切换方案中改为授权渠道一次性写入并删除该 step。
+  - P2（workers.dev 登录承诺过度）：Auth 对 callback 精确匹配，workers.dev 未登记则不能承诺完整登录；文档改为只做匿名探针验收。
+  - P2（staging assets 覆盖漏洞）：`[env.staging.assets]` 可覆盖 `run_worker_first` 且守门漏判。修复：守门与 `check-deploy.mjs` 均禁止任何环境级 assets 声明，新增负例测试。
+  - P2（TOML 轻量解析漏报/误报）：重复 `[assets]` 表被拼接、`run_worker_first = ["/api/*"]` 数组形式漏判。修复：守门改为校验唯一表 + 唯一布尔 `true` 赋值，新增 4 个负例。
+  - P2（域名切换遗漏 CNAME 冲突）：切换步骤补「先删 CNAME → 绑 Worker custom domain → 通过后移除 Pages 绑定」的明确顺序与回退动作。
+  - P3（文档收尾）：状态行过期、`apps/gu/README.md` 的 `../docs` 相对链接错误（应为 `../../docs`），均已修正。
+- 审查者复核（待补）
 
 ## PR 与自动发布
 
