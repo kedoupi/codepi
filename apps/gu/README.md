@@ -1,6 +1,6 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。2026-10-17 起从 Pages 迁移到 Workers，发布走 `wrangler deploy`；域名切换前的过渡期内 `gu.codepi.app` 仍由 Pages 项目服务，切换记录见 [GU Static Assets 迁移记录](../../docs/development/tasks/2026-10-17-gu-static-assets.md)。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。2026-10-17 已从 Pages 切换到 Workers，发布走 `wrangler deploy`，正式域名由 Worker custom domain 管理；切换与配置重建证据见 [GU 运行配置重建](../../docs/development/tasks/2026-10-17-gu-runtime-bootstrap.md)。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
@@ -53,7 +53,7 @@ python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://
 
 新批次以 `weight_raw`、`cash_weight_raw`、`cash_after_dca_raw`、`current_value/current_unit`、历史当前点的 `weights_raw` 避免提前取整；旧字段保留。`quote_time` 仅用于确认的价格时刻。日线来源的 `regularMarketTime` 单独保存为 `market_time_iso`，bar 时间保存为 `bar_time`；二者不证明价格时刻或收盘阶段。缺失证据显示未确认。
 
-Google 投资日历已于 2026-10-15 完成生产迁移、固定 ID 配置和首份真实只读快照同步；长期 Google 授权和自动调度尚未接入。前端区分未连接、查询为空、失败和过期。快照同步不代表持续连接，过期后须重新实时查询。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
+Google 投资日历曾于 2026-10-15 完成固定 ID 配置和首份真实只读快照同步。2026-10-17 重构切换没有恢复旧 `INVESTMENT_CALENDAR_ID` 与 `UPLOAD_TOKEN`，当前新 Worker 的日历为未连接，外部上传尚未重新接入；旧上传命令需先完成新凭证配置才能使用。长期 Google 授权和自动调度也尚未接入。前端区分未连接、查询为空、失败和过期。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
 
 本地检查与只验证的 CI 不执行部署。远程迁移和发布遵循 [CF 治理规范](../docs/development/cloudflare-governance.md) 的受控入口，不把检查脚本当作发布工具。发布后，对与部署 source SHA 对应的本地构建执行：
 
@@ -66,3 +66,4 @@ npm run check:deploy -- --url https://gu.codepi.app
 ## 运维记录
 
 - 2026-10-16：GU 的 `AUTH_CLIENT_SECRET` 经中央 per-client override（`SSO_CLIENT_SECRET_GU`）轮换，应用侧同值配对后重发；轮换后 GU 现有登录需重新登录。
+- 2026-10-17：切换到 Workers 时新建 SSO 与 Desk 摘要凭证并配对更新消费者，只清除旧 GU 登录记录，不迁移旧 OTP 配置；已有 GU 登录需重新登录。完整登录后的数据/摘要与外部上传/日历单独验收。

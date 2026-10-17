@@ -6,8 +6,9 @@
 2026-10-17 GU 配置重建：执行者为当前 Codex，代码基线 `33207cd`。用户明确允许按最终
 方案重建旧测试状态，因此通过 API 新生成并配对 GU SSO 与 Desk 摘要凭证，替代恢复旧值
 的人工流程；仅失效 GU 的 6 条 SSO 会话与 2 条登录事务，业务数据未改。新 Worker
-匿名探针与 2 个资产逐字节比对通过；待新门禁合并后由 main workflow 回填发布证据，
-正式域名尚未切换。范围、验证和未接入的上传/日历见
+匿名探针与 2 个资产逐字节比对通过；PR #70 合并为 `953f4ad`，main run `39031855993`
+的 GU/Auth/首页发布完成。`gu.codepi.app` 已改为 Worker custom domain，旧 Pages 正式绑定
+已移除，staging 绑定和项目保留。范围、版本、验证和未接入的上传/日历见
 [GU 运行配置重建](tasks/2026-10-17-gu-runtime-bootstrap.md)。这不是完整登录验收记录。
 
 2026-10-17 Auth Hono 迁移核验：PR #67 合并为 `ad8352202ed406357afd0f3c140a1c84b6e67cf9`，
@@ -21,8 +22,8 @@ main 发布 run `39021027068` 的 13 个 job 全部成功。四个 Pages canonic
 Worker `codepi-gu`（`pages-gu` → `worker-gu`），staging 承载从 Pages preview 环境迁移为
 named environment Worker `codepi-gu-staging`（`worker-gu-staging`，保留未启用、不接发布入口）。
 本注记登记的是仓库配置侧的载体决策与治理形态；Worker 的 provider 标识、custom domain
-切换结果与线上核验证据见 [GU Static Assets 迁移记录](tasks/2026-10-17-gu-static-assets.md)，
-在切换完成前 `gu.codepi.app` 仍由 Pages 项目 `codepi-gu` 服务。
+切换结果与线上核验证据见 [GU Static Assets 迁移记录](tasks/2026-10-17-gu-static-assets.md) 及
+[配置重建续作](tasks/2026-10-17-gu-runtime-bootstrap.md)。正式域名已切换，旧 Pages 单独登记保留。
 
 2026-10-17 GU Hono 迁移核验：PR #59 合并为 `ffe762e`，main 发布 run `38991512923`
 成功；四个 Pages canonical deployment 均为该干净 SHA，Auth / Health API 当前版本已核对。
@@ -60,10 +61,11 @@ secret 值、个人数据或 OAuth refresh token。
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
 | pages-www | production | pages | codepi-www | kedoupi | 首页与 Desk 摘要 | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 |
-| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户 | gu.codepi.app（custom domain 待切换）, codepi-gu.workers.dev | apps/gu/wrangler.toml | managed | 2026-10-17 |
+| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、pages-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
+| pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（正式域名已移除，staging 待决） | private-user-data | 保留的 staging 配置；无生产自定义域名 | codepi-gu.pages.dev, gu-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
 | pages-gzh | production | pages | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户 | gzh.codepi.app | apps/gzh/wrangler.toml | managed | 2026-10-17 |
 | pages-health | production | pages | codepi-health | kedoupi | Health 前端 | private-health-data | 终端用户 | health.codepi.app | apps/oura/apps/web/wrangler.toml | managed | 2026-10-17 |
-| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
+| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-17 |
 | worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | pages-health, MCP 客户端 | health.codepi.app/api/*, /mcp, /oauth*, /.well-known* | apps/oura/workers/api/wrangler.toml | managed | 2026-10-17 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-16 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | pages-www | - | apps/web/wrangler.toml | managed | 2026-10-16 |

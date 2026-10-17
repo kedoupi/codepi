@@ -1,6 +1,6 @@
 # GU 部署载体迁移：Pages → Workers Static Assets
 
-- 状态：PR #69 已合并为 `33207cd`，新 Worker 已部署；旧人工 secrets 方案被下述续作替代，域名尚未切换。
+- 状态：PR #69 已合并为 `33207cd`，续作 PR #70 合并为 `953f4ad` 后完成配置重建、自动发布和正式域名切换；完整登录后的流程尚未验收。
 - 2026-10-17 用户确认按新方案重建配置，无需保留旧测试状态；继续工作见 [运行配置重建](2026-10-17-gu-runtime-bootstrap.md)。本文切换方案第 2/3 步及简单 DNS 回退描述为旧方案，不再作为操作指引。
 - 目标与验收：把 GU 从 Pages 项目 `codepi-gu`（`vite build` + esbuild 产出 `dist/_worker.js` 的 Pages advanced mode）迁移为 Workers Static Assets 架构的 Worker：`main` 指向 `worker/index.ts`，`dist/` 作为静态资产目录，`assets.run_worker_first = true` 保证所有请求先经 Hono 鉴权链（资产不绕过会话门）。路由表、405/404/403/401/302 语义、安全响应头、SSO/PKCE 行为、`npm test`、`npm run typecheck`、`npm run build` 不改语义继续通过；发布链（workflow、证据、smoke、治理文档）同步从 `wrangler pages deploy` 切到 `wrangler deploy`。
 - 不在范围内：业务路由与数据口径、SSO 协议、D1 schema、前端 UI、staging 去留决策（staging 资源保留，迁移后 staging runtime 的承载形式单独记录）、域名切换与 secret 写入的执行（本次 PR 只改代码与发布链；生产切换在合并发布后按本文「切换方案」执行）。
@@ -84,5 +84,6 @@
 
 ## 继续工作
 
-按 [运行配置重建](2026-10-17-gu-runtime-bootstrap.md) 修正前置条件并继续验证与切换；
-不再要求用户手动恢复六个旧值或配置 GitHub 的两个迁移变量。
+[运行配置重建](2026-10-17-gu-runtime-bootstrap.md) 已解除旧前置条件，完成自动发布与切换；
+不再要求用户手动恢复六个旧值或配置 GitHub 的两个迁移变量。后续处理真实登录/摘要验收、
+按新方案接入上传/日历，再按既定顺序推进 GZH 部署载体迁移。
