@@ -1,8 +1,8 @@
 # Cloudflare 资源登记表
 
-2026-10-17 首页/Desk 迁移实施中：仓库配置改为 `codepi-www` Worker + Static Assets；
-正式 apex/www 域名在切换前仍由旧 Pages 服务。新增 Worker 行表示配置归属，不代表
-当前线上已就绪。版本、凭证和域名切换证据见 [首页迁移记录](tasks/2026-10-17-web-static-assets.md)。
+2026-10-17 首页/Desk 切换完成：`codepi.app` 与 `www.codepi.app` 已由 `codepi-www`
+Worker（Static Assets）服务，旧 Pages 正式域名绑定已移除。版本、凭证和域名切换证据见
+[首页迁移记录](tasks/2026-10-17-web-static-assets.md)。
 
 2026-10-17 GZH 切换核验：PR #72 合并为 `da06d1d`，main 发布 run `39034618586`
 第二次执行成功，GZH Worker version 为 `8c6d3232-edf2-4252-b044-b2c20815ecb3`。
@@ -72,8 +72,8 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
-| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（迁移实施中） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app（待切换） | apps/web/wrangler.toml | managed | 2026-10-17 配置登记，待线上验收 |
-| pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（切换前仍服务生产域名） | private-user-data(desk) | 切换前的生产流量、保留的 staging 配置 | codepi-www.pages.dev, codepi.app, www.codepi.app, staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
+| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-17 已切换并核验 |
+| pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（已解除生产域名，项目保留待退役） | private-user-data(desk) | 保留的 staging 配置 | codepi-www.pages.dev, staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 生产域名已移除 |
 | worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、worker-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（正式域名已移除，staging 待决） | private-user-data | 保留的 staging 配置；无生产自定义域名 | codepi-gu.pages.dev, gu-staging.codepi.app | 历史 Pages 配置 | legacy-pending-retirement | 2026-10-17 |
 | worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-17 |
