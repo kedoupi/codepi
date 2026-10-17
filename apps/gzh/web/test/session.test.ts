@@ -68,6 +68,8 @@ describe("gzh browser sessions (jsdom)", () => {
     else await fireEvent(window, new Event("pageshow"));
 
     await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
+    // 私人视图必须真正从 DOM 移除，不能只跳转。
+    await waitFor(() => expect(screen.queryByText("私密待审稿件")).toBeNull());
   });
 
   it("clears private data on the 30s session check interval", async () => {
@@ -84,6 +86,7 @@ describe("gzh browser sessions (jsdom)", () => {
     fetchMock.mockResolvedValue(new Response("Unauthorized", { status: 401 }));
     await vi.advanceTimersByTimeAsync(30_000);
     await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
+    await waitFor(() => expect(screen.queryByText("私密待审稿件")).toBeNull());
     vi.useRealTimers();
   });
 
@@ -100,6 +103,7 @@ describe("gzh browser sessions (jsdom)", () => {
     fetchMock.mockResolvedValue(Response.json({ authenticated: false }));
     await fireEvent.focus(window);
     await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login?next=%2F"));
+    await waitFor(() => expect(screen.queryByText("私密待审稿件")).toBeNull());
   });
 
   it("preserves private data on a 503 and checks again on focus", async () => {
@@ -167,6 +171,7 @@ describe("gzh browser sessions (jsdom)", () => {
     await fireEvent.click(screen.getByRole("button", { name: "退出" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST", credentials: "same-origin" })));
     await waitFor(() => expect(loc.replace).toHaveBeenCalledWith("/login"));
+    await waitFor(() => expect(screen.queryByText("私密待审稿件")).toBeNull());
   });
 
   it("offers a new SSO login when the local session is expired", async () => {

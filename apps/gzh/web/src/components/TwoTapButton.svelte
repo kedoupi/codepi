@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { showToast, errText } from "../lib/toast";
-
-  let {
+    let {
     label,
     confirmLabel,
     onConfirm,
@@ -29,12 +27,10 @@
     window.clearTimeout(timer);
     armed = false;
     busy = true;
-    try {
-      await onConfirm();
-    } catch (error) {
-      busy = false;
-      showToast(errText(error, "操作失败"), "err");
-    }
+    // onConfirm 自行处理错误（toast）并可靠返回；成功后通常整页跳转/重载。
+    // 无论结果如何都复位 busy，避免失败后按钮永久 disabled 无法重试。
+    await onConfirm();
+    busy = false;
   }
 </script>
 

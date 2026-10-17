@@ -29,9 +29,13 @@ describe("gzh Svelte migration regressions", () => {
       if (input === "/api/health") return Response.json({ sso_enabled: true });
       return Response.json({});
     });
-    mountApp();
+    // 直接走真实入口 main.ts：先 replaceChildren 再 mount，不应残留 .boot 占位。
+    const host = document.createElement("div");
+    host.id = "app";
+    host.innerHTML = '<p class="boot">正在读卷发稿台…</p>';
+    document.body.append(host);
+    await import("../src/main");
     await screen.findByRole("link", { name: "统一登录" });
-    // main.ts 先 replaceChildren 再 mount，不应残留旧占位。
     expect(document.querySelector(".boot")).toBeNull();
   });
 
@@ -70,6 +74,71 @@ describe("gzh Svelte migration regressions", () => {
     expect(screen.getByText("待审队列")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "前一天" }));
     expect(loc.search).toMatch(/^\?date=\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("re-lock then unlock: review dock gates 过/要改/拒 until read", async () => {
+    mockLocation({ pathname: "/p/private-draft/" });
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input === "/api/posts/private-draft") {
+        return Response.json({
+          ok: true,
+          brand: "珂抖屁",
+          post: {
+            slug: "private-draft", title: "私密待审稿件", slot: "早", publish_date: "2026-10-15",
+            status: "待审", preview_path: null, note: null, digest: null, last_review: null,
+            is_demo: false, can_withdraw: false,
+          },
+        });
+      }
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("请先通读全文");
+    // 空预览 → read-gate 直接解锁（unlockReviewDock）。
+    await waitFor(() => {
+      const pass = screen.getByRole("button", { name: "过" }) as HTMLButtonElement;
+      expect(pass.disabled).toBe(false);
+    });
+    void fetchMock;
+  });
+
+  it("rejected review failure re-enables the 拒 button for retry", async () => {
+    mockLocation({ pathname: "/p/private-draft/" });
+    let attempts = 0;
+    const fetchMock = stubFetch(async (input) => {
+      if (input === "/api/me") return accountResponse();
+      if (input === "/api/posts/private-draft") {
+        return Response.json({
+          ok: true,
+          brand: "珂抖屁",
+          post: {
+            slug: "private-draft", title: "私密待审稿件", slot: "早", publish_date: "2026-10-15",
+            status: "待审", preview_path: null, note: null, digest: null, last_review: null,
+            is_demo: false, can_withdraw: false,
+          },
+        });
+      }
+      if (input === "/api/review") {
+        attempts += 1;
+        return Response.json({ error: "暂不可用" }, { status: 503 });
+      }
+      return Response.json({});
+    });
+    mountApp();
+    await screen.findByText("请先通读全文");
+    // 空预览解锁 → 先点「拒」armed，再点确认；第一次 503 后按钮应可再次点击。
+    await waitFor(() => expect((screen.getByRole("button", { name: "拒" }) as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(screen.getByRole("button", { name: "拒" }));
+    const confirm = await screen.findByRole("button", { name: "确认拒绝？再点一次" });
+    await fireEvent.click(confirm);
+    await waitFor(() => expect(attempts).toBe(1));
+    // 失败后按钮复位，可再次触发（仍是 armed→confirm 或直接可用，取决于组件状态）。
+    await waitFor(() => {
+      const reject = screen.getByRole("button", { name: "拒" }) as HTMLButtonElement;
+      expect(reject.disabled).toBe(false);
+    });
+    void fetchMock;
   });
 
   it("two-tap confirm arms then confirms withdraw on preview dock", async () => {

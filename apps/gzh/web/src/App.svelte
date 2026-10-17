@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { me } from "./api";
-  import { onSessionExpired } from "./session";
+  import { onSessionExpired, SessionExpiredError } from "./session";
   import { previewSlug } from "./lib/router.svelte";
   import { appState, syncRoute } from "./lib/state.svelte";
   import { drainFlash, showToast } from "./lib/toast";
@@ -10,6 +10,7 @@
   import Preview from "./components/Preview.svelte";
 
   let checkingSession = false;
+  let bootError = $state("");
 
   // 会话过期（401 / authenticated:false）：清空私有视图并回登录页，等价旧 clearPrivateView。
   onSessionExpired(() => {
@@ -36,17 +37,23 @@
 
   async function bootstrap() {
     if (appState.route === "login") return;
-    const account = await me();
-    if (!account) {
-      const next =
-        appState.route === "preview"
-          ? `/login?next=${encodeURIComponent(location.pathname)}`
-          : "/login";
-      location.replace(next);
-      return;
+    bootError = "";
+    try {
+      const account = await me();
+      if (!account) {
+        const next =
+          appState.route === "preview"
+            ? `/login?next=${encodeURIComponent(location.pathname)}`
+            : "/login";
+        location.replace(next);
+        return;
+      }
+      appState.account = account;
+      appState.booted = true;
+    } catch (error) {
+      if (error instanceof SessionExpiredError) return;
+      bootError = error instanceof Error ? error.message : "服务暂时不可用";
     }
-    appState.account = account;
-    appState.booted = true;
   }
 
   onMount(() => {
@@ -74,6 +81,16 @@
   {:else}
     <Desk account={appState.account} />
   {/if}
+{:else if bootError}
+  <header class="masthead wb-head">
+    <div class="brand-block">
+      <p class="brand-kicker">珂抖屁</p>
+      <h1 class="brand">珂抖屁公众号</h1>
+      <p class="sub">稿件、预览与审核 · 过稿后人工进箱</p>
+    </div>
+  </header>
+  <p class="error">{bootError}</p>
+  <button type="button" id="retry" onclick={() => location.reload()}>重新连接</button>
 {:else}
   <div class="skel-block" aria-hidden="true">
     <div class="skel skel-title"></div>

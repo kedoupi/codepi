@@ -8,6 +8,7 @@
   const nextParam = new URLSearchParams(location.search).get("next") || "/";
 
   let sso = $state<boolean | null>(null);
+  let loadError = $state("");
   let email = $state("");
   let code = $state("");
   let msg = $state("");
@@ -75,14 +76,18 @@
   }
 
   onMount(async () => {
-    if (!retrying) {
-      const account = await me();
-      if (account) {
-        location.replace("/");
-        return;
+    try {
+      if (!retrying) {
+        const account = await me();
+        if (account) {
+          location.replace("/");
+          return;
+        }
       }
+      sso = await ssoEnabled();
+    } catch (error) {
+      loadError = errText(error, "服务暂时不可用");
     }
-    sso = await ssoEnabled();
   });
 </script>
 
@@ -98,7 +103,10 @@
   {/if}
 </section>
 <section class="sheet login-pad login-card">
-  {#if sso === null}
+  {#if loadError}
+    <p class="error" role="alert">{loadError}</p>
+    <button type="button" class="btn-primary-block" onclick={() => location.reload()}>重新连接</button>
+  {:else if sso === null}
     <p class="hint msg-line" role="status">加载中…</p>
   {:else if sso}
     {#if retrying}

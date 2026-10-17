@@ -261,9 +261,11 @@
   }
 
   onMount(() => {
+    const app = document.getElementById("app");
+    app?.classList.add("is-review");
     if (!slug) {
       error = "预览地址无效";
-      return;
+      return () => app?.classList.remove("is-review");
     }
     const cleanups: Array<() => void> = [];
     const version = sessionVersion();
@@ -291,6 +293,7 @@
     })();
     return () => {
       for (const cleanup of cleanups.splice(0)) cleanup();
+      app?.classList.remove("is-review");
     };
   });
 </script>
