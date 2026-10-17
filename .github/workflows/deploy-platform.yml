@@ -2,7 +2,7 @@ name: Deploy platform (auth / web / gu / gzh / health)
 
 # 全部 Cloudflare 服务（Auth、Web、GU、GZH、Health）的唯一发布入口。
 # 规则见 docs/development/cloudflare-governance.md 第 6 节：
-# - DAG：governance gate → auth build/deploy/smoke → web Pages、gu/gzh Workers
+# - DAG：governance gate → auth build/deploy/smoke → web/gu/gzh Workers
 #   build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke
 #   → health Pages build/deploy/smoke。下游在 predecessor success 或 skipped
 #   时继续；failure 必须停止。
@@ -204,7 +204,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - run: npm test
       - run: npm run typecheck:desk
-      - run: npm run build:pages
+      - run: npm run build
+      - run: npm run test:assets
 
   gu-build:
     needs: [affected]
@@ -391,7 +392,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: pnpm install --frozen-lockfile
       - name: build
-        run: npm run build:pages
+        run: npm run build
       - name: migrate
         if: github.ref == 'refs/heads/main'
         run: pnpm exec wrangler d1 migrations apply codepi-desk --remote
@@ -401,11 +402,23 @@ jobs:
         id: deploy
         if: github.ref == 'refs/heads/main'
         run: |
-          out=$(pnpm exec wrangler pages deploy dist --project-name=codepi-www --branch=main --commit-hash "$GITHUB_SHA" --commit-dirty=false)
+          out=$(pnpm exec wrangler deploy)
           echo "$out"
-          url=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs pages-url)
-          dep=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-pages --project codepi-www --url "$url")
-          echo "deployment=$dep" >> "$GITHUB_OUTPUT"
+          version=$(printf '%s' "$out" | node ../../scripts/cloudflare/deployment-evidence.mjs worker-version)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: verify runtime configuration
+        id: runtime
+        if: github.ref == 'refs/heads/main'
+        run: |
+          origin=$(node ../../scripts/cloudflare/deployment-evidence.mjs resolve-worker \
+            --script codepi-www --required-secrets AUTH_CLIENT_SECRET,HEALTH_SUMMARY_TOKEN,GU_SUMMARY_TOKEN,WECHAT_SUMMARY_TOKEN)
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
+      - name: smoke new Worker (pre-cutover)
+        if: github.ref == 'refs/heads/main'
+        env:
+          WORKER_ORIGIN: ${{ steps.runtime.outputs.origin }}
+        run: |
+          node ../../scripts/cloudflare/check-pages.mjs web production --origin "${WORKER_ORIGIN:?Worker origin is required}"
       - name: smoke
         if: github.ref == 'refs/heads/main'
         run: node ../../scripts/cloudflare/check-pages.mjs web production
@@ -415,7 +428,7 @@ jobs:
           node ../../scripts/cloudflare/deployment-evidence.mjs append
           --file "$RUNNER_TEMP/deployment-evidence.jsonl"
           --service www --target production --sha "$GITHUB_SHA"
-          --provider pages --identifier "${{ steps.deploy.outputs.deployment }}" --smoke pass
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
       - name: upload deployment evidence
         if: always()
         uses: actions/upload-artifact@v4

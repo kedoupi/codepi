@@ -1,7 +1,13 @@
 name = "codepi-www"
-pages_build_output_dir = "./dist"
+main = "worker/index.ts"
 compatibility_date = "2026-09-16"
 compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/desk", "/desk/*"]
+not_found_handling = "404-page"
 
 [[services]]
 binding = "AUTH"
@@ -11,6 +17,7 @@ service = "codepi-auth"
 binding = "DB"
 database_name = "codepi-desk"
 database_id = "adfb0f6e-b776-471b-9f25-71982b53cbc4"
+migrations_dir = "migrations"
 
 [vars]
 SSO_ENABLED = "1"
@@ -18,23 +25,21 @@ AUTH_CLIENT_ID = "desk"
 AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
 
-# Pages preview 环境 = staging runtime（治理规范第 4 节）：仅由 staging branch
-# 通过 Actions 上传，绑定 staging D1 与 codepi-auth-staging。
-[env.preview]
-compatibility_date = "2026-09-16"
-compatibility_flags = ["nodejs_compat"]
+# staging named environment 保留未启用，继承顶层 assets，不接发布入口。
+[env.staging]
+name = "codepi-www-staging"
 
-[[env.preview.services]]
+[[env.staging.services]]
 binding = "AUTH"
 service = "codepi-auth-staging"
 
-[[env.preview.d1_databases]]
+[[env.staging.d1_databases]]
 binding = "DB"
 database_name = "codepi-desk-staging"
 database_id = "cbbe0037-4132-4ec2-bf6b-2c1ff4363977"
 migrations_dir = "migrations"
 
-[env.preview.vars]
+[env.staging.vars]
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "desk"
 AUTH_ORIGIN = "https://auth-staging.codepi.app"

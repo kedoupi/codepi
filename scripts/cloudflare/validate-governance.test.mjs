@@ -22,7 +22,8 @@ const U = {
 };
 
 const REGISTRY_ROWS = [
-  ['pages-www', 'production', 'pages', 'codepi-www', 'codepi.app, www.codepi.app'],
+  ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
+  ['worker-www-staging', 'staging', 'worker', 'codepi-www-staging', 'staging.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
   ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
   ['pages-health', 'production', 'pages', 'codepi-health', 'health.codepi.app'],
@@ -218,7 +219,7 @@ function authConfig() {
 function legalFiles(overrides = {}) {
   return {
     'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
-    'apps/web/wrangler.toml': pagesConfig({ name: 'codepi-www', clientId: 'desk', prodD1Name: 'codepi-desk', prodD1Id: U.www, stgD1Name: 'codepi-desk-staging', stgD1Id: U.wwwStg }),
+    'apps/web/wrangler.toml': webWorkerConfig(),
     'apps/gu/wrangler.toml': privateWorkerConfig(),
     'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
@@ -285,6 +286,24 @@ AUTH_ORIGIN = "https://auth-staging.codepi.app"
 AUTH_CLIENT_ID = "${app}"
 `;
 }
+
+function webWorkerConfig() {
+  return privateWorkerConfig({ app: 'www' })
+    .replace('run_worker_first = true', 'run_worker_first = ["/api/*", "/desk", "/desk/*"]\nnot_found_handling = "404-page"')
+    .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk');
+}
+
+test('www preserves API-first routing and forbids staging asset overrides', () => {
+  for (const config of [
+    webWorkerConfig().replace('run_worker_first = ["/api/*", "/desk", "/desk/*"]', 'run_worker_first = false'),
+    webWorkerConfig().replace('run_worker_first = ["/api/*", "/desk", "/desk/*"]', 'run_worker_first = ["/api/auth/*"]'),
+    webWorkerConfig().replace('run_worker_first = ["/api/*", "/desk", "/desk/*"]', 'run_worker_first = ["/api/*"]'),
+    webWorkerConfig() + '\n[env.staging.assets]\nrun_worker_first = false\n',
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'apps/web/wrangler.toml': config } }))
+      .some(v => v.startsWith('www:') && (v.includes('run_worker_first') || v.includes('assets overrides'))));
+  }
+});
 
 // ---- 合法 topology ----
 

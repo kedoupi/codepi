@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
 export async function checkPages(app, target, request = fetch, { origin } = {}) {
-  assert.ok(['web', 'gu', 'gzh'].includes(app), 'Unknown Pages app');
+  assert.ok(['web', 'gu', 'gzh'].includes(app), 'Unknown app');
   assert.ok(['production', 'staging'].includes(target), 'Unknown environment');
   const staging = target === 'staging';
   const host = app === 'web' ? (staging ? 'staging' : '') : `${app}${staging ? '-staging' : ''}`;
@@ -30,6 +30,14 @@ export async function checkPages(app, target, request = fetch, { origin } = {}) 
   assert.ok(location.searchParams.get('redirect_uri') === `${origin}/api/auth/callback`, 'Incorrect callback');
   assert.ok(location.searchParams.get('code_challenge_method') === 'S256'
     && location.searchParams.get('code_challenge') && location.searchParams.get('state'), 'Missing PKCE transaction');
+  if (app === 'web') {
+    const desk = await get('/desk/');
+    await desk.body?.cancel();
+    assert.equal(desk.status, 200, 'Desk must serve its public page shell');
+    assert.match(desk.headers.get('content-type') || '', /^text\/html\b/);
+    assert.equal(desk.headers.get('cache-control'), 'no-store', 'Desk shell must not be cached');
+    assert.match(desk.headers.get('x-robots-tag') || '', /\bnoindex\b/, 'Desk must stay out of search indexes');
+  }
   if (app === 'gzh') {
     for (const path of ['/p/kdp-0917-zao/', '/previews/kdp-0917-zao/index.html']) {
       const preview = await get(path);

@@ -124,7 +124,7 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
 });
 
-test('Pages deployment smoke includes private endpoints and SSO, not just homepage status', async () => {
+test('deployment smoke includes private endpoints and SSO, not just homepage status', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
   for (const app of ['web', 'gu', 'gzh']) for (const target of ['production']) {
     const name = app === 'web' ? 'www' : app;
@@ -133,7 +133,7 @@ test('Pages deployment smoke includes private endpoints and SSO, not just homepa
   }
 });
 
-for (const app of ['gu', 'gzh']) {
+for (const app of ['www', 'gu', 'gzh']) {
   test(`${app} Workers release checks runtime metadata before probing the new Worker`, async () => {
     const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
     const job = workflow.split(`\n  ${app}-deploy-production:`)[1]?.split(/\n  [a-z][a-z-]+:/)[0];
@@ -151,13 +151,16 @@ for (const app of ['gu', 'gzh']) {
     const gate = job.split('verify runtime configuration')[1]?.split('- name:')[0];
     assert.match(gate, /id: runtime/);
     assert.match(gate, /deployment-evidence\.mjs resolve-worker/);
-    assert.ok(gate.includes(`--script codepi-${app} --required-secrets AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN`));
+    const required = app === 'www'
+      ? 'AUTH_CLIENT_SECRET,HEALTH_SUMMARY_TOKEN,GU_SUMMARY_TOKEN,WECHAT_SUMMARY_TOKEN'
+      : 'AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN';
+    assert.ok(gate.includes(`--script codepi-${app} --required-secrets ${required}`));
     assert.match(gate, /echo "origin=\$origin" >> "\$GITHUB_OUTPUT"/);
     assert.doesNotMatch(job, /(?:GU|GZH)_SECRETS_BOOTSTRAPPED|WORKERS_DEV_SUBDOMAIN|SESSION_SECRET|OTP_PEPPER/,
       'release must not require manual attestations or unused legacy OTP secrets');
     const preCutover = job.split('smoke new Worker (pre-cutover)')[1]?.split('- name:')[0];
     assert.match(preCutover, /WORKER_ORIGIN: \$\{\{ steps\.runtime\.outputs\.origin \}\}/,
       'smoke must use the origin verified by the Cloudflare API');
-    assert.ok(preCutover.includes(`check-pages.mjs ${app} production --origin`), 'pre-cutover smoke must target the new Worker origin, not the domain still on Pages');
+    assert.ok(preCutover.includes(`check-pages.mjs ${app === 'www' ? 'web' : app} production --origin`), 'pre-cutover smoke must target the new Worker origin, not the domain still on Pages');
   });
 }

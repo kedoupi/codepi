@@ -1,6 +1,4 @@
 # Canonical privacy URL is /privacy/
-https://www.codepi.app/desk https://codepi.app/desk/ 302
-https://www.codepi.app/desk/* https://codepi.app/desk/:splat 302
 /privacy-policy /privacy/ 301
 /privacy-policy/ /privacy/ 301
 
