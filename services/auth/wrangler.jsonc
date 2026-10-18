@@ -8,6 +8,7 @@
     "enabled": true,
     "head_sampling_rate": 1,
     "redact_query_string": true,
+    "issues": { "enabled": true },
     "logs": { "enabled": true, "invocation_logs": true, "persist": true }
   },
   "workers_dev": false,
