@@ -1,13 +1,16 @@
 # Production reliability follow-up
 
-- Status: PR #93 merged as `4d931fa`; normal release policy is now local
-  publishing from merged main. That exact main source is deployed and live API
-  checks passed. Production sync is `blocked/reconnect_required`, awaiting
-  owner Oura reconnection. Actions backup artifact was verified; scheduled
+- Status: PR #95 merged as `aabc810`; normal release policy is local publishing
+  from merged main. That exact main source is deployed and live API checks
+  passed. New provider callbacks are rejected with `oura_account_mismatch`;
+  the owner confirms this is the same Oura account. Identity comparison
+  diagnostics are being added; real sync recovery is unverified.
+  Actions backup artifact was verified; scheduled
   monitoring/backup availability and off-machine key escrow remain unresolved.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
-- Branch: `codex/local-release-evidence` (documentation follow-up); implementation
-  branch `codex/health-sync-recovery` merged through PR #93.
+- Branch: `codex/oura-identity-diagnostics`; current phase baseline
+  `aabc810d042fbe071f6284fafe0379555fe39d1e`. Previous Health recovery merged
+  through PR #93, callback diagnostics through PR #95.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
 - Health recovery baseline: `58f7848740db3b6f0fb3935201500d46c97744d7`.
 - Health recovery implementation: `2414d416cc5ca29fba6b71cf6ee2bac9a607a78c`.
@@ -354,3 +357,77 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
   This follow-up changes documentation only and does not require another
   application deployment. No successful hosted CI run or real Oura recovery
   is claimed. The normal release no longer requires later Actions deployment.
+
+### Oura callback diagnostics release
+
+- Owner reported that reconnecting still did not restore sync. Earlier read-only
+  investigation found callback requests but no new stored grant; existing logs
+  could not distinguish the failure branch. Root cause remains unconfirmed.
+- PR #95 merged as `aabc810d042fbe071f6284fafe0379555fe39d1e`. Its tree equals
+  previously validated `db3b5c8`; prior Health test/typecheck/build/assets/browser
+  evidence is reused. Frozen install, governance, 20-file migration baseline,
+  93 platform/agent regression tests and script/JSON lint passed in this phase.
+- This Codex session used the clean detached main checkout at
+  `~/.worktrees/kdp.cool/codex/platform-reliability`, holding the common-directory
+  release lock throughout preflight, deployment and smoke. Remote main equality
+  was checked before both preflight and deployment. Account identity is Kedoupi;
+  Auth health passed and Health D1/Auth bindings and secret names were verified.
+- At `2026-10-18T05:54:50Z`, Health API version
+  `4ae86a3b-e7b7-4ec6-8091-7c24f1e922f1` replaced
+  `f3eb6ecb-72f3-4415-862d-350fc11eb819` at 100% traffic. No migrations pending.
+  All 16 formal-domain contract checks passed with build `aabc810d042f`.
+  Control-plane readback confirmed the active version, build, two-minute Cron,
+  persistent logs, query-string redaction and Issues.
+- Release evidence: `/tmp/codepi-oura-callback-release.json` and
+  `/tmp/codepi-deployment-evidence.jsonl`; regression output:
+  `/tmp/codepi-callback-release-checks.log`. These contain no credentials or
+  private health records.
+- The post-release telemetry query returned no `oura_callback` events yet.
+  Next step requires a new owner-initiated Oura reconnect, then reading only
+  safe callback result/code and sync status. Release success does not establish
+  successful authorization or restored sync. No other service was redeployed.
+
+### Reconnect result after diagnostics release
+
+- At `2026-10-18T06:52:27Z` and `2026-10-18T06:52:51Z`, the active diagnostic
+  version recorded `oura_callback` with result `oura_account_mismatch`, matching
+  the owner's screenshot. The callback reached the provider-ID comparison,
+  after successful code exchange and personal-info retrieval, before writes.
+- Read-only aggregate checks found one existing user, whose provider ID equals
+  its local ID and the provider ID in the previously cached personal-info
+  record. The stored profile email also matches the stored user email.
+  No raw identifiers, emails, credentials or health values were retrieved.
+- These facts establish an incoming/stored provider-ID mismatch, but do not
+  establish whether the owner selected a different Oura account or the provider
+  changed identity representation. Do not bypass the mismatch guard or replace
+  the existing binding based on this evidence. Next input: owner confirmation
+  that this is the original Oura account, or explicit intent to change it.
+
+### Same-account mismatch investigation
+
+- Owner confirms there is only one Oura account and both authorizations used
+  that same account. This does not establish why the provider IDs differ.
+- Official Oura V2 documentation describes the personal-info ID as a string;
+  no retrieved provider documentation establishes that case folding, removing
+  separators or matching emails authorizes replacing a stored provider ID.
+- Added diagnostic categories to the existing mismatch log: whether IDs differ
+  only by whitespace, case or separators, whether provider emails agree, and
+  the two identifier lengths. No identifiers, emails, hashes, personal-info
+  payloads, OAuth codes or tokens are logged.
+- Exact provider-ID matching, SSO and session-bound one-time state checks remain
+  required. Malformed upstream IDs now produce `invalid_upstream_response`
+  instead of being misreported as an account mismatch. Synthetic tests cover
+  formatting categories, missing emails, different IDs with matching emails,
+  diagnostic privacy and invalid identity payloads.
+- New comparison data requires another owner-initiated callback after release;
+  the tokens from earlier rejected callbacks were not retained and their
+  one-time authorization codes cannot be reused. No binding repair, provider-ID
+  rewrite or restored sync is claimed.
+- Validation: all nine selected local checks passed, including Health unit and
+  integration tests, typecheck, build, asset checks, normal and SSO browser
+  journeys, Cloudflare governance and agent checks. The final SSO test file was
+  separately rerun after adding the binding-protection regression: ten tests
+  passed. Nine targeted identity tests passed. Self-review confirmed logs contain
+  only allowlisted categories/lengths and exact-match authorization is unchanged.
+  Logs: `/tmp/codepi-oura-identity-checks.log` and
+  `/tmp/codepi-oura-identity-sso.log`. No independent review is claimed.

@@ -18,6 +18,7 @@ import {
 } from "../lib/config";
 import {
   buildAuthorizeUrl,
+  compareOuraIdentity,
   exchangeCodeForTokens,
   fetchPersonalInfo,
 } from "../lib/oura";
@@ -76,10 +77,12 @@ function redirectToApp(
   return new Response(null, { status: 302, headers });
 }
 
-function logOuraCallback(result: string, code?: string) {
+function logOuraCallback(result: string, code?: string, identity?: ReturnType<typeof compareOuraIdentity>) {
   // Operational signal only: never log OAuth query parameters, provider codes,
   // state values, cookies, token material or user identifiers.
-  console.log(JSON.stringify({ event: "oura_callback", result, ...(code ? { code } : {}) }));
+  console.log(JSON.stringify({
+    event: "oura_callback", result, ...(code ? { code } : {}), ...(identity ? { identity } : {}),
+  }));
 }
 
 /** GET /api/auth/oura/start — always 302 to a real Oura authorize URL in DEV/local. */
@@ -226,8 +229,8 @@ export async function handleOuraCallback(
     const me = await fetchPersonalInfo(tokens.access_token);
     const userId = auth ? auth.session.user_id : me.id;
     if (auth) {
-      const existing = await env.DB.prepare("SELECT oura_user_id FROM users WHERE id=?")
-        .bind(userId).first<{ oura_user_id: string | null }>();
+      const existing = await env.DB.prepare("SELECT oura_user_id, email FROM users WHERE id=?")
+        .bind(userId).first<{ oura_user_id: string | null; email: string | null }>();
       if (!existing) {
         logOuraCallback("owner_missing");
         return redirectToApp(request, env, { auth_error: "unavailable" });
@@ -236,7 +239,8 @@ export async function handleOuraCallback(
       // unconnected migrated rows so consent cannot silently switch accounts.
       const expectedId = existing.oura_user_id ?? personalOwner(env);
       if (me.id !== expectedId) {
-        logOuraCallback("oura_account_mismatch");
+        logOuraCallback("oura_account_mismatch", undefined,
+          compareOuraIdentity({ id: expectedId, email: existing.email }, me));
         return redirectToApp(request, env, { error: "oura_account_mismatch" });
       }
     }
