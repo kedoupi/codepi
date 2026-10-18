@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { resolveEncryptionKey, oauthConfigured } from "./config";
+import { DecryptError } from "./crypto.ts";
 import { ApiError } from "./errors.ts";
 import { refreshAccessToken } from "./oura";
 import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens";
@@ -10,7 +11,11 @@ export async function ouraAccessToken(
 ): Promise<string> {
   const key = resolveEncryptionKey(request, env);
   if (!key || !oauthConfigured(env)) throw new ApiError("oura_not_configured", 503);
-  const record = await loadEncryptedTokenRecord(env, userId, key);
+  const record = await loadEncryptedTokenRecord(env, userId, key).catch((error: unknown) => {
+    // Retrying cannot repair an unreadable grant; fresh consent replaces it.
+    if (error instanceof DecryptError) throw new ApiError("reconnect_required", 401);
+    throw error;
+  });
   if (!record) throw new ApiError("reconnect_required", 401);
   let stored = record.tokens;
   if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
