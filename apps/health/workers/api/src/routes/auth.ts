@@ -76,6 +76,12 @@ function redirectToApp(
   return new Response(null, { status: 302, headers });
 }
 
+function logOuraCallback(result: string, code?: string) {
+  // Operational signal only: never log OAuth query parameters, provider codes,
+  // state values, cookies, token material or user identifiers.
+  console.log(JSON.stringify({ event: "oura_callback", result, ...(code ? { code } : {}) }));
+}
+
 /** GET /api/auth/oura/start — always 302 to a real Oura authorize URL in DEV/local. */
 export async function handleOuraStart(
   request: Request,
@@ -156,9 +162,11 @@ export async function handleOuraCallback(
   const err = url.searchParams.get("error");
 
   if (err) {
+    logOuraCallback("provider_error", err);
     return redirectToApp(request, env, { error: err });
   }
   if (!code || !state) {
+    logOuraCallback("missing_code_or_state");
     return redirectToApp(request, env, { error: "missing_code_or_state" });
   }
 
@@ -169,6 +177,7 @@ export async function handleOuraCallback(
 
   const cookieState = await readStateCookie(request, secret);
   if (cookieState !== state) {
+    logOuraCallback("invalid_state_cookie");
     return redirectToApp(request, env, { error: "invalid_state" });
   }
   let dbOk = false;
@@ -182,15 +191,18 @@ export async function handleOuraCallback(
     }
   } catch (error) {
     if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
+      logOuraCallback("storage_write_quota_exceeded");
       return redirectToApp(request, env, { error: "storage_write_quota_exceeded", retry_at: storageQuotaResetAt() });
     }
     dbOk = false;
   }
   if (!dbOk) {
+    logOuraCallback("invalid_state_db");
     return redirectToApp(request, env, { error: "invalid_state" });
   }
 
   if (!oauthConfigured(env)) {
+    logOuraCallback("oauth_not_configured");
     return redirectToApp(request, env, {
       error: "oauth_not_configured",
       hint: allowDevLogin(request, env)
@@ -216,11 +228,15 @@ export async function handleOuraCallback(
     if (auth) {
       const existing = await env.DB.prepare("SELECT oura_user_id FROM users WHERE id=?")
         .bind(userId).first<{ oura_user_id: string | null }>();
-      if (!existing) return redirectToApp(request, env, { auth_error: "unavailable" });
+      if (!existing) {
+        logOuraCallback("owner_missing");
+        return redirectToApp(request, env, { auth_error: "unavailable" });
+      }
       // Legacy owners used their provider id as their primary key. Also guard
       // unconnected migrated rows so consent cannot silently switch accounts.
       const expectedId = existing.oura_user_id ?? personalOwner(env);
       if (me.id !== expectedId) {
+        logOuraCallback("oura_account_mismatch");
         return redirectToApp(request, env, { error: "oura_account_mismatch" });
       }
     }
@@ -260,13 +276,17 @@ export async function handleOuraCallback(
     clearCookie(headers, request, OAUTH_STATE_COOKIE);
     if (returnTo) {
       headers.set("Location", returnTo);
+      logOuraCallback("success", "return_to");
       return new Response(null, { status: 302, headers });
     }
+    logOuraCallback("success", "home");
     return redirectToApp(request, env, { login: "ok" }, headers);
   } catch (error) {
     if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
+      logOuraCallback("storage_write_quota_exceeded");
       return redirectToApp(request, env, { error: "storage_write_quota_exceeded", retry_at: storageQuotaResetAt() });
     }
+    logOuraCallback("failed", normalizeApiError(error).code);
     return redirectToApp(request, env, {
       error: "token_exchange_failed",
     });
