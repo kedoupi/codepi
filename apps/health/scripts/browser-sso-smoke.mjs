@@ -145,6 +145,41 @@ try {
   assert.equal(new URL(await page.url()).pathname, '/');
   assert.equal(await page.title(), '健康 Health · kedoupi（codepi）');
   console.log('PASS API 401 clears private state, no overlay/console failures; SSO browser journey');
+
+  // Repair is a separate navigation journey; keep the mounted-session outage
+  // and revocation checks on their original page lifecycle.
+  await page.goto(`${origin}/__test/login`);
+  await page.waitForSelector('.today-scores');
+  await page.goto(`${origin}/settings`);
+  await page.waitForSelector('.connection-repair summary');
+  await page.click('loc=css:.connection-repair summary');
+  const repairForm = await page.evaluate(() => {
+    const form = document.querySelector('.connection-repair form');
+    return { method: form.method, action: new URL(form.action).pathname, text: form.textContent };
+  });
+  assert.equal(repairForm.method, 'post');
+  assert.equal(repairForm.action, '/api/auth/oura/start');
+  assert.match(repairForm.text, /确认是原账号并重新授权/);
+  await page.screenshot({ path: '/tmp/oura-sso-identity-repair-desktop.png' });
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.screenshot({ path: '/tmp/oura-sso-identity-repair-mobile.png' });
+  await page.cdp('Emulation.clearDeviceMetricsOverride');
+  await page.evaluate(async () => { await fetch('/__test/provider-identity', { method: 'POST' }); });
+  await page.click('loc=css:.connection-repair button[type="submit"]');
+  await page.waitForFunction(async () => {
+    const me = await (await fetch('/api/me')).json();
+    return location.pathname === '/settings' && me.ouraConnection?.ouraUserId === 'replacement-provider-id';
+  });
+  const repaired = await page.evaluate(async () => (await fetch('/api/me')).json());
+  assert.equal(repaired.userId, 'test-user');
+  assert.equal(repaired.ouraConnection.status, 'connected');
+  assert.deepEqual(await page.evaluate(async () => (await (await fetch('/api/me/daily?days=90')).json()).days), original);
+  await page.click('loc=css:button:text-is("返回看板")');
+  await page.waitForSelector('.today-scores');
+  console.log('PASS explicit owner repair submits real same-origin form and preserves local owner and history');
+
+
 } finally {
   await page.cdp('Page.removeScriptToEvaluateOnNewDocument', { identifier: instrument.identifier });
 }

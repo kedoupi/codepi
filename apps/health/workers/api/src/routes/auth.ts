@@ -35,6 +35,7 @@ import {
 } from "../lib/session";
 import {
   saveOauthState,
+  saveOwnerOuraConnection,
   takeOauthState,
   tokensFromOura,
   upsertEncryptedTokens,
@@ -85,17 +86,34 @@ function logOuraCallback(result: string, code?: string, identity?: ReturnType<ty
   }));
 }
 
-/** GET /api/auth/oura/start — always 302 to a real Oura authorize URL in DEV/local. */
+/** Start provider consent; POST additionally requires explicit owner repair consent. */
 export async function handleOuraStart(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  if (request.method !== "GET") return jsonError("method_not_allowed", 405);
+  if (request.method !== "GET" && request.method !== "POST") return jsonError("method_not_allowed", 405);
   const auth = ssoEnabled(env) ? await requireSession(request, env) : null;
   if (isResponse(auth)) return auth;
+  let repairFromProviderId: string | null = null;
+  if (request.method === "POST") {
+    if (!auth || request.headers.get("Origin") !== new URL(request.url).origin) {
+      return jsonError("forbidden", 403);
+    }
+    const form = await request.formData().catch(() => null);
+    if (form?.get("intent") !== "repair_identity") return jsonError("invalid_request", 400);
+    const owner = await env.DB.prepare("SELECT oura_user_id,email FROM users WHERE id=?")
+      .bind(auth.session.user_id).first<{ oura_user_id: string | null; email: string | null }>();
+    if (!owner?.oura_user_id || !owner.email?.trim()) {
+      return jsonError("identity_repair_unavailable", 409);
+    }
+    repairFromProviderId = owner.oura_user_id;
+  }
   // Keep Oura's registered callback and its host-only session/state cookies
   // together until the provider's callback registration is changed.
   const providerOrigin = new URL(redirectUri(request, env)).origin;
+  if (repairFromProviderId && providerOrigin !== new URL(request.url).origin) {
+    return jsonError("identity_repair_unavailable", 409);
+  }
   if (ssoEnabled(env) && providerOrigin !== new URL(request.url).origin) {
     const settings = new URL("/settings", providerOrigin);
     settings.searchParams.set("connect_oura", "1");
@@ -132,10 +150,11 @@ export async function handleOuraStart(
       && parsedReturn?.pathname === "/oauth/authorize"
     ? parsedReturn.pathname + parsedReturn.search
     : providerSettingsReturn(request, env)
-      ?? (new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null);
+      ?? (new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90"
+        : repairFromProviderId ? "/settings" : null);
   await saveOauthState(env, state, returnTo, auth ? {
     userId: auth.session.user_id, sessionId: auth.session.id,
-  } : undefined);
+  } : undefined, repairFromProviderId);
 
   const headers = new Headers();
   await attachStateCookie(headers, request, secret, state);
@@ -185,10 +204,12 @@ export async function handleOuraCallback(
   }
   let dbOk = false;
   let returnTo: string | null = null;
+  let repairFromProviderId: string | null = null;
   try {
     const taken = await takeOauthState(env, state);
     dbOk = taken.ok;
     returnTo = taken.returnTo;
+    repairFromProviderId = taken.repairFromProviderId ?? null;
     if (auth && (taken.userId !== auth.session.user_id || taken.sessionId !== auth.session.id)) {
       dbOk = false;
     }
@@ -228,6 +249,7 @@ export async function handleOuraCallback(
     });
     const me = await fetchPersonalInfo(tokens.access_token);
     const userId = auth ? auth.session.user_id : me.id;
+    let identityRepaired = false;
     if (auth) {
       const existing = await env.DB.prepare("SELECT oura_user_id, email FROM users WHERE id=?")
         .bind(userId).first<{ oura_user_id: string | null; email: string | null }>();
@@ -239,17 +261,22 @@ export async function handleOuraCallback(
       // unconnected migrated rows so consent cannot silently switch accounts.
       const expectedId = existing.oura_user_id ?? personalOwner(env);
       if (me.id !== expectedId) {
-        logOuraCallback("oura_account_mismatch", undefined,
-          compareOuraIdentity({ id: expectedId, email: existing.email }, me));
-        return redirectToApp(request, env, { error: "oura_account_mismatch" });
+        const identity = compareOuraIdentity({ id: expectedId, email: existing.email }, me);
+        if (repairFromProviderId !== expectedId || identity.emailComparison !== "exact") {
+          logOuraCallback("oura_account_mismatch", undefined, identity);
+          return redirectToApp(request, env, { error: "oura_account_mismatch" });
+        }
+        identityRepaired = true;
       }
+      await saveOwnerOuraConnection(env, {
+        userId, expectedProviderId: expectedId, expectedEmail: existing.email,
+        providerId: me.id, email: me.email ?? null, encryptionKey: encKey,
+        tokens: tokensFromOura(tokens),
+      });
+    } else {
+      await upsertUser(env, { id: userId, email: me.email, ouraUserId: me.id });
+      await upsertEncryptedTokens(env, userId, encKey, tokensFromOura(tokens));
     }
-    await upsertUser(env, {
-      id: userId,
-      email: me.email,
-      ouraUserId: me.id,
-    });
-    await upsertEncryptedTokens(env, userId, encKey, tokensFromOura(tokens));
     // Fence outstanding work before clearing refusal evidence. Its late
     // response must not pause or overwrite a newly authorized connection.
     await env.DB.batch([
@@ -280,10 +307,10 @@ export async function handleOuraCallback(
     clearCookie(headers, request, OAUTH_STATE_COOKIE);
     if (returnTo) {
       headers.set("Location", returnTo);
-      logOuraCallback("success", "return_to");
+      logOuraCallback("success", identityRepaired ? "identity_repaired" : "return_to");
       return new Response(null, { status: 302, headers });
     }
-    logOuraCallback("success", "home");
+    logOuraCallback("success", identityRepaired ? "identity_repaired" : "home");
     return redirectToApp(request, env, { login: "ok" }, headers);
   } catch (error) {
     if (normalizeApiError(error).code === "storage_write_quota_exceeded") {
