@@ -1,15 +1,17 @@
 # Production reliability follow-up
 
 - Status: original reliability work deployed through PR #81 / #91; Actions backup
-  artifact verified. Health sync recovery is locally verified; PR, CI and release
-  acceptance are pending.
+  artifact verified. Health sync recovery is locally verified and pushed as PR #93;
+  CI runner startup is blocked, so merge and release acceptance are pending.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
 - Branch: `codex/health-sync-recovery`.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
 - Health recovery baseline: `58f7848740db3b6f0fb3935201500d46c97744d7`.
+- Health recovery implementation: `2414d416cc5ca29fba6b71cf6ee2bac9a607a78c`.
 - Original implementation commit: `878d557494329e4335c49ac87d46b3aaaabf5e25`;
   the follow-up commit only records the operational verification.
 - PR: https://github.com/kedoupi/kdp.cool/pull/81.
+- Recovery PR: https://github.com/kedoupi/kdp.cool/pull/93.
 - Owner: this Codex session, the sole writer of application configuration, scripts and CI.
 - User scope: close the legacy health-data leak; add recovery, monitoring, migration and
   quality checks; update Health runtime compatibility. No new dependencies.
@@ -24,7 +26,8 @@
 | Local validation | Original 27 selected checks passed; Health recovery passed all 9 selected checks, including normal and SSO browsers |
 | Script tests | 72 Cloudflare tests, 24 agent-check tests and 6 migration tests passed |
 | Review | Self-review of the full change; no independent reviewer run claimed |
-| Commit / push / PR | PR #81 / #91 / #92 merged; Health recovery not yet committed |
+| Commit / push / PR | PR #81 / #91 / #92 merged; Health recovery pushed at `2414d41` in open PR #93 |
+| Recovery CI | Run `39094891244` attempts 1 and 2 failed before any runner/steps started; no CI test result available |
 | Merge / deployment | Original reliability released at `4842996`; observability persistence released at `1816abf2` |
 | Operational acceptance | Legacy route closed, logs/Issues enabled, scheduled backup artifact decrypted and synthetic restore verified; Health provider recovery and off-machine private-key escrow pending |
 
@@ -221,3 +224,23 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 - Before release, the production read-only query at `2026-10-18T03:46:00Z` still
   showed `running` / `upstream_unavailable`, 49 tasks (27 pending / 22 failed) and
   last success `2026-10-15T15:16:55.898Z`; the query wrote no rows.
+
+### Release blocker (PR #93)
+
+- Pushed implementation `2414d41`; PR #93 targets unchanged main `58f7848`.
+- Platform run `39094891244`, attempts 1 and 2: `governance` and `affected`
+  failed in 2-3 seconds with `runner_id=0`, blank runner names and `steps=[]`;
+  downstream build/deploy jobs were skipped. The retry used the failed-jobs API.
+  There is no evidence that a repository check or test ran in either attempt.
+- The failed job's log endpoint returned `BlobNotFound`; the check-run collection
+  reports two annotations on each failed job but the connector does not support
+  fetching that annotation endpoint. The underlying startup reason is unverified;
+  billing, quota or an outage must not be recorded as a confirmed cause.
+- At `2026-10-18T03:50:30Z`, the Health API settings still reported
+  `BUILD_SHA=1816abf2a78b`, compatibility date `2026-10-15`, persistent logs and
+  Issues enabled. The recovery code is not deployed.
+- Continue by resolving Actions runner startup, rerunning PR #93 checks, merging
+  only after CI passes, and verifying the main release and next real cron.
+  If it reports `blocked/reconnect_required`, the owner must reconnect Oura in
+  Health before production sync recovery can be accepted. Preserve the current
+  encrypted grant and encryption key.
