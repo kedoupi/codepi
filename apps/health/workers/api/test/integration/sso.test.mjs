@@ -44,7 +44,6 @@ test('SSO owner starts disconnected; sso never uses DEV fixtures and all private
   assert.deepEqual((await daily.json()).error, 'reconnect_required');
   assert.equal((await f.request('/api/auth/dev/session')).status, 403);
   assert.equal((await f.request('/api/me/health-records/status', cookie)).status, 200);
-  assert.equal((await f.request('/api/me/connections', cookie)).status, 200);
   const callback = await connectOura(f.runtime, cookie);
   assert.equal(callback.status, 302);
   assert.ok(!callback.headers.getSetCookie().some(c => /oura_session=/.test(c)), 'provider must not mint website session');
@@ -131,77 +130,12 @@ test('provider callback cannot recreate an owner removed after SSO login', async
   assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM encrypted_tokens').first()).n, 0);
 });
 
-test('MCP consent uses SSO without connecting Oura; grants work after website logout and a central outage', async t => {
-  const f = await fixture(t);
-  const redirectUri = 'http://127.0.0.1:9999/callback';
-  const registered = await f.request('/oauth/register', '', { method: 'POST',
-    body: JSON.stringify({ client_name: 'SSO MCP app', redirect_uris: [redirectUri] }),
-  });
-  assert.equal(registered.status, 201);
-  const client = await registered.json();
-  const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
-  const challenge = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))).toString('base64url');
-  const back = `/oauth/authorize?${new URLSearchParams({
-    client_id: client.client_id, redirect_uri: redirectUri, response_type: 'code',
-    code_challenge: challenge, code_challenge_method: 'S256', state: 'mcp-state',
-  })}`;
-  const anonymous = await f.request(back);
-  const loginUrl = new URL(anonymous.headers.get('Location'));
-  assert.equal(loginUrl.pathname, '/api/auth/login');
-  assert.equal(loginUrl.searchParams.get('return'), back);
-  const cookie = await loginSso(f.runtime, origin, back);
-  const consent = await f.request(back, cookie);
-  assert.equal(consent.status, 200);
-  const html = await consent.text();
-  const approval = await f.request('/oauth/authorize', cookie, { method: 'POST',
-    headers: { Origin: origin },
-    body: new URLSearchParams({
-      client_id: client.client_id, decision: 'approve', state: 'mcp-state',
-      consent_id: html.match(/name="consent_id" value="([^"]+)"/)[1],
-      csrf_token: html.match(/name="csrf_token" value="([^"]+)"/)[1],
-    }),
-  });
-  assert.equal(approval.status, 302);
-  const callback = new URL(approval.headers.get('Location'));
-  assert.equal(callback.origin + callback.pathname, redirectUri);
-  assert.equal(callback.searchParams.get('state'), 'mcp-state');
-  const exchange = await f.request('/oauth/token', '', { method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'authorization_code', code: callback.searchParams.get('code'),
-      client_id: client.client_id, redirect_uri: redirectUri, code_verifier: verifier,
-    }),
-  });
-  assert.equal(exchange.status, 200);
-  const tokens = await exchange.json();
-  assert.equal((await (await f.request('/api/me', cookie)).json()).ouraConnection.status, 'disconnected');
-  assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM encrypted_tokens').first()).n, 0);
-  assert.equal((await f.request('/api/auth/logout', cookie, { method: 'POST', headers: { Origin: origin } })).status, 200);
-  f.central.state.unavailable = true;
-  const mcp = await f.request('/mcp', '', { method: 'POST',
-    headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-  });
-  assert.equal(mcp.status, 200);
-  const refreshed = await f.request('/oauth/token', '', { method: 'POST',
-    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: client.client_id, refresh_token: tokens.refresh_token }),
-  });
-  assert.equal(refreshed.status, 200);
-});
-
-test('provider cannot replace owner identity or tokens; archives and MCP grants survive SSO migration and reconnect', async t => {
+test('provider cannot replace owner identity or tokens; archives survive SSO migration and reconnect', async t => {
   let providerId = 'test-user';
   const f = await fixture(t, { providerResponse: url => url.pathname.endsWith('/personal_info')
     ? Response.json({ id: providerId, email: 'provider@example.invalid' }) : undefined });
   const cookie = await loginSso(f.runtime);
   assert.equal((await connectOura(f.runtime, cookie)).status, 302);
-  await f.db.prepare("INSERT INTO oauth_clients(client_id,client_name,redirect_uris) VALUES ('existing-client','Existing MCP app','[]')").run();
-  const rawToken = 'existing-mcp-access';
-  const rawRefresh = 'existing-mcp-refresh';
-  for (const [kind, raw] of [['access', rawToken], ['refresh', rawRefresh]]) {
-    const tokenHash = Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))).toString('base64url');
-    await f.db.prepare(`INSERT INTO mcp_tokens(token_hash,user_id,client_id,kind,expires_at,family_id)
-      VALUES (?,'test-user','existing-client',?,?,'existing-family')`).bind(tokenHash, kind, Date.now() + 3600000).run();
-  }
   await f.request('/api/me/daily', cookie);
   const before = await f.db.prepare('SELECT ciphertext,iv FROM encrypted_tokens').first();
   const count = await f.db.prepare('SELECT COUNT(*) AS n FROM daily_cache').first();
@@ -215,20 +149,8 @@ test('provider cannot replace owner identity or tokens; archives and MCP grants 
   // Existing AAD-bound tokens can still be decrypted and used by the mapped owner.
   assert.equal((await f.request(`/api/me/health-records?collection=sleep&from=${today}&to=${today}`, next, { method: 'POST' })).status, 200);
   providerId = 'test-user';
-  const returnTo = '/oauth/authorize?client_id=example&state=mcp-state';
-  assert.equal((await connectOura(f.runtime, next, origin, returnTo)).headers.get('Location'), returnTo);
+  assert.match((await connectOura(f.runtime, next)).headers.get('Location'), /login=ok/);
   assert.equal((await (await f.request('/api/me', next)).json()).authenticated, true);
-  assert.equal((await (await f.request('/api/me/connections', next)).json()).connections[0].client_id, 'existing-client');
-  await f.request('/api/auth/logout', next, { method: 'POST', headers: { Origin: origin } });
-  const mcp = await f.request('/mcp', '', { method: 'POST',
-    headers: { Authorization: `Bearer ${rawToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-  });
-  assert.equal(mcp.status, 200, 'website logout must preserve independently granted MCP credentials');
-  const refresh = await f.request('/oauth/token', '', { method: 'POST',
-    body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'existing-client', refresh_token: rawRefresh }),
-  });
-  assert.equal(refresh.status, 200, 'MCP refresh must remain independent of website login');
 });
 
 test('format diagnostics and matching provider email cannot authorize rebinding the SSO owner', async t => {
@@ -247,9 +169,9 @@ test('format diagnostics and matching provider email cannot authorize rebinding 
   }
 });
 
-test('SSO transaction preserves MCP return URL and enforces state, single use, subject and owner config', async t => {
+test('SSO transaction preserves settings return URL and enforces state, single use, subject and owner config', async t => {
   const f = await fixture(t);
-  const back = '/oauth/authorize?client_id=mcp-client&state=consent-state';
+  const back = '/settings?sync=90';
   const start = await f.request(`/api/auth/login?return=${encodeURIComponent(back)}`);
   const state = new URL(start.headers.get('Location')).searchParams.get('state');
   const cookie = start.headers.get('Set-Cookie').split(';')[0];

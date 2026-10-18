@@ -128,6 +128,7 @@ node --test scripts/agent/check.test.mjs
 | `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
 | `apps/gzh/` | test、typecheck、build |
 | `apps/health/` | test、typecheck、build、正常与 SSO 浏览器回归 |
+| `services/mcp/` / `packages/shared/mcp/` | MCP 协议、授权与真实本地 RPC 集成测试、typecheck、build、授权页浏览器验收；RPC 契约同时检查 Health |
 | CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |

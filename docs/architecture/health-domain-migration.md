@@ -2,6 +2,11 @@
 
 日期：2026-10-15
 
+本文保留为历史迁移记录。当前生产域名已切换到 `health.codepi.app`，不再保留旧域；
+2026-10-18 起本地实现直接移除旧 Health MCP，统一入口为 `mcp.codepi.app/mcp`，
+不再沿用下文的旧连接兼容方案。当前边界与发布状态见
+[统一 MCP](unified-mcp.md)和[任务记录](../development/tasks/2026-10-18-unified-mcp.md)。
+
 ## 当前设计
 
 - 主入口：`https://health.kdp.cool`。

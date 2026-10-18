@@ -15,6 +15,7 @@ export interface Env {
   SSO_CLIENT_SECRET_OURA?: string;
   SSO_CLIENT_SECRET_GZH?: string;
   SSO_CLIENT_SECRET_DESK?: string;
+  SSO_CLIENT_SECRET_MCP?: string;
   SSO_EXTRA_REDIRECT_URIS?: string;
   AUTH_ORIGIN: string;
   ENVIRONMENT: string;
@@ -24,7 +25,7 @@ type Client = { secret: string; name: string; redirectUris: string[] };
  * Login-page product names. The registry `name` is a write-only secret value that
  * cannot be edited in place, so product display names are applied here instead.
  */
-const DISPLAY_NAMES: Record<string, string> = { oura: "健康 Health", gzh: "公众号 GZH" };
+const DISPLAY_NAMES: Record<string, string> = { oura: "健康 Health", gzh: "公众号 GZH", mcp: "CodePi MCP" };
 type Config = { clients: Record<string, Client>; origin: string; dev: boolean };
 type Tx = { id: string; client_id: string; redirect_uri: string; state: string;
   challenge: string; expires_at: number; otp_hash: string | null; otp_expires_at: number | null; attempts: number };
@@ -62,6 +63,12 @@ function configuration(env: Env): Config {
       || !env.SESSION_SECRET || !env.OTP_PEPPER) throw new Error();
     const clients = JSON.parse(env.SSO_CLIENTS) as Record<string, Client>;
     if (!clients || Array.isArray(clients) || typeof clients !== "object" || !Object.keys(clients).length) throw new Error();
+    // The MCP client is opt-in so deploying support does not break existing SSO.
+    // Its credential can be paired without rewriting the write-only registry.
+    if (env.SSO_CLIENT_SECRET_MCP && !Object.hasOwn(clients, "mcp")) {
+      clients.mcp = { secret: env.SSO_CLIENT_SECRET_MCP, name: "CodePi MCP",
+        redirectUris: ["https://mcp.codepi.app/api/auth/callback"] };
+    }
     // Public callback registrations can evolve without rotating client credentials.
     const extra: unknown = JSON.parse(env.SSO_EXTRA_REDIRECT_URIS || "{}");
     if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error();
@@ -73,11 +80,11 @@ function configuration(env: Env): Config {
     // Rotate one client's credential without rewriting the write-only registry.
     const clientSecrets: Record<string, string | undefined> = {
       gu: env.SSO_CLIENT_SECRET_GU, oura: env.SSO_CLIENT_SECRET_OURA,
-      gzh: env.SSO_CLIENT_SECRET_GZH, desk: env.SSO_CLIENT_SECRET_DESK,
+      gzh: env.SSO_CLIENT_SECRET_GZH, desk: env.SSO_CLIENT_SECRET_DESK, mcp: env.SSO_CLIENT_SECRET_MCP,
     };
     for (const [id, c] of Object.entries(clients)) {
       const secret = clientSecrets[id] ?? c?.secret;
-      if (!["gu", "oura", "gzh", "desk"].includes(id) || typeof secret !== "string" || secret.length < 32
+      if (!["gu", "oura", "gzh", "desk", "mcp"].includes(id) || typeof secret !== "string" || secret.length < 32
         || typeof c.name !== "string" || c.name.length > 80 || !Array.isArray(c.redirectUris) || !c.redirectUris.length) throw new Error();
       c.secret = secret;
       for (const uri of c.redirectUris) {

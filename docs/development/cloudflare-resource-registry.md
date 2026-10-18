@@ -1,4 +1,10 @@
 # Cloudflare 资源登记表
+2026-10-18 统一 MCP 源码切换（未部署）：`services/mcp/` 新增统一入口，旧 Health MCP、
+OAuth 服务与连接管理代码直接删除。目标行为为 Health 旧连接器 URL 返回 404 JSON，
+客户端改连 `mcp.codepi.app/mcp` 并重新授权；Health 只通过 named RPC 向 MCP 提供数据。
+本轮未访问或修改控制面、远程表或凭证；下方旧 MCP 可达性记录仍是历史证据，
+不能据此声称新入口或旧路径退役已在线验收。MCP Worker/D1 仍为 `planned`。
+
 2026-10-18T08:33:58Z 原账号连接修复发布：PR #97 合并为
 `85c060bda5e96755a07bae4164e1aecfe75e95b2`，本 Codex 会话持有本机发布锁，
 从与实时远程 main 一致的干净源码先执行 migration 0012，再发布 Health API
@@ -186,7 +192,7 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-health | production | worker | codepi-health | kedoupi | Health 前端 SPA | private-health-data | 终端用户 | health.codepi.app (custom domain), codepi-health.kedoupi.workers.dev | apps/health/apps/web/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-18 |
 | pages-health-legacy | production | pages | codepi-health | kedoupi | 旧 Health Pages（项目已删除） | private-health-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | Pages、worker-gu、worker-gzh、worker-health-api | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-18 |
-| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API / MCP / OAuth discovery | private-health-data | worker-health（service binding）、MCP 客户端 | 无公网 routes，经 worker-health service binding 转发 | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 |
+| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API；统一 MCP named RPC（待发布） | private-health-data | worker-health（service binding）、worker-mcp（HealthMcp RPC，待发布） | 无公网 routes，经 service binding 访问 | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 既有 API；RPC 未部署 |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-18 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-18 |
 | d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-18 |
@@ -222,6 +228,8 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
+| worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | deploy-platform / local reviewed release | planned | not deployed; verify after first release |
+| d1-mcp | production | d1 | codepi-mcp | kedoupi | services/mcp | auth-session-data | DB | - | release-time resolve/create then migrations | planned | no UUID yet; never bind Health D1 |
 <!-- registry-table:end -->
 
 ## 2026-10-16 只读盘点

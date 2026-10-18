@@ -84,8 +84,8 @@ test('validation maps PR consumers and rejects invalid ranges and events', async
     });
     return Object.fromEntries((await readFile(output, 'utf8')).trim().split('\n').map(line => line.split('=')));
   };
-  const all = { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes' };
-  assert.deepEqual(await run(), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes' });
+  const all = { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes', mcp: 'yes' };
+  assert.deepEqual(await run(), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes', mcp: 'yes' });
   assert.deepEqual(await run('push'), all);
   assert.deepEqual(await run('workflow_dispatch'), all);
   await assert.rejects(run('unknown'), /unsupported validation event/);
@@ -102,4 +102,15 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.match(job, /- run: npm test/);
   assert.match(beforeTests, /uses: pnpm\/action-setup@v4/);
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
+});
+
+test('MCP CI checks the real Health RPC and browser flow without deployment', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  assert.match(workflow, /'services\/mcp\/\*\*'/);
+  const build = workflow.split('\n  mcp-build:')[1]?.split('\n  auth-build:')[0];
+  assert.ok(build);
+  assert.match(build, /pnpm test/);
+  assert.match(build, /pnpm typecheck/);
+  assert.match(build, /pnpm test:browser:built/);
+  assert.doesNotMatch(workflow, /mcp-deploy-production:|pnpm run deploy/);
 });

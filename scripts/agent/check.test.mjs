@@ -200,9 +200,9 @@ test('Health directory move validates the current application for both sides of 
   const result = changedFiles(f.cwd, base);
   assert.deepEqual(result.files, ['apps/health/workers/api/src/index.ts', 'apps/oura/workers/api/src/index.ts']);
   const plan = makePlan(result.files);
-  assert.deepEqual(plan.apps, ['health']);
+  assert.deepEqual(plan.apps, ['health', 'mcp']);
   assert.deepEqual(plan.manual, []);
-  assert.ok(plan.checks.every(check => check.cwd === 'apps/health'));
+  assert.ok(plan.checks.every(check => ['apps/health', 'services/mcp'].includes(check.cwd)));
 });
 
 test('staged changes are retained even when working copy restores HEAD content', t => {
@@ -279,4 +279,13 @@ test('unmapped changes block execution instead of claiming a pass', t => {
   assert.equal(result.status, 2, result.stderr);
   assert.equal(existsSync(result.marker), false);
   assert.match(result.stdout, /MANUAL: "new-app\/file.js"/);
+});
+
+test('MCP protocol and Health backend changes select the connector integration tests', () => {
+  for (const file of ['services/mcp/src/index.ts', 'apps/health/workers/api/src/index.ts', 'packages/shared/mcp/contract.ts']) {
+    const plan = makePlan([file]);
+    assert.ok(plan.apps.includes('mcp'));
+    assert.ok(plan.checks.some(c => c.cwd === 'services/mcp' && c.argv.join(' ') === 'pnpm test'));
+    assert.deepEqual(plan.manual, []);
+  }
 });

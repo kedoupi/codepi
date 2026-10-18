@@ -2,9 +2,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth' };
+export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp' };
 export const staticApps = ['web'];
-export const privateApps = ['auth', 'gu', 'gzh', 'health'];
+export const privateApps = ['auth', 'gu', 'gzh', 'health', 'mcp'];
 const allApps = [...staticApps, ...privateApps];
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -37,9 +37,9 @@ export function makePlan(files) {
   const addAll = () => { add(allApps); sharedAuth = true; };
 
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-    'services/auth/wrangler.jsonc', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
+    'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
   const migrationDirs = ['apps/web/migrations/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
-    'services/auth/migrations/', 'apps/health/migrations/'];
+    'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
   const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))
     || file.startsWith('scripts/agent/check-migrations'));
   for (const file of files) {
@@ -71,6 +71,8 @@ export function makePlan(files) {
     } else if (file.startsWith('.github/')) {
       addAll();
       workflow = true;
+    } else if (file.startsWith('packages/shared/mcp/')) {
+      add(['health', 'mcp']);
     } else if (file.startsWith('services/auth/') || file.startsWith('packages/shared/auth/')) {
       add(['web', ...privateApps]);
       sharedAuth = true;
@@ -82,7 +84,10 @@ export function makePlan(files) {
       else addAll();
     } else {
       const app = allApps.find(name => file.startsWith(`${dirOf(name)}/`));
-      if (app) apps.add(app);
+      if (app) {
+        apps.add(app);
+        if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/shared/')) apps.add('mcp');
+      }
       else manual.push(file);
     }
   }
@@ -114,6 +119,11 @@ export function makePlan(files) {
       check(dirOf(app), 'pnpm', 'typecheck');
       check(dirOf(app), 'pnpm', 'build');
       check(dirOf(app), 'pnpm', 'test:assets');
+      check(dirOf(app), 'pnpm', 'test:browser:built');
+    } else if (app === 'mcp') {
+      check(dirOf(app), 'pnpm', 'test');
+      check(dirOf(app), 'pnpm', 'typecheck');
+      check(dirOf(app), 'pnpm', 'build');
       check(dirOf(app), 'pnpm', 'test:browser:built');
     } else {
       check(dirOf(app), 'npm', 'test');

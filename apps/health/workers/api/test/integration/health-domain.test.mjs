@@ -59,7 +59,7 @@ test('settings-triggered reconnect returns to the canonical settings page', asyn
   assert.equal(syncCallback.headers.get('Location'), '/settings?sync=90');
 });
 
-test('existing MCP credentials remain usable on the new domain without data migration', async t => {
+test('retired Health MCP rejects old credentials without deleting persisted data', async t => {
   const f = await fixture(t);
   await f.db.prepare("INSERT INTO oauth_clients(client_id,client_name,redirect_uris) VALUES ('existing-client','Existing client','[]')").run();
   for (const [kind, raw] of [['access', 'existing-access'], ['refresh', 'existing-refresh']]) {
@@ -67,18 +67,28 @@ test('existing MCP credentials remain usable on the new domain without data migr
     await f.db.prepare(`INSERT INTO mcp_tokens(token_hash,user_id,client_id,kind,expires_at,family_id)
       VALUES (?,'test-user','existing-client',?,?,'existing-family')`).bind(hash, kind, Date.now() + 3600000).run();
   }
-  for (const origin of [health]) {
-    const result = await f.request(origin, '/mcp', '', { method: 'POST',
-      headers: { Authorization: 'Bearer existing-access', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
-    });
-    assert.equal(result.status, 200);
-    assert.ok((await result.json()).result.tools.length);
+  const cookie = await loginSso(f.runtime, health);
+  for (const path of ['/mcp', '/oauth/register', '/oauth/authorize', '/oauth/token', '/oauth/revoke',
+    '/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server/mcp',
+    '/api/me/connections']) {
+    for (const method of ['GET', 'POST']) {
+      const result = await f.request(health, path, cookie, { method,
+        headers: { Authorization: 'Bearer existing-access', 'Content-Type': 'application/json' },
+        ...(method === 'POST' ? { body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) } : {}),
+      });
+      assert.equal(result.status, 404, `${method} ${path}`);
+      assert.deepEqual(await result.json(), { error: 'not found' });
+      assert.notEqual(result.headers.get('Access-Control-Allow-Origin'), '*');
+    }
   }
   const refreshed = await f.request(health, '/oauth/token', '', { method: 'POST',
     body: new URLSearchParams({ grant_type: 'refresh_token', client_id: 'existing-client', refresh_token: 'existing-refresh' }),
   });
-  assert.equal(refreshed.status, 200, 'old clients keep their refresh flow');
+  assert.equal(refreshed.status, 404);
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM mcp_tokens').first()).n, 2);
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM oauth_clients').first()).n, 1);
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM users').first()).n, 1);
 });
 
 test('new-domain errors and provider returns cannot redirect elsewhere', async t => {
@@ -86,11 +96,6 @@ test('new-domain errors and provider returns cannot redirect elsewhere', async t
   for (const origin of [health]) {
     const response = await f.request(origin, '/api/auth/callback?error=denied');
     assert.equal(new URL(response.headers.get('Location')).origin, origin);
-    for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-authorization-server']) {
-      const metadata = await (await f.request(origin, path)).json();
-      if (metadata.resource) assert.equal(metadata.resource, origin + '/mcp');
-      if (metadata.issuer) assert.equal(metadata.issuer, origin);
-    }
   }
   const cookie = await loginSso(f.runtime, health);
   for (const target of ['https://evil.test/settings', `${health}/settings?next=evil`, `${health}/settings#fragment`]) {

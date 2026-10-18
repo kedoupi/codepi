@@ -2,6 +2,24 @@ import type { Env } from "./env";
 import { dispatch } from "./app";
 import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { normalizeApiError, storageQuotaResetAt } from "./lib/errors.ts";
+import { WorkerEntrypoint } from "cloudflare:workers";
+import { executeHealthOperation } from "./lib/health-data.ts";
+import type { HealthRequest, HealthReply } from "@kedoupi/shared/mcp/contract";
+
+/** RPC capability only: no public HTTP route can invoke these operations. */
+export class HealthMcp extends WorkerEntrypoint<Env> {
+  async execute(input: HealthRequest): Promise<HealthReply> {
+    if (input?.subject !== "kdp-owner" || !this.env.PERSONAL_OWNER_ID || this.env.PERSONAL_OWNER_ID === "dev-local") {
+      return { ok: false, error: "not_owner", status: 403 };
+    }
+    try {
+      return { ok: true, data: await executeHealthOperation(this.env, this.env.PERSONAL_OWNER_ID, input.operation, input.args) };
+    } catch (failure) {
+      const error = normalizeApiError(failure);
+      return { ok: false, error: error.code, status: error.status };
+    }
+  }
+}
 
 function corsHeaders(req: Request, env: Env): HeadersInit {
   const origin = req.headers.get("Origin");
