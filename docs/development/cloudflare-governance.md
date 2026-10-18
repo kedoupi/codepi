@@ -174,8 +174,24 @@ gzh、auth、health-api、health-pages）与登记表，对每个 declared servi
 8. `legacy-pending-retirement`、`legacy-preview` 或 `unknown` 项不得被当前运行
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
-   Auth SSO callback registry）缺失即违规。
+   Auth SSO callback registry）缺失即违规；
+10. 六个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
+    进入调用日志。应用日志仍不得自行输出凭证或私人数据。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`
 自动选择执行。
+
+## 9. 日常监控与恢复
+
+- `production-monitor.yml` 每 30 分钟执行只读探针，检查统一登录契约、私有 API
+  匿名拒绝、旧泄漏入口保持关闭及 Health 自动同步新鲜度。D1 凭证缺失必须使
+  定时任务失败；本地排查可显式接受跳过 D1 的结果。
+- `d1-backup.yml` 每日导出五个生产 D1；加密格式、14 天 artifact 保留、私钥
+  保管及恢复演练遵循 [备份 runbook](cloudflare-backup-restore.md)。
+- 两个工作流只在 main 的 production Environment 运行，复用现有生产凭证。
+  监控调用只读，但当前使用的 token 仍有发布权限；专用只读 token 尚未单独配置。
+- GitHub Actions 失败通知依赖所有者的通知设置；Cloudflare 通知策略配置和日志
+  持久化存在，也不等于告警邮件已实际送达。
+- 发布治理 job 同时执行脚本回归、迁移追加守门及语法/JSON lint。
+  依赖更新由 Dependabot 提 PR，仍经过项目的正常审核和合并流程。

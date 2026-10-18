@@ -72,9 +72,25 @@ test('GU deployment check is explicitly local configuration only', () => {
   assert.deepEqual(checks.at(-1).argv, ['npm', 'run', 'check:deploy', '--', '--mode', 'config']);
 });
 
+test('migration changes select the append-only guard and its tests', () => {
+  const expected = [
+    ['node', '--test', 'scripts/agent/check-migrations.test.mjs'],
+    ['node', 'scripts/agent/check-migrations.mjs'],
+  ];
+  for (const file of ['apps/web/migrations/0002_x.sql', 'apps/gu/migrations/0003_x.sql',
+    'apps/gzh/migrations/0005_x.sql', 'services/auth/migrations/0002_x.sql',
+    'apps/health/migrations/0012_x.sql', 'scripts/agent/check-migrations.mjs']) {
+    const plan = makePlan([file]);
+    for (const argv of expected) {
+      assert.ok(plan.checks.some(check => check.argv.join(' ') === argv.join(' ')),
+        `${file} must select ${argv.join(' ')}`);
+    }
+  }
+});
+
 test('Cloudflare configs, governance scripts and docs select the static governance gate', () => {
   const expected = [
-    { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs', 'scripts/cloudflare/deploy-workflow.test.mjs', 'scripts/cloudflare/check-pages.test.mjs'] },
+    { cwd: '.', argv: ['node', '--test', 'scripts/cloudflare/*.test.mjs'] },
     { cwd: '.', argv: ['node', 'scripts/cloudflare/validate-governance.mjs'] },
   ];
   for (const file of ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
@@ -95,12 +111,14 @@ test('docs skip application builds but product Markdown remains covered', () => 
   assert.deepEqual(makePlan(['apps/web/src/content/post.md']).apps, ['web']);
   assert.deepEqual(makePlan(['.agents/skills/kdp-dev/SKILL.md']).checks, [
     { cwd: '.', argv: ['node', '--test', 'scripts/agent/check.test.mjs'] },
+    { cwd: '.', argv: ['node', 'scripts/agent/lint.mjs'] },
   ]);
 });
 
 test('CI changes select all applications; unknown paths need manual handling', () => {
   assert.deepEqual(makePlan(['.github/workflows/example.yml']).apps, [...staticApps, ...privateApps]);
-  assert.deepEqual(makePlan(['new-app/index.ts', '.gitignore']).manual, ['new-app/index.ts', '.gitignore']);
+  assert.deepEqual(makePlan(['new-app/index.ts', '.gitignore']).manual, ['new-app/index.ts']);
+  assert.ok(makePlan(['.gitignore']).checks.some(check => check.argv.includes('scripts/agent/lint.mjs')));
 });
 
 test('root workspace changes validate every consumer and the release workflow', () => {
@@ -108,7 +126,7 @@ test('root workspace changes validate every consumer and the release workflow', 
     const plan = makePlan([file]);
     assert.deepEqual(plan.apps, [...staticApps, ...privateApps], file);
     assert.deepEqual(plan.manual, []);
-    assert.ok(plan.checks.some(check => check.argv.includes('scripts/cloudflare/deploy-workflow.test.mjs')));
+    assert.ok(plan.checks.some(check => check.argv.includes('scripts/cloudflare/*.test.mjs')));
     assert.ok(plan.checks.some(check => check.argv.includes('packages/shared/auth/client.test.mjs')));
   }
 });
@@ -123,6 +141,7 @@ test('tool entry points select workflow checks without building unrelated apps',
     assert.deepEqual(plan.manual, [], file);
     assert.deepEqual(plan.checks, [
       { cwd: '.', argv: ['node', '--test', 'scripts/agent/check.test.mjs'] },
+      { cwd: '.', argv: ['node', 'scripts/agent/lint.mjs'] },
     ], file);
   }
 });

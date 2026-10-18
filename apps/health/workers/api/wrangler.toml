@@ -1,7 +1,7 @@
 name = "codepi-health-api"
 main = "src/index.ts"
 rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
-compatibility_date = "2025-01-01"
+compatibility_date = "2026-10-15"
 # 无公网 routes：health.codepi.app 整体绑定到前端 SPA Worker（apps/web），
 # API/MCP/OAuth 请求由前端 Worker 经 WORKER service binding 转发到本 Worker。
 # 保留 cron 触发器用于自动同步；域名切换后 zone 内不得残留本 Worker 的兜底路由。
@@ -34,3 +34,13 @@ database_name = "codepi-health"
 # Production D1: codepi-health
 database_id = "2e35deaa-8066-49c1-b19a-afcd8706d58c"
 migrations_dir = "../../migrations"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
