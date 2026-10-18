@@ -1,13 +1,13 @@
 # Production reliability follow-up
 
-- Status: original reliability work deployed through PR #81 / #91; Actions backup
-  artifact verified. Health recovery was released from clean PR #93 source
-  `fbc13c9` by an owner-authorized local deployment; production now reports
-  `blocked/reconnect_required`. The owner subsequently adopted local publishing
-  after PR merge as the normal release path. Policy migration and merge are
-  in progress; owner Oura reconnection remains pending.
+- Status: PR #93 merged as `4d931fa`; normal release policy is now local
+  publishing from merged main. That exact main source is deployed and live API
+  checks passed. Production sync is `blocked/reconnect_required`, awaiting
+  owner Oura reconnection. Actions backup artifact was verified; scheduled
+  monitoring/backup availability and off-machine key escrow remain unresolved.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
-- Branch: `codex/health-sync-recovery`.
+- Branch: `codex/local-release-evidence` (documentation follow-up); implementation
+  branch `codex/health-sync-recovery` merged through PR #93.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
 - Health recovery baseline: `58f7848740db3b6f0fb3935201500d46c97744d7`.
 - Health recovery implementation: `2414d416cc5ca29fba6b71cf6ee2bac9a607a78c`.
@@ -29,9 +29,9 @@
 | Local validation | Original 27 selected checks passed; Health recovery passed all 9 selected checks, including normal and SSO browsers |
 | Script tests | 72 Cloudflare tests, 24 agent-check tests and 6 migration tests passed |
 | Review | Self-review of the full change; no independent reviewer run claimed |
-| Commit / push / PR | PR #81 / #91 / #92 merged; Health recovery pushed at `2414d41` in open PR #93 |
+| Commit / push / PR | PR #81 / #91 / #92 / #93 merged; #93 squash source is `4d931fa` |
 | Recovery CI | Run `39094891244` attempts 1 and 2 failed before any runner/steps started; no CI test result available |
-| Merge / deployment | Original reliability released at `4842996`; observability at `1816abf2`; Health recovery locally deployed at `fbc13c9`, PR #93 still unmerged |
+| Merge / deployment | Original reliability at `4842996`; observability at `1816abf2`; Health recovery released from merged main `4d931fa` via the local release process |
 | Operational acceptance | Legacy route closed, logs/Issues enabled, scheduled backup artifact decrypted and synthetic restore verified; Health provider recovery and off-machine private-key escrow pending |
 
 ## Implemented
@@ -321,3 +321,36 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
   sources/configurations are unchanged by PR #93; removed retry code and CI/docs
   do not change frontend bundles. Backup and monitor schedules remain configured;
   their Actions startup problem is independent and remains unresolved.
+
+### Merged-main local release acceptance
+
+- PR #93 squash-merged through the GitHub API to
+  `4d931faf7a5399c028dc6875d24a3f91a2e084c6`. Its tree was byte-for-byte equal
+  to locally validated head `80d58bc`; the existing 25-check evidence therefore
+  covers the merged tree. The checkout was clean and pinned to that main SHA.
+- A Git-common-directory release lock serialized this machine's worktrees.
+  Remote main equality was checked before deployment; Auth health, required
+  secret names, D1/Auth bindings, governance and migration baseline passed.
+  An initial preflight using the public-origin resolver stopped before any
+  remote mutation because Health API workers.dev is disabled; the API correctly
+  uses the frontend service binding. Metadata-only preflight and production
+  hostname contract validation were then used without enabling a public origin.
+- `pnpm deploy:api` completed with no migrations pending. Previous version:
+  `b22b62ff-4cb5-4cb9-b598-79dac7cb07f6`; new version:
+  `f3eb6ecb-72f3-4415-862d-350fc11eb819`, 100% traffic,
+  `BUILD_SHA=4d931faf7a53`. Executed by this Codex session on the owner's machine.
+- All 16 production API checks passed again, including exact build,
+  authentication rejection and MCP/OAuth discovery. At `2026-10-18T05:24:34Z`,
+  control-plane readback confirmed version/build, `*/2 * * * *` Cron,
+  persistent logs, query-string redaction and Issues.
+- Read-only sync state remains `blocked/reconnect_required`; last success
+  remains `2026-10-15T15:16:55.898Z`. Local monitor passed 10 checks and failed
+  Health freshness (62 hours vs 30-hour limit), as expected until reconnection.
+  No user data, stored grant or encryption key was changed by release tooling.
+- Logs/evidence outside Git:
+  `/tmp/kdp-health-main-local-deploy-20261018.log`,
+  `/tmp/kdp-health-main-contract-20261018.log`,
+  `/tmp/kdp-main-local-deployment-evidence-20261018.jsonl`.
+  This follow-up changes documentation only and does not require another
+  application deployment. No successful hosted CI run or real Oura recovery
+  is claimed. The normal release no longer requires later Actions deployment.
