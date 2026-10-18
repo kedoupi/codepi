@@ -134,7 +134,7 @@ kdp.cool/
 | gzh | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | health | Svelte 5 + Vite | Hono Worker | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
-| mcp | 授权与连接管理页 | TypeScript Worker + 官方 MCP SDK + 独立 D1（待首发） | pnpm workspace |
+| mcp | 授权与连接管理页 | TypeScript Worker + 官方 MCP SDK + 独立 D1 | pnpm workspace |
 
 目标方向（逐步迁移，不强制时间表）：
 
