@@ -231,6 +231,22 @@ test('provider cannot replace owner identity or tokens; archives and MCP grants 
   assert.equal(refresh.status, 200, 'MCP refresh must remain independent of website login');
 });
 
+test('format diagnostics and matching provider email cannot authorize rebinding the SSO owner', async t => {
+  let providerId = 'TEST-USER';
+  const f = await fixture(t, { providerResponse: url => url.pathname.endsWith('/personal_info')
+    ? Response.json({ id: providerId, email: 'owner@example.invalid' }) : undefined });
+  await f.db.prepare("UPDATE users SET email='owner@example.invalid'").run();
+  const cookie = await loginSso(f.runtime);
+  for (const id of ['TEST-USER', 'testuser', ' test-user ', 'another-account']) {
+    providerId = id;
+    assert.match((await connectOura(f.runtime, cookie)).headers.get('Location'), /oura_account_mismatch/);
+    assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM encrypted_tokens').first()).n, 0);
+    assert.deepEqual(await f.db.prepare('SELECT oura_user_id,email FROM users').first(), {
+      oura_user_id: 'test-user', email: 'owner@example.invalid',
+    });
+  }
+});
+
 test('SSO transaction preserves MCP return URL and enforces state, single use, subject and owner config', async t => {
   const f = await fixture(t);
   const back = '/oauth/authorize?client_id=mcp-client&state=consent-state';

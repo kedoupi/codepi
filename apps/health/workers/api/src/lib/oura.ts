@@ -24,6 +24,31 @@ export type OuraPersonalInfo = {
   age?: number | null;
 };
 
+export function compareOuraIdentity(
+  stored: { id: string; email?: string | null },
+  received: OuraPersonalInfo,
+) {
+  const normalize = (id: string) => id.trim().toLowerCase().replace(/-/g, "");
+  // Diagnostic categories only. Normalized IDs or matching emails must never
+  // authorize replacing the existing provider binding.
+  const idComparison = stored.id === received.id ? "exact"
+    : stored.id.trim() === received.id.trim() ? "whitespace_only"
+    : stored.id.toLowerCase() === received.id.toLowerCase() ? "case_only"
+    : normalize(stored.id) === normalize(received.id) ? "format_only"
+    : "different";
+  const emailComparison = typeof stored.email !== "string" || !stored.email.trim()
+    || typeof received.email !== "string" || !received.email.trim() ? "unavailable"
+    : stored.email === received.email ? "exact"
+    : stored.email.trim().toLowerCase() === received.email.trim().toLowerCase() ? "format_only"
+    : "different";
+  return {
+    idComparison,
+    emailComparison,
+    storedIdLength: stored.id.length,
+    receivedIdLength: received.id.length,
+  };
+}
+
 /**
  * Loose Oura Cloud daily document. `daily_sleep` / `daily_readiness` /
  * `daily_activity` share `id` + `day` + `score`; readiness adds temperature
@@ -144,7 +169,9 @@ export async function fetchPersonalInfo(
   accessToken: string,
 ): Promise<OuraPersonalInfo> {
   const info = await ouraGet<OuraPersonalInfo>(accessToken, "/personal_info");
-  if (!info?.id) throw new Error("Oura personal_info missing id");
+  if (typeof info?.id !== "string" || !info.id.trim()) {
+    throw new ApiError("invalid_upstream_response", 502);
+  }
   return info;
 }
 
