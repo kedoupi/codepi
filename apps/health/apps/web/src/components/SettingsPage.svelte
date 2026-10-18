@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, errorText } from "../lib/api";
   import { t, type Locale, type LocalePref } from "../lib/i18n";
   import { goto } from "../lib/router.svelte";
   import type { MeResponse } from "../lib/types";
@@ -33,39 +32,7 @@
 
   const personal = $derived(me.capabilities?.personal === true);
 
-  type Connection = { client_id: string; client_name: string | null; created_at: string };
-  let connections = $state<Connection[]>([]);
-  let connectionsError = $state("");
-  let revoking = $state("");
-
-  const mcpUrl = typeof window === "undefined" ? "" : `${window.location.origin}/mcp`;
-
-  async function loadConnections() {
-    try {
-      const data = await api<{ connections: Connection[] }>("/api/me/connections");
-      connections = data.connections ?? [];
-      connectionsError = "";
-    } catch (err) {
-      connectionsError = errorText(err, locale);
-    }
-  }
-
-  async function revoke(clientId: string) {
-    if (revoking) return;
-    revoking = clientId;
-    try {
-      await api("/api/me/connections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: clientId }),
-      });
-      connections = connections.filter(row => row.client_id !== clientId);
-    } catch (err) {
-      connectionsError = errorText(err, locale);
-    } finally {
-      revoking = "";
-    }
-  }
+  const mcpUrl = "https://mcp.codepi.app/mcp";
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
@@ -76,7 +43,6 @@
       window.location.replace(target.href);
       return;
     }
-    if (personal) void loadConnections();
   });
 </script>
 
@@ -163,28 +129,11 @@
         <h2>{locale === "en" ? "AI apps" : "AI 应用连接"}</h2>
         <p class="hint">
           {locale === "en"
-            ? "Add this MCP server in Claude or ChatGPT, then approve the connection. Access is read-only and revocable here."
-            : "在 Claude 或 ChatGPT 里添加下面的 MCP 地址并授权。权限为只读，可在此处撤销。"}
+            ? "Connect CodePi in your AI client to query and analyze Health data. Queries can refresh saved data in the background."
+            : "在 AI 客户端连接 CodePi，即可查询和分析 Health 数据。查询可在后台自动刷新已保存的数据。"}
         </p>
         <p class="hint"><code>{mcpUrl}</code></p>
-        {#if connections.length === 0}
-          <p class="hint">{locale === "en" ? "No apps connected yet." : "暂无已连接应用。"}</p>
-        {:else}
-          {#each connections as connection (connection.client_id)}
-            <div class="settings-actions" style="justify-content:space-between;gap:12px">
-              <span>{connection.client_name || connection.client_id}</span>
-              <button
-                class="ai-btn"
-                type="button"
-                disabled={revoking === connection.client_id}
-                onclick={() => revoke(connection.client_id)}
-              >{locale === "en" ? "Revoke" : "撤销授权"}</button>
-            </div>
-          {/each}
-        {/if}
-        {#if connectionsError}
-          <p class="status err" role="alert">{connectionsError}</p>
-        {/if}
+        <p><a href="https://mcp.codepi.app/connections">{locale === "en" ? "Manage CodePi authorizations" : "管理 CodePi 授权"}</a></p>
       </section>
     {:else}
       <section class="panel" id="account">

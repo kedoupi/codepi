@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { readFile, readdir } from 'node:fs/promises';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 // Use Wrangler's locked runtime; no second emulator or new dependency.
 const require = createRequire(import.meta.url);
@@ -11,18 +11,12 @@ const config = readFileSync(new URL('../../wrangler.toml', import.meta.url), 'ut
 const compatibilityDate = config.match(/^compatibility_date = "(\d{4}-\d{2}-\d{2})"$/m)?.[1];
 if (!compatibilityDate) throw new Error('Health API compatibility_date is missing');
 
-// Miniflare v5（wrangler 4.151+）：workers[].config 形态——模块在 manifest
-// 里声明（dist/index.js 引用的 Text 模块 tokens.css 必须一并提供），绑定在
-// env 里以带 type 的对象声明；fetch stub 经 dev.outboundService 接管。
+// Miniflare v5（wrangler 4.151+）：模块在 config.manifest 里声明，绑定在
+// config.env 里以带 type 的对象声明；fetch stub 经 dev.outboundService 接管。
 const dist = fileURLToPath(new URL('../../dist/', import.meta.url));
 const modules = {
   'index.js': { type: 'esm', contents: readFileSync(`${dist}index.js`, 'utf8') },
 };
-for (const name of readdirSync(dist)) {
-  if (name.endsWith('.css')) {
-    modules[name] = { type: 'text', contents: readFileSync(`${dist}${name}`, 'utf8') };
-  }
-}
 
 export function createRuntime(options = {}) {
   const { providerResponse, variedDailyData, autoSync = false, sso = false, bindings = {}, serviceBindings = {}, ...runtimeOptions } = options;
@@ -187,8 +181,8 @@ function assertResponse(response, expected, context) {
   if (response.status !== expected) throw new Error(`${context}: HTTP ${response.status}`);
 }
 
-export async function connectOura(runtime, cookie, origin = 'https://oura.example', returnTo = '') {
-  const start = await runtime.dispatchFetch(`${origin}/api/auth/oura/start?return=${encodeURIComponent(returnTo)}`, {
+export async function connectOura(runtime, cookie, origin = 'https://oura.example') {
+  const start = await runtime.dispatchFetch(`${origin}/api/auth/oura/start`, {
     headers: { Cookie: cookie }, redirect: 'manual',
   });
   assertResponse(start, 302, 'Provider start');

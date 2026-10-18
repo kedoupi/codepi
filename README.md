@@ -2,7 +2,7 @@
 
 `codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/` 与 `packages/shared/` 作为支撑层保留，不单独对外。
+当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/`、`services/mcp/` 与 `packages/shared/` 是支撑层，不新增产品。统一 MCP 首期接入 Health；代码与本地验证状态见[任务记录](docs/development/tasks/2026-10-18-unified-mcp.md)，尚未完成生产发布和真实客户端验收。
 
 原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
@@ -19,6 +19,7 @@
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
+| `services/mcp/` | `mcp.codepi.app`（待首发） | worker `codepi-mcp`（planned） | 统一 MCP，Health 首期；独立授权 D1 |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
 部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。
@@ -60,6 +61,7 @@ cd apps/web && npm run build    # → apps/web/dist
 ```
 
 Health: `cd apps/health && pnpm test`, `pnpm typecheck`, `pnpm build`.
+MCP: `cd services/mcp && pnpm test`, `pnpm typecheck`, `pnpm test:browser:built`。架构、数据语义与扩展方式见[统一 MCP](docs/architecture/unified-mcp.md)。
 
 The root `.npmrc` pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/`. `pnpm install` from the repository root installs all workspace packages.
 

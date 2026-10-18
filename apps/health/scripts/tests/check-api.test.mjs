@@ -30,11 +30,9 @@ function json(res, status, body) {
 }
 
 /** A healthy Worker: every path the contract probes answers correctly. */
-async function healthyWorker({ sso = false, oauthConfigured = true, authOrigin = 'https://auth.codepi.app' } = {}) {
+async function healthyWorker({ sso = false, oauthConfigured = true, authOrigin = 'https://auth.codepi.app', retiredStatus = 404 } = {}) {
   return listen((req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
-    // The script probes each origin in turn; the mock reflects its own origin
-    // in discovery documents, exactly like the Worker derives issuer(request).
     const selfOrigin = `http://${req.headers.host}`;
     if (url.pathname === '/api/health') {
       return json(res, 200, { ok: true, ssoEnabled: sso, oauthConfigured, allowDevLogin: false, release: 'test-release', build: process.env.HEALTH_EXPECT_BUILD || 'local' });
@@ -61,13 +59,8 @@ async function healthyWorker({ sso = false, oauthConfigured = true, authOrigin =
       return;
     }
     if (url.pathname === '/api/me/prefs') return json(res, 405, { error: 'method not allowed' });
-    if (url.pathname === '/mcp') {
-      res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': `Bearer resource_metadata="${selfOrigin}/.well-known/oauth-protected-resource"` }).end(JSON.stringify({ error: 'unauthorized' }));
-      return;
-    }
-    if (url.pathname === '/.well-known/oauth-protected-resource') return json(res, 200, { resource: `${selfOrigin}/mcp` });
-    if (url.pathname === '/.well-known/oauth-authorization-server') {
-      return json(res, 200, { authorization_endpoint: `${selfOrigin}/oauth/authorize`, registration_endpoint: `${selfOrigin}/oauth/register` });
+    if (['/mcp', '/oauth/token', '/api/me/connections'].includes(url.pathname) || url.pathname.startsWith('/.well-known/')) {
+      return json(res, retiredStatus, { error: 'not_found' });
     }
     return json(res, 401, { error: 'unauthorized' });
   });
@@ -109,7 +102,7 @@ test('a reachable Worker passes the contract in strict mode', async t => {
   const run = await runCheck(worker.origin);
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, /PASS \/api\/me/);
-  assert.match(run.output, /PASS \/mcp/);
+  assert.match(run.output, /PASS \/mcp: HTTP 404/);
 });
 
 test('SSO contract uses central login and rejects unauthenticated provider linking', async t => {
@@ -121,7 +114,7 @@ test('SSO contract uses central login and rejects unauthenticated provider linki
   assert.match(run.output, /PASS \/api\/auth\/oura\/start: HTTP 401/);
 });
 
-test('the contract retains SSO, discovery, MCP and anonymous isolation without Oura credentials', async t => {
+test('the contract retains SSO, connector retirement and anonymous isolation without Oura credentials', async t => {
   // 以自定义 auth origin 驱动同一份契约；staging 域名已退役，这里用 example 主机避免
   // 暗示仍存在 staging 环境。
   const authOrigin = 'https://auth.example.invalid';
@@ -135,8 +128,16 @@ test('the contract retains SSO, discovery, MCP and anonymous isolation without O
   assert.equal(run.status, 0, run.output);
   assert.match(run.output, /PASS \/api\/auth\/login: HTTP 302; SSO redirect/);
   assert.match(run.output, /PASS \/api\/me/);
-  assert.match(run.output, /PASS \/.well-known\/oauth-protected-resource/);
-  assert.match(run.output, /PASS \/mcp/);
+  assert.match(run.output, /PASS \/.well-known\/oauth-protected-resource: HTTP 404/);
+  assert.match(run.output, /PASS \/mcp: HTTP 404/);
+});
+
+test('a Health deployment still serving the old connector fails the gate', async t => {
+  const worker = await healthyWorker({ retiredStatus: 401 });
+  t.after(() => worker.close());
+  const run = await runCheck(worker.origin);
+  assert.equal(run.status, 1, run.output);
+  assert.match(run.output, /FAIL \/mcp: HTTP 401; expected 404/);
 });
 
 test('strict mode fails when the edge answers instead of the Worker', async t => {

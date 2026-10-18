@@ -23,6 +23,8 @@ const U = {
 };
 
 const REGISTRY_ROWS = [
+  ['worker-mcp', 'production', 'worker', 'codepi-mcp', 'mcp.codepi.app', 'planned'],
+  ['d1-mcp', 'production', 'd1', 'codepi-mcp', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
   ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
@@ -123,6 +125,7 @@ function legalFiles(overrides = {}) {
     'apps/gu/wrangler.toml': privateWorkerConfig(),
     'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
+    'services/mcp/wrangler.toml': mcpConfig(),
     'apps/health/workers/api/wrangler.toml': healthApiConfig(),
     'apps/health/apps/web/wrangler.toml': healthPagesConfig(),
     ...overrides.files,
@@ -441,4 +444,39 @@ test('CLI：非法 fixture 退出 1 且 stderr 点名违规资源', () => {
 test('CLI：未知选项退出 1', () => {
   const result = spawnSync(process.execPath, [VALIDATOR, '--bogus'], { encoding: 'utf8' });
   assert.equal(result.status, 1);
+});
+
+function mcpConfig() {
+  return `name = "codepi-mcp"
+routes = [
+  { pattern = "mcp.codepi.app", custom_domain = true }
+]
+[vars]
+ENVIRONMENT = "production"
+AUTH_ORIGIN = "https://auth.codepi.app"
+MCP_ORIGIN = "https://mcp.codepi.app"
+AUTH_CLIENT_ID = "mcp"
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-mcp"
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+[[services]]
+binding = "HEALTH"
+service = "codepi-health-api"
+entrypoint = "HealthMcp"
+${OBSERVABILITY}
+`;
+}
+
+test('MCP reserves its own D1 and requires the named Health RPC capability', () => {
+  assert.deepEqual(run(legalFiles()), []);
+  for (const config of [
+    mcpConfig().replace('entrypoint = "HealthMcp"', ''),
+    mcpConfig().replace('database_name = "codepi-mcp"', 'database_name = "codepi-health"'),
+    mcpConfig().replace('MCP_ORIGIN = "https://mcp.codepi.app"', 'MCP_ORIGIN = "https://health.codepi.app"'),
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': config } })).some(v => v.startsWith('mcp:')));
+  }
 });

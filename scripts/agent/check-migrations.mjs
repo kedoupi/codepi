@@ -18,6 +18,7 @@ export const MIGRATION_DIRS = {
   'apps/gu/migrations': 'apps/gu',
   'apps/gzh/migrations': 'apps/gzh',
   'services/auth/migrations': 'services/auth',
+  'services/mcp/migrations': 'services/mcp',
   'apps/health/migrations': 'apps/health',
 };
 

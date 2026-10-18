@@ -304,11 +304,7 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    // Connector + auth paths ride the same Worker as the dashboard APIs.
-    const isWorkerPath = url.pathname.startsWith('/api/')
-      || url.pathname === '/mcp'
-      || url.pathname.startsWith('/oauth/')
-      || url.pathname.startsWith('/.well-known/');
+    const isWorkerPath = url.pathname.startsWith('/api/');
     if (isWorkerPath) {
       if (sleepFailure && url.pathname === '/api/me/health-records' && url.searchParams.get('collection') === 'sleep') {
         res.writeHead(503, { 'Content-Type': 'application/json' }).end('{"error":"upstream_unavailable"}');

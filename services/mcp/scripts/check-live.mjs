@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+const origin = process.env.MCP_CHECK_ORIGIN ?? 'https://mcp.codepi.app';
+const expected = process.env.MCP_EXPECT_BUILD;
+const get = (path, options = {}) => fetch(origin + path, { redirect: 'manual', signal: AbortSignal.timeout(15000), ...options });
+const health = await get('/api/health');
+assert.equal(health.status, 200);
+const status = await health.json();
+assert.equal(status.service, 'codepi-mcp');
+if (expected) assert.equal(status.build, expected);
+const resource = await get('/.well-known/oauth-protected-resource/mcp');
+assert.equal(resource.status, 200);
+assert.equal((await resource.json()).resource, origin + '/mcp');
+const auth = await get('/.well-known/oauth-authorization-server');
+assert.equal(auth.status, 200);
+assert.equal((await auth.json()).issuer, origin);
+const denied = await get('/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+assert.equal(denied.status, 401);
+assert.match(denied.headers.get('WWW-Authenticate'), /resource_metadata/);
+assert.equal((await get('/connections')).status, 302);
+console.log('CodePi MCP anonymous smoke passed; real client authorization and Health calls remain separate.');

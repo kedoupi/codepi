@@ -378,6 +378,15 @@ try {
   await navigate('/settings');
   await page.waitForFunction(() => document.body.textContent.includes('个人工作区'));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.landing-btn.primary').length), 0);
+  assert.deepEqual(await page.evaluate(() => ({
+    url: document.querySelector('#connections code')?.textContent,
+    management: document.querySelector('#connections a')?.getAttribute('href'),
+    legacy: document.querySelector('#connections h3')?.textContent ?? null,
+  })), {
+    url: 'https://mcp.codepi.app/mcp',
+    management: 'https://mcp.codepi.app/connections',
+    legacy: null,
+  });
   await healthy('owner settings shows personal workspace, no billing');
   await page.waitForFunction(() => document.querySelectorAll('.health-data .collection').length === 18);
   // Keep the real score response pending so acceptance, route changes and

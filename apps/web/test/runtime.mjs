@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const bundle = async contents => (await build({
   stdin: { contents, resolveDir: root, loader: 'ts' }, bundle: true, format: 'esm',
   platform: 'neutral', write: false, loader: { '.css': 'text' },
+  external: ['cloudflare:workers'],
 })).outputFiles[0].text;
 const deskScript = await bundle(`export {default} from './web/worker/index.ts';`);
 const providers = {

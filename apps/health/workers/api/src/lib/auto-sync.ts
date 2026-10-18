@@ -61,29 +61,29 @@ export function planAutomaticSync(today: string, coverage: Coverage[]): Task[] {
 }
 
 function preserveRetryDelays(tasks: Task[], previous: Task[], now: number) {
-  const rateLimitUntil = Math.max(0, ...previous.filter(t => t.error === "rate_limited").map(t => t.after));
+  const holds = new Set(["rate_limited", "daily_sync_budget_reached", "storage_write_quota_exceeded"]);
+  const globalHold = previous.filter(t => t.error && holds.has(t.error) && t.after > now)
+    .sort((a, b) => b.after - a.after)[0];
   for (const item of tasks) {
     const held = previous.filter(t => t.state === "failed" && t.after > now && t.collection === item.collection
       && t.from <= item.to && t.to >= item.from).sort((a, b) => b.after - a.after)[0];
     if (held) { item.after = held.after; item.error = held.error; }
     // A new plan gets a new attempt budget, not a way around an exhausted
     // provider cooldown. Both manual and scheduled planning use this guard.
-    if (rateLimitUntil > now && rateLimitUntil >= item.after) {
-      item.after = rateLimitUntil;
-      item.error = "rate_limited";
+    if (globalHold && globalHold.after >= item.after) {
+      item.after = globalHold.after;
+      item.error = globalHold.error;
     }
   }
 }
 
 async function cleanup(env: Env, now: number) {
-  // Small batches of expired temporary state only. Keep health history, coverage
-  // and MCP revocation/reuse evidence.
+  // Small batches of current temporary state only. Keep health history,
+  // coverage and retired connector tables.
   const iso = new Date(now).toISOString();
   await env.DB.batch([
     env.DB.prepare("DELETE FROM sessions WHERE id IN (SELECT id FROM sessions WHERE expires_at<? LIMIT 500)").bind(iso),
     env.DB.prepare("DELETE FROM oauth_states WHERE state IN (SELECT state FROM oauth_states WHERE expires_at<? LIMIT 500)").bind(iso),
-    env.DB.prepare("DELETE FROM oauth_consent_requests WHERE consent_id IN (SELECT consent_id FROM oauth_consent_requests WHERE expires_at<? LIMIT 500)").bind(now),
-    env.DB.prepare("DELETE FROM oauth_auth_codes WHERE code_hash IN (SELECT code_hash FROM oauth_auth_codes WHERE expires_at<? LIMIT 500)").bind(now),
     env.DB.prepare("DELETE FROM analysis_cache WHERE rowid IN (SELECT rowid FROM analysis_cache WHERE created_at<? LIMIT 500)")
       .bind(new Date(now - 30 * DAY).toISOString()),
   ]);
@@ -135,7 +135,25 @@ export async function automaticSyncStatus(env: Env, userId: string) {
 
 // Persist first, acknowledge second. The scheduled handler is the durable
 // executor; waitUntil only gives the first batch a head start.
-export async function requestAutomaticSync(env: Env, userId: string) {
+export type RefreshWindow = { collection: string; from: string; to: string };
+
+export function mergeRefreshTasks(previous: Task[], requested: RefreshWindow[], now = Date.now()): Task[] {
+  const earliest = date(Date.parse(calendarDay(new Date(now))) - 89 * DAY);
+  const today = calendarDay(new Date(now));
+  const planned: Task[] = [];
+  for (const window of requested) {
+    const checked = window.collection === "__scores" ? window : healthWindow(window.collection, window.from, window.to);
+    if (checked.from < earliest || checked.to > today) throw new ApiError("outside_automatic_backfill", 400);
+    if (previous.some(t => t.collection === window.collection && t.from <= window.from && t.to >= window.to
+      && (t.state === "pending" || t.state === "unavailable" || t.state === "failed" && t.after > now))) continue;
+    if (planned.some(t => t.collection === window.collection && t.from <= window.from && t.to >= window.to)) continue;
+    planned.push(task(window.collection, window.from, window.to));
+  }
+  preserveRetryDelays(planned, previous, now);
+  return [...previous, ...planned];
+}
+
+export async function requestAutomaticSync(env: Env, userId: string, requested?: RefreshWindow[]) {
   if (env.AUTO_SYNC_ENABLED !== "1") throw new ApiError("auto_sync_disabled", 503);
   if (!env.PERSONAL_OWNER_ID || userId !== env.PERSONAL_OWNER_ID) throw new ApiError("not_owner", 403);
   if (!env.TOKEN_ENCRYPTION_KEY || !env.OURA_CLIENT_ID || !env.OURA_CLIENT_SECRET) {
@@ -149,12 +167,32 @@ export async function requestAutomaticSync(env: Env, userId: string) {
     ON CONFLICT(user_id) DO UPDATE SET lease_id=excluded.lease_id,lease_until=excluded.lease_until
     WHERE auto_sync_state.lease_until<? RETURNING *`).bind(userId, lease, now + 120_000, now).first<State>();
   if (!row) {
+    if (requested) throw new ApiError("sync_in_progress", 409);
     const status = await automaticSyncStatus(env, userId);
     if (status.status !== "running" && status.status !== "blocked") throw new ApiError("sync_in_progress", 409);
     return { started: false, status };
   }
   let started = false;
   try {
+    if (requested) {
+      // Queries append durable targeted work without resetting accepted work,
+      // retry deadlines, the daily gate or an OAuth block.
+      if (row.status === "blocked") throw new ApiError(row.last_error ?? "reconnect_required", 401);
+      const denied = await deniedHealthCollections(env, userId);
+      const refusal = denied.find(d => requested.some(w => w.collection === d.collection));
+      if (refusal) throw new ApiError(refusal.code, 403);
+      if (row.status !== "blocked") {
+        const previous: Task[] = JSON.parse(row.payload);
+        const tasks = mergeRefreshTasks(previous, requested, now);
+        if (tasks.length > previous.length) {
+          await env.DB.prepare(`UPDATE auto_sync_state SET status='running',started_at=COALESCE(started_at,?),
+            finished_at=NULL,payload=? WHERE user_id=? AND lease_id=?`)
+            .bind(new Date(now).toISOString(), JSON.stringify(tasks), userId, lease).run();
+          started = true;
+        }
+      }
+      return { started, status: await automaticSyncStatus(env, userId) };
+    }
     // Clicking again must not clear a retry delay, a quota hold, or an OAuth block.
     if (row.status !== "running" && row.status !== "blocked"
       && !(row.finished_at && now - Date.parse(row.finished_at) < 30_000)) {

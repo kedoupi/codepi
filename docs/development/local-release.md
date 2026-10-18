@@ -71,11 +71,18 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | GU | `apps/gu` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gu --remote` → `pnpm exec wrangler deploy` |
 | GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `pnpm exec wrangler deploy` |
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
+| MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `pnpm exec wrangler deploy` |
 
 Health API 的现有脚本已包含 dry-run、权限/当前版本预检、D1 migration、带 SHA 的
 版本上传、切换 100% 流量和 Cron 核对；不得用裸 `wrangler deploy` 丢失这些步骤。
 前端使用 Workers Static Assets，不使用已退役的 Pages deploy。
+
+MCP 首发前单独配对 Auth 的 `SSO_CLIENT_SECRET_MCP` 与 MCP 的
+`AUTH_CLIENT_SECRET`；既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
+必须先就绪，MCP 验收通过后才发布展示新地址的 Health 前端。MCP D1 只保存授权状态，
+不复用 Health 数据库；旧客户端需重新授权。MCP 授权状态当前不包含在五个业务 D1 的
+定时备份中，丢失时通过重新授权恢复，不影响 Health 历史和 Oura 凭证。
 
 Health 示例（在仓库根运行，替换基线，凭证只从已授权环境读取）：
 
@@ -99,7 +106,8 @@ provider 标识和错误信息；禁止保存 credentials、Cookie、OAuth code 
 | --- | --- |
 | Auth | `https://auth.codepi.app/api/health` 返回 200 JSON 且 `ok=true`；核对 SSO 客户端及回调元数据 |
 | Web / GU / GZH | `node scripts/cloudflare/check-pages.mjs <web或gu或gzh> production`，检查私有接口拒绝和 SSO |
-| Health API | `HEALTH_EXPECT_BUILD=<SHA前12位> pnpm --dir apps/health check:api`，16 项含 MCP/OAuth 和实际 build |
+| Health API | `HEALTH_EXPECT_BUILD=<SHA前12位> pnpm --dir apps/health check:api`，含旧 MCP/OAuth 返回 404、SSO 和实际 build |
+| MCP | `MCP_EXPECT_BUILD=<SHA前12位> pnpm --dir services/mcp check:live`，核对凭证配对、版本、发现和匿名 401 |
 | Health 前端 | API 验收通过后，`pnpm --dir apps/health check:branding` 及本次 UI/登录流程验收 |
 
 用 `deployment-evidence.mjs resolve-worker` 核对实际 runtime secret 名称和 origin：

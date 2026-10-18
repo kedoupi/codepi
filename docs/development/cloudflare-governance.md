@@ -35,7 +35,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`。
 `role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`mcp`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
@@ -113,8 +113,8 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 ### 发布依赖顺序
 
 Auth migration/deploy/smoke → Web/GU/GZH migrations/deploy/smoke →
-Health API migration/deploy/contract smoke → Health Pages。
-任何 SSO/shared-auth 改动都纳入 Auth、Web、GU、GZH、Health 的受影响检查与对应
+Health API migration/deploy/contract smoke → MCP migration/deploy/smoke → Health frontend。
+任何 SSO/shared-auth 改动都纳入 Auth、Web、GU、GZH、Health、MCP 的受影响检查与对应
 环境发布。
 
 ## 7. 迁移与退役
@@ -134,13 +134,14 @@ Health API migration/deploy/contract smoke → Health Pages。
   已轮换凭证时需同时恢复配对配置或修复新 Worker。除本步骤明确
   授权的迁移 CNAME 删除外，domain pending 时不得删除旧项目或 DNS。切换后按顺序验证：
   匿名首页/登录页 200 或预期 302、Auth health 200 JSON、未登录私有接口 401/302、
-  SSO callback 同环境精确匹配、登出、Health `/api/*`、`/mcp`、两个
-  `/.well-known/*` 返回 JSON 而非 SPA HTML。正式生产路径不得返回 522。
+  SSO callback 同环境精确匹配、登出、Health `/api/*` 正常且旧 `/mcp`、
+  `/oauth/token`、两个 `/.well-known/*` 返回 404 JSON；统一 MCP 域名的发现与
+  未授权 `/mcp` challenge 另行验收。正式生产路径不得返回 522。
 
 ## 8. 静态守门
 
 `scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、
-gzh、auth、health-api、health-pages）与登记表，对每个 declared service 强制：
+gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared service 强制：
 
 1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
    纯代理除外：它不得声明 ENVIRONMENT 等 vars）；
@@ -167,6 +168,22 @@ gzh、auth、health-api、health-pages）与登记表，对每个 declared servi
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`
 自动选择执行。
+
+## CodePi MCP 首次发布补充（2026-10-18）
+
+`services/mcp/` 是统一入口支撑服务，绑定 `AUTH → codepi-auth` 和
+`HEALTH → codepi-health-api#HealthMcp`，不绑定 Health D1。
+`mcp.codepi.app` 仅映射 `codepi-mcp`。新服务在登记表中先记为 `planned`；
+此状态是代码预留，不能用作已上线证据。只有 MCP 的新 Worker/D1/域名引用允许
+这种预留，已有服务的 managed/UUID 校验不放宽。
+
+首发配置省略尚不存在的 D1 ID；发布脚本按精确名称解析或创建 `codepi-mcp`，
+在忽略目录生成带真实 UUID 的临时配置，先迁移再部署，且不改已审查源码。
+首发后登记真实 UUID、Worker version、源码 SHA 和探针证据。Auth 的
+`SSO_CLIENT_SECRET_MCP` 与 MCP 的 `AUTH_CLIENT_SECRET` 单独配对，既有客户端不轮换。
+Health API 必须先发布命名 RPC，统一 MCP 后发布；用户决定此版本直接删除旧 Health
+MCP 实现，不保留兼容开关。旧授权不迁移，新客户端改连统一入口并重新授权；
+Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检查，本地发布流程增加 MCP 阶段。
 
 ## 9. 日常监控与恢复
 
