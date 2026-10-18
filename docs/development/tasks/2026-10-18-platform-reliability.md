@@ -115,14 +115,53 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 
 ## Remaining and next steps
 
-1. Check PR #81 CI, then obtain the separate merge/release decision. Do not treat
-   a branch push as a production deployment.
-2. After merge, verify the repaired frontend deployment, persistent logs, first backup
-   artifact and both scheduled workflows. No additional Actions secrets are required.
-3. Owner-managed recovery-key escrow outside this machine is not verified. Preserve
+1. Owner-managed recovery-key escrow outside this machine is not verified. Preserve
    the private key; it is required to recover all backups addressed to this recipient.
-4. Continue diagnosing Health's provider sync. The monitor is expected to remain red
+2. Continue diagnosing Health's provider sync. The monitor is expected to remain red
    until the real failure is resolved; do not change the threshold to hide it.
-5. Local `gh` cannot retrieve a usable OAuth token; available token candidates return
-   401. The GitHub connector and Git SSH transport remain usable. This is local
-   authentication state, not evidence of repository or Cloudflare failure.
+   Latest trace evidence (2026-10-18, temporary traces on `codepi-health-api`):
+   the failing cron execution shows only D1 spans and no outbound fetch span,
+   while ordinary GET requests on the same Worker do show fetch spans. The failure
+   happens before any Oura request is made, pointing at token read/decrypt or the
+   D1 side rather than provider reachability. `DecryptError` (code
+   `decrypt_failed`) is not an `ApiError` and is normalized to
+   `upstream_unavailable` by the sync caller, which matches the observation but is
+   not yet confirmed. Do not rotate `TOKEN_ENCRYPTION_KEY`, delete grants or promise
+   that reauthorization will solve the failure without further evidence.
+3. Local `gh` cannot retrieve a usable OAuth token; available token candidates
+   (`GITHUB_TOKENS`) all return 401. The GitHub connector and Git SSH transport
+   remain usable. Because of this, the first Actions backup artifact could not be
+   downloaded for a decryption check; see the 2026-10-18 follow-up evidence below
+   for the compensating verification that was performed.
+
+## Follow-up evidence (2026-10-18, PR #91 / main `1816abf2`)
+
+- PR #81 merged as `4842996`; main release run `39088985860` all jobs succeeded.
+  Control plane afterwards showed `codepi-health-api` at BUILD_SHA `48429969c5c1`
+  with `compatibility_date` `2026-10-15`; the Health frontend `verify runtime
+  configuration` gate that had failed now passes.
+- Deployment-overwrite bug found after PR #81: manually API-enabled observability
+  flags that were not in wrangler config were reset by each deploy (six Workers
+  lost `traces.enabled`; five of six lost `issues.enabled`).
+- PR #91 (`d0a5859`, merged as `1816abf2`) added `[observability.issues]` to all
+  six production wrangler configs, a `validate-governance.mjs` `issuesEnabled`
+  check (TOML + JSONC paths, with a regression test), and path-scoped `push`
+  triggers so `d1-backup` and `production-monitor` run on merge instead of
+  waiting for cron. Local: 103/103 node tests, governance/lint/migration checks,
+  `git diff --check` all passed.
+- Main release run `39090056820`: all 13 jobs succeeded, including all six
+  production deploys with evidence artifacts.
+- Post-deploy settings API check (2026-10-18T02:30Z): all six Workers report
+  `issues.enabled=true` and `traces.enabled=false` — the alert setting now
+  survives deployment, and the temporary diagnostic traces on
+  `codepi-health-api` were reset to the configured value as intended.
+- First push-triggered `d1-backup` run `39090056809` succeeded and produced
+  artifact `d1-backup-39090056809-1` (~1.5 MB). Direct decryption of that zip
+  was not possible locally (no working GitHub token for the artifact download).
+  Compensating checks: 5/5 `d1-backup` unit tests pass; repo public key and the
+  local recovery private key share `key_id` prefix `346ac1bf375c4382`; an
+  in-memory encrypt/decrypt roundtrip with the production recipient pair
+  succeeded. Full artifact-level verification is pending a working token.
+- First push-triggered `production-monitor` run `39090056823` failed as
+  expected: Health's automatic sync is still red (last success about 59h ago).
+  This is the real known failure, not a regression from this change.
