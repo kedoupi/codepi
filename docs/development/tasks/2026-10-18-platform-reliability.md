@@ -1,16 +1,16 @@
 # Production reliability follow-up
 
-- Status: PR #96 merged as `b4ad03b`; normal release policy is local publishing
-  from merged main. That exact main source is deployed and live API checks
-  passed. New provider callbacks are rejected with `oura_account_mismatch`;
-  the owner confirms this is the same Oura account. Identity comparison
-  diagnostics confirmed different IDs with an exactly matching email. Explicit
-  original-account connection repair passed local checks and awaits release;
-  real sync recovery is unverified.
+- Status: PR #97 merged as `85c060b`; normal release policy is local publishing
+  from merged main. That source is deployed to both Health API and frontend,
+  and live checks passed. Identity diagnostics confirmed different IDs with an
+  exactly matching email; the owner confirms this is the same Oura account.
+  Explicit original-account connection repair is available in Settings.
+  Owner-initiated repair authorization and real sync recovery remain unverified.
   Actions backup artifact was verified; scheduled
   monitoring/backup availability and off-machine key escrow remain unresolved.
 - Worktree: `<workspace>/.worktrees/kdp.cool/codex/platform-reliability`.
-- Branch: `codex/oura-owner-connection-repair`; current phase baseline
+- Branch: `codex/oura-repair-release-evidence`; current documentation baseline
+  `85c060bda5e96755a07bae4164e1aecfe75e95b2`. Implementation baseline was
   `b4ad03bf168ec6ccf43d75307d2ed584eac50657`. Previous Health recovery merged
   through PR #93, callback diagnostics through PR #95.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
@@ -489,3 +489,41 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
   strict-email gating, guarded atomic writes and additive migration
   compatibility. No independent review or real provider recovery is claimed.
   Production release remains pending.
+
+### Original-account repair production release
+
+- PR #97 squash-merged as `85c060bda5e96755a07bae4164e1aecfe75e95b2`;
+  its tree equals validated `b6aa71b`. This Codex session published from the
+  clean merged-main checkout on the owner's machine, holding the common Git
+  directory's production release lock throughout preflight, migration, API
+  and frontend deployment, and smoke checks. Live remote main equality was
+  rechecked before each release command.
+- At `2026-10-18T08:33:58Z`, API version
+  `3a78e935-726f-408a-9da3-0bbe210b8587` and frontend version
+  `a4bca3a2-872f-4e90-922f-980dd1edea75` were deployed. Previous versions:
+  API `fa60c2fb-1f1c-4206-8000-6032542c7c3c`, frontend
+  `0aa41bdc-9c2e-4f85-bdb3-0e37734ee492`.
+  Migration `0012_oura_identity_repair.sql` succeeded before API upload.
+- All 16 production API contract checks passed with build `85c060bda5e9`;
+  public branding/assets checks passed. Auth health returned 200/ok and the
+  existing account, required secret names and service/D1 bindings were
+  verified. No secrets were rotated and no manual identity update was made.
+  The live frontend module matched the local release bundle byte-for-byte
+  and included the repair form; anonymous repair POST returned 401.
+- At `2026-10-18T08:34:22Z`, control-plane readback confirmed both new
+  versions at 100%, API build, expected D1/Auth/proxy bindings, two-minute
+  Cron, persistent logs, query-string redaction and Issues. D1 confirmed
+  migration 0012. Sync still showed `blocked/reconnect_required` with last
+  success `2026-10-15T15:16:55.898Z`; stored-grant update time remained
+  `2026-10-15 06:23:40`. This is a successful release, not recovered sync.
+- The owner must refresh Health, open Settings -> Account -> original-account
+  connection repair, and explicitly reauthorize. Ordinary reconnect remains
+  strict. Next acceptance is a successful `identity_repaired` callback,
+  a new stored-grant timestamp and successful subsequent background sync.
+- Evidence outside Git: `/tmp/codepi-oura-repair-release.json`,
+  `/tmp/codepi-deployment-evidence.jsonl`,
+  `/tmp/codepi-oura-repair-api-deploy.log`,
+  `/tmp/codepi-oura-repair-api-contract.log`,
+  `/tmp/codepi-oura-repair-web-deploy.log` and
+  `/tmp/codepi-oura-repair-web-contract.log`. This follow-up changes release
+  documentation only and does not require redeploying the same application.
