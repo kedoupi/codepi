@@ -1,15 +1,17 @@
 # Production reliability follow-up
 
-- Status: PR #95 merged as `aabc810`; normal release policy is local publishing
+- Status: PR #96 merged as `b4ad03b`; normal release policy is local publishing
   from merged main. That exact main source is deployed and live API checks
   passed. New provider callbacks are rejected with `oura_account_mismatch`;
   the owner confirms this is the same Oura account. Identity comparison
-  diagnostics are being added; real sync recovery is unverified.
+  diagnostics confirmed different IDs with an exactly matching email. Explicit
+  original-account connection repair passed local checks and awaits release;
+  real sync recovery is unverified.
   Actions backup artifact was verified; scheduled
   monitoring/backup availability and off-machine key escrow remain unresolved.
 - Worktree: `<workspace>/.worktrees/kdp.cool/codex/platform-reliability`.
-- Branch: `codex/oura-identity-diagnostics`; current phase baseline
-  `aabc810d042fbe071f6284fafe0379555fe39d1e`. Previous Health recovery merged
+- Branch: `codex/oura-owner-connection-repair`; current phase baseline
+  `b4ad03bf168ec6ccf43d75307d2ed584eac50657`. Previous Health recovery merged
   through PR #93, callback diagnostics through PR #95.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
 - Health recovery baseline: `58f7848740db3b6f0fb3935201500d46c97744d7`.
@@ -431,3 +433,59 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
   only allowlisted categories/lengths and exact-match authorization is unchanged.
   Logs: `/tmp/codepi-oura-identity-checks.log` and
   `/tmp/codepi-oura-identity-sso.log`. No independent review is claimed.
+- PR #96 squash-merged as `b4ad03bf168ec6ccf43d75307d2ed584eac50657`;
+  its tree equals locally validated `6562d3e`. This Codex session released the
+  clean merged-main checkout under the common-directory production lock,
+  verifying remote main equality before preflight and deployment. Auth runtime,
+  account identity, required secret names and D1/Auth bindings passed preflight.
+- At `2026-10-18T07:10:34Z`, Health API version
+  `fa60c2fb-1f1c-4206-8000-6032542c7c3c` was serving 100% traffic with build
+  `b4ad03bf168e`; previous version `4ae86a3b-e7b7-4ec6-8091-7c24f1e922f1`.
+  No migrations pending; all 16 formal-domain checks passed. Control-plane
+  readback confirmed active version/build, Cron, persisted logs, query-string
+  redaction and Issues. No callback from the new version was present yet.
+  Evidence: `/tmp/codepi-oura-identity-release.json` and
+  `/tmp/codepi-deployment-evidence.jsonl`. Root cause and actual recovery remain
+  pending the next callback; provider bindings and existing data were not changed.
+
+### Explicit original-account connection repair
+
+- The fresh owner callback at `2026-10-18T08:15:30.906Z` produced
+  `idComparison=different`, `emailComparison=exact`, with both ID lengths 36.
+  This rules out the tested formatting differences and confirms exact equality
+  of the provider-reported and stored email. It does not establish why Oura
+  supplied a different ID. The owner had already confirmed one original account.
+- Scope: an explicit, authenticated original-account recovery flow within
+  Health. Normal consent keeps exact provider-ID checks. No new dependencies,
+  encryption-key changes or manual production record edits.
+- Settings now has an expandable original-account repair form. Only same-origin
+  POST from the SSO owner may create repair consent; the server stores the
+  expected old provider ID in the session-bound, expiring, single-use state.
+  GET/callback query parameters cannot opt into repair.
+- A different provider ID is accepted only for that explicit transaction, while
+  its old binding remains current and the provider-reported email matches the
+  stored email exactly. A new provider binding and encrypted grant are written
+  in one guarded D1 batch. The local owner ID/AAD, cached history, preferences
+  and MCP grants remain unchanged. Existing callback logic fences old sync work
+  and clears reconnect blockers.
+- Migration `0012_oura_identity_repair.sql` adds one nullable state column.
+  Existing states receive no repair consent; older Workers ignore the addition.
+  Rollback remains code-compatible. No existing migration is edited.
+- Targeted tests passed: 19 across original SSO contracts and new repair tests,
+  including history/grant preservation, same-origin and session checks, exact
+  email matching, stale binding, query opt-in rejection, replay rejection and
+  transaction rollback. Log: `/tmp/codepi-oura-repair-targeted.log`.
+- All 11 selected local checks passed: platform/agent regressions, governance,
+  script/JSON lint, migration checks, Health tests/typecheck/build/assets and
+  normal/SSO browser journeys. Frozen-lockfile install and diff whitespace
+  checks passed. Logs: `/tmp/codepi-oura-owner-repair-checks-final.log` and
+  `/tmp/codepi-oura-repair-browser-final.log`.
+- Browser repair now runs as its own navigation journey after the existing
+  mounted-session outage/revocation checks. Inserting a full OAuth navigation
+  before those checks disturbed their page lifecycle; no application outage
+  or revocation behavior was changed. Both scenarios pass with actual form
+  submission, callback and D1 writes against synthetic services.
+- Self-review covered the complete diff, one-time/session-bound consent,
+  strict-email gating, guarded atomic writes and additive migration
+  compatibility. No independent review or real provider recovery is claimed.
+  Production release remains pending.

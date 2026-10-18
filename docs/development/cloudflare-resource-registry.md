@@ -1,4 +1,12 @@
 # Cloudflare 资源登记表
+2026-10-18T07:10:34Z 同账号 Oura 标识诊断发布：PR #96 已合并为
+`b4ad03bf168ec6ccf43d75307d2ed584eac50657`，从与远程 main 一致的干净源码，
+持有本机发布锁执行 Health API 发布。无待迁移文件；新 Worker version 为
+`fa60c2fb-1f1c-4206-8000-6032542c7c3c`，100% 流量，build `b4ad03bf168e`，
+前一版本为 `4ae86a3b-e7b7-4ec6-8091-7c24f1e922f1`。16 项正式域名检查通过，
+控制面核实版本、build、Cron、持久日志、查询串脱敏和 Issues。新版本尚无 Oura
+回调，待所有者重新连接以取得无私人标识的比较结果。账号绑定未修改，同步未恢复。
+
 2026-10-18T05:54:50Z Oura 回调诊断补丁本地发布：PR #95 已合并为
 `aabc810d042fbe071f6284fafe0379555fe39d1e`。本 Codex 会话从干净且与远程 main
 一致的源码、持有本机发布锁执行 Health API 发布，无待迁移文件。新 Worker version
