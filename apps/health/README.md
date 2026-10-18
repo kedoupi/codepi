@@ -6,12 +6,12 @@ kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`。�
 
 未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../../packages/shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../../docs/architecture/health-domain-migration.md)。
 
-## 当前生产登录与授权
+## 登录与授权（统一 MCP 版本）
 
 - 网页登录：`/api/auth/login` → `auth.codepi.app` → 当前域名 `/api/auth/callback`。
 - Oura 提供方回调继续使用已登记的 `https://health.codepi.app/api/auth/oura/callback`。
-- 从 Health 发起设备连接时，先通过 SSO 在旧域建立独立会话，再进入 Oura 授权；完成后回到 Health 设置页。不跨域复制 Cookie，也不改变加密令牌或用户身份。
-- 新旧域保留独立的 MCP 发现与授权路径，原有 MCP 凭证继续有效。新连接使用 `https://health.codepi.app/mcp`。
+- 从 Health 发起设备连接时，先验证当前网站 SSO 会话，再进入 Oura 授权；完成后回到 Health。带 `health_return` 或同步标记的请求回到设置页。
+- AI 客户端统一连接 `https://mcp.codepi.app/mcp`，由 `services/mcp/` 管理授权；此版本直接删除旧 Health MCP，旧客户端需重新授权。实现、发布与真实客户端验收状态见[任务记录](../../docs/development/tasks/2026-10-18-unified-mcp.md)。
 - 以下 DEV / 非 SSO 说明属于本地调试或历史模式；生产已启用 SSO，网页登录与设备授权分开。
 
 ## Quick start
@@ -207,7 +207,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 
 | 命令 | 覆盖 |
 | --- | --- |
-| `pnpm test` | 部署脚本、前端逻辑、API 单元测试与 Worker 集成测试（含 MCP 授权轮转、同步并发和完整数据采集流程） |
+| `pnpm test` | 部署脚本、前端逻辑、API 单元测试与 Worker 集成测试（含旧 MCP 入口拒绝、同步并发和完整数据采集流程） |
 | `pnpm typecheck` | API TypeScript 与前端 Svelte 类型检查 |
 | `pnpm build` | 前端生产构建 + Worker 打包 |
 | `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
@@ -245,77 +245,46 @@ AI provider 才可能返回 `source: "ai-ranked"`，且该模式仅对已验证�
 - 周报按包含今天的近 7 个日历日，对比此前 7 个日历日，不表示周一到周日。
   空日、稀疏日和过期缓存不移动窗口。每项指标分别统计有效天数，
   两期都至少 3 天才生成比较结论；这个门槛是产品展示规则，不代表统计显著性。
-- 页面 `range` 为近 7 天与近 30 天，窗口重叠；MCP `compare_periods range`
-  保留近 30 天与此前 30 天的独立区间。两者都按日历过滤，返回完整边界和每项样本数。
+- 页面 `range` 为近 7 天与近 30 天，窗口重叠；统一 MCP 的 `health_aggregate`
+  通过显式日期选择两个区间，对全部已保存记录统计并返回完整边界和每项样本数。
 - 均值忽略缺失/非有限值/越界评分，合法零值仍参与计算。缺失不作为零填充。
 - 看板与睡眠页展示每日主睡眠；未标记时取最长记录，不累加小睡。
   HRV 仅使用明确标记的主睡眠。睡眠时间按原始记录的当地时刻展示。
 - 页面跨北京时间午夜保持打开时，定时检查或重新获得焦点会刷新窗口与数据；
   浏览器回归使用不同的浏览器时区，并验证跨日后的请求与显示。
 
-## MCP 连接器（Claude / ChatGPT）
+## CodePi 统一 MCP（Claude / ChatGPT / Agent CLI）
 
-看板数据以只读远端 MCP 服务暴露给 Claude 与 ChatGPT：
+AI 客户端统一使用 `https://mcp.codepi.app/mcp`。在客户端添加远程连接器后，
+通过 CodePi 统一账号登录，明确允许 `health.read health.sync`。Oura 设备授权
+仍在 Health 设置页单独管理；MCP 不接收 Oura 凭证。
 
-```
-https://health.codepi.app/mcp
-```
+此版本直接删除 Health API 内的旧 MCP、OAuth 服务和连接管理 API，旧地址返回
+404 JSON。旧客户端 token 不迁移；需要改连统一地址并重新授权。
+Health 设置页提供新连接地址和 `https://mcp.codepi.app/connections` 授权管理链接，
+查看及撤销客户端授权均在统一 MCP 服务完成。
 
-部署此版本需先应用 `0009_mcp_token_family.sql`（`pnpm deploy:api` 会自动执行）。
-授权码消费与凭证发行、refresh token 轮转都在 D1 事务内完成，失败可重试；
-重放已轮转的 refresh token 会撤销同一授权链，错误客户端不能触发该撤销。
-历史凭证缺少授权链关联，因此同一用户、同一客户端的旧授权会统一归组：
-它们保持可用，但其中一枚旧凭证被撤销或发生重放时，该组旧授权会一起失效。
-新授权各自独立，不受旧授权组撤销影响。
-
-接入步骤（两个平台相同）：添加自定义连接器 → 填上面的 URL → 平台自动完成
-注册与授权 → 浏览器打开同意页 → 先登录 Oura，再点「允许连接」。
-
-`codepi-health-api.kedoupi.workers.dev` 仅用于排查 Worker 是否在线，不作为连接器 URL：
-OAuth 登录回调固定在 `health.codepi.app`，跨域名浏览器会话无法完成授权。
-
-连接器图标沿用看板的原创橙色仪表圆环：
-
-- `https://health.codepi.app/icon.png`：512 × 512 PNG，可用于平台手动上传。
-- `https://health.codepi.app/icon.svg`：矢量图；网站和授权页也使用此图标。
-- `https://health.codepi.app/favicon.ico`：32 × 32 浏览器兼容图标。
-
-MCP `initialize` 的 `serverInfo.icons` 返回同源 PNG 和 SVG 地址，并提供
-`websiteUrl`；保留现有协议版本协商，不为图标改动升级整个协议。
-字段格式参照 [MCP Implementation / Icon](https://modelcontextprotocol.io/specification/2025-11-25/schema)。
-客户端是否显示图标由其实现决定，服务端返回元数据不等于平台 UI 已验收。
-ChatGPT 可在连接管理中 Refresh 后开启新对话
-（[官方测试说明](https://developers.openai.com/apps-sdk/deploy/connect-chatgpt)）。
-Claude 自定义连接器的自动图标读取尚未经过真实客户端验证。
-`pnpm check:branding` 检查公开图片状态、MIME、PNG 尺寸和首页图标链接；
-发布流水线在前端部署后自动执行，避免缺失图片被 SPA HTML 回退掩盖。
-
-授权由本 Worker 自带的 OAuth 2.1 授权服务器签发：
-
-| 端点 | 作用 |
+| 工具 | 用途 |
 | --- | --- |
-| `/.well-known/oauth-protected-resource` | RFC 9728 资源元数据 |
-| `/.well-known/oauth-authorization-server` | RFC 8414 授权服务器元数据 |
-| `/oauth/register` | RFC 7591 动态客户端注册（仅 https 或回环地址） |
-| `/oauth/authorize` | PKCE S256 授权码；同意页需已登录且仅限 `PERSONAL_OWNER_ID` |
-| `/oauth/token` | 授权码与刷新令牌（刷新令牌一次性轮换） |
-| `/oauth/revoke` | RFC 7009 撤销 |
+| `list_data_sources` | 列出当前已实现且已授权的数据源，首期只有 Health |
+| `health_get_catalog` | 查询集合、字段、单位、统计规则和已保存历史范围 |
+| `health_query_records` | 按集合和日期查询已保存记录，支持分页和按需读取序列 |
+| `health_aggregate` | 全区间统计、日/周/月分组和两个日期区间对比 |
+| `health_get_sync_status` | 查看提供方连接、缓存、覆盖、后台同步进度和错误 |
 
-令牌只存 SHA-256 哈希，Oura 令牌始终留在服务端。工具全部只读且由服务端计算：
+查询和统计默认把需要补齐的近 90 天窗口持久化入队，先返回已有数据，后台刷新；
+`refresh:false` 关闭本次刷新。因此这两个工具不声明只读执行。历史查询不限近 90 天，
+未保存或未覆盖的数据明确标记缺失，不作为零。统计扫描完整区间，不使用分页样本。
 
-| 工具 | 返回 |
-| --- | --- |
-| `get_connection_status` | 同步时间、最近有数据的日期、是否过期 |
-| `get_daily_metrics` | 每日官方分数、contributors、数据覆盖 |
-| `get_period_summary` | 7/30/90 天均值与覆盖 |
-| `compare_periods` | 近 7 天 vs 前 7 天，或近 30 天 vs 前 30 天 |
-| `get_health_data_status` | 18 类数据的入库数量、历史范围、各类最近同步和失败窗口数 |
-| `get_health_records` | 按类型和日期读取官方详细记录，按需刷新，保留原始字段和单位 |
+服务边界、日期/加权规则、授权和发布顺序见[统一 MCP 架构](../../docs/architecture/unified-mcp.md)。
+本地协议与浏览器测试不能代替真实 ChatGPT、Claude 或 CLI 授权验收；当前进度见
+[任务记录](../../docs/development/tasks/2026-10-18-unified-mcp.md)。
 
-每个响应都带日期范围、覆盖天数、同步状态与非医疗建议声明；缺失指标保持 `null`。
-在设置页的「AI 应用连接」可查看并随时撤销已授权应用。
+Health 看板图标仍由 `/icon.png`、`/icon.svg` 和 `/favicon.ico` 提供；
+`pnpm check:branding` 验证公开图片状态、MIME、PNG 尺寸和首页图标链接，
+避免缺失图片被 SPA HTML 回退掩盖。
 
-### 详细数据与长期保存
+## 详细数据与长期保存
 
 新增授权入口：`https://health.codepi.app/api/auth/oura/start?sync_health=1`。
 申请 `daily personal email heartrate workout tag session spo2 heart_health stress ring_configuration`；
@@ -354,8 +323,8 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
   同步指定窗口（睡眠页「同步此区间」及既有调用方保留使用；首页和设置不再逐窗口调用）；
   同地址 `GET` 只读已保存数据。
   仅已登录的个人 owner（SSO 或原 OAuth 会话）可访问。
-- MCP：`get_health_records` 默认刷新过期窗口；`refresh:false` 只读历史。
-  `get_health_data_status` 不访问 Oura。
+- 统一 MCP：`health_query_records` 和 `health_aggregate` 默认将过期窗口入队刷新，
+  `refresh:false` 只读历史；`health_get_sync_status` 读取本地状态，不访问 Oura。
 - 起止日期均包含在内，最多 31 天；心率、电量最多 7 天，按 UTC 时间戳归日；
   日文档保留 Oura 的 `day`。戒指配置和个人资料为当前快照，不表示历史画像。
 - 返回最多 20 条，较大记录会提前分页；继续传 `next_offset`。
@@ -420,9 +389,9 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
 ### 区域边缘说明
 
 `health.codepi.app` 曾对部分数据中心来源间歇返回 `cf-mitigated: challenge` 的 403。
-当前已针对 `health.codepi.app` 的 `/mcp`、`/oauth/*`、`/.well-known/*` 添加
-浏览器完整性检查豁免；`pnpm check:api` 严格验证这些路径已真实到达 Worker，
-不再把边缘 403 记为警告通过。
+旧 MCP 路径的历史边缘规则不代表新 `mcp.codepi.app` 已验收。`pnpm check:api`
+验证 Health API 和旧连接器路径的 404 JSON；`services/mcp` 的 `pnpm check:live`
+单独验证新域名的发现和匿名拒绝。默认遇到边缘 403 时失败，不能当作 Worker 已验证。
 
 ## Phase 0 — `/api/me/daily` 契约（2026-09-15）
 

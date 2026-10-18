@@ -2,6 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, cookie, authOrigin, clients } from './runtime.mjs';
 
+test('opt-in MCP registration preserves four existing clients and validates its exact callback', async t => {
+  const f = await fixture(t, { SSO_CLIENT_SECRET_MCP: 'synthetic-mcp-' + 'x'.repeat(32) });
+  const params = new URLSearchParams({
+    client_id: 'mcp', redirect_uri: 'https://mcp.codepi.app/api/auth/callback',
+    state: 'x'.repeat(43), code_challenge: 'y'.repeat(43), code_challenge_method: 'S256',
+  });
+  const response = await f.auth.fetch(authOrigin + '/authorize?' + params, { redirect: 'manual' });
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /CodePi MCP/);
+  params.set('redirect_uri', 'https://evil.example/api/auth/callback');
+  assert.equal((await f.auth.fetch(authOrigin + '/authorize?' + params, { redirect: 'manual' })).status, 400);
+  assert.equal((await f.begin('gu')).response.status, 200);
+});
+
 test('real service bindings: one OTP signs into four sites; one logout revokes all, but not another browser', async t => {
   const f = await fixture(t);
   const oura = await f.otpLogin();

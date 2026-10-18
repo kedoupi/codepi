@@ -18,16 +18,6 @@ import { handleHealthRecords } from "./routes/health-records";
 import { handleCompareInsights, handleWeeklyInsights } from "./routes/insights";
 import { handleMe } from "./routes/me";
 import { handleMePrefs } from "./routes/prefs";
-import { handleMcp } from "./routes/mcp";
-import {
-  handleAuthorize,
-  handleAuthorizationServerMetadata,
-  handleConnections,
-  handleProtectedResourceMetadata,
-  handleRegister,
-  handleRevoke,
-  handleToken,
-} from "./routes/mcp-oauth";
 
 type AppEnv = {
   Bindings: Env;
@@ -36,11 +26,6 @@ type AppEnv = {
 
 // Preserve URL.pathname matching rather than decoding encoded route names.
 export const app = new Hono<AppEnv>({ getPath: request => new URL(request.url).pathname });
-
-export function isMcpPath(pathname: string): boolean {
-  return pathname === "/mcp" || pathname.startsWith("/.well-known/")
-    || pathname.startsWith("/oauth/");
-}
 
 function cors(req: Request, env: Env): HeadersInit {
   const origin = req.headers.get("Origin");
@@ -82,16 +67,6 @@ all("/api/auth/dev/session", c => handleDevSession(c.req.raw, c.env));
 all("/api/auth/logout", c => handleLogout(c.req.raw, c.env));
 all("/api/me", c => handleMe(c.req.raw, c.env));
 all("/api/me/prefs", c => handleMePrefs(c.req.raw, c.env));
-all("/api/me/connections", c => handleConnections(c.req.raw, c.env));
-all("/mcp", c => handleMcp(c.req.raw, c.env));
-all("/.well-known/oauth-protected-resource", c => handleProtectedResourceMetadata(c.req.raw));
-all("/.well-known/oauth-protected-resource/mcp", c => handleProtectedResourceMetadata(c.req.raw));
-all("/.well-known/oauth-authorization-server", c => handleAuthorizationServerMetadata(c.req.raw));
-all("/.well-known/oauth-authorization-server/mcp", c => handleAuthorizationServerMetadata(c.req.raw));
-all("/oauth/register", c => handleRegister(c.req.raw, c.env));
-all("/oauth/authorize", c => handleAuthorize(c.req.raw, c.env));
-all("/oauth/token", c => handleToken(c.req.raw, c.env));
-all("/oauth/revoke", c => handleRevoke(c.req.raw, c.env));
 all("/api/me/daily", c => handleMeDaily(c.req.raw, c.env));
 all("/api/me/sync", c => handleMeDaily(c.req.raw, c.env));
 // Hono registers one path per call; the three health-record paths share a
@@ -117,10 +92,7 @@ all("/api/health", c => Response.json({
 
 app.notFound(() => Response.json({ error: "not found" }, { status: 404 }));
 
-// Uniform response post-processing, matching the previous dispatcher:
-// no-store + request id everywhere, MCP endpoints additionally get a
-// wildcard ACAO (Bearer-only, no cookies), then same-origin CORS headers
-// fill whatever the route did not set itself.
+// Uniform response post-processing: no-store, request id and same-origin CORS.
 export async function dispatch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const requestId = crypto.randomUUID();
   const url = new URL(request.url);
@@ -129,20 +101,16 @@ export async function dispatch(request: Request, env: Env, ctx?: ExecutionContex
   // previous hand-written dispatcher: cross-origin rejects carry the JSON
   // requestId and no no-store/X-Request-ID headers, and OPTIONS responses
   // keep their original header set.
-  if (!isMcpPath(url.pathname) && origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
+  if (origin && origin !== url.origin && origin !== env.FRONTEND_ORIGIN) {
     return Response.json({ error: "origin_not_allowed", requestId }, { status: 403 });
   }
   if (request.method === "OPTIONS") {
-    if (isMcpPath(url.pathname)) return handleMcp(request, env);
     return new Response(null, { status: 204, headers: cors(request, env) });
   }
   const res = await app.fetch(request, env, ctx);
   const headers = new Headers(res.headers);
   headers.set("Cache-Control", "no-store");
   headers.set("X-Request-ID", requestId);
-  if (isMcpPath(url.pathname) && origin && !headers.has("Access-Control-Allow-Origin")) {
-    headers.set("Access-Control-Allow-Origin", "*");
-  }
   for (const [k, v] of Object.entries(cors(request, env))) {
     if (!headers.has(k)) headers.set(k, v);
   }

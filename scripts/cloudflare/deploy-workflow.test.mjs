@@ -108,23 +108,23 @@ test('production releases serialize and include changes from failed or coalesced
     });
     return Object.fromEntries((await readFile(output, 'utf8')).trim().split('\n').map(line => line.split('=')));
   };
-  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' });
-  assert.deepEqual(await run(''), { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes' });
+  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no', mcp: 'no' });
+  assert.deepEqual(await run(''), { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes', mcp: 'yes' });
   assert.deepEqual(await run(released, latest, 'workflow_dispatch', 'web'),
-    { auth: 'no', web: 'yes', gu: 'yes', gzh: 'yes', health: 'no' },
+    { auth: 'no', web: 'yes', gu: 'yes', gzh: 'yes', health: 'no', mcp: 'no' },
     'a manual deployment that replaces a queued push must include its unpublished changes');
   await assert.rejects(run(released, pending), /older than main/);
   await commit('docs/release.md');
   await assert.rejects(run(released, latest), /older than main/);
-  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' },
+  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no', mcp: 'no' },
     'the docs-only successor must pick up pending application changes');
   git('rm', 'apps/gu/change.ts', 'apps/gzh/change.ts');
   git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', 'revert partially deployed applications');
-  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no' },
+  assert.deepEqual(await run(released), { auth: 'no', web: 'no', gu: 'yes', gzh: 'yes', health: 'no', mcp: 'no' },
     'a revert must redeploy consumers even when the net application diff is empty');
   const beforeHealth = git('rev-parse', 'HEAD');
   await commit('apps/health/change.ts');
-  assert.deepEqual(await run(beforeHealth), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes' },
+  assert.deepEqual(await run(beforeHealth), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes', mcp: 'yes' },
     'Health changes must be detected under the current application directory');
 });
 
@@ -178,3 +178,19 @@ for (const app of ['www', 'gu', 'gzh']) {
     assert.ok(preCutover.includes(`check-pages.mjs ${app === 'www' ? 'web' : app} production --origin`), 'pre-cutover smoke must target the new Worker origin, not the domain still on Pages');
   });
 }
+
+test('MCP has build and guarded release after Auth and Health API', async () => {
+  const workflow = await readFile(new URL('../../.github/workflows/deploy-platform.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /'services\/mcp\/\*\*'/);
+  const build = workflow.split('\n  mcp-build:')[1].split('\n  auth-build:')[0];
+  assert.match(build, /pnpm test/);
+  const release = workflow.split('\n  mcp-deploy-production:')[1];
+  assert.match(release, /needs: \[governance, affected, mcp-build, auth-deploy-production, health-api-deploy-production\]/);
+  assert.match(release, /github.ref == 'refs\/heads\/main'/);
+  assert.match(release, /pnpm run deploy "\$GITHUB_SHA"/);
+  assert.match(release, /pnpm check:live/);
+  assert.match(release, /--service mcp/);
+  const frontend = workflow.split('\n  health-pages-deploy-production:')[1].split('\n  mcp-deploy-production:')[0];
+  assert.match(frontend, /needs: \[[^\n]*mcp-deploy-production\]/,
+    'Health must not advertise the new endpoint when the MCP release fails');
+});

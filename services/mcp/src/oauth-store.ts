@@ -5,15 +5,16 @@
  * database leak does not hand out working connector credentials. Refresh tokens
  * are single-use and rotated on exchange (standard OAuth 2.1 behavior).
  */
-import type { Env } from "../env";
+import type { Env } from "./env";
 
-export const MCP_SCOPE = "oura.read";
+export const MCP_SCOPE = "health.read health.sync";
+export const resource = (env: Env) => `${env.MCP_ORIGIN}/mcp`;
 export const ACCESS_TTL_SECONDS = 60 * 60;
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
-// Match migration 0009, including NULL rows written by an older Worker during rollout.
-const TOKEN_FAMILY_SQL = "COALESCE(family_id, 'legacy:' || hex(user_id) || ':' || hex(client_id))";
+// Each authorization has its own refresh-token rotation family.
+const TOKEN_FAMILY_SQL = "family_id";
 
 function base64Url(bytes: Uint8Array): string {
   let bin = "";
@@ -79,11 +80,11 @@ export async function createAuthCode(
   const code = randomToken(32);
   await env.DB.prepare(
     `INSERT INTO oauth_auth_codes
-       (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, expires_at, resource)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     await sha256Base64Url(code), args.clientId, args.userId, args.redirectUri,
-    args.codeChallenge, args.scope, Date.now() + CODE_TTL_MS,
+    args.codeChallenge, args.scope, Date.now() + CODE_TTL_MS, resource(env),
   ).run();
   return code;
 }
@@ -105,8 +106,8 @@ export async function lookupAuthCode(env: Env, code: string): Promise<AuthCodeRo
   return env.DB.prepare(
     `SELECT client_id, user_id, redirect_uri, code_challenge, scope
      FROM oauth_auth_codes
-     WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?`,
-  ).bind(await sha256Base64Url(code), Date.now()).first<AuthCodeRow>();
+     WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ? AND resource = ?`,
+  ).bind(await sha256Base64Url(code), Date.now(), resource(env)).first<AuthCodeRow>();
 }
 
 /** Consent screen GET is transactional: approval must carry this one-time id. */
@@ -124,12 +125,12 @@ export async function createConsentRequest(
   const csrfToken = randomToken(24);
   await env.DB.prepare(
     `INSERT INTO oauth_consent_requests
-       (consent_id, client_id, user_id, redirect_uri, code_challenge, scope, csrf_hash, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (consent_id, client_id, user_id, redirect_uri, code_challenge, scope, csrf_hash, expires_at, resource)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     consentId, args.clientId, args.userId, args.redirectUri,
     args.codeChallenge, args.scope, await sha256Base64Url(csrfToken),
-    Date.now() + CONSENT_TTL_MS,
+    Date.now() + CONSENT_TTL_MS, resource(env),
   ).run();
   return { consentId, csrfToken };
 }
@@ -149,9 +150,9 @@ export async function takeConsentRequest(
 ): Promise<ConsentRequestRow | null> {
   const row = await env.DB.prepare(
     `UPDATE oauth_consent_requests SET consumed_at = ?
-     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ?
+     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ? AND resource = ?
      RETURNING client_id, user_id, redirect_uri, code_challenge, scope`,
-  ).bind(Date.now(), consentId, Date.now()).first<ConsentRequestRow>();
+  ).bind(Date.now(), consentId, Date.now(), resource(env)).first<ConsentRequestRow>();
   return row ?? null;
 }
 
@@ -163,8 +164,8 @@ export async function consentCsrfMatches(
 ): Promise<boolean> {
   const row = await env.DB.prepare(
     `SELECT csrf_hash FROM oauth_consent_requests
-     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ?`,
-  ).bind(consentId, Date.now()).first<{ csrf_hash: string }>();
+     WHERE consent_id = ? AND consumed_at IS NULL AND expires_at > ? AND resource = ?`,
+  ).bind(consentId, Date.now(), resource(env)).first<{ csrf_hash: string }>();
   return row !== null && row.csrf_hash === await sha256Base64Url(csrfToken);
 }
 
@@ -191,14 +192,14 @@ export async function exchangeAuthCode(
     // successor. That hash gates every remaining write, so a concurrent loser
     // neither consumes the code nor issues credentials.
     env.DB.prepare(
-      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
-       SELECT ?, user_id, client_id, 'refresh', ?, ?, ?
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, user_id, client_id, 'refresh', ?, ?, ?, resource
        FROM oauth_auth_codes
        WHERE code_hash = ? AND consumed_at IS NULL AND expires_at > ?
-         AND client_id = ? AND user_id = ? AND redirect_uri = ? AND code_challenge = ? AND scope = ?`,
+         AND client_id = ? AND user_id = ? AND redirect_uri = ? AND code_challenge = ? AND scope = ? AND resource = ?`,
     ).bind(
       refreshHash, scope, now + REFRESH_TTL_SECONDS * 1000, refreshHash, codeHash, now,
-      validated.client_id, validated.user_id, validated.redirect_uri, validated.code_challenge, validated.scope,
+      validated.client_id, validated.user_id, validated.redirect_uri, validated.code_challenge, validated.scope, resource(env),
     ),
     env.DB.prepare(
       `UPDATE oauth_auth_codes SET consumed_at = ?
@@ -206,8 +207,8 @@ export async function exchangeAuthCode(
          AND EXISTS (SELECT 1 FROM mcp_tokens WHERE token_hash = ?)`,
     ).bind(now, codeHash, refreshHash),
     env.DB.prepare(
-      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
-       SELECT ?, user_id, client_id, 'access', scope, ?, family_id
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, user_id, client_id, 'access', scope, ?, family_id, resource
        FROM mcp_tokens WHERE token_hash = ?`,
     ).bind(await sha256Base64Url(access), now + ACCESS_TTL_SECONDS * 1000, refreshHash),
     env.DB.prepare("SELECT token_hash FROM mcp_tokens WHERE token_hash = ?").bind(refreshHash),
@@ -229,8 +230,8 @@ export type TokenRow = {
 export async function findAccessToken(env: Env, token: string): Promise<TokenRow | null> {
   const row = await env.DB.prepare(
     `SELECT user_id, client_id, scope, expires_at FROM mcp_tokens
-     WHERE token_hash = ? AND kind = 'access' AND revoked_at IS NULL AND expires_at > ?`,
-  ).bind(await sha256Base64Url(token), Date.now()).first<TokenRow>();
+     WHERE token_hash = ? AND kind = 'access' AND revoked_at IS NULL AND expires_at > ? AND resource = ?`,
+  ).bind(await sha256Base64Url(token), Date.now(), resource(env)).first<TokenRow>();
   return row ?? null;
 }
 
@@ -263,12 +264,12 @@ export async function exchangeRefreshToken(
     // 1. Insert the successor, inheriting identity, scope and family from the
     //    presented row. This only matches while that row is still live.
     env.DB.prepare(
-      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
-       SELECT ?, user_id, client_id, 'refresh', scope, ?, ${TOKEN_FAMILY_SQL}
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, user_id, client_id, 'refresh', scope, ?, ${TOKEN_FAMILY_SQL}, resource
        FROM mcp_tokens
        WHERE token_hash = ? AND kind = 'refresh' AND revoked_at IS NULL
-         AND expires_at > ? AND client_id = ?`,
-    ).bind(successorHash, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId),
+         AND expires_at > ? AND client_id = ? AND resource = ?`,
+    ).bind(successorHash, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId, resource(env)),
     // 2. Retire the presented token only if this batch issued its successor.
     //    A failed exchange is checked separately for authenticated replay.
     env.DB.prepare(
@@ -278,8 +279,8 @@ export async function exchangeRefreshToken(
     ).bind(now, oldHash, successorHash),
     // 3. The paired access token, gated on the successor existing.
     env.DB.prepare(
-      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id)
-       SELECT ?, user_id, client_id, 'access', scope, ?, family_id
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, user_id, client_id, 'access', scope, ?, family_id, resource
        FROM mcp_tokens WHERE token_hash = ?`,
     ).bind(await sha256Base64Url(access), now + ACCESS_TTL_SECONDS * 1000, successorHash),
     // 4. Read the granted identity back; empty means the exchange did not happen.

@@ -5,7 +5,7 @@
 
 ## 工程结构
 
-单一仓库，统一 pnpm workspace。四个产品和两个支撑层：
+单一仓库，统一 pnpm workspace。四个产品、独立支撑服务和共享层：
 
 ```
 kdp.cool/
@@ -15,7 +15,8 @@ kdp.cool/
 │   ├── gzh/      → 公众号工作台（Vite + Worker）
 │   └── health/   → Health（Svelte + Workers）
 ├── services/
-│   └── auth/     → 统一登录 Worker
+│   ├── auth/     → 统一登录 Worker
+│   └── mcp/      → CodePi 统一 MCP（Health 首期）
 ├── packages/
 │   └── shared/   → 共享契约、样式、认证客户端、邮件模板
 ├── scripts/      → Agent 检查与 Cloudflare 治理
@@ -44,7 +45,7 @@ kdp.cool/
 ### 共享原则
 
 - `packages/shared/` 只放跨应用契约：auth client、desk contract、样式 tokens、
-  品牌信息、邮件模板。业务逻辑留在各产品目录。
+  品牌信息、邮件模板和内部 MCP RPC 类型。业务逻辑留在各产品目录。
 - 共享包不依赖应用源码。依赖方向永远是 app → packages/shared。
 - `apps/health/shared/` 是 Health 内部共享（日期工具等），不进 `packages/shared/`。
 
@@ -77,11 +78,9 @@ kdp.cool/
 
 ### staging 的定位
 
-staging 资源（wrangler named environment、staging D1、staging secrets）作为旧配置保留，
-目前未接入发布 workflow，也不是发布的必经路径。保留资源不代表 staging 已可用。
-需要云端联调（统一登录改造、MCP 客户端连接、跨应用调用验证）时再落实临时发布入口、
-域名与认证配置；不创建长期 staging Git 分支。旧 preview 数据库继续隔离以避免意外写入，
-不代表日常流程要求维护第二套业务数据。
+2026-10-18 staging 已全面退役，仓库配置与云端资源均已移除，具体证据见资源登记表。
+统一登录和 MCP 等联调先做本地合成数据验收，再做明确授权的生产集成验收。
+不维护长期 staging 分支、域名或第二套业务数据。
 
 ### 故障处理
 
@@ -135,6 +134,7 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 | gzh | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | health | Svelte 5 + Vite | Hono Worker | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
+| mcp | 授权与连接管理页 | TypeScript Worker + 官方 MCP SDK + 独立 D1（待首发） | pnpm workspace |
 
 目标方向（逐步迁移，不强制时间表）：
 
@@ -146,3 +146,7 @@ staging 资源（wrangler named environment、staging D1、staging secrets）作
 GU 先迁移服务端路由，再独立迁移 Svelte 前端；业务接口和部署载体在路由迁移中保持不变。实施与验收状态见 [GU Hono 迁移记录](../development/tasks/2026-10-17-gu-hono-router.md)。三个私有应用前端已统一到 Svelte 5 + Vite（GU、GZH 迁移验收分别见 `2026-10-17-gu-svelte-frontend.md`、`2026-10-17-gzh-svelte-frontend.md`）；Health API 与 Auth 服务端已迁 Hono（验收分别见 `2026-10-17-health-hono-api.md`、[Auth Hono 迁移记录](../development/tasks/2026-10-17-auth-hono.md)）。
 
 部署载体已统一为 Workers Static Assets：GU、GZH（2026-10-17，`run_worker_first = true`，全部请求先进 Hono 鉴权链）、首页/Desk（2026-10-17，公开资产直出，`/api/*` 与 `/desk` 优先进入 Worker）与 Health 前端（2026-10-18，SPA + WORKER service binding 转发 API，前端不持有 DB/AUTH/vars）均已切换正式域名，旧 Pages 项目全部删除。staging 环境同步于 2026-10-18 全面退役（仓库配置与云端资源均已删除），环境模型收敛为 local + production。实施与切换验收见 [GU](../development/tasks/2026-10-17-gu-static-assets.md)、[GZH](../development/tasks/2026-10-17-gzh-static-assets.md)、[首页](../development/tasks/2026-10-17-web-static-assets.md) 迁移记录及资源登记表。
+
+统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，Health 查询和统计仍由
+Health API 持有。通过 `HealthMcp` named RPC 调用，不直接绑定 Health D1；
+后续产品按独立模块与新增授权范围接入，见[统一 MCP 架构](unified-mcp.md)。

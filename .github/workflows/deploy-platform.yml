@@ -1,12 +1,12 @@
-name: Deploy platform (auth / web / gu / gzh / health)
+name: Deploy platform (auth / web / gu / gzh / health / mcp)
 
-# 全部 Cloudflare 服务（Auth、Web、GU、GZH、Health）的唯一发布入口。
+# 全部 Cloudflare 服务（Auth、Web、GU、GZH、Health、MCP）的唯一发布入口。
 # 规则见 docs/development/cloudflare-governance.md 第 6 节：
 # - DAG：governance gate → auth build/deploy/smoke → web/gu/gzh Workers
 #   build/migrate/deploy/smoke → health API build/migrate/deploy/contract smoke
-#   → health Pages build/deploy/smoke。下游在 predecessor success 或 skipped
+#   → MCP deploy/smoke → Health frontend build/deploy/smoke。下游在 predecessor success 或 skipped
 #   时继续；failure 必须停止。
-# - SSO/shared-auth/shared-email/shared-brand/shared-styles 改动标记全部五个
+# - SSO/shared-auth/shared-email/shared-brand/shared-styles 改动标记全部六个
 #   服务受影响；否则只标记对应 app 路径。
 # - production 只接受 main 上的 SHA（GitHub `production` Environment 保护为
 #   provider 前提，尚未验证已配置）。单主干自动发布，无 staging 分支。
@@ -25,6 +25,7 @@ on:
       - 'pnpm-workspace.yaml'
       - '.npmrc'
       - 'services/auth/**'
+      - 'services/mcp/**'
       - 'apps/web/**'
       - 'apps/gu/**'
       - 'apps/gzh/**'
@@ -44,7 +45,7 @@ on:
         required: true
         default: 'all'
         type: choice
-        options: [all, auth, web, gu, gzh, health]
+        options: [all, auth, web, gu, gzh, health, mcp]
 
 permissions:
   contents: read
@@ -82,6 +83,7 @@ jobs:
       gu: ${{ steps.map.outputs.gu }}
       gzh: ${{ steps.map.outputs.gzh }}
       health: ${{ steps.map.outputs.health }}
+      mcp: ${{ steps.map.outputs.mcp }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           all_trigger='^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
-          mark_all() { for s in auth web gu gzh health; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
+          mark_all() { for s in auth web gu gzh health mcp; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
           if [ "$EVENT" != 'pull_request' ]; then
             current_main=$(git ls-remote origin refs/heads/main | cut -f1)
             if [ "$SHA" != "$current_main" ]; then
@@ -107,7 +109,7 @@ jobs:
               exit 1
             fi
           fi
-          for s in auth web gu gzh health; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
+          for s in auth web gu gzh health mcp; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
           if [ "$EVENT" = 'workflow_dispatch' ]; then
             if [ "$APP" = 'all' ] || [ "$APP" = 'auth' ]; then
               mark_all
@@ -156,10 +158,37 @@ jobs:
           fi
           if printf '%s\n' "$changed" | grep -qE '^apps/health/'; then
             echo 'health=yes' >> "$GITHUB_OUTPUT"
+            echo 'mcp=yes' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^services/mcp/'; then
+            echo 'mcp=yes' >> "$GITHUB_OUTPUT"
           fi
 
 
   # ---------------- Local checks ----------------
+
+  mcp-build:
+    needs: [affected]
+    if: ${{needs.affected.outputs.mcp == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:browser:built
+
 
   auth-build:
     needs: [affected]
@@ -656,7 +685,7 @@ jobs:
           retention-days: 30
 
   health-pages-deploy-production:
-    needs: [governance, affected, health-build, health-api-deploy-production]
+    needs: [governance, affected, health-build, health-api-deploy-production, mcp-deploy-production]
     if: >-
       ${{!failure() && !cancelled() && needs.affected.outputs.health == 'yes'
         && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -715,9 +744,6 @@ jobs:
         run: |
           HEALTH_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:api
           pnpm check:branding
-          ct=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 https://health.codepi.app/.well-known/oauth-protected-resource)
-          echo "well-known content-type: $ct"
-          case "$ct" in application/json*) ;; *) exit 1;; esac
       - name: record deployment evidence
         if: github.ref == 'refs/heads/main'
         run: >-
@@ -734,3 +760,58 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+
+  mcp-deploy-production:
+    needs: [governance, affected, mcp-build, auth-deploy-production, health-api-deploy-production]
+    if: >-
+      ${{!failure() && !cancelled() && needs.affected.outputs.mcp == 'yes'
+        && ((github.event_name == 'push' && github.ref == 'refs/heads/main')
+          || (github.event_name == 'workflow_dispatch' && inputs.target == 'production' && github.ref == 'refs/heads/main'))}}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: mcp-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: services/mcp
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+      - name: deploy
+        id: deploy
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -o pipefail
+          pnpm run deploy "$GITHUB_SHA" | tee "$RUNNER_TEMP/deploy-mcp.log"
+          version=$(node ../../scripts/cloudflare/deployment-evidence.mjs worker-version < "$RUNNER_TEMP/deploy-mcp.log")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: smoke
+        if: github.ref == 'refs/heads/main'
+        run: MCP_EXPECT_BUILD="${GITHUB_SHA:0:12}" pnpm check:live
+      - name: record deployment evidence
+        if: github.ref == 'refs/heads/main'
+        run: >-
+          node ../../scripts/cloudflare/deployment-evidence.mjs append
+          --file "$RUNNER_TEMP/deployment-evidence.jsonl"
+          --service mcp --target production --sha "$GITHUB_SHA"
+          --provider worker --identifier "${{ steps.deploy.outputs.version }}" --smoke pass
+      - name: upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence-mcp-production
+          path: ${{ runner.temp }}/deployment-evidence.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

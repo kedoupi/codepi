@@ -21,7 +21,7 @@ transactional email and cross-product identity. KDP is a technical abbreviation;
 existing service names, database names and cookie identifiers do not need renaming.
 Reuse `packages/shared/brand.ts` and `packages/shared/email/otp.ts` for brand and OTP mail content.
 
-Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The repository keeps exactly four products: the homepage (`apps/web/`), GU (`apps/gu/`), the WeChat workbench GZH (`apps/gzh/`) and Health (`apps/health/`). `services/auth/` and `packages/shared/` are support layers, not products. The former static tool sites (`calc/`, `convert/`, `text/`, `dev/`, `ai/`), the homepage calculator and guide pages, `/tools/`, and the `kdp.cool` and `oura.kdp.cool` domains are retired and must not be reintroduced. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract. In-flight scope and cutover order live in `docs/development/tasks/2026-10-15-codepi-cutover.md`. Read `README.md` for the domain table, DNS records, and per-project CF settings — do not duplicate that content here.
+Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The repository keeps exactly four products: the homepage (`apps/web/`), GU (`apps/gu/`), the WeChat workbench GZH (`apps/gzh/`) and Health (`apps/health/`). `services/auth/`, `services/mcp/` and `packages/shared/` are support layers, not products. The former static tool sites (`calc/`, `convert/`, `text/`, `dev/`, `ai/`), the homepage calculator and guide pages, `/tools/`, and the `kdp.cool` and `oura.kdp.cool` domains are retired and must not be reintroduced. Advertising and traffic growth are no longer product goals. See `docs/architecture/personal-design-system.md` for the shared visual contract. In-flight scope and cutover order live in `docs/development/tasks/2026-10-15-codepi-cutover.md`. Read `README.md` for the domain table, DNS records, and per-project CF settings — do not duplicate that content here.
 
 ## Architecture in one screen
 
@@ -33,7 +33,8 @@ kdp.cool/
 │   ├── gzh/     → private WeChat workbench (Vite + Worker)
 │   └── health/  → Health (Svelte + Workers, pnpm workspace member)
 ├── services/
-│   └── auth/  → shared login Worker
+│   ├── auth/  → shared login Worker
+│   └── mcp/   → unified CodePi MCP (Health first)
 ├── packages/
 │   └── shared/ → layouts, styles, products, auth client, email templates, desk contract
 ├── scripts/   → agent checks and Cloudflare governance

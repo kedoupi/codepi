@@ -10,7 +10,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
-  'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app']);
+  'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 // staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
@@ -129,7 +129,7 @@ function parseTomlEnv(root, tables, prefix) {
   const d1All = tomlTableBodies(tables, `[[${p}d1_databases]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'), id: tomlString(body, 'database_id') }));
   const servicesAll = tomlTableBodies(tables, `[[${p}services]]`)
-    .map(body => ({ binding: tomlString(body, 'binding'), service: tomlString(body, 'service') }));
+    .map(body => ({ binding: tomlString(body, 'binding'), service: tomlString(body, 'service'), entrypoint: tomlString(body, 'entrypoint') }));
   const routes = tomlRoutes(section);
   const crons = tomlCrons(tables, `[${p}triggers]`);
   const duplicate = (all, field) => [...new Set(all.map(item => item[field]).filter((value, i, values) => value && values.indexOf(value) !== i))];
@@ -139,6 +139,8 @@ function parseTomlEnv(root, tables, prefix) {
     environment: tomlString(varsBody, 'ENVIRONMENT'),
     environmentCount: tomlStringCount(varsBody, 'ENVIRONMENT'),
     authOrigin: tomlString(varsBody, 'AUTH_ORIGIN'),
+    mcpOrigin: tomlString(varsBody, 'MCP_ORIGIN'),
+    authClientId: tomlString(varsBody, 'AUTH_CLIENT_ID'),
     frontendOrigin: tomlString(varsBody, 'FRONTEND_ORIGIN'),
     frontendOrigins: tomlString(varsBody, 'FRONTEND_ORIGINS'),
     ouraRedirect: tomlString(varsBody, 'OURA_REDIRECT_URI'),
@@ -251,7 +253,7 @@ function checkService(spec, cfg, index, violations) {
     if (!rows?.length) { at(`referenced ${label} ${token} has no registry record`); return; }
     // Pages, Workers and D1 can have the same physical name in separate namespaces.
     const typedRows = rows.filter(row => typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint);
-    const hasManaged = typedRows.some(row => row.status === 'managed' && row.environment === env);
+    const hasManaged = typedRows.some(row => (row.status === 'managed' || spec.provisionOnRelease && row.status === 'planned') && row.environment === env);
     // 域名迁移过渡：同一 host 可同时有 managed 新资源行和 legacy 旧资源行（域名待切换）。
     // 仅对 host 放宽——只要存在覆盖该 env 的 managed 行，legacy 行视为如实记录的过渡状态。
     // worker/d1 等同名资源不适用：managed 行不得掩盖同命名空间的 legacy/unknown 冲突。
@@ -270,7 +272,7 @@ function checkService(spec, cfg, index, violations) {
     for (const bad of BAD_STATUSES) {
       if (rows.some(row => row.status === bad)) at(`referenced D1 ${d1.name} is registered as ${bad}`);
     }
-    if (!rows.some(row => row.status === 'managed' && row.environment === env && row.resource_type === 'd1'
+    if (!rows.some(row => (row.status === 'managed' || spec.provisionOnRelease && row.status === 'planned') && row.environment === env && row.resource_type === 'd1'
       && row.physical_name.startsWith(`${d1.name} (`) && row.physical_name.includes(`(${d1.id})`))) {
       at(`${env} D1 ${d1.name} (${d1.id}) has no managed ${env} registry row matching both name and database_id`);
     }
@@ -281,7 +283,8 @@ function checkService(spec, cfg, index, violations) {
     if (env.servicesMalformed) at(`${envName} has malformed service binding declaration`);
     for (const binding of env.duplicateServiceBindings) at(`${envName} has duplicate service binding "${binding}"`);
     const expected = new Map(expectedServices(envName));
-    for (const { binding, service } of env.servicesAll) {
+    for (const { binding, service, entrypoint } of env.servicesAll) {
+      if (entrypoint !== spec.serviceEntrypoints?.[binding]) at(`${envName} service binding ${binding} has wrong entrypoint`);
       if (!expected.has(binding)) at(`${envName} has unexpected service binding "${binding}"`);
       else if (service !== expected.get(binding)) at(`${envName} service binding "${binding}" must be ${expected.get(binding)}, got ${service}`);
     }
@@ -298,14 +301,18 @@ function checkService(spec, cfg, index, violations) {
       return;
     }
     if (env.d1All.length !== 1) at(`${envName} must declare exactly one D1 DB binding (got ${env.d1All.length})`);
-    if (env.d1Malformed) at(`${envName} has malformed D1 declaration`);
+    if (env.d1Malformed && !(spec.provisionOnRelease && env.d1All.every(d => d.binding && d.name && !d.id))) at(`${envName} has malformed D1 declaration`);
     for (const binding of env.duplicateD1Bindings) at(`${envName} has duplicate D1 binding "${binding}"`);
     const d1 = env.d1All[0];
     if (!d1) return;
     if (d1.binding !== 'DB') at(`${envName} D1 binding must be "DB", got ${d1.binding}`);
     if (d1.name !== expectedName) at(`${envName} D1 database_name must be ${expectedName}, got ${d1.name}`);
-    if (!d1.id) at(`${envName} D1 database_id is missing`);
-    checkD1(d1, envName);
+    if (!d1.id && spec.provisionOnRelease) {
+      checkRef(d1.name, envName, 'd1', 'D1 reserved for release-time provisioning');
+    } else {
+      if (!d1.id) at(`${envName} D1 database_id is missing`);
+      checkD1(d1, envName);
+    }
   };
 
   for (const [envName, env] of environments) {
@@ -358,9 +365,13 @@ function checkService(spec, cfg, index, violations) {
     }
   }
 
-  if (spec.authRoutes) {
+  if (spec.id === 'mcp' && (prod.mcpOrigin !== 'https://mcp.codepi.app' || prod.authClientId !== 'mcp')) {
+    at('MCP_ORIGIN and AUTH_CLIENT_ID must identify the canonical CodePi MCP service');
+  }
+
+  if (spec.authRoutes || spec.id === 'mcp') {
     for (const [envName, env] of environments) {
-      const expected = 'auth.codepi.app';
+      const expected = spec.id === 'mcp' ? 'mcp.codepi.app' : 'auth.codepi.app';
       if (env.routeEntries.length !== 1 || env.routeEntries[0]?.pattern !== expected || env.routeEntries[0]?.customDomain !== true) {
         at(`${envName} auth route must be exactly custom_domain ${expected}`);
       }
@@ -394,7 +405,7 @@ function checkService(spec, cfg, index, violations) {
       at(spec.id === 'www'
         ? '[assets] must declare run_worker_first = ["/api/*", "/desk", "/desk/*"] exactly once (Desk APIs and canonical redirects must not be shadowed by static assets)'
         : spec.spa
-          ? '[assets] must declare run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"] exactly once (Health API/MCP/OAuth must be forwarded by the Worker, not shadowed by SPA assets)'
+          ? '[assets] must declare run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"] exactly once (Health APIs must reach the Worker; retired connector URLs must return 404 instead of SPA assets)'
           : '[assets] must declare run_worker_first = true exactly once (authenticated app must not bypass the Worker; array form is not allowed)');
     }
     if (spec.id === 'www') {
@@ -477,6 +488,10 @@ function checkService(spec, cfg, index, violations) {
 
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
+    { id: 'mcp', file: 'services/mcp/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-mcp', d1Name: 'codepi-mcp', envKey: 'staging',
+      provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
+      serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' } },
+      serviceEntrypoints: { HEALTH: 'HealthMcp' } },
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',

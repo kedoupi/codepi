@@ -1,0 +1,38 @@
+name = "codepi-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-10-18"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
+routes = [
+  { pattern = "mcp.codepi.app", custom_domain = true }
+]
+
+[vars]
+ENVIRONMENT = "production"
+MCP_ORIGIN = "https://mcp.codepi.app"
+AUTH_ORIGIN = "https://auth.codepi.app"
+AUTH_CLIENT_ID = "mcp"
+SSO_ENABLED = "1"
+BUILD_SHA = "local"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-mcp"
+# scripts/deploy.mjs resolves or creates the database on the first authorized deployment.
+# No existing Health/Auth database may be bound here.
+migrations_dir = "migrations"
+
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+
+[[services]]
+binding = "HEALTH"
+service = "codepi-health-api"
+entrypoint = "HealthMcp"

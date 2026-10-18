@@ -114,16 +114,8 @@ export async function handleOuraStart(
   }
 
   const state = crypto.randomUUID();
-  // `return` lets an MCP authorization request survive a fresh login. Accept
-  // only that exact local consent URL; a loose prefix check would permit
-  // backslash-normalized external redirects in some browsers.
-  const rawReturn = new URL(request.url).searchParams.get("return");
-  const parsedReturn = rawReturn ? new URL(rawReturn, new URL(request.url).origin) : null;
-  const returnTo = parsedReturn?.origin === new URL(request.url).origin
-      && parsedReturn?.pathname === "/oauth/authorize"
-    ? parsedReturn.pathname + parsedReturn.search
-    : providerSettingsReturn(request, env)
-      ?? (new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null);
+  const returnTo = providerSettingsReturn(request, env)
+    ?? (new URL(request.url).searchParams.get("sync_health") === "1" ? "/settings?sync=90" : null);
   await saveOauthState(env, state, returnTo, auth ? {
     userId: auth.session.user_id, sessionId: auth.session.id,
   } : undefined);

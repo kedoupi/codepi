@@ -1,9 +1,8 @@
 name = "codepi-health-api"
 main = "src/index.ts"
-rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
 compatibility_date = "2025-01-01"
 # 无公网 routes：health.codepi.app 整体绑定到前端 SPA Worker（apps/web），
-# API/MCP/OAuth 请求由前端 Worker 经 WORKER service binding 转发到本 Worker。
+# API 请求由前端 Worker 经 WORKER service binding 转发；统一 MCP 使用 HealthMcp RPC。
 # 保留 cron 触发器用于自动同步；域名切换后 zone 内不得残留本 Worker 的兜底路由。
 
 [vars]

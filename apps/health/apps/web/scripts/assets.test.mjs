@@ -10,7 +10,7 @@ const require = createRequire(new URL('../../../../../services/auth/package.json
 const { build } = require('esbuild');
 const { Miniflare, convertV4MiniflareOptions } = createRequire(require.resolve('wrangler'))('miniflare');
 
-test('real Worker assets serve the SPA and forward API/MCP/OAuth to the API Worker', { timeout: 60000 }, async t => {
+test('real Worker assets serve the SPA, forward APIs and reject retired connector URLs', { timeout: 60000 }, async t => {
   const dir = await mkdtemp(join(tmpdir(), 'codepi-health-assets-'));
   let runtime;
   t.after(async () => {
@@ -27,8 +27,7 @@ test('real Worker assets serve the SPA and forward API/MCP/OAuth to the API Work
     entryPoints: [new URL('../worker/index.ts', import.meta.url).pathname],
     bundle: true, format: 'esm', platform: 'neutral', write: false,
   });
-  // The upstream API Worker records the path it was asked for so the test can
-  // assert both forwarding and the /well-known/* → /.well-known/* rewrite.
+  // Record API requests to catch accidental forwarding of retired connectors.
   const upstreamCalls = [];
   runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: bundle.outputFiles[0].text,
@@ -70,14 +69,21 @@ test('real Worker assets serve the SPA and forward API/MCP/OAuth to the API Work
   }
   assert.deepEqual(upstreamCalls, [], 'server artifacts must not be forwarded to the API Worker');
 
-  // API/MCP/OAuth paths forward to the WORKER binding, not the SPA.
-  for (const path of ['/api/me', '/api/auth/oura/callback', '/mcp', '/oauth/register', '/.well-known/oauth-protected-resource']) {
+  for (const path of ['/api/me', '/api/auth/oura/callback']) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     assert.deepEqual(await response.json(), { ok: true }, path);
   }
-  // /well-known/* is rewritten to /.well-known/* before forwarding.
   upstreamCalls.length = 0;
-  await get('/well-known/oauth-protected-resource');
-  assert.deepEqual(upstreamCalls, ['/.well-known/oauth-protected-resource']);
+  for (const path of ['/mcp', '/oauth/register', '/oauth/authorize', '/oauth/token', '/oauth/revoke',
+    '/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server/mcp',
+    '/well-known/oauth-protected-resource']) {
+    for (const method of ['GET', 'POST']) {
+      const response = await get(path, { method });
+      assert.equal(response.status, 404, `${method} ${path}`);
+      assert.deepEqual(await response.json(), { error: 'not_found' });
+    }
+  }
+  assert.deepEqual(upstreamCalls, [], 'retired connectors must not reach the Health API');
 });
