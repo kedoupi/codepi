@@ -1,4 +1,16 @@
 # Cloudflare 资源登记表
+2026-10-18T08:33:58Z 原账号连接修复发布：PR #97 合并为
+`85c060bda5e96755a07bae4164e1aecfe75e95b2`，本 Codex 会话持有本机发布锁，
+从与实时远程 main 一致的干净源码先执行 migration 0012，再发布 Health API
+和前端。API version `3a78e935-726f-408a-9da3-0bbe210b8587`，build
+`85c060bda5e9`；前端 version `a4bca3a2-872f-4e90-922f-980dd1edea75`。
+前一版本分别为 `fa60c2fb-1f1c-4206-8000-6032542c7c3c` 和
+`0aa41bdc-9c2e-4f85-bdb3-0e37734ee492`。16 项正式域名 API 检查与前端
+资产检查通过。08:34:22Z 控制面确认双版本各承接 100% 流量、绑定、Cron、持久
+日志、脱敏和 Issues。设置页已提供显式修复入口；真实授权与同步恢复仍待所有者
+操作，当前仍为 `blocked/reconnect_required`。发布未手动改绑或轮换密钥。
+完整步骤和待验收项见[平台可靠性任务](tasks/2026-10-18-platform-reliability.md)。
+
 2026-10-18T07:10:34Z 同账号 Oura 标识诊断发布：PR #96 已合并为
 `b4ad03bf168ec6ccf43d75307d2ed584eac50657`，从与远程 main 一致的干净源码，
 持有本机发布锁执行 Health API 发布。无待迁移文件；新 Worker version 为
