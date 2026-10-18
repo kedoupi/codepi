@@ -1,4 +1,16 @@
 # Cloudflare 资源登记表
+2026-10-18T05:14:49Z Health API 应急本地发布：所有者明确要求在本机执行发布，
+执行人为本 Codex 会话，原因是 GitHub Actions jobs 在 runner 启动前失败。
+从干净且已推送的 PR #93 source `fbc13c902edb0c47e389e3a140e944f233750cfa`
+运行与 workflow 相同的 `pnpm deploy:api`，无需新增迁移；生产 Worker version
+`b22b62ff-4cb5-4cb9-b598-79dac7cb07f6` 承接 100% 流量，build 为 `fbc13c902edb`。
+前一版本为 `db789c62-4402-42a3-88e8-fe4ce14439cd`。16 项线上 API 契约检查通过；
+Cron、持久日志、查询串脱敏和 Issues 已核对。真实 cron 后同步状态为
+`blocked/reconnect_required`，仍需所有者重新连接 Oura；数据同步尚未恢复。
+PR 尚未合并，main 仍为 `58f7848`；Actions 恢复后须补 PR 检查、正常合并及 main
+workflow 发布证据。本地巡检仅 Health 新鲜度失败，其余 10 项通过；本次执行未恢复
+定时巡检和备份。详情见 [任务记录](tasks/2026-10-18-platform-reliability.md)。
+
 2026-10-18 平台可靠性落地：旧 CloudBase 匿名泄漏路由 `api.xiaotaozi.cc/oura/daily`
 已通过 CloudBase `ModifyHTTPServiceRoute` 置 `Enable=false` 并核实匿名请求返回 403，
 其余路由不受影响。新增两条 Cloudflare 通知策略（`incident_alert`、

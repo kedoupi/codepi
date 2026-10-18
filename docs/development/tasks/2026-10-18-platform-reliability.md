@@ -1,8 +1,10 @@
 # Production reliability follow-up
 
 - Status: original reliability work deployed through PR #81 / #91; Actions backup
-  artifact verified. Health sync recovery is locally verified and pushed as PR #93;
-  CI runner startup is blocked, so merge and release acceptance are pending.
+  artifact verified. Health recovery was released from clean PR #93 source
+  `fbc13c9` by an owner-authorized local deployment; production now reports
+  `blocked/reconnect_required`. Owner Oura reconnection, CI recovery and merge
+  remain pending.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
 - Branch: `codex/health-sync-recovery`.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
@@ -28,7 +30,7 @@
 | Review | Self-review of the full change; no independent reviewer run claimed |
 | Commit / push / PR | PR #81 / #91 / #92 merged; Health recovery pushed at `2414d41` in open PR #93 |
 | Recovery CI | Run `39094891244` attempts 1 and 2 failed before any runner/steps started; no CI test result available |
-| Merge / deployment | Original reliability released at `4842996`; observability persistence released at `1816abf2` |
+| Merge / deployment | Original reliability released at `4842996`; observability at `1816abf2`; Health recovery locally deployed at `fbc13c9`, PR #93 still unmerged |
 | Operational acceptance | Legacy route closed, logs/Issues enabled, scheduled backup artifact decrypted and synthetic restore verified; Health provider recovery and off-machine private-key escrow pending |
 
 ## Implemented
@@ -239,19 +241,51 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 - At `2026-10-18T03:50:30Z`, the Health API settings still reported
   `BUILD_SHA=1816abf2a78b`, compatibility date `2026-10-15`, persistent logs and
   Issues enabled. The recovery code is not deployed.
-- The failure is account-wide, not PR-specific: the scheduled retry workflow run
+- The failure also affects another workflow in this repository: scheduled retry run
   `39096787241` on main (`58f7848`, `2026-10-18T04:21Z`) also failed before
-  runner assignment. Run creation and scheduling still work, so this is isolated
-  to hosted runner startup for this account. Local `gh` and the `GITHUB_TOKENS`
-  environment variable are both expired (`Bad credentials`), and the connector
+  runner assignment. Run creation and scheduling still work. This evidence does
+  not establish an account-wide outage. Local `gh` and the `GITHUB_TOKENS`
+  environment variable both fail authentication (`Bad credentials`), and the connector
   cannot read check-run annotations, so the exact startup reason stays
   unverified (billing/quota/outage not confirmed).
 - A rerun of run `39096787241` at `2026-10-18T05:01Z` (attempt 2, job
   `117591546797`) failed identically: `runner_id=0`, blank runner name,
   `steps=[]`, three-second duration, no logs. Hosted runner startup remains
-  blocked for the account at that time.
+  blocked for these workflows at that time.
 - Continue by resolving Actions runner startup, rerunning PR #93 checks, merging
   only after CI passes, and verifying the main release and next real cron.
   If it reports `blocked/reconnect_required`, the owner must reconnect Oura in
   Health before production sync recovery can be accepted. Preserve the current
   encrypted grant and encryption key.
+
+### Owner-authorized local production release
+
+- The owner requested local deployment while away from the computer. This is
+  a break-glass release under governance section 6, executed by this Codex
+  session on the owner's machine. Normal Actions publishing remains configured.
+- Clean source: `fbc13c902edb0c47e389e3a140e944f233750cfa`, already pushed in
+  PR #93. Remote main was separately verified as `58f7848`; no merge or
+  successful CI run is claimed. Only Health API changed in production.
+- Reused the workflow's `pnpm deploy:api` script with the exact source SHA:
+  credential/current-version preflight, local bundle dry run, migration check,
+  version upload, 100% traffic activation and Cron verification all passed.
+  No migrations were pending. No secrets or stored provider grants were changed.
+- Previous version: `db789c62-4402-42a3-88e8-fe4ce14439cd`.
+  Released version: `b22b62ff-4cb5-4cb9-b598-79dac7cb07f6`;
+  `BUILD_SHA=fbc13c902edb`. Deployment log:
+  `/tmp/kdp-health-local-deploy-20261018.log`.
+- Existing 9-check local validation applies to unchanged application/test source;
+  governance and `git diff --check` were checked again. All 16 live
+  `check:api` checks passed on the production domain, including exact build,
+  private endpoint rejection, SSO and MCP/OAuth discovery.
+- Control-plane readback at `2026-10-18T05:14:49Z` confirmed 100% traffic on
+  the released version, persistent logs, query-string redaction and Issues.
+  Cron remains `*/2 * * * *`. A read-only D1 query after the real scheduled
+  invocation returned `blocked/reconnect_required`, with zero rows written
+  by the query. Last successful sync remains `2026-10-15T15:16:55.898Z`.
+- The local production monitor passed 10 checks and failed only Health sync
+  freshness (62 hours against the 30-hour limit). Provider reconnection and
+  successful data sync have not been accepted; the owner must reconnect Oura.
+- Follow-up: after Actions startup is repaired, run PR checks, merge through
+  the normal flow and record a successful main workflow deployment. This
+  one-time local execution does not restore scheduled monitoring or backups.
