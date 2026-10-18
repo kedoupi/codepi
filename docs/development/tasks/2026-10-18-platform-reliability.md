@@ -239,6 +239,17 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 - At `2026-10-18T03:50:30Z`, the Health API settings still reported
   `BUILD_SHA=1816abf2a78b`, compatibility date `2026-10-15`, persistent logs and
   Issues enabled. The recovery code is not deployed.
+- The failure is account-wide, not PR-specific: the scheduled retry workflow run
+  `39096787241` on main (`58f7848`, `2026-10-18T04:21Z`) also failed before
+  runner assignment. Run creation and scheduling still work, so this is isolated
+  to hosted runner startup for this account. Local `gh` and the `GITHUB_TOKENS`
+  environment variable are both expired (`Bad credentials`), and the connector
+  cannot read check-run annotations, so the exact startup reason stays
+  unverified (billing/quota/outage not confirmed).
+- A rerun of run `39096787241` at `2026-10-18T05:01Z` (attempt 2, job
+  `117591546797`) failed identically: `runner_id=0`, blank runner name,
+  `steps=[]`, three-second duration, no logs. Hosted runner startup remains
+  blocked for the account at that time.
 - Continue by resolving Actions runner startup, rerunning PR #93 checks, merging
   only after CI passes, and verifying the main release and next real cron.
   If it reports `blocked/reconnect_required`, the owner must reconnect Oura in
