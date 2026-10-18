@@ -1,5 +1,5 @@
 // 部署证据：把每次部署的 service/target/SHA/provider 标识/smoke 结果写成
-// JSONL 证据文件（不含任何 secret 值），供 deploy-platform.yml 上传为 artifact。
+// JSONL 证据文件（不含任何 secret 值），供本地发布记录 source SHA、provider version 和 smoke 结果。
 // 只写仓库/CI 文件；解析 Pages deployment 时仅对 Cloudflare API 做只读查询。
 import { appendFileSync, readFileSync } from 'node:fs';
 

@@ -52,17 +52,17 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes
 - 按依赖顺序整合有效差异，保留当前产品方向和接口；冲突必须读取双方意图，不机械使用 ours/theirs。发现无法解释的并发改动立即停止并确认。
 - 审查绑定固定 SHA，或停止写入后的基线、文件清单与内容摘要。变更后原检查结论不自动沿用。
 - 在组合结果上运行针对性测试及 `node scripts/agent/check.mjs --base <集成前SHA>` 选出的检查；各分支独立通过不是组合通过。依赖缺失、未知路径和失败均列为未完成。
-- 合并、推送、远程 main 更新分别记录 SHA；本地合并不代表远程包含。推送 main 可能触发部署，执行前核对当前 workflow 和用户授权。
+- 合并、推送、远程 main 更新分别记录 SHA；本地合并不代表远程包含。合并 main 后按 [本地发布操作](local-release.md) 执行已授权的生产发布；Actions 只验证。
 
 ## 4. 受控发布与真实验收
 
 仅在任务包含发布时读取治理规范的发布门禁和当前 workflow。以下是执行核对顺序，不替代规范中的具体策略：
 
 1. 固定待发布的干净 source SHA、环境和产品范围，确认依赖服务的兼容版本。检查 affected 判定覆盖整个待发布范围，而非仅最后一条提交。
-2. 检查每个独立 CI job 自行具备其依赖；认证预检不能因 Auth 路径未变就被跳过。静态检查、密钥名存在和控制面绑定正确，不等于运行时已就绪。
-3. 核对同环境的 Auth、精确 callback、D1、service binding、routes、Cron 与 staging 副作用限制。门禁未通过就停止，不绕过后声称已发布。审批或 Access 只存在于文档时标记待控制面验收。
+2. 本地冻结安装 workspace 依赖并执行受影响检查，CI 作为附加验证；认证预检不能因 Auth 路径未变就被跳过。静态检查、密钥名存在和控制面绑定正确，不等于运行时已就绪。
+3. 核对 production 的 Auth、精确 callback、D1、service binding、routes 和 Cron。门禁未通过就停止，不绕过后声称已发布。审批或 Access 只存在于文档时标记待控制面验收。
 4. 数据迁移前核实准确数据库与恢复方案。旧代码回滚不等于数据库回滚；备份仅在已授权的安全位置保管，不进入 Git 或对话。
-5. 经规定入口发布，记录 run、source SHA、各受影响服务 deployment/version 和 smoke 结果。不将历史 dirty direct-upload 的 commit 标签当干净源码证明；未变服务记录现行兼容版本，不强求重新发布全部服务。
+5. 经本地发布流程执行，记录执行人、时间、source SHA、各受影响服务 deployment/version 和 smoke 结果。不将历史 dirty direct-upload 的 commit 标签当干净源码证明；未变服务记录现行兼容版本，不强求重新发布全部服务。
 6. 执行任务范围内的真实流程验收。静态 HTTP 200、health endpoint 或构建绿色不能替代登录后的产品流程。无法完成的项目写清原因，不使用历史成功代替当次验收。
 
 涉及全产品切换时，至少核对：

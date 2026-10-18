@@ -167,15 +167,12 @@ pnpm --filter @health-kdp/web build
 
 ### API 路由与登录检查
 
-Pages 只托管前端。`health.codepi.app/api/*` 必须通过同一 Cloudflare zone 的
-Worker Route 指向 `codepi-health-api`；API 路由、生产回调地址和关闭 DEV 登录的变量
-已声明在 `workers/api/wrangler.toml`；Health Pages 的运行配置在
-`apps/web/wrangler.toml`（Pages Functions 通过 `WORKER` service binding 连接 API）。
-前端与 API Worker 分别发布；
-`.github/workflows/deploy-platform.yml` 是唯一发布入口：先测试、检查类型并构建，
-再发布 API，通过线上契约检查后才发布前端，最后再检查一次；每次部署记录
-deployment-evidence artifact（service/target/SHA/provider 标识/smoke，无 secret）。
-PR 只运行验证，不发布。工作流修改提交到远端后才会在 GitHub 生效。
+Health 前端由 `codepi-health` Workers Static Assets 承载，API/MCP/OAuth 请求
+经 `WORKER` service binding 进入 `codepi-health-api`，API 不声明公网 routes。
+前端不持有 DB/AUTH/vars。发布从已合并 main 在本机执行，步骤见
+[本地发布操作](../../docs/development/local-release.md)：本地验证后先发布 API，
+线上契约通过后才发布受影响前端，并分别记录 SHA、Worker version 和 smoke。
+GitHub Actions 只做附加验证，不部署。无前端改动时可只发布 API。
 
 已有路由下发布 API：`pnpm deploy:api`。脚本上传新版本并将该版本切到 100% 流量，
 保留现有 Worker secrets 和 zone 路由，不需要每次发布都具备 zone 路由写权限。
@@ -404,9 +401,8 @@ Claude 自定义连接器的自动图标读取尚未经过真实客户端验证�
   使用 D1 中的原子计数；达到预算后等待 UTC 次日 01:00（北京时间 09:00）续跑。
   该预算不是 Cloudflare 账户剩余额度，既有单窗口 API/MCP 调用和其他项目仍会共享平台额度。
   不自动升级套餐；初次历史补齐可能分多日完成。
-- `.github/workflows/retry-health-deploy.yml` 每天 UTC 00:10（北京时间 08:10）
-  检查最近的主分支产品发布。只有 Oura API 发布步骤明确因 D1 当日写入额度失败，
-  才重跑该次发布失败的 job；成功、正在执行和其他失败一律不重试。GitHub 定时触发可能延迟。
+- 旧 Actions 部署重试已退役。发布因 D1 写入额度失败时，等待额度恢复，
+  再从当前 main 重新执行本地发布流程；不自动重放旧 run。
 - D1 当日写入额度超限时，API 返回 `503 storage_write_quota_exceeded`、
   下一次 UTC 午夜的 `retryAt` 和 `Retry-After`。登录回调也保留该错误分类，
   页面显示恢复提示；后台任务延后整个未完成队列，保留进度自动续跑。
