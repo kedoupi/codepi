@@ -7,6 +7,11 @@ name: Production monitor
 # 所有检查均为只读 HTTP/Cloudflare API 调用，脚本绝不打印 secret 或健康数据。
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-monitor.yml'
+      - 'scripts/cloudflare/production-monitor.mjs'
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
