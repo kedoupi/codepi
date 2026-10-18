@@ -1,29 +1,38 @@
 # Production reliability follow-up
 
-- Status: implemented, locally verified and pushed as PR #81; pending merge and post-release acceptance.
+- Status: original reliability work deployed through PR #81 / #91; Actions backup
+  artifact verified. Health recovery was released from clean PR #93 source
+  `fbc13c9` by an owner-authorized local deployment; production now reports
+  `blocked/reconnect_required`. The owner subsequently adopted local publishing
+  after PR merge as the normal release path. Policy migration and merge are
+  in progress; owner Oura reconnection remains pending.
 - Worktree: `<workspace>/.worktrees/kdp.cool/codex/platform-reliability`.
-- Branch: `codex/platform-reliability`.
-- Baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
-- Implementation commit: `878d557494329e4335c49ac87d46b3aaaabf5e25`;
+- Branch: `codex/health-sync-recovery`.
+- Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
+- Health recovery baseline: `58f7848740db3b6f0fb3935201500d46c97744d7`.
+- Health recovery implementation: `2414d416cc5ca29fba6b71cf6ee2bac9a607a78c`.
+- Original implementation commit: `878d557494329e4335c49ac87d46b3aaaabf5e25`;
   the follow-up commit only records the operational verification.
 - PR: https://github.com/kedoupi/codepi/pull/81.
+- Recovery PR: https://github.com/kedoupi/codepi/pull/93.
 - Owner: this Codex session, the sole writer of application configuration, scripts and CI.
 - User scope: close the legacy health-data leak; add recovery, monitoring, migration and
   quality checks; update Health runtime compatibility. No new dependencies.
 - Preserve: private Git history, applied GU migrations, `local + production`, existing
-  product/authentication contracts and the single deployment entry point.
+  product/authentication contracts and a single coordinated production publisher.
 
 ## Delivery state
 
 | Stage | Evidence |
 | --- | --- |
-| Implementation | Complete for the original reliability scope and the frontend release gate |
-| Local validation | 27 selected checks passed, including all applications and Health normal/SSO browsers |
+| Implementation | Original reliability scope and frontend release gate complete; Health decrypt-failure classification implemented |
+| Local validation | Original 27 selected checks passed; Health recovery passed all 9 selected checks, including normal and SSO browsers |
 | Script tests | 72 Cloudflare tests, 24 agent-check tests and 6 migration tests passed |
 | Review | Self-review of the full change; no independent reviewer run claimed |
-| Commit / push / PR | Implementation pushed at `878d557`; PR #81 open |
-| Merge / deployment | Not performed |
-| Operational acceptance | Legacy route closed, logs enabled, current-format exports and synthetic remote restore verified; scheduled workflows pending |
+| Commit / push / PR | PR #81 / #91 / #92 merged; Health recovery pushed at `2414d41` in open PR #93 |
+| Recovery CI | Run `39094891244` attempts 1 and 2 failed before any runner/steps started; no CI test result available |
+| Merge / deployment | Original reliability released at `4842996`; observability at `1816abf2`; Health recovery locally deployed at `fbc13c9`, PR #93 still unmerged |
+| Operational acceptance | Legacy route closed, logs/Issues enabled, scheduled backup artifact decrypted and synthetic restore verified; Health provider recovery and off-machine private-key escrow pending |
 
 ## Implemented
 
@@ -102,14 +111,15 @@
 ## Health sync investigation
 
 The cron runs and updates task attempts/backoff; live telemetry confirms scheduled task
-execution. The current queue has 49 pending tasks and repeated `upstream_unavailable`.
+execution. The queue has 49 tasks and repeated `upstream_unavailable`.
 The single stored token record was last updated `2026-10-15 06:23:40` and uses envelope v2.
 Only operational metadata was queried; no credentials or health-record values were printed.
 
 The code already maps Oura HTTP rejection statuses through `upstreamFetch`; the later
 `!res.ok` branch in `ouraGet` is not proof that all provider responses lose their status.
 The remaining generic code can represent a network failure, provider failure or another
-error normalized by the sync caller. Current metadata does not establish a root cause.
+error normalized by the sync caller. The initial metadata did not establish a root cause;
+the recovery section below records the reproducible classification defect.
 Do not rotate `TOKEN_ENCRYPTION_KEY`, delete grants or promise that reauthorization will
 solve the failure without further evidence. Website SSO is a separate lifecycle.
 
@@ -117,7 +127,7 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 
 1. Owner-managed recovery-key escrow outside this machine is not verified. Preserve
    the private key; it is required to recover all backups addressed to this recipient.
-2. Continue diagnosing Health's provider sync. The monitor is expected to remain red
+2. Release and verify Health's provider sync classification fix below. The monitor is expected to remain red
    until the real failure is resolved; do not change the threshold to hide it.
    Latest trace evidence (2026-10-18, temporary traces on `codepi-health-api`):
    the failing cron execution shows only D1 spans and no outbound fetch span,
@@ -130,9 +140,8 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
    that reauthorization will solve the failure without further evidence.
 3. Local `gh` cannot retrieve a usable OAuth token; available token candidates
    (`GITHUB_TOKENS`) all return 401. The GitHub connector and Git SSH transport
-   remain usable. Because of this, the first Actions backup artifact could not be
-   downloaded for a decryption check; see the 2026-10-18 follow-up evidence below
-   for the compensating verification that was performed.
+   remain usable. The connector successfully downloaded the first Actions backup
+   artifact; artifact verification is complete as recorded below.
 
 ## Follow-up evidence (2026-10-18, PR #91 / main `1816abf2`)
 
@@ -165,3 +174,150 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 - First push-triggered `production-monitor` run `39090056823` failed as
   expected: Health's automatic sync is still red (last success about 59h ago).
   This is the real known failure, not a regression from this change.
+
+## Actions backup artifact acceptance (2026-10-18)
+
+- The GitHub connector downloaded artifact `12122019076`,
+  `d1-backup-39090056809-1`, from successful run `39090056809`; no replacement
+  GitHub token was needed.
+- Archive SHA-256
+  `a25dc3aa0cab6dcfd2a33421e4645fc6658ba290a45e31f68901557c2a53755b`
+  matches the API digest. Contents are exactly five `.sql.enc` files and
+  `manifest.json`; each encrypted file's bytes and SHA-256 match its manifest entry.
+- All five databases passed authenticated in-memory decryption with the existing
+  recovery private key. The manifest, repository public key and local private key
+  share `key_id` prefix `346ac1bf375c4382`; database names, UUIDs and export timestamps
+  were authenticated as GCM AAD. SQL plaintext was not written to disk or printed;
+  decrypted buffers were cleared after verification.
+- Ciphertext-only copy:
+  `~/.local/share/kdp.cool/backups/actions-39090056809-1/`
+  (directory `0700`, files `0600`). This closes the previously pending artifact-level
+  verification; the earlier synthetic restore drill remains the restore-script evidence.
+- Off-machine/offline private-key escrow is still owner-managed and unverified.
+
+## Health sync recovery (baseline main `58f7848`)
+
+- Reproduced defect: `loadEncryptedTokenRecord` raises `DecryptError` for an
+  unreadable provider grant; the sync caller normalized it to
+  `upstream_unavailable`, consumed retries and stayed `running` instead of
+  indicating that consent must be renewed.
+- Minimal fix in `oura-access.ts`: translate only `DecryptError` from token
+  loading into `ApiError("reconnect_required", 401)`. D1 and other errors retain
+  their existing handling. Both daily scores and detailed collections use this
+  boundary; SSO and MCP authorization are unchanged.
+- Four synthetic integration cases cover wrong encryption keys / owner AAD for
+  `heartrate` and `__scores`. Before the fix: 0/4 passed, with `running` and
+  `upstream_unavailable`. After the fix: 4/4 passed, with `blocked` and
+  `reconnect_required`, no upstream calls, no consumed retries, unchanged stored
+  ciphertext, no later cron retries, and completion after a fresh OAuth callback.
+- No production encryption key or stored authorization was changed. Production
+  decrypt failure remains a hypothesis until the released cron reports the new
+  classification. A reconnect is not claimed as a verified production recovery.
+- Verification:
+  `pnpm build && node --experimental-strip-types --test --test-name-pattern='unreadable Oura grant' test/integration/auto-sync.test.mjs`
+  in `apps/health/workers/api` reproduced 4 failures before the fix and passed all
+  4 afterwards.
+  `node scripts/agent/check.mjs --base 58f7848740db3b6f0fb3935201500d46c97744d7 --run`
+  passed all 9 selected checks: Cloudflare tests/governance, agent checks/lint,
+  Health tests/typecheck/build/assets and normal/SSO browser journeys.
+  This includes 48 API unit tests and 120 integration cases; Svelte reported no
+  errors or warnings. Log: `/tmp/kdp-health-sync-recovery-check-20261018.log`.
+- Self-review covered the complete four-file diff and both token-access callers;
+  no independent reviewer run is claimed.
+- Before release, the production read-only query at `2026-10-18T03:46:00Z` still
+  showed `running` / `upstream_unavailable`, 49 tasks (27 pending / 22 failed) and
+  last success `2026-10-15T15:16:55.898Z`; the query wrote no rows.
+
+### Release blocker (PR #93)
+
+- Pushed implementation `2414d41`; PR #93 targets unchanged main `58f7848`.
+- Platform run `39094891244`, attempts 1 and 2: `governance` and `affected`
+  failed in 2-3 seconds with `runner_id=0`, blank runner names and `steps=[]`;
+  downstream build/deploy jobs were skipped. The retry used the failed-jobs API.
+  There is no evidence that a repository check or test ran in either attempt.
+- The failed job's log endpoint returned `BlobNotFound`; the check-run collection
+  reports two annotations on each failed job but the connector does not support
+  fetching that annotation endpoint. The underlying startup reason is unverified;
+  billing, quota or an outage must not be recorded as a confirmed cause.
+- At `2026-10-18T03:50:30Z`, the Health API settings still reported
+  `BUILD_SHA=1816abf2a78b`, compatibility date `2026-10-15`, persistent logs and
+  Issues enabled. The recovery code is not deployed.
+- The failure also affects another workflow in this repository: scheduled retry run
+  `39096787241` on main (`58f7848`, `2026-10-18T04:21Z`) also failed before
+  runner assignment. Run creation and scheduling still work. This evidence does
+  not establish an account-wide outage. Local `gh` and the `GITHUB_TOKENS`
+  environment variable both fail authentication (`Bad credentials`), and the connector
+  cannot read check-run annotations, so the exact startup reason stays
+  unverified (billing/quota/outage not confirmed).
+- A rerun of run `39096787241` at `2026-10-18T05:01Z` (attempt 2, job
+  `117591546797`) failed identically: `runner_id=0`, blank runner name,
+  `steps=[]`, three-second duration, no logs. Hosted runner startup remains
+  blocked for these workflows at that time.
+- Continue by resolving Actions runner startup, rerunning PR #93 checks, merging
+  only after CI passes, and verifying the main release and next real cron.
+  If it reports `blocked/reconnect_required`, the owner must reconnect Oura in
+  Health before production sync recovery can be accepted. Preserve the current
+  encrypted grant and encryption key.
+
+### Owner-authorized local production release
+
+- The owner requested local deployment while away from the computer. This is
+  a break-glass release under governance section 6, executed by this Codex
+  session on the owner's machine. Normal Actions publishing remains configured.
+- Clean source: `fbc13c902edb0c47e389e3a140e944f233750cfa`, already pushed in
+  PR #93. Remote main was separately verified as `58f7848`; no merge or
+  successful CI run is claimed. Only Health API changed in production.
+- Reused the workflow's `pnpm deploy:api` script with the exact source SHA:
+  credential/current-version preflight, local bundle dry run, migration check,
+  version upload, 100% traffic activation and Cron verification all passed.
+  No migrations were pending. No secrets or stored provider grants were changed.
+- Previous version: `db789c62-4402-42a3-88e8-fe4ce14439cd`.
+  Released version: `b22b62ff-4cb5-4cb9-b598-79dac7cb07f6`;
+  `BUILD_SHA=fbc13c902edb`. Deployment log:
+  `/tmp/kdp-health-local-deploy-20261018.log`.
+- Existing 9-check local validation applies to unchanged application/test source;
+  governance and `git diff --check` were checked again. All 16 live
+  `check:api` checks passed on the production domain, including exact build,
+  private endpoint rejection, SSO and MCP/OAuth discovery.
+- Control-plane readback at `2026-10-18T05:14:49Z` confirmed 100% traffic on
+  the released version, persistent logs, query-string redaction and Issues.
+  Cron remains `*/2 * * * *`. A read-only D1 query after the real scheduled
+  invocation returned `blocked/reconnect_required`, with zero rows written
+  by the query. Last successful sync remains `2026-10-15T15:16:55.898Z`.
+- The local production monitor passed 10 checks and failed only Health sync
+  freshness (62 hours against the 30-hour limit). Provider reconnection and
+  successful data sync have not been accepted; the owner must reconnect Oura.
+- Original follow-up (superseded by the decision below): after Actions startup is repaired, run PR checks, merge through
+  the normal flow and record a successful main workflow deployment. This
+  one-time local execution does not restore scheduled monitoring or backups.
+
+### Normal release policy change
+
+- Owner explicitly authorized merging PR #93 after local verification and
+  publishing the merged main locally, and requested that this become the
+  documented normal workflow. CI runner startup is no longer a release gate;
+  actual test failures still block release.
+- This session is the only writer of CI, release policy and Health retirement
+  files in this worktree; baseline for this phase is `ce60d9b`.
+- `deploy-platform.yml` retains PR/push/manual checks but has no deploy jobs,
+  production Environment or Cloudflare credentials. Its display name is now
+  Validate platform. Removed the obsolete scheduled deployment retry, helper
+  and helper-only test; provider sync retry behavior is unchanged.
+- Local operation steps, source/remote-main checks, single-publisher locking,
+  dependency order, per-service unpublished changes, migrations, runtime gates,
+  rollback boundaries and evidence are in `local-release.md`. AGENTS, release
+  skill, architecture and current deployment docs reference the new policy.
+- The validation workflow regression exercises PR scope, shared consumers,
+  push/manual checks and invalid inputs, and rejects production credentials or
+  deployment steps. Existing application and live-contract tests remain in use.
+- Verification: frozen workspace install passed; all 25 selected checks from
+  `node scripts/agent/check.mjs --base 58f7848740db3b6f0fb3935201500d46c97744d7 --run`
+  passed, covering all five workspace applications, Health normal/SSO browser
+  journeys and shared auth. Migration baseline (20 files), governance, lint and
+  `git diff --check` also passed. Log:
+  `/tmp/kdp-local-release-check-20261018.log`. Full change self-reviewed;
+  no independent reviewer result is claimed.
+- Scope for the post-merge production release is Health API. Other application
+  sources/configurations are unchanged by PR #93; removed retry code and CI/docs
+  do not change frontend bundles. Backup and monitor schedules remain configured;
+  their Actions startup problem is independent and remains unresolved.

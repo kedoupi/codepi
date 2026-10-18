@@ -1,4 +1,16 @@
 # Cloudflare 资源登记表
+2026-10-18T05:14:49Z Health API 应急本地发布：所有者明确要求在本机执行发布，
+执行人为本 Codex 会话，原因是 GitHub Actions jobs 在 runner 启动前失败。
+从干净且已推送的 PR #93 source `fbc13c902edb0c47e389e3a140e944f233750cfa`
+运行与 workflow 相同的 `pnpm deploy:api`，无需新增迁移；生产 Worker version
+`b22b62ff-4cb5-4cb9-b598-79dac7cb07f6` 承接 100% 流量，build 为 `fbc13c902edb`。
+前一版本为 `db789c62-4402-42a3-88e8-fe4ce14439cd`。16 项线上 API 契约检查通过；
+Cron、持久日志、查询串脱敏和 Issues 已核对。真实 cron 后同步状态为
+`blocked/reconnect_required`，仍需所有者重新连接 Oura；数据同步尚未恢复。
+PR 尚未合并，main 仍为 `58f7848`；Actions 恢复后须补 PR 检查、正常合并及 main
+workflow 发布证据。本地巡检仅 Health 新鲜度失败，其余 10 项通过；本次执行未恢复
+定时巡检和备份。详情见 [任务记录](tasks/2026-10-18-platform-reliability.md)。
+
 2026-10-18 平台可靠性落地：旧 CloudBase 匿名泄漏路由 `api.xiaotaozi.cc/oura/daily`
 已通过 CloudBase `ModifyHTTPServiceRoute` 置 `Enable=false` 并核实匿名请求返回 403，
 其余路由不受影响。新增两条 Cloudflare 通知策略（`incident_alert`、
@@ -8,9 +20,11 @@ Health cron 的实际执行日志；相同配置写入 Wrangler 并由治理守�
 新增 `.github/workflows/production-monitor.yml`（30 分钟只读巡检）与
 `.github/workflows/d1-backup.yml`（每日导出 5 个生产 D1，经 gzip/AES-256-GCM 与
 RSA 公钥封装后保存为 GitHub Actions artifact，14 天到期删除）。
-两者复用 production Environment 已有凭证，尚待合并后的首次工作流验证。
-Health API compatibility_date 在源码中由 2025-01-01 升至 2026-10-15，
-线上仍待此次发布。备份/恢复约定及私钥保管见
+两者复用 production Environment 已有凭证；首次备份 run `39090056809` 已成功，
+artifact 中五个库均通过完整性与私钥内存解密验证。巡检 run `39090056823`
+如实报出 Health 同步不新鲜，故障恢复仍待验收。
+Health API compatibility_date 已由 2025-01-01 升至 2026-10-15，
+PR #81 发布后经控制面核实。备份/恢复约定及私钥保管见
 [cloudflare-backup-restore.md](./cloudflare-backup-restore.md)，本轮格式的恢复演练和
 验证边界见 [任务记录](tasks/2026-10-18-platform-reliability.md)。GU 迁移文件双 0002
 与 git 历史中的真实数据按既定决策保留，迁移追加守门 `check-migrations.mjs`
@@ -18,7 +32,8 @@ Health API compatibility_date 在源码中由 2025-01-01 升至 2026-10-15，
 新格式恢复演练已通过：临时 D1 `codepi-health-pr-81`
 （`7685ecb8-fa28-4a4a-81bb-743b1c1e97d4`，synthetic，期限 2026-10-18）
 恢复 2 条合成记录并校验；非空目标再次导入被拒绝。演练后已删除该库，账户 D1
-列表复查仅剩原来的五个生产库。实现 PR #81 待合并，不代表自动备份已经启用。
+列表复查仅剩原来的五个生产库。PR #81 / #91 已合并并发布；
+恢复私钥异机或离线保管仍待所有者完成。
 
 2026-10-18 staging 全面退役与前端代理清理：仓库内全部 `[env.staging]` 配置已移除
 （www/gu/gzh/auth/health-api/health-pages），治理守门改为 fail-closed 拒绝任何 staging
@@ -160,7 +175,7 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-18 |
 | alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-18 |
-| backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 5 个生产 D1 的公钥封装加密日备（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 首次 workflow run 39090056809 成功并产出 artifact（1.5 MB）；artifact 级解密核对待可用 GitHub token，密钥对 key_id 匹配与内存加解密自测已通过 |
+| backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 5 个生产 D1 的公钥封装加密日备（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 run 39090056809 / artifact 12122019076 经 GitHub connector 下载；zip API digest、五库 manifest 字节数/sha256、key_id 与 GCM AAD 验证及私钥内存解密全部通过；仅密文存于仓库外，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |

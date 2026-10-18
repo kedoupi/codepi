@@ -12,7 +12,7 @@ This is the shared project contract for all coding agents working in this reposi
 - In a multi-agent task, record the coordinator, each writer's worktree and allowed paths, shared-contract owner, dependencies and integration owner before parallel edits. Role names do not grant permission to message other agents or execute Git/remote actions.
 - Preview affected checks with `node scripts/agent/check.mjs --base <starting-SHA>`; add `--run` to execute local checks. This does not replace UI acceptance or caller analysis.
 - Shared contracts and CI files have one writer per parallel effort. Worktrees isolate source files, not ports, cookies or remote data.
-- Commit, push, PR creation, merge, rebase, cleanup and remote operations follow explicit user authorization. Push/merge to `main` can trigger production deployment and migrations; ordinary development does not authorize these actions.
+- Commit, push, PR creation, merge, rebase, cleanup and remote operations follow explicit user authorization. Production releases run locally from clean, merged main via `docs/development/local-release.md`; Actions validates only. Ordinary development does not authorize merge, deployment or remote migrations.
 
 ## What this repo is
 
