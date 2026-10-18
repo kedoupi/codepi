@@ -13,3 +13,13 @@ run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known
 [[services]]
 binding = "WORKER"
 service = "codepi-health-api"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

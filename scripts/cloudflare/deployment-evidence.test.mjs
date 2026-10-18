@@ -88,6 +88,13 @@ test('resolveWorkerOrigin checks required names and enabled routing without lega
   assert.equal(api.calls.length, 3);
 });
 
+test('resolveWorkerOrigin accepts an explicit empty secret contract for the Health frontend proxy', async () => {
+  const api = workerApi({ '/workers/scripts/codepi-gu/secrets': [] });
+  assert.equal(await resolveWorkerOrigin('codepi-gu', [], api),
+    'https://codepi-gu.synthetic-account.workers.dev');
+  assert.equal(api.calls.length, 3, 'an empty contract still verifies routing and metadata');
+});
+
 test('resolveWorkerOrigin rejects missing secrets, wrong binding types and malformed payloads', async () => {
   for (const result of [[], null, {}, [
     { name: 'AUTH_CLIENT_SECRET', type: 'plain_text' },
@@ -131,7 +138,7 @@ test('resolveWorkerOrigin requires a Worker name and explicit secret names befor
   for (const script of ['', undefined, '../auth', 'gu\nmalicious', 'gu.example']) {
     await assert.rejects(resolveWorkerOrigin(script, requiredSecrets, api), /invalid Worker name/);
   }
-  for (const secrets of [undefined, [], [''], ['AUTH_CLIENT_SECRET\n'], [null]]) {
+  for (const secrets of [undefined, [''], ['AUTH_CLIENT_SECRET\n'], [null]]) {
     await assert.rejects(resolveWorkerOrigin('codepi-gu', secrets, api), /required secret names/);
   }
   assert.equal(api.calls.length, 0);
