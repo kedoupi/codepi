@@ -231,7 +231,7 @@ jobs:
           HEALTH_BROWSER_ARTIFACTS: ${{ runner.temp }}/health-browser-artifacts
       - name: Upload browser screenshots and diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: health-browser-${{ github.run_attempt }}
           path: ${{ runner.temp }}/health-browser-artifacts
