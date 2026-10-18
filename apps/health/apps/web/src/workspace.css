@@ -101,3 +101,11 @@
   .workspace .page .sleep-history { padding-inline: 0; }
   .workspace .page .panel { padding: 22px 20px; }
 }
+/* Keep the exceptional connection repair separate from routine reconnect. */
+.connection-repair {
+  margin-top: 1rem;
+}
+.connection-repair summary {
+  cursor: pointer;
+  color: var(--muted);
+}

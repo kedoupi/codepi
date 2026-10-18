@@ -13,6 +13,7 @@
 | 分支核对、集成、发布与退役 | [集成与发布工作流](integration-release.md) | 先核实事实，再执行已授权的变更 |
 | Cloudflare 平台约束 | [CF 治理规范](cloudflare-governance.md) | 命名、环境、密钥、发布门禁与退役条件 |
 | 云资源归属与核验记录 | [CF 资源登记表](cloudflare-resource-registry.md) | 版本化快照，不是实时控制面；关注 last_verified 和未决项 |
+| 本地发布操作 | [本地发布操作](local-release.md) | PR 合并后，从干净且等于远程 main 的源码验证、发布及验收；CI 只做附加验证 |
 | 各工具如何读取以上内容 | [工具兼容说明](agent-compatibility.md) | 入口只引用，不复制流程；不假定已完成所有客户端验收 |
 | 本地自动检查范围 | [检查脚本](../../scripts/agent/check.mjs)及[回归测试](../../scripts/agent/check.test.mjs) | 预览计划不等于执行成功，脚本不能替代实际流程验收 |
 

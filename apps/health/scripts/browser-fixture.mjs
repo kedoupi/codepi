@@ -15,6 +15,7 @@ const central = centralFixture();
 const workerOrigin = sso ? origin : 'https://oura.example';
 // Owner runtime: test-user == PERSONAL_OWNER_ID (full reports).
 let syncScenario = 'normal';
+let providerId = 'test-user';
 let providerCalls = [];
 let syncRequests = [];
 let releaseScores;
@@ -29,6 +30,9 @@ const ownerRuntime = createRuntime({
   autoSync: true,
   providerResponse(url) {
     providerCalls.push(url.pathname);
+    if (url.pathname.endsWith('/personal_info') && providerId !== 'test-user') {
+      return Response.json({ id: providerId, email: 'test@example.invalid' });
+    }
     if (syncScenario === 'normal') return undefined;
     if (/\/daily_(sleep|readiness|activity)$/.test(url.pathname)) {
       if (syncScenario === 'score-failure') return new Response('', { status: 503 });
@@ -199,6 +203,11 @@ const server = createServer(async (req, res) => {
       res.writeHead(callback.status === 302 ? 200 : 500, { 'Content-Type': 'application/json' }).end('{"ok":true}');
       return;
     }
+    if (sso && url.pathname === '/__test/provider-identity' && req.method === 'POST') {
+      providerId = 'replacement-provider-id';
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"ok":true}');
+      return;
+    }
     if (url.pathname === '/__test/storage-quota') {
       if (req.method === 'POST') {
         storageQuota = url.searchParams.get('enabled') === '1';
@@ -330,6 +339,13 @@ const server = createServer(async (req, res) => {
       });
       if (syncRequest) syncRequest.status = response.status;
       const headers = Object.fromEntries(response.headers);
+      if (sso && url.pathname === '/api/auth/oura/start' && req.method === 'POST' && response.status === 302) {
+        // Simulate only the provider consent redirect. The real form POST,
+        // session/state cookies, callback, encryption and D1 writes still run.
+        const authorize = new URL(headers.location);
+        if (authorize.origin !== 'https://cloud.ouraring.com') throw new Error('Unexpected consent origin');
+        headers.location = `/api/auth/oura/callback?code=synthetic-code&state=${encodeURIComponent(authorize.searchParams.get('state'))}`;
+      }
       if (headers.location?.startsWith('https://oura.example')) {
         headers.location = headers.location.replace('https://oura.example', origin);
       }

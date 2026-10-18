@@ -107,6 +107,19 @@
         </p>
         <a class="ai-btn" href="/api/auth/oura/start">{me.ouraConnection?.status === "disconnected"
           ? (locale === "zh" ? "连接 Oura" : "Connect Oura") : (locale === "zh" ? "重新连接 Oura" : "Reconnect Oura")}</a>
+        {#if me.source === "sso" && me.ouraConnection?.ouraUserId}
+          <details class="connection-repair">
+            <summary>{locale === "zh" ? "原账号连接修复" : "Repair original account connection"}</summary>
+            <p class="hint">{locale === "zh"
+              ? "仅当你确认使用原来的 Oura 账号，却仍收到账号标识不一致的提示时使用。重新授权后，服务会核对 Oura 返回的邮箱与原记录完全一致，再更新连接标识。现有历史数据与 AI 应用授权会保留。"
+              : "Use this only if your original Oura account is rejected because its identifier differs. After fresh authorization, the Oura email must exactly match the existing record before the connection identifier is updated. History and AI app permissions are preserved."}</p>
+            <form method="POST" action="/api/auth/oura/start">
+              <input type="hidden" name="intent" value="repair_identity" />
+              <button class="ai-btn" type="submit">{locale === "zh"
+                ? "确认是原账号并重新授权" : "Confirm original account and reauthorize"}</button>
+            </form>
+          </details>
+        {/if}
         {#if me.release}
           <p class="hint">{locale === "en" ? "API" : "接口版本"}：{me.release}{me.build ? ` · ${me.build.slice(0, 7)}` : ""}</p>
         {/if}

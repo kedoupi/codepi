@@ -1,7 +1,7 @@
 # CodePi 统一 MCP / Health 首期
 
-- 状态：统一 MCP 与旧入口删除均已完成，本地验证与自行审查通过；未执行远程操作或真实客户端验收。
-- Worktree：`/Users/codepi/.worktrees/kdp.cool/codex/unified-mcp`（detached HEAD）。
+- 状态：用户已授权上线；正在集成最新 main、重新验证并按本地发布流程上线。
+- Worktree：`/Users/codepi/.worktrees/kdp.cool/codex/unified-mcp`，分支 `codex/unified-mcp`。
 - 基线：`3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`。
 - 协调者、写入者、共享契约负责人和集成负责人：当前 Codex 会话；无并行写入者。
 - 允许修改：`services/mcp/`、Health、共享 MCP/SSO 契约、Auth 注册、workspace
@@ -10,8 +10,9 @@
   可读全部已保存历史，自动补齐限近 90 天；最新决定不保留旧 Health MCP，
   同版本直接删除，客户端改连统一地址并重新授权。
 - 架构与数据语义：[统一 MCP](../../architecture/unified-mcp.md)。
-- 交付绑定当前基线及下方文件清单，不冒充已提交 SHA。未 commit、push、创建 PR、
-  merge 或部署；未创建云资源、配置 secret 或执行远程 migration。
+- 原始实现提交 `1a8ef82`；集成基线为远程 main
+  `96516ab354877c2802650974092e8eefe616b548`。发布授权包括提交、PR 合并及本地部署。
+  已只读核对 Cloudflare 账户、现行版本、绑定、secret 名称与 Cron；尚未部署或创建资源。
 - 审查：当前实现者已按完整 diff 自行审查；没有独立 Agent 审查或生产验收。
 
 ## 已实现
@@ -85,8 +86,19 @@ MCP 最终浏览器证据：
    各客户端重新完成统一授权。旧实现已随此版本删除，没有额外开关或兼容期。
    保留 Health 历史、提供方授权和旧表；不顺带删除业务数据。
 
-Cloudflare 登记仍为 `planned`。未验证生产 SSO 配对、远程绑定、域名或真实客户端，
+Cloudflare MCP 登记仍为 `planned`。未验证新服务生产 SSO 配对、远程绑定、域名或真实客户端，
 不能把配置存在、匿名探针脚本存在或本地测试通过写成“已上线可用”。
+
+## 2026-10-19 发布集成
+
+- 保留 main 的 Oura 同账号修复、回调诊断、加密授权错误处理和迁移 0012。
+  旧 Health MCP 测试删除，但原账号防误绑定测试和设置页修复入口保留。
+- 遵循 main 已实施的本地发布决策：CI 仅新增 MCP 检查，不恢复 Actions 部署。
+  生产发布顺序补充为 Auth / 共享消费者 → Health API → MCP → Health 前端。
+- 新 MCP 配置补齐持久日志、查询串脱敏和 Issues；迁移扫描包含独立 MCP D1。
+- 现有五个 D1 的定时备份不变；MCP 仅保存可通过重新授权恢复的会话/授权状态。
+- 本轮全部远程变更由当前 Codex 串行执行，其他 worktree 均保持原样。
+  合并后检查、实际 PR、source SHA、provider version 和验收结果待执行后回填。
 
 ## 交付文件
 

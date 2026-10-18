@@ -1,0 +1,46 @@
+name: D1 backup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/d1-backup.yml'
+      - 'scripts/cloudflare/d1-backup.mjs'
+      - 'scripts/cloudflare/backup-public-key.pem'
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Export and encrypt
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/cloudflare/d1-backup.mjs --out backup-out
+      - name: Store encrypted exports outside Cloudflare
+        uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            backup-out/*.sql.enc
+            backup-out/manifest.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
 import builtWorker from './node-worker.mjs';
+import { encryptJson, packEncryptedBlob } from '../../src/lib/crypto.ts';
 
 const origin = 'https://oura.example';
 const today = calendarDay();
@@ -154,6 +155,36 @@ test('authorization failure pauses without repeated requests; a real OAuth callb
   await f.tick();
   assert.equal((await f.status()).status, 'completed');
 });
+
+for (const [problem, collection] of [
+  ['wrong key', 'heartrate'], ['wrong key', '__scores'],
+  ['wrong owner', 'heartrate'], ['wrong owner', '__scores'],
+]) {
+  test(`unreadable Oura grant (${problem}, ${collection}) pauses without losing the grant or retrying upstream; reconnect resumes`, async t => {
+    let calls = 0;
+    const f = await fixture(t, () => { calls++; });
+    const blob = packEncryptedBlob(await encryptJson(
+      problem === 'wrong key' ? 'previous-encryption-secret' : 'integration-encryption-secret',
+      { access_token: 'unreadable-access', refresh_token: 'unreadable-refresh', expires_at: Date.now() + 86400000 },
+      `oura-oauth-tokens:${problem === 'wrong owner' ? 'other-test-user' : 'test-user'}`,
+    ));
+    await f.db.prepare("UPDATE encrypted_tokens SET ciphertext=?,iv=? WHERE user_id='test-user'")
+      .bind(blob.ciphertext, blob.iv).run();
+    await f.queue([pending(collection)]);
+    const before = calls;
+    await f.tick();
+    assert.equal(calls, before, 'decryption failure happens before an Oura request');
+    assert.equal((await f.status()).status, 'blocked');
+    assert.equal((await f.status()).error, 'reconnect_required');
+    assert.equal((await f.tasks())[0].attempts, 0, 're-consent is required, not another network retry');
+    assert.deepEqual(await f.db.prepare("SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id='test-user'").first(), blob);
+    await f.tick(scheduledTime + 86400000);
+    assert.equal(calls, before, 'a later cron must not keep retrying an unreadable grant');
+    await login(f.runtime);
+    await f.tick();
+    assert.equal((await f.status()).status, 'completed');
+  });
+}
 
 test('large windows split durably; one failed permission collection does not stop other data', async t => {
   const f = await fixture(t, url => {

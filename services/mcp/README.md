@@ -54,8 +54,9 @@ resource registry after the first release; a planned registry row is not readine
 1. Deploy compatible Auth support and Health's named RPC first.
 2. Pair Auth's `SSO_CLIENT_SECRET_MCP` with this Worker's `AUTH_CLIENT_SECRET`
    through an authorized secret channel. Never rotate the four existing clients.
-3. From the clean reviewed source, run
-   `pnpm --dir services/mcp run deploy <full-source-SHA>` (or the equivalent platform job).
+3. Follow `docs/development/local-release.md`: hold the production release lock
+   and use the clean, merged source matching remote main. Run
+   `pnpm --dir services/mcp run deploy <full-source-SHA>` locally.
 4. Run `MCP_EXPECT_BUILD=<short-SHA> pnpm --dir services/mcp check:live`.
 5. Reauthorize and test ChatGPT, Claude and the actual Agent CLI. Test sleep trends,
    month comparisons, missing data, automatic refresh and revocation.

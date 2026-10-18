@@ -38,6 +38,10 @@ export function makePlan(files) {
 
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
     'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
+  const migrationDirs = ['apps/web/migrations/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
+    'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
+  const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))
+    || file.startsWith('scripts/agent/check-migrations'));
   for (const file of files) {
     if (file.startsWith('scripts/cloudflare/')
       || file === '.github/workflows/deploy-platform.yml'
@@ -53,7 +57,7 @@ export function makePlan(files) {
       workflow = true;
     } else if (file.startsWith('scripts/agent/') || file.startsWith('scripts/cloudflare/') || file.startsWith('.agents/')
       || file.startsWith('.claude/skills/') || file.startsWith('.cursor/rules/')
-      || ['CLAUDE.md', 'GEMINI.md', '.github/copilot-instructions.md'].includes(file)
+      || ['CLAUDE.md', 'GEMINI.md', '.gitignore', '.github/copilot-instructions.md'].includes(file)
       || file.startsWith('docs/development/')) {
       workflow = true;
     } else if (['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'].some(prefix => file.startsWith(prefix))) {
@@ -92,10 +96,15 @@ export function makePlan(files) {
   const check = (cwd, ...argv) => checks.push({ cwd, argv });
   if (cfGovernance) {
     // 只读仓库文件的静态守门；绝不访问 Cloudflare 或远程数据库。
-    check('.', 'node', '--test', 'scripts/cloudflare/validate-governance.test.mjs', 'scripts/cloudflare/deployment-evidence.test.mjs', 'scripts/cloudflare/deploy-workflow.test.mjs', 'scripts/cloudflare/check-pages.test.mjs');
+    check('.', 'node', '--test', 'scripts/cloudflare/*.test.mjs');
     check('.', 'node', 'scripts/cloudflare/validate-governance.mjs');
   }
   if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
+  if (workflow) check('.', 'node', 'scripts/agent/lint.mjs');
+  if (touchesMigrations) {
+    check('.', 'node', '--test', 'scripts/agent/check-migrations.test.mjs');
+    check('.', 'node', 'scripts/agent/check-migrations.mjs');
+  }
   for (const app of staticApps.filter(app => apps.has(app))) {
     if (app === 'web') {
       check(dirOf(app), 'npm', 'test');

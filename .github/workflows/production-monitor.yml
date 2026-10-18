@@ -1,0 +1,43 @@
+name: Production monitor
+
+# 定时只读巡检生产平台：Auth 健康端点、各私有 app 的匿名拒绝契约与
+# 同环境 SSO 跳转、已退役 CloudBase 泄漏路由保持关闭、Health 自动同步
+# 新鲜度（D1 只读查询）。失败时 GitHub 会向仓库关注者发送 Actions
+# 失败通知；这是去掉 staging 后的主要线上兜底。
+# 所有检查均为只读 HTTP/Cloudflare API 调用，脚本绝不打印 secret 或健康数据。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-monitor.yml'
+      - 'scripts/cloudflare/production-monitor.mjs'
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Run production checks
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/cloudflare/production-monitor.mjs --require-d1

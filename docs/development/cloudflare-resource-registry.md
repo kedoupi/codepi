@@ -5,6 +5,84 @@ OAuth 服务与连接管理代码直接删除。目标行为为 Health 旧连接
 本轮未访问或修改控制面、远程表或凭证；下方旧 MCP 可达性记录仍是历史证据，
 不能据此声称新入口或旧路径退役已在线验收。MCP Worker/D1 仍为 `planned`。
 
+2026-10-18T08:33:58Z 原账号连接修复发布：PR #97 合并为
+`85c060bda5e96755a07bae4164e1aecfe75e95b2`，本 Codex 会话持有本机发布锁，
+从与实时远程 main 一致的干净源码先执行 migration 0012，再发布 Health API
+和前端。API version `3a78e935-726f-408a-9da3-0bbe210b8587`，build
+`85c060bda5e9`；前端 version `a4bca3a2-872f-4e90-922f-980dd1edea75`。
+前一版本分别为 `fa60c2fb-1f1c-4206-8000-6032542c7c3c` 和
+`0aa41bdc-9c2e-4f85-bdb3-0e37734ee492`。16 项正式域名 API 检查与前端
+资产检查通过。08:34:22Z 控制面确认双版本各承接 100% 流量、绑定、Cron、持久
+日志、脱敏和 Issues。设置页已提供显式修复入口；真实授权与同步恢复仍待所有者
+操作，当前仍为 `blocked/reconnect_required`。发布未手动改绑或轮换密钥。
+完整步骤和待验收项见[平台可靠性任务](tasks/2026-10-18-platform-reliability.md)。
+
+2026-10-18T07:10:34Z 同账号 Oura 标识诊断发布：PR #96 已合并为
+`b4ad03bf168ec6ccf43d75307d2ed584eac50657`，从与远程 main 一致的干净源码，
+持有本机发布锁执行 Health API 发布。无待迁移文件；新 Worker version 为
+`fa60c2fb-1f1c-4206-8000-6032542c7c3c`，100% 流量，build `b4ad03bf168e`，
+前一版本为 `4ae86a3b-e7b7-4ec6-8091-7c24f1e922f1`。16 项正式域名检查通过，
+控制面核实版本、build、Cron、持久日志、查询串脱敏和 Issues。新版本尚无 Oura
+回调，待所有者重新连接以取得无私人标识的比较结果。账号绑定未修改，同步未恢复。
+
+2026-10-18T05:54:50Z Oura 回调诊断补丁本地发布：PR #95 已合并为
+`aabc810d042fbe071f6284fafe0379555fe39d1e`。本 Codex 会话从干净且与远程 main
+一致的源码、持有本机发布锁执行 Health API 发布，无待迁移文件。新 Worker version
+`4ae86a3b-e7b7-4ec6-8091-7c24f1e922f1` 承接 100% 流量，build
+`aabc810d042f`；前一版本为 `f3eb6ecb-72f3-4415-862d-350fc11eb819`。
+16 项正式域名契约检查通过，控制面复核 build、Cron、持久日志、查询串脱敏和 Issues。
+本次增加回调结果日志；尚未收到新版本的 Oura 回调，授权失败根因和真实同步恢复仍待验收。
+其他服务未发布。详细证据见本次平台可靠性任务记录。
+
+2026-10-18T05:24:34Z 正常本地发布验收：所有者决定将“PR 合并 main 后本机发布”
+作为正常流程，PR #93 已合并为 `4d931faf7a5399c028dc6875d24a3f91a2e084c6`。
+本 Codex 会话持有本机发布锁，从与远程 main 一致的干净源码执行现有 Health API
+发布脚本；无待迁移文件。Worker version 为 `f3eb6ecb-72f3-4415-862d-350fc11eb819`，
+100% 流量，build `4d931faf7a53`，前一版本为 `b22b62ff-4cb5-4cb9-b598-79dac7cb07f6`。
+16 项正式域名 API 契约检查通过，控制面确认 Cron、持久日志、脱敏和 Issues。
+同步仍为 `blocked/reconnect_required`，等待 Oura 重连；10 项巡检通过，Health
+新鲜度检查仍失败。其他应用运行代码与配置未变，保留现行版本。
+Actions 发布和旧部署重试入口已从 main 移除，CI 只验证；本次不再需要补 Actions 发布。
+定时巡检、备份仍独立保留，runner 故障尚未恢复。操作步骤见
+[本地发布操作](local-release.md)，完整证据见 [任务记录](tasks/2026-10-18-platform-reliability.md)。
+以下应急发布记录保留为历史，不代表当前仍待合并：
+
+2026-10-18T05:14:49Z Health API 应急本地发布：所有者明确要求在本机执行发布，
+执行人为本 Codex 会话，原因是 GitHub Actions jobs 在 runner 启动前失败。
+从干净且已推送的 PR #93 source `fbc13c902edb0c47e389e3a140e944f233750cfa`
+运行与 workflow 相同的 `pnpm deploy:api`，无需新增迁移；生产 Worker version
+`b22b62ff-4cb5-4cb9-b598-79dac7cb07f6` 承接 100% 流量，build 为 `fbc13c902edb`。
+前一版本为 `db789c62-4402-42a3-88e8-fe4ce14439cd`。16 项线上 API 契约检查通过；
+Cron、持久日志、查询串脱敏和 Issues 已核对。真实 cron 后同步状态为
+`blocked/reconnect_required`，仍需所有者重新连接 Oura；数据同步尚未恢复。
+PR 尚未合并，main 仍为 `58f7848`；Actions 恢复后须补 PR 检查、正常合并及 main
+workflow 发布证据。本地巡检仅 Health 新鲜度失败，其余 10 项通过；本次执行未恢复
+定时巡检和备份。详情见 [任务记录](tasks/2026-10-18-platform-reliability.md)。
+
+2026-10-18 平台可靠性落地：旧 CloudBase 匿名泄漏路由 `api.xiaotaozi.cc/oura/daily`
+已通过 CloudBase `ModifyHTTPServiceRoute` 置 `Enable=false` 并核实匿名请求返回 403，
+其余路由不受影响。新增两条 Cloudflare 通知策略（`incident_alert`、
+`workers_observability_real_time_issue`，均走账户邮箱机制）并登记于下表。
+全部 6 个生产 Worker 已通过控制面 API 开启持久化调用日志并脱敏查询串，已查到
+Health cron 的实际执行日志；相同配置写入 Wrangler 并由治理守门强制。
+新增 `.github/workflows/production-monitor.yml`（30 分钟只读巡检）与
+`.github/workflows/d1-backup.yml`（每日导出 5 个生产 D1，经 gzip/AES-256-GCM 与
+RSA 公钥封装后保存为 GitHub Actions artifact，14 天到期删除）。
+两者复用 production Environment 已有凭证；首次备份 run `39090056809` 已成功，
+artifact 中五个库均通过完整性与私钥内存解密验证。巡检 run `39090056823`
+如实报出 Health 同步不新鲜，故障恢复仍待验收。
+Health API compatibility_date 已由 2025-01-01 升至 2026-10-15，
+PR #81 发布后经控制面核实。备份/恢复约定及私钥保管见
+[cloudflare-backup-restore.md](./cloudflare-backup-restore.md)，本轮格式的恢复演练和
+验证边界见 [任务记录](tasks/2026-10-18-platform-reliability.md)。GU 迁移文件双 0002
+与 git 历史中的真实数据按既定决策保留，迁移追加守门 `check-migrations.mjs`
+仅容许原来的两个文件，不容许增加第三个同编号文件。
+新格式恢复演练已通过：临时 D1 `codepi-health-pr-81`
+（`7685ecb8-fa28-4a4a-81bb-743b1c1e97d4`，synthetic，期限 2026-10-18）
+恢复 2 条合成记录并校验；非空目标再次导入被拒绝。演练后已删除该库，账户 D1
+列表复查仅剩原来的五个生产库。PR #81 / #91 已合并并发布；
+恢复私钥异机或离线保管仍待所有者完成。
+
 2026-10-18 staging 全面退役与前端代理清理：仓库内全部 `[env.staging]` 配置已移除
 （www/gu/gzh/auth/health-api/health-pages），治理守门改为 fail-closed 拒绝任何 staging
 段、staging 主机或 `-staging` 资源名。云端同步删除：`codepi-auth-staging` 与
@@ -143,6 +221,9 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-voyracloud | production | tunnel | voyracloud (193a7c34-81b4-4c50-87fd-0700faf07033) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | tunnel-duoji-mini | production | tunnel | duoji_mini (5e9e0d79-e706-4619-b547-97b09aca5ce7) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
+| alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-18 |
+| alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-18 |
+| backup-d1-artifact | production | actions-artifact | kedoupi/kdp.cool: d1-backup-<run-id>-<attempt> | kedoupi | 5 个生产 D1 的公钥封装加密日备（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 run 39090056809 / artifact 12122019076 经 GitHub connector 下载；zip API digest、五库 manifest 字节数/sha256、key_id 与 GCM AAD 验证及私钥内存解密全部通过；仅密文存于仓库外，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |

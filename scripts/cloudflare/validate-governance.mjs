@@ -56,6 +56,12 @@ function tomlStringCount(section, key) {
   return [...section.matchAll(new RegExp(`^[ \\t]*${key}[ \\t]*=`, 'gm'))].length;
 }
 
+function tomlBoolean(section, key) {
+  const matches = [...section.matchAll(new RegExp(`^[ \\t]*${key}[ \\t]*=[ \\t]*(true|false)[ \\t]*(?:#[^\\n]*)?$`, 'gm'))];
+  return matches.length === 1 && tomlStringCount(section, key) === 1
+    ? matches[0][1] === 'true' : undefined;
+}
+
 function tomlTableBodies(tables, header) {
   return tables.filter(t => t.header === header).map(t => t.body);
 }
@@ -126,6 +132,9 @@ function parseTomlEnv(root, tables, prefix) {
   const section = prefix ? tomlTableBodies(tables, `[${prefix}]`).join('\n') : root;
   const varsBody = prefix ? tomlTableBodies(tables, `[${prefix}.vars]`).join('\n') : tomlTableBodies(tables, '[vars]').join('\n');
   const p = prefix ? `${prefix}.` : '';
+  const observability = tomlTableBodies(tables, `[${p}observability]`).join('\n');
+  const logs = tomlTableBodies(tables, `[${p}observability.logs]`).join('\n');
+  const issues = tomlTableBodies(tables, `[${p}observability.issues]`).join('\n');
   const d1All = tomlTableBodies(tables, `[[${p}d1_databases]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'), id: tomlString(body, 'database_id') }));
   const servicesAll = tomlTableBodies(tables, `[[${p}services]]`)
@@ -134,6 +143,11 @@ function parseTomlEnv(root, tables, prefix) {
   const crons = tomlCrons(tables, `[${p}triggers]`);
   const duplicate = (all, field) => [...new Set(all.map(item => item[field]).filter((value, i, values) => value && values.indexOf(value) !== i))];
   return {
+    logsEnabled: tomlBoolean(observability, 'enabled') === true && tomlBoolean(logs, 'enabled') === true,
+    redactQuery: tomlBoolean(observability, 'redact_query_string'),
+    persistLogs: tomlBoolean(logs, 'persist'),
+    invocationLogs: tomlBoolean(logs, 'invocation_logs'),
+    issuesEnabled: tomlBoolean(issues, 'enabled'),
     present: prefix ? section.length > 0 || varsBody.length > 0 || d1All.length > 0 || servicesAll.length > 0 : true,
     name: tomlString(section, 'name'),
     environment: tomlString(varsBody, 'ENVIRONMENT'),
@@ -178,6 +192,11 @@ function normalizeJsoncService(text) {
     const crons = src.triggers?.crons;
     const duplicate = (all, field) => [...new Set(all.map(item => item[field]).filter((value, i, values) => value && values.indexOf(value) !== i))];
     return {
+      logsEnabled: src.observability?.enabled === true && src.observability?.logs?.enabled === true,
+      redactQuery: src.observability?.redact_query_string,
+      persistLogs: src.observability?.logs?.persist,
+      invocationLogs: src.observability?.logs?.invocation_logs,
+      issuesEnabled: src.observability?.issues?.enabled,
       present, name: src.name, environment: src.vars?.ENVIRONMENT,
       environmentCount: src.vars?.ENVIRONMENT === undefined ? 0 : 1,
       authOrigin: src.vars?.AUTH_ORIGIN, frontendOrigin: src.vars?.FRONTEND_ORIGIN,
@@ -316,6 +335,11 @@ function checkService(spec, cfg, index, violations) {
   };
 
   for (const [envName, env] of environments) {
+    if (!env.logsEnabled || env.persistLogs !== true || env.invocationLogs !== true) {
+      at(`${envName} must explicitly enable persistent invocation logs`);
+    }
+    if (env.redactQuery !== true) at(`${envName} observability must redact query strings`);
+    if (env.issuesEnabled !== true) at(`${envName} must explicitly enable Issues alerts`);
     if (env.environmentCount > 1) at(`${envName} declares ENVIRONMENT more than once`);
     if (!env.cronsValid) at(`${envName} [triggers] crons declaration is malformed`);
     if (spec.routesRequired && !env.routesValid) at(`${envName} routes declaration is malformed`);

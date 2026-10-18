@@ -9,7 +9,7 @@
 
 ## 1. 环境模型
 
-项目采用单主干自动发布，常用环境只有 `local` 和 `production`：
+项目采用单主干、本地执行发布，常用环境只有 `local` 和 `production`：
 
 | 环境 | 语义 | 数据 | 凭证 |
 |---|---|---|---|
@@ -79,50 +79,36 @@ synthetic fixture；删除不涉及真实业务数据。若未来确需云端联
   不要求恢复旧值，不输出或落地。第三方凭证不能用随机值代替。初始化/轮换与日常部署分开，
   轮换时明确旧登录态、外部上传客户端及回退版本的影响。
 
-## 6. 发布路径（唯一入口）
+## 6. 发布路径（本地执行）
 
-- 受控发布的唯一入口是 GitHub Actions `.github/workflows/deploy-platform.yml`：
-  Auth、Web、GU、GZH、Health、MCP 全部经它发布（`deploy-product-apps.yml` 已删除，
-  无其它受控入口）。这是仓库约束，workflow 文件存在不代表运行成功；实际 run 与
-  线上版本见资源登记表及对应任务记录。
-- workflow 支持 `push`（main）、`pull_request`（只构建测试，不
-  migrate/deploy）与 `workflow_dispatch`（`target=production`、
-  `app=all|auth|web|gu|gzh|health|mcp`）。一个 affected 判定 job 先标记受影响服务：
-  `services/auth/**`、`packages/shared/auth/**`、`packages/shared/email/**`、`packages/shared/brand.ts`、
-  `packages/shared/styles/**`、`scripts/cloudflare/**`、workflow 文件本身标记全部六个
-  服务；根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` 也标记全部
-  服务；否则只标记对应 app 路径。pnpm 版本从根 packageManager 读取，所有 job 从根目录
-  frozen install，发布使用 lockfile 中的 Wrangler。
-- DAG：governance gate → auth build/migrate/deploy/smoke → web/gu/gzh
-  Worker build/migrate/deploy/smoke → health API build/migrate/deploy/contract
-  smoke → MCP deploy/smoke → Health frontend build/deploy/smoke。下游 job 只在 predecessor success 或
-  skipped 时继续（`!failure() && !cancelled()`），failure 必须停止。
-- 禁用所有 Pages Git 自动 production deploy；只保留 Actions direct upload。
-  GU、GZH 自 2026-10-17 起以 Workers Static Assets 架构经 `wrangler deploy` 发布
-  （`run_worker_first = true`，全站请求先进 Worker 鉴权），首页同样使用 Workers Static Assets，但仅 `/api/*` 与 `/desk` 路径优先进入 Worker，公开页面由资产服务直出；Health 前端自 2026-10-18 起为 Workers Static Assets SPA（`codepi-health`），仅 API 经其 WORKER service binding 转发到 `codepi-health-api`，前端不持有 DB、AUTH 或 vars。统一 MCP 版本在源码中删除旧 Health MCP；前端保留旧路径的 Worker 优先匹配，仅用于直接返回 404 JSON，不转发、不回退 SPA。
-  当前控制面状态见资源登记表。
-- production deploy/migrate step 同时有 job 级与 step 级
-  `github.ref == 'refs/heads/main'` guard。合并 PR 即授权自动发布，不增加逐次 Environment
-  approval。GitHub `production` Environment 应仅允许 main，并配置发布凭证；`environment:`
-  声明不能证明平台保护和 scoped secrets 已生效。2026-10-16 rulesets API 返回私有仓库
-  套餐限制，GitHub CLI 凭证也失效；这些控制面配置仍待处理，不改变仓库可见性。
-- 并发控制：整条 main workflow 共用 `platform-refs/heads/main` 并发组，
-  `cancel-in-progress: false`；服务级锁作为额外保护。PR 可以取消过期检查。
-  发布前拒绝已落后于 main 的 run；每次 main 更新（包括仅文档变更）都启动 workflow，
-  保证新 run 接管未完成发布。push 的 affected 范围取最近一次成功的 main push release
-  之后所有提交触及的路径，不能只看净 diff，否则失败后的 revert 会遗漏已部分上线的服务。
-  无成功记录或成功 SHA 不在当前祖先链时发布全部服务；仅文档且无积压改动时不部署应用。
-  手动 dispatch 也包含相同积压范围，再额外加入指定应用；不能让单应用 dispatch
-  替换 pending push 后遗漏它尚未发布的应用。
-- 每次部署传入并记录 `GITHUB_SHA`；deploy 步骤必须解析真实 provider 标识
-  （Pages deployment id 经 Cloudflare API 只读解析，Worker Current Version ID
-  从 wrangler 输出解析，解析失败即失败），连同 service/target/smoke 结果由
-  `scripts/cloudflare/deployment-evidence.mjs` 写入 JSONL 证据并上传为
-  GitHub artifact（不含 secret）；登记表 `last_verified` 必须能关联同一 SHA。
-- 部署前运行 `validate-governance.mjs`；部署后做匿名 smoke、预期登录跳转、
-  匿名私有 API 拒绝、Health 旧连接器 404，以及统一 MCP 的发现和未授权拒绝检查。
-- 紧急 break-glass 仅允许使用同一 workflow 的明确 SHA；如不得不在本机操作，
-  必须在登记表写入执行人、目标、SHA、原因、验证与后续 workflow 回填记录。
+2026-10-18 所有者决定：本地检查与审查后通过 PR 合入 `main`，再由获授权的
+agent/开发者在本机执行构建、迁移、Cloudflare API 发布和线上验收。
+操作入口为 [本地发布操作](local-release.md)，复用各应用的 workspace-locked
+Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权本次合并与部署时
+不重复询问；普通开发任务仍不隐含合并或生产变更权限。
+
+- 发布源必须为干净、已合并且与实时远程 main 一致的 SHA；串行单一发布者，
+  每次远程变更前复核源码与 main，拒绝陈旧或并发发布。
+- 发布前执行冻结 lockfile 安装、受影响检查、治理与迁移守门，并审查完整差异。
+  CI runner 启动故障不再阻塞已完成本地验证的合并/发布；真实检查失败仍必须解决。
+- `.github/workflows/deploy-platform.yml` 保留历史文件名，名称改为 Validate platform：
+  push(main)、PR 和手动触发都只做验证，无生产 Environment、发布凭证、迁移或部署 job。
+  删除自动重跑旧部署的 `retry-health-deploy.yml` 及其脚本，防止意外重放旧版本。
+  GitHub Actions 不再是发布入口；不恢复 Pages Git 自动发布。
+- 以各服务最后成功发布的 SHA 为基线，检查其后所有提交触及的路径；包括发布失败后的
+  revert，不能只看最后提交或 CI 状态。无可信基线、共享依赖变化时扩大应用范围。
+  仅文档/验证流程改动不要求重发无业务改动服务，Health API/前端分别登记版本。
+- 部署前核对同环境 Auth、精确 callback、D1、service binding、runtime secret 名称、
+  routes 和 Cron；禁止复制或轮换生产 secrets 来完成普通发布。现行 Worker/SPA 架构不变。
+- 迁移在兼容代码发布前执行，失败停止；Health API 使用现有脚本预检、上传、切流及
+  Cron 验证。执行人需记录前一版本以便兼容时回退。
+- 每个服务记录实际 source SHA、provider version ID、smoke 结果和时间到
+  `deployment-evidence.mjs` JSONL（Git 外），再在资源登记表和任务回填证据。
+  无真实 version ID 或 smoke 失败不标成功；登录、提供方授权和数据同步独立验收。
+- `production-monitor.yml` 与 `d1-backup.yml` 仍是独立的定时任务，不参与发布。
+  Actions 不可用时它们仍可能受阻，本地发布成功不等于自动巡检/备份已恢复。
+- 非 main 紧急发布须有明确例外授权和独立记录；本地执行已是正常路径，不再视为
+  break-glass，也不要求日后补一条 Actions 部署。
 
 ### 发布依赖顺序
 
@@ -175,7 +161,9 @@ gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared
 8. `legacy-pending-retirement`、`legacy-preview` 或 `unknown` 项不得被当前运行
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
-   Auth SSO callback registry）缺失即违规。
+   Auth SSO callback registry）缺失即违规；
+10. 六个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
+    进入调用日志。应用日志仍不得自行输出凭证或私人数据。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`
@@ -195,4 +183,18 @@ gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared
 `SSO_CLIENT_SECRET_MCP` 与 MCP 的 `AUTH_CLIENT_SECRET` 单独配对，既有客户端不轮换。
 Health API 必须先发布命名 RPC，统一 MCP 后发布；用户决定此版本直接删除旧 Health
 MCP 实现，不保留兼容开关。旧授权不迁移，新客户端改连统一入口并重新授权；
-Health 历史、既有 migration/旧表与 Oura 授权保留。受控入口增加 MCP 检查与发布 job。
+Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检查，本地发布流程增加 MCP 阶段。
+
+## 9. 日常监控与恢复
+
+- `production-monitor.yml` 每 30 分钟执行只读探针，检查统一登录契约、私有 API
+  匿名拒绝、旧泄漏入口保持关闭及 Health 自动同步新鲜度。D1 凭证缺失必须使
+  定时任务失败；本地排查可显式接受跳过 D1 的结果。
+- `d1-backup.yml` 每日导出五个生产 D1；加密格式、14 天 artifact 保留、私钥
+  保管及恢复演练遵循 [备份 runbook](cloudflare-backup-restore.md)。
+- 两个工作流只在 main 的 production Environment 运行，复用现有生产凭证。
+  监控调用只读，但当前使用的 token 仍有发布权限；专用只读 token 尚未单独配置。
+- GitHub Actions 失败通知依赖所有者的通知设置；Cloudflare 通知策略配置和日志
+  持久化存在，也不等于告警邮件已实际送达。
+- 发布治理 job 同时执行脚本回归、迁移追加守门及语法/JSON lint。
+  依赖更新由 Dependabot 提 PR，仍经过项目的正常审核和合并流程。

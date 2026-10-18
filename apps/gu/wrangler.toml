@@ -26,3 +26,16 @@ binding = "DB"
 database_name = "codepi-gu"
 database_id = "4d3b6713-85dd-4f61-ac55-9925db72394b"
 migrations_dir = "migrations"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.issues]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

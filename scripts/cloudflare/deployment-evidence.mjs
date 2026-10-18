@@ -1,5 +1,5 @@
 // 部署证据：把每次部署的 service/target/SHA/provider 标识/smoke 结果写成
-// JSONL 证据文件（不含任何 secret 值），供 deploy-platform.yml 上传为 artifact。
+// JSONL 证据文件（不含任何 secret 值），供本地发布记录 source SHA、provider version 和 smoke 结果。
 // 只写仓库/CI 文件；解析 Pages deployment 时仅对 Cloudflare API 做只读查询。
 import { appendFileSync, readFileSync } from 'node:fs';
 
@@ -59,7 +59,7 @@ async function cloudflare(pathname, { token, account, request = fetch }) {
 export async function resolveWorkerOrigin(script, requiredSecrets, api) {
   const label = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
   if (typeof script !== 'string' || !label.test(script)) throw new Error('invalid Worker name');
-  if (!Array.isArray(requiredSecrets) || requiredSecrets.length === 0
+  if (!Array.isArray(requiredSecrets)
     || requiredSecrets.some(name => typeof name !== 'string' || !/^[A-Z][A-Z0-9_]*$/.test(name))) {
     throw new Error('required secret names must be specified');
   }
@@ -112,7 +112,12 @@ async function main(args = process.argv.slice(2)) {
     const token = process.env.CLOUDFLARE_API_TOKEN;
     const account = process.env.CLOUDFLARE_ACCOUNT_ID;
     if (!token || !account) throw new Error('resolve-worker requires CLOUDFLARE_API_TOKEN/CLOUDFLARE_ACCOUNT_ID');
-    console.log(await resolveWorkerOrigin(value('--script'), value('--required-secrets')?.split(','), { token, account }));
+    const noSecrets = args.includes('--no-required-secrets');
+    if (noSecrets && args.includes('--required-secrets')) {
+      throw new Error('specify either --required-secrets or --no-required-secrets');
+    }
+    const required = noSecrets ? [] : value('--required-secrets')?.split(',');
+    console.log(await resolveWorkerOrigin(value('--script'), required, { token, account }));
     return 0;
   }
   if (command === 'worker-version') {

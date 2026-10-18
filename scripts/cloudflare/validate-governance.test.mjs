@@ -45,6 +45,17 @@ function registryText(rows = REGISTRY_ROWS) {
 }
 
 // ---- fixture 配置 ----
+const OBSERVABILITY = `
+[observability]
+enabled = true
+redact_query_string = true
+[observability.issues]
+enabled = true
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+`;
 
 // 与 apps/health/apps/web/wrangler.toml 对齐：纯代理，只有 ASSETS + WORKER。
 function healthPagesConfig({ includeWorker = true, workerService = 'codepi-health-api', extra = '' } = {}) {
@@ -60,7 +71,7 @@ directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/mcp", "/oauth/*", "/.well-known/*", "/well-known/*"]
-${worker}${extra}`;
+${worker}${OBSERVABILITY}${extra}`;
 }
 
 function healthApiConfig({ duplicateAuth = false } = {}) {
@@ -83,6 +94,7 @@ ${duplicateAuth ? '[[services]]\nbinding = "AUTH"\nservice = "codepi-auth"\n' : 
 binding = "DB"
 database_name = "codepi-health"
 database_id = "${U.health}"
+${OBSERVABILITY}
 `;
 }
 
@@ -90,6 +102,11 @@ function authConfig() {
   return JSON.stringify({
     name: 'codepi-auth',
     main: 'src/index.ts',
+    observability: {
+      enabled: true, redact_query_string: true,
+      issues: { enabled: true },
+      logs: { enabled: true, invocation_logs: true, persist: true },
+    },
     routes: [{ pattern: 'auth.codepi.app', custom_domain: true }],
     vars: {
       ENVIRONMENT: 'production',
@@ -158,6 +175,7 @@ database_id = "${U[app]}"
 ENVIRONMENT = "production"
 AUTH_ORIGIN = "https://auth.codepi.app"
 AUTH_CLIENT_ID = "${app}"
+${OBSERVABILITY}
 `;
 }
 
@@ -188,6 +206,42 @@ test('完整合法 topology（www/gu/gzh/auth/health-api/health-pages）通过',
 test('CLI：合法 fixture 退出 0', () => {
   const result = runCli(legalFiles());
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('logs must persist and OAuth query strings must be redacted', () => {
+  for (const config of [
+    healthApiConfig().replace('redact_query_string = true', 'redact_query_string = false'),
+    healthApiConfig().replace('persist = true', 'persist = false'),
+    healthApiConfig().replace('invocation_logs = true', 'invocation_logs = false'),
+    healthApiConfig().replace(OBSERVABILITY, ''),
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'apps/health/workers/api/wrangler.toml': config } })).some(v =>
+      v.startsWith('health-api:') && /logs|redact/.test(v)));
+  }
+  const config = JSON.parse(authConfig());
+  config.observability.redact_query_string = false;
+  assert.ok(run(legalFiles({ files: { 'services/auth/wrangler.jsonc': JSON.stringify(config) } }))
+    .some(v => v.startsWith('auth:') && v.includes('redact')));
+});
+
+test('every production Worker must retain Issues alerts on deployment', () => {
+  for (const [file, original] of Object.entries(legalFiles()).filter(([file]) => file.includes('wrangler.'))) {
+    for (const mode of ['missing', 'disabled']) {
+      let config;
+      if (file.endsWith('.toml')) {
+        config = original.replace('[observability.issues]\nenabled = true\n',
+          mode === 'missing' ? '' : '[observability.issues]\nenabled = false\n');
+      } else {
+        const parsed = JSON.parse(original);
+        if (mode === 'missing') delete parsed.observability.issues;
+        else parsed.observability.issues.enabled = false;
+        config = JSON.stringify(parsed);
+      }
+      assert.notEqual(config, original, `fixture must remove or disable Issues: ${file}`);
+      assert.ok(run(legalFiles({ files: { [file]: config } })).some(v => v.includes('Issues')),
+        `expected Issues violation for ${file} (${mode})`);
+    }
+  }
 });
 
 // ---- staging 退役 ----

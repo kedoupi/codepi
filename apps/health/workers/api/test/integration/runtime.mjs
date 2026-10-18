@@ -7,6 +7,9 @@ import { readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const wranglerRequire = createRequire(require.resolve('wrangler'));
 const { Miniflare, Response } = wranglerRequire('miniflare');
+const config = readFileSync(new URL('../../wrangler.toml', import.meta.url), 'utf8');
+const compatibilityDate = config.match(/^compatibility_date = "(\d{4}-\d{2}-\d{2})"$/m)?.[1];
+if (!compatibilityDate) throw new Error('Health API compatibility_date is missing');
 
 // Miniflare v5（wrangler 4.151+）：模块在 config.manifest 里声明，绑定在
 // config.env 里以带 type 的对象声明；fetch stub 经 dev.outboundService 接管。
@@ -41,7 +44,7 @@ export function createRuntime(options = {}) {
     workers: [{
       config: {
         name: 'health-api-test',
-        compatibilityDate: '2025-01-01',
+        compatibilityDate,
         manifest: { mainModule: 'index.js', modules },
         env,
         ...runtimeOptions,
