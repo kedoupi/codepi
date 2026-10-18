@@ -15,6 +15,10 @@ Health API compatibility_date 在源码中由 2025-01-01 升至 2026-10-15，
 验证边界见 [任务记录](tasks/2026-10-18-platform-reliability.md)。GU 迁移文件双 0002
 与 git 历史中的真实数据按既定决策保留，迁移追加守门 `check-migrations.mjs`
 仅容许原来的两个文件，不容许增加第三个同编号文件。
+新格式恢复演练已通过：临时 D1 `codepi-health-pr-81`
+（`7685ecb8-fa28-4a4a-81bb-743b1c1e97d4`，synthetic，期限 2026-10-18）
+恢复 2 条合成记录并校验；非空目标再次导入被拒绝。演练后已删除该库，账户 D1
+列表复查仅剩原来的五个生产库。实现 PR #81 待合并，不代表自动备份已经启用。
 
 2026-10-18 staging 全面退役与前端代理清理：仓库内全部 `[env.staging]` 配置已移除
 （www/gu/gzh/auth/health-api/health-pages），治理守门改为 fail-closed 拒绝任何 staging

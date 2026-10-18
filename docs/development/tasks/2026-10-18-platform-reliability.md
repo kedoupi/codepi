@@ -1,9 +1,12 @@
 # Production reliability follow-up
 
-- Status: implemented and locally verified; pending PR, merge and post-release acceptance.
+- Status: implemented, locally verified and pushed as PR #81; pending merge and post-release acceptance.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
 - Branch: `codex/platform-reliability`.
 - Baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
+- Implementation commit: `878d557494329e4335c49ac87d46b3aaaabf5e25`;
+  the follow-up commit only records the operational verification.
+- PR: https://github.com/kedoupi/kdp.cool/pull/81.
 - Owner: this Codex session, the sole writer of application configuration, scripts and CI.
 - User scope: close the legacy health-data leak; add recovery, monitoring, migration and
   quality checks; update Health runtime compatibility. No new dependencies.
@@ -18,9 +21,9 @@
 | Local validation | 27 selected checks passed, including all applications and Health normal/SSO browsers |
 | Script tests | 72 Cloudflare tests, 24 agent-check tests and 6 migration tests passed |
 | Review | Self-review of the full change; no independent reviewer run claimed |
-| Commit / push / PR | Not performed yet |
+| Commit / push / PR | Implementation pushed at `878d557`; PR #81 open |
 | Merge / deployment | Not performed |
-| Operational acceptance | Legacy route closed, logs enabled, current-format production exports verified; scheduled workflows and current restore drill pending |
+| Operational acceptance | Legacy route closed, logs enabled, current-format exports and synthetic remote restore verified; scheduled workflows pending |
 
 ## Implemented
 
@@ -82,8 +85,17 @@
   decryption verified in memory. Encrypted-only local directory:
   `~/.local/share/kdp.cool/backups/2026-10-18T01-44-06-576Z`.
   This is a verified local copy, not an uploaded Actions artifact.
-- Restore drill with the new envelope/script: pending. The earlier symmetric-format
-  auth restore is historical and is not evidence for the replacement implementation.
+- Restore drill with the new envelope/script passed: production public recipient,
+  local recovery key, the real restore script and the workspace-pinned Wrangler
+  restored a synthetic table with 2 rows and checksum 42. A second import was refused
+  because the target was no longer empty. Exercise files were removed.
+- Temporary resource: `codepi-health-pr-81`, UUID
+  `7685ecb8-fa28-4a4a-81bb-743b1c1e97d4`; classification `synthetic`;
+  `expires_on: 2026-10-18`; `cleanup_evidence: DELETE returned 200, subsequent account
+  D1 list contained exactly the original five production UUIDs`. No runtime bindings
+  or production tables were modified for the exercise.
+- PR CI started as platform run `39087816710` and SSO/GU run `39087816750`;
+  SSO/GU passed. Platform status is checked separately; a PR check does not deploy.
 - Live monitor: 10/11 pass; Health last success was `2026-10-15T15:16:55Z`, about 58h old.
   This is a real operational failure, not a test waived to obtain a green result.
 
@@ -103,15 +115,14 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 
 ## Remaining and next steps
 
-1. Finish a synthetic remote restore drill using this envelope and restore script.
-2. Commit/push the reviewed paths and open a PR. Merge remains the separate release
-   step; do not treat a branch push as a production deployment.
-3. After merge, verify the repaired frontend deployment, persistent logs, first backup
+1. Check PR #81 CI, then obtain the separate merge/release decision. Do not treat
+   a branch push as a production deployment.
+2. After merge, verify the repaired frontend deployment, persistent logs, first backup
    artifact and both scheduled workflows. No additional Actions secrets are required.
-4. Owner-managed recovery-key escrow outside this machine is not verified. Preserve
+3. Owner-managed recovery-key escrow outside this machine is not verified. Preserve
    the private key; it is required to recover all backups addressed to this recipient.
-5. Continue diagnosing Health's provider sync. The monitor is expected to remain red
+4. Continue diagnosing Health's provider sync. The monitor is expected to remain red
    until the real failure is resolved; do not change the threshold to hide it.
-6. Local `gh` cannot retrieve a usable OAuth token; available token candidates return
+5. Local `gh` cannot retrieve a usable OAuth token; available token candidates return
    401. The GitHub connector and Git SSH transport remain usable. This is local
    authentication state, not evidence of repository or Cloudflare failure.
