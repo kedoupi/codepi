@@ -134,6 +134,7 @@ function parseTomlEnv(root, tables, prefix) {
   const p = prefix ? `${prefix}.` : '';
   const observability = tomlTableBodies(tables, `[${p}observability]`).join('\n');
   const logs = tomlTableBodies(tables, `[${p}observability.logs]`).join('\n');
+  const issues = tomlTableBodies(tables, `[${p}observability.issues]`).join('\n');
   const d1All = tomlTableBodies(tables, `[[${p}d1_databases]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'), id: tomlString(body, 'database_id') }));
   const servicesAll = tomlTableBodies(tables, `[[${p}services]]`)
@@ -146,6 +147,7 @@ function parseTomlEnv(root, tables, prefix) {
     redactQuery: tomlBoolean(observability, 'redact_query_string'),
     persistLogs: tomlBoolean(logs, 'persist'),
     invocationLogs: tomlBoolean(logs, 'invocation_logs'),
+    issuesEnabled: tomlBoolean(issues, 'enabled'),
     present: prefix ? section.length > 0 || varsBody.length > 0 || d1All.length > 0 || servicesAll.length > 0 : true,
     name: tomlString(section, 'name'),
     environment: tomlString(varsBody, 'ENVIRONMENT'),
@@ -192,6 +194,7 @@ function normalizeJsoncService(text) {
       redactQuery: src.observability?.redact_query_string,
       persistLogs: src.observability?.logs?.persist,
       invocationLogs: src.observability?.logs?.invocation_logs,
+      issuesEnabled: src.observability?.issues?.enabled,
       present, name: src.name, environment: src.vars?.ENVIRONMENT,
       environmentCount: src.vars?.ENVIRONMENT === undefined ? 0 : 1,
       authOrigin: src.vars?.AUTH_ORIGIN, frontendOrigin: src.vars?.FRONTEND_ORIGIN,
@@ -329,6 +332,7 @@ function checkService(spec, cfg, index, violations) {
       at(`${envName} must explicitly enable persistent invocation logs`);
     }
     if (env.redactQuery !== true) at(`${envName} observability must redact query strings`);
+    if (env.issuesEnabled !== true) at(`${envName} must explicitly enable Issues alerts`);
     if (env.environmentCount > 1) at(`${envName} declares ENVIRONMENT more than once`);
     if (!env.cronsValid) at(`${envName} [triggers] crons declaration is malformed`);
     if (spec.routesRequired && !env.routesValid) at(`${envName} routes declaration is malformed`);

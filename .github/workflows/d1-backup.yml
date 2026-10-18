@@ -1,6 +1,12 @@
 name: D1 backup
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/d1-backup.yml'
+      - 'scripts/cloudflare/d1-backup.mjs'
+      - 'scripts/cloudflare/backup-public-key.pem'
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:

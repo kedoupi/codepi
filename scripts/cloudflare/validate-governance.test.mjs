@@ -47,6 +47,8 @@ const OBSERVABILITY = `
 [observability]
 enabled = true
 redact_query_string = true
+[observability.issues]
+enabled = true
 [observability.logs]
 enabled = true
 invocation_logs = true
@@ -100,6 +102,7 @@ function authConfig() {
     main: 'src/index.ts',
     observability: {
       enabled: true, redact_query_string: true,
+      issues: { enabled: true },
       logs: { enabled: true, invocation_logs: true, persist: true },
     },
     routes: [{ pattern: 'auth.codepi.app', custom_domain: true }],
@@ -216,6 +219,26 @@ test('logs must persist and OAuth query strings must be redacted', () => {
   config.observability.redact_query_string = false;
   assert.ok(run(legalFiles({ files: { 'services/auth/wrangler.jsonc': JSON.stringify(config) } }))
     .some(v => v.startsWith('auth:') && v.includes('redact')));
+});
+
+test('every production Worker must retain Issues alerts on deployment', () => {
+  for (const [file, original] of Object.entries(legalFiles()).filter(([file]) => file.includes('wrangler.'))) {
+    for (const mode of ['missing', 'disabled']) {
+      let config;
+      if (file.endsWith('.toml')) {
+        config = original.replace('[observability.issues]\nenabled = true\n',
+          mode === 'missing' ? '' : '[observability.issues]\nenabled = false\n');
+      } else {
+        const parsed = JSON.parse(original);
+        if (mode === 'missing') delete parsed.observability.issues;
+        else parsed.observability.issues.enabled = false;
+        config = JSON.stringify(parsed);
+      }
+      assert.notEqual(config, original, `fixture must remove or disable Issues: ${file}`);
+      assert.ok(run(legalFiles({ files: { [file]: config } })).some(v => v.includes('Issues')),
+        `expected Issues violation for ${file} (${mode})`);
+    }
+  }
 });
 
 // ---- staging 退役 ----
