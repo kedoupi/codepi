@@ -1,4 +1,17 @@
 # Cloudflare 资源登记表
+2026-10-18T05:24:34Z 正常本地发布验收：所有者决定将“PR 合并 main 后本机发布”
+作为正常流程，PR #93 已合并为 `4d931faf7a5399c028dc6875d24a3f91a2e084c6`。
+本 Codex 会话持有本机发布锁，从与远程 main 一致的干净源码执行现有 Health API
+发布脚本；无待迁移文件。Worker version 为 `f3eb6ecb-72f3-4415-862d-350fc11eb819`，
+100% 流量，build `4d931faf7a53`，前一版本为 `b22b62ff-4cb5-4cb9-b598-79dac7cb07f6`。
+16 项正式域名 API 契约检查通过，控制面确认 Cron、持久日志、脱敏和 Issues。
+同步仍为 `blocked/reconnect_required`，等待 Oura 重连；10 项巡检通过，Health
+新鲜度检查仍失败。其他应用运行代码与配置未变，保留现行版本。
+Actions 发布和旧部署重试入口已从 main 移除，CI 只验证；本次不再需要补 Actions 发布。
+定时巡检、备份仍独立保留，runner 故障尚未恢复。操作步骤见
+[本地发布操作](local-release.md)，完整证据见 [任务记录](tasks/2026-10-18-platform-reliability.md)。
+以下应急发布记录保留为历史，不代表当前仍待合并：
+
 2026-10-18T05:14:49Z Health API 应急本地发布：所有者明确要求在本机执行发布，
 执行人为本 Codex 会话，原因是 GitHub Actions jobs 在 runner 启动前失败。
 从干净且已推送的 PR #93 source `fbc13c902edb0c47e389e3a140e944f233750cfa`
