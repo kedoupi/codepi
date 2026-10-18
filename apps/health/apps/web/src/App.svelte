@@ -54,7 +54,7 @@
     if (!error) return "";
     if (error === "storage_write_quota_exceeded") return errorText(new RequestError(error, 503, "", params.get("retry_at") || ""), locale);
     if (error === "oura_account_mismatch") {
-      return locale === "zh" ? "此 Oura 账号与已有连接不一致，请使用原来的 Oura 账号重试。" : "This Oura account does not match the existing connection. Retry with your original Oura account.";
+      return locale === "zh" ? "Oura 返回的账号标识与已有连接不同。若仍使用原账号，可在设置的“账号”中修复连接。" : "Oura returned a different account identifier. If this is your original account, use connection repair under Account in Settings.";
     }
     if (["access_denied", "invalid_state", "missing_code_or_state", "token_exchange_failed"].includes(error)) {
       return locale === "zh" ? "Oura 连接未完成或链接已过期，请重新连接。" : "The Oura connection was incomplete or expired. Reconnect Oura.";
