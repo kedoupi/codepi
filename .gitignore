@@ -27,3 +27,6 @@ pnpm-debug.log*
 # local wrangler secrets
 .dev.vars
 **/.dev.vars
+
+# Public backup recipient only; the recovery private key stays outside this repo.
+!scripts/cloudflare/backup-public-key.pem

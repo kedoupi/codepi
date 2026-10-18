@@ -31,6 +31,10 @@ on:
       - 'apps/health/**'
       - 'packages/shared/**'
       - 'scripts/cloudflare/**'
+      - 'scripts/agent/**'
+      - '.github/workflows/d1-backup.yml'
+      - '.github/workflows/production-monitor.yml'
+      - '.github/dependabot.yml'
       - '.github/workflows/deploy-platform.yml'
   workflow_dispatch:
     inputs:
@@ -71,8 +75,10 @@ jobs:
         run: |
           echo "::error::workflow_dispatch target=production is only allowed on refs/heads/main, got ${{ github.ref }}"
           exit 1
-      - run: node --test scripts/cloudflare/validate-governance.test.mjs scripts/cloudflare/deployment-evidence.test.mjs scripts/cloudflare/deploy-workflow.test.mjs scripts/cloudflare/check-pages.test.mjs
+      - run: node --test scripts/cloudflare/*.test.mjs scripts/agent/*.test.mjs
       - run: node scripts/cloudflare/validate-governance.mjs
+      - run: node scripts/agent/check-migrations.mjs
+      - run: node scripts/agent/lint.mjs
 
   affected:
     runs-on: ubuntu-latest
@@ -702,7 +708,7 @@ jobs:
         working-directory: apps/health/apps/web
         run: |
           origin=$(node ../../../../scripts/cloudflare/deployment-evidence.mjs resolve-worker \
-            --script codepi-health)
+            --script codepi-health --no-required-secrets)
           echo "origin=$origin" >> "$GITHUB_OUTPUT"
       - name: smoke new Worker (pre-cutover)
         if: github.ref == 'refs/heads/main'

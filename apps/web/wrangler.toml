@@ -24,3 +24,13 @@ SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "desk"
 AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

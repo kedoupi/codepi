@@ -33,3 +33,13 @@ ALLOWLIST = "codepi@example.invalid"
 OTP_FROM = "otp@kdp.cool"
 ACCOUNT_BRAND = "珂抖屁"
 ENVIRONMENT = "production"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

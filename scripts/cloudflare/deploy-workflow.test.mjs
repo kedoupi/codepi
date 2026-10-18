@@ -66,7 +66,8 @@ test('Health frontend Workers release deploys and evidences from its nested fron
   const gate = job.split('verify runtime configuration')[1]?.split('- name:')[0];
   assert.match(gate, /deployment-evidence\.mjs resolve-worker/);
   assert.ok(gate.includes('--script codepi-health'), 'gate must target codepi-health');
-  assert.doesNotMatch(gate, /required-secrets/, 'frontend proxy must not gate on secrets that belong to the API Worker');
+  assert.match(gate, /--no-required-secrets\b/, 'frontend proxy must declare its empty secret contract explicitly');
+  assert.doesNotMatch(gate, /--required-secrets\b/, 'frontend proxy must not gate on secrets that belong to the API Worker');
 });
 
 test('production releases serialize and include changes from failed or coalesced pushes', async t => {
