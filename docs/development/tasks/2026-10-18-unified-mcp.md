@@ -99,6 +99,17 @@ Cloudflare MCP 登记仍为 `planned`。未验证新服务生产 SSO 配对、�
 - 现有五个 D1 的定时备份不变；MCP 仅保存可通过重新授权恢复的会话/授权状态。
 - 本轮全部远程变更由当前 Codex 串行执行，其他 worktree 均保持原样。
   合并后检查、实际 PR、source SHA、provider version 和验收结果待执行后回填。
+- `pnpm install --frozen-lockfile` 和针对 `96516ab` 的完整受影响检查通过：
+  **31/31**（全产品、Auth、MCP、shared auth、治理、迁移与 lint）。
+  初次治理测试暴露新 MCP fixture 未接入持久日志配置，复用现有 OBSERVABILITY
+  fixture 修复后完整重跑通过；未降低守门要求。
+- MCP 的 18 项集成/发布测试及桌面/手机授权、同意/拒绝、管理/撤销浏览器验收通过；
+  Health 正常与 SSO 浏览器回归通过，保留 main 的显式原账号修复用例。
+  日志：`/tmp/codepi-unified-mcp-integrated-checks.log`；
+  MCP 截图：`/var/folders/tf/by849xr51djfhx_x0fw2rqth0000gn/T/codepi-mcp-browser-2QF12D`。
+- 发布前控制面快照：`/tmp/codepi-mcp-release-before.json`（仅资源元数据）。
+  Cloudflare API 确认 `mcp.codepi.app` 没有既有 DNS/custom-domain 冲突；
+  本机凭证不含 DNS 读取权限，此项通过已连接 Cloudflare API 核实。
 
 ## 交付文件
 

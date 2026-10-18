@@ -466,6 +466,7 @@ service = "codepi-auth"
 binding = "HEALTH"
 service = "codepi-health-api"
 entrypoint = "HealthMcp"
+${OBSERVABILITY}
 `;
 }
 
