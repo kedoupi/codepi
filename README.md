@@ -21,7 +21,7 @@
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。受控发布入口和例外操作遵循下方 CF 治理规范，不将单应用直传脚本当作默认发布路径。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -71,7 +71,7 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 [Cloudflare 项目级治理规范](docs/development/cloudflare-governance.md)；
 资源归属、最近核验记录与未决项见
 [Cloudflare 资源登记表](docs/development/cloudflare-resource-registry.md)。
-登记表是版本化快照，不是实时控制面。受控发布使用治理规范指定的 GitHub Actions 入口；历史 direct upload 记录不能证明新 workflow 已完成发布。
+登记表是版本化快照，不是实时控制面。受控发布按 [本地发布操作](docs/development/local-release.md) 从已合并 main 执行；GitHub Actions 只验证，合并不等于上线。
 
 ### Build commands (reference)
 

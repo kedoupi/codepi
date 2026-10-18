@@ -3,8 +3,9 @@
 - Status: original reliability work deployed through PR #81 / #91; Actions backup
   artifact verified. Health recovery was released from clean PR #93 source
   `fbc13c9` by an owner-authorized local deployment; production now reports
-  `blocked/reconnect_required`. Owner Oura reconnection, CI recovery and merge
-  remain pending.
+  `blocked/reconnect_required`. The owner subsequently adopted local publishing
+  after PR merge as the normal release path. Policy migration and merge are
+  in progress; owner Oura reconnection remains pending.
 - Worktree: `/Users/codepi/.worktrees/kdp.cool/codex/platform-reliability`.
 - Branch: `codex/health-sync-recovery`.
 - Original baseline: `3d86d3e5449c3097da3ce1073c71e4d5837f4a6d`.
@@ -18,7 +19,7 @@
 - User scope: close the legacy health-data leak; add recovery, monitoring, migration and
   quality checks; update Health runtime compatibility. No new dependencies.
 - Preserve: private Git history, applied GU migrations, `local + production`, existing
-  product/authentication contracts and the single deployment entry point.
+  product/authentication contracts and a single coordinated production publisher.
 
 ## Delivery state
 
@@ -286,6 +287,37 @@ solve the failure without further evidence. Website SSO is a separate lifecycle.
 - The local production monitor passed 10 checks and failed only Health sync
   freshness (62 hours against the 30-hour limit). Provider reconnection and
   successful data sync have not been accepted; the owner must reconnect Oura.
-- Follow-up: after Actions startup is repaired, run PR checks, merge through
+- Original follow-up (superseded by the decision below): after Actions startup is repaired, run PR checks, merge through
   the normal flow and record a successful main workflow deployment. This
   one-time local execution does not restore scheduled monitoring or backups.
+
+### Normal release policy change
+
+- Owner explicitly authorized merging PR #93 after local verification and
+  publishing the merged main locally, and requested that this become the
+  documented normal workflow. CI runner startup is no longer a release gate;
+  actual test failures still block release.
+- This session is the only writer of CI, release policy and Health retirement
+  files in this worktree; baseline for this phase is `ce60d9b`.
+- `deploy-platform.yml` retains PR/push/manual checks but has no deploy jobs,
+  production Environment or Cloudflare credentials. Its display name is now
+  Validate platform. Removed the obsolete scheduled deployment retry, helper
+  and helper-only test; provider sync retry behavior is unchanged.
+- Local operation steps, source/remote-main checks, single-publisher locking,
+  dependency order, per-service unpublished changes, migrations, runtime gates,
+  rollback boundaries and evidence are in `local-release.md`. AGENTS, release
+  skill, architecture and current deployment docs reference the new policy.
+- The validation workflow regression exercises PR scope, shared consumers,
+  push/manual checks and invalid inputs, and rejects production credentials or
+  deployment steps. Existing application and live-contract tests remain in use.
+- Verification: frozen workspace install passed; all 25 selected checks from
+  `node scripts/agent/check.mjs --base 58f7848740db3b6f0fb3935201500d46c97744d7 --run`
+  passed, covering all five workspace applications, Health normal/SSO browser
+  journeys and shared auth. Migration baseline (20 files), governance, lint and
+  `git diff --check` also passed. Log:
+  `/tmp/kdp-local-release-check-20261018.log`. Full change self-reviewed;
+  no independent reviewer result is claimed.
+- Scope for the post-merge production release is Health API. Other application
+  sources/configurations are unchanged by PR #93; removed retry code and CI/docs
+  do not change frontend bundles. Backup and monitor schedules remain configured;
+  their Actions startup problem is independent and remains unresolved.
