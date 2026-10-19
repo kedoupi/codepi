@@ -1,6 +1,7 @@
 import type { SsoEnv } from "@kedoupi/shared/auth/client";
 
 export interface Env extends SsoEnv {
+  MATERIALS?: R2Bucket;
   DESK_SUMMARY_TOKEN?: string;
   ASSETS?: Fetcher;
   ENVIRONMENT: string;

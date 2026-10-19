@@ -10,7 +10,7 @@
 | --- | --- |
 | `codepi-ops` Worker | 两个 Cron，无公网 routes、workers.dev 或 preview URL |
 | `codepi-ops` Workflow | 以确定的 instance ID 去重，每个步骤最多重试两次，指数退避 |
-| `codepi-ops-backups` 私有 R2 | 六库密文、完成清单和运维报告，按前缀保留 14 天 |
+| `codepi-ops-backups` 私有 R2 | 六库与 GU 原件密文、完成清单和运维报告，按前缀保留 14 天 |
 | GitHub API | 私有仓库 main/逐提交历史读取；凭证就绪后把密文复制到私有 Release |
 
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
@@ -21,7 +21,8 @@
 
 复用 `scripts/cloudflare/monitor-core.mjs` 的 Auth、四个产品登录契约、MCP、
 旧泄漏入口与 Health 整轮同步新鲜度断言。原来的本地 `production-monitor.mjs`
-命令继续可用。云端额外检查 R2/跨平台六库备份在 30 小时内完成。
+命令继续可用。云端额外检查 R2/跨平台的六库与 GU 原件完整备份在 30 小时内完成。
+旧版仅六库的成功回执缺少 `materials` 覆盖信息，会失败而不会继续当作完整备份。
 
 云端版本巡检使用 GitHub REST API，将八个 Worker 的活跃 `BUILD_SHA` 与固定 main
 快照比较。与本地 Git 实现共用发布范围表；逐提交读取文件列表，不使用 compare API
@@ -46,13 +47,37 @@ KDPB001 格式的认证 tag 位于密文之前，因此第一片等最终 tag �
 也不再使用原来的 16 MiB 整库缓冲保护。D1 导出可能暂时影响对应库，故安排在低峰。
 SQL、解密密钥和 D1 signed URL 都不作为持久步骤返回值。
 
-对象在 `backups/<instance>/` 下，全部六库完成后才写 `manifest.json`。
+对象在 `backups/<instance>/` 下，全部六库和 GU 有索引原件完成后才写 v2 `manifest.json`。
 上传完成后再次流式计算密文 SHA-256，在同前缀的 `.receipt.json` 中绑定 R2 ETag、
 库身份和摘要。成功步骤在重试时复用已写入的密文，保持 envelope 和 manifest 一致；
 若上传提交后、回执写入前中断，重试只对已提交的密文补算摘要，不重新导出。
 密文过期、身份或 ETag 不一致时失败，需新建备份实例。
-半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示六库 R2 完整备份，
+半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示六库及 GU 原件 R2 完整备份，
 不表示已有 Cloudflare 之外的副本。
+
+## GU 原件
+
+Ops 仅绑定 `GU → codepi-gu#GuMaterialsBackup`，GU 的 named entrypoint 只提供
+分页索引和单件流；默认 HTTP handler 不映射它，既不开放内部 URL，也不增加同步 secret。
+Ops 不获得 GU D1/R2 binding。该能力随 GU 先发布，随后发布 Ops 并运行首次完整备份；
+未完成首次备份时，新巡检会拒绝旧 D1-only 回执。
+
+GU 资料索引当前只追加。六库导出后，GU 从 D1 取得 rowid 上限，再按固定上限分页，
+覆盖导出时已有的索引；备份期间后续新上传留给下一次备份。原件清单可能比 D1 导出
+稍新，恢复时只将 D1 引用视为已登记资料，额外原件单独计数，不自动改写账户或资料索引。
+若以后增加删除、修改索引或重建 rowid，必须先调整此一致性约定。
+未被 D1 索引引用的失败上传残留不属于这份清单；不会自动删除或宣称已备份。
+
+原件经同一 gzip/AES-GCM/RSA envelope 流式写入
+`backups/<instance>/materials/gu-material-<UUID>.bin.enc`。清单和持久步骤只含
+UUID、object key、大小及摘要，不含文件名或正文。逐件验证源大小和 SHA-256 后才提交，
+缺失、损坏、流中断均失败。单件 8 MiB、最多 1000 件；超限明确失败，需要先扩容并验收。
+原件沿用 ETag/identity/receipt 的中断恢复，不在重试时替换已经提交的密文。
+
+v2 manifest 保留 `databases`，新增 `materials` 的来源、冻结上限、件数与逐件索引；
+每件同时记录源 `source_bytes`/`source_sha256` 和密文 `bytes`/`sha256`。
+KDPB001 envelope 保持 v1，原 D1 解密工具仍可使用。旧 `d1-backup.mjs` 与手动 Actions
+应急入口只导出 D1，不生成原件完整覆盖回执。
 
 有 `GITHUB_TOKEN` 时，逐个把密文经流式 API 上传私有 Release，manifest 最后上传，
 按 GitHub 返回的 SHA-256 验证。重试只接受名称、状态和 digest 完全匹配的既有附件，
@@ -103,7 +128,8 @@ pnpm exec wrangler r2 bucket lifecycle list codepi-ops-backups
 创建 backup 实例会读取生产库并写入密文，应按已授权运维范围串行执行。
 报告或密文通过 R2 API/CLI 下载到 Git 之外；严禁把解密结果写入仓库。
 本地验证使用 `pnpm --dir services/ops test`、`build` 和 `test:runtime`；
-后者真实运行 Workerd、Workflows 和本地 R2，只使用合成数据与网络 stub。
+后者真实运行 Workerd、Workflows、GU named RPC 和本地 D1/R2，只使用合成数据与网络 stub；
+并把备份恢复至另一组隔离 D1/R2，验证匿名拒绝、会话下载与逐字节一致。
 
 原 `production-monitor.yml` / `d1-backup.yml` 保留为手动应急入口，已去掉 push 和
 schedule。GitHub CI 仍可验证代码，其账户分钟耗尽不影响 CF 定时任务。

@@ -275,13 +275,13 @@ function checkService(spec, cfg, index, violations) {
   // staging 已退役：配置文件不得再声明 staging 环境。
   if (stagingPresent) at('staging environment is retired; remove the [env.staging] section');
   const environments = [['production', prod]];
-  const checkRef = (token, env, typeHint, label) => {
+  const checkRef = (token, env, typeHint, label, allowPlanned = false) => {
     if (!token) return;
     const rows = index.get(token);
     if (!rows?.length) { at(`referenced ${label} ${token} has no registry record`); return; }
     // Pages, Workers and D1 can have the same physical name in separate namespaces.
     const typedRows = rows.filter(row => typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint);
-    const hasManaged = typedRows.some(row => (row.status === 'managed' || spec.provisionOnRelease && row.status === 'planned') && row.environment === env);
+    const hasManaged = typedRows.some(row => (row.status === 'managed' || (spec.provisionOnRelease || allowPlanned) && row.status === 'planned') && row.environment === env);
     // 域名迁移过渡：同一 host 可同时有 managed 新资源行和 legacy 旧资源行（域名待切换）。
     // 仅对 host 放宽——只要存在覆盖该 env 的 managed 行，legacy 行视为如实记录的过渡状态。
     // worker/d1 等同名资源不适用：managed 行不得掩盖同命名空间的 legacy/unknown 冲突。
@@ -423,6 +423,13 @@ function checkService(spec, cfg, index, violations) {
     for (const workflow of prod.workflowsAll) checkRef(workflow.name, 'production', 'workflow', 'Workflow');
   }
 
+  if (spec.id === 'gu') {
+    if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'MATERIALS', name: 'codepi-gu-uploads' }])) {
+      at('gu must bind only MATERIALS to codepi-gu-uploads');
+    }
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket', bucket.name === 'codepi-gu-uploads');
+  }
+
   if (spec.authRoutes || spec.id === 'mcp') {
     for (const [envName, env] of environments) {
       const expected = spec.id === 'mcp' ? 'mcp.codepi.app' : 'auth.codepi.app';
@@ -543,7 +550,8 @@ function checkService(spec, cfg, index, violations) {
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
     { id: 'ops', file: 'services/ops/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-ops', envKey: 'staging',
-      provisionOnRelease: true, noD1: true, noAuth: true, noRoutes: true, cronsRequired: true },
+      provisionOnRelease: true, noD1: true, noAuth: true, noRoutes: true, cronsRequired: true,
+      serviceBindings: { GU: { production: 'codepi-gu' } }, serviceEntrypoints: { GU: 'GuMaterialsBackup' } },
     { id: 'mcp', file: 'services/mcp/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-mcp', d1Name: 'codepi-mcp', envKey: 'staging',
       provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
       serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' } },

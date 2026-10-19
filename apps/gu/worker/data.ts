@@ -1,5 +1,6 @@
 import type { Dashboard, Env, Row } from "./types";
 import { bodyJson, equal, hash, json, object, ValidationError } from "./lib";
+import { readWorkspace, workspaceActive } from "./workspace";
 
 const KEYS = ["account", "positions", "risk", "market", "reports"];
 const KEYS_V2 = [...KEYS, "history"];
@@ -102,6 +103,7 @@ export async function upload(request: Request, env: Env) {
   if (!env.UPLOAD_TOKEN || !provided || !equal(await hash(provided), await hash(env.UPLOAD_TOKEN))) {
     return json({ error: "同步凭证无效" }, 401);
   }
+  if (await workspaceActive(env)) return json({ error: "已启用线上账户，旧批次上传已停用" }, 409);
   const envelope = await bodyJson(request);
   if (!object(envelope) || (envelope.schema_version !== 1 && envelope.schema_version !== 2) ||
     typeof envelope.payload !== "string" ||
@@ -117,17 +119,24 @@ export async function upload(request: Request, env: Env) {
   await env.DB.batch([
     env.DB.prepare("INSERT OR IGNORE INTO dashboard_batches (id, generated_at, received_at, payload) VALUES (?, ?, ?, ?)")
       .bind(id, generated, new Date().toISOString(), envelope.payload),
-    env.DB.prepare(`INSERT INTO dashboard_current (singleton, batch_id) VALUES (1, ?)
+    env.DB.prepare(`INSERT INTO dashboard_current (singleton, batch_id)
+      SELECT 1, ? WHERE (SELECT revision FROM gu_workspace_head WHERE singleton=1)=0
       ON CONFLICT(singleton) DO UPDATE SET batch_id = excluded.batch_id
       WHERE (SELECT generated_at FROM dashboard_batches WHERE id = dashboard_current.batch_id) < ?
         OR dashboard_current.batch_id = excluded.batch_id`).bind(id, generated),
   ]);
   const current = await env.DB.prepare("SELECT batch_id FROM dashboard_current WHERE singleton = 1").first<{ batch_id: string }>();
+  if (await workspaceActive(env)) return json({ error: "已启用线上账户，旧批次未成为线上数据" }, 409);
   if (current?.batch_id !== id) return json({ error: "已有更新或同时间的不同批次，未替换当前数据" }, 409);
   return json({ ok: true, batch_id: id, generated_at: generated });
 }
 
-export async function dashboard(env: Env) {
+export async function dashboard(env: Env, request?: Request) {
+  const workspace = await readWorkspace(env);
+  if (workspace.active) {
+    return request?.headers.get("X-GU-Workspace") === "1" ? json({ mode: "online", workspace })
+      : json({ error: "已切换线上账户，请重新加载页面", online: true }, 409);
+  }
   const row = await env.DB.prepare(`SELECT b.id, b.generated_at, b.received_at, b.payload FROM dashboard_batches b
     JOIN dashboard_current c ON c.batch_id = b.id WHERE c.singleton = 1`)
     .first<{ id: string; generated_at: string; received_at: string; payload: string }>();

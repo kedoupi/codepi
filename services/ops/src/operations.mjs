@@ -4,6 +4,7 @@ import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
 import { offsiteRelease } from './offsite.mjs';
 import { backupDatabase, verifyBackupObject } from './backup.mjs';
+import { backupMaterial, materialIndex } from './materials.mjs';
 
 export const STEP = { retries: { limit: 2, delay: '30 seconds', backoff: 'exponential' }, timeout: '12 minutes' };
 
@@ -18,7 +19,7 @@ export async function saveReport(bucket, kind, report) {
 export async function backupFreshness(bucket, { now = Date.now() } = {}) {
   const results = [];
   for (const location of ['r2', 'offsite']) {
-    const name = `six-database ${location} backup completed within 30 hours`;
+    const name = `six-database and GU materials ${location} backup completed within 30 hours`;
     try {
       const object = await bucket.get(`reports/backup/${location}-success.json`);
       assert.ok(object, 'no successful backup recorded');
@@ -26,6 +27,8 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
       const age = now - Date.parse(report.completed_at);
       assert.ok(Number.isFinite(age) && age >= 0 && age < 30 * 3600000, 'latest complete backup is missing or stale');
       assert.equal(report.databases, Object.keys(DATABASES).length, 'backup database coverage is incomplete');
+      assert.ok(report.materials?.source === 'codepi-gu' && Number.isSafeInteger(report.materials.objects)
+        && report.materials.objects >= 0, 'GU material backup coverage is missing');
       results.push({ name, ok: true });
     } catch (error) { results.push({ name, ok: false, detail: error.message }); }
   }
@@ -65,15 +68,27 @@ export async function backupOperation(env, step, event, publicKey, { exportOne =
       return entry;
     }));
   }
-  const manifest = { version: 1, created_at: started.created_at, key_id: started.key_id, databases: entries };
+  // Capture the append-only index after the D1 exports so all exported GU rows
+  // are covered. Newer originals may be included; restore uses the D1 subset.
+  const index = await step.do('GU material index', STEP, () => materialIndex(env.GU));
+  const materials = [];
+  for (const row of index.items) {
+    materials.push(await step.do(`encrypted GU material ${row.id}`, STEP, () =>
+      backupMaterial(row, publicKey, started.created_at, { gu: env.GU, bucket: env.BACKUPS, prefix })));
+  }
+  const manifest = { version: 2, created_at: started.created_at, key_id: started.key_id, databases: entries,
+    materials: { source: 'codepi-gu', through: index.through, objects: materials.length, entries: materials } };
   const success = await step.do('commit R2 backup manifest', STEP, async () => {
     for (const entry of entries) {
       await verifyBackupObject(env.BACKUPS, `${prefix}/${entry.file}`, entry, started.key_id);
     }
+    for (const entry of materials) {
+      await verifyBackupObject(env.BACKUPS, `${prefix}/materials/${entry.file}`, entry, started.key_id);
+    }
     await env.BACKUPS.put(`${prefix}/manifest.json`, JSON.stringify(manifest),
       { httpMetadata: { contentType: 'application/json' } });
     const success = { instance_id: instanceId, completed_at: new Date().toISOString(),
-      prefix, databases: entries.length, build: env.BUILD_SHA };
+      prefix, databases: entries.length, materials: { source: 'codepi-gu', objects: materials.length }, build: env.BUILD_SHA };
     await env.BACKUPS.put('reports/backup/r2-success.json', JSON.stringify(success));
     await saveReport(env.BACKUPS, 'backup', { ...success, r2: 'complete', offsite: 'pending', ok: false });
     return success;
@@ -94,9 +109,9 @@ export async function backupOperation(env, step, event, publicKey, { exportOne =
     const report = { ...success, completed_at: new Date().toISOString(), offsite, r2: 'complete', ok: true };
     await env.BACKUPS.put('reports/backup/offsite-success.json', JSON.stringify(report));
     await saveReport(env.BACKUPS, 'backup', report);
-    return { ok: true, databases: entries.length };
+    return { ok: true, databases: entries.length, materials: materials.length };
   });
-  return { ok: true, databases: entries.length };
+  return { ok: true, databases: entries.length, materials: materials.length };
 }
 
 export async function scheduleOperation(controller, env) {

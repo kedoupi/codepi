@@ -62,3 +62,24 @@ export function exportRequest(makeBody, onExport = () => {}) {
     return new Response(makeBody());
   };
 }
+
+export function materialFixture(bodies = ['Synthetic private material']) {
+  const rows = bodies.map((body, i) => {
+    const bytes = Buffer.from(body), id = `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
+    return { cursor: i + 1, id, object_key: `materials/${id}`, size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'), bytes };
+  });
+  return {
+    rows,
+    async listMaterials(after = 0, through = rows.length) {
+      return { through, items: rows.filter(row => row.cursor > after && row.cursor <= through)
+        .slice(0, 100).map(({ bytes: _, ...row }) => row),
+      next: rows.filter(row => row.cursor > after && row.cursor <= through).length >= 100 ? after + 100 : null };
+    },
+    async readMaterial(id) {
+      const row = rows.find(row => row.id === id);
+      assert.ok(row, 'synthetic original missing');
+      return new Response(row.bytes).body;
+    },
+  };
+}

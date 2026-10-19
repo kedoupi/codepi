@@ -7,6 +7,11 @@ preview_urls = false
 routes = []
 rules = [{ type = "Text", globs = ["**/backup-public-key.pem"], fallthrough = true }]
 
+[[services]]
+binding = "GU"
+service = "codepi-gu"
+entrypoint = "GuMaterialsBackup"
+
 [vars]
 ENVIRONMENT = "production"
 CLOUDFLARE_ACCOUNT_ID = "69f1de4c8f3c7411593613711207e7b3"

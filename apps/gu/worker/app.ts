@@ -6,6 +6,8 @@ import { dashboard, upload } from "./data";
 import { handleDeskSummary } from "./desk-summary";
 import { json, localDev, ValidationError } from "./lib";
 import type { Env } from "./types";
+import { exportWorkspace, previewLegacy, previewWorkspace, readWorkspace, saveWorkspace, workspaceHistory, workspaceVersion } from "./workspace";
+import { downloadMaterial, listMaterials, uploadMaterial } from "./materials";
 
 type AppEnv = {
   Bindings: Env;
@@ -73,8 +75,18 @@ app.use("*", async (c, next) => {
 });
 
 getApi("/api/me", c => json({ ok: true, authenticated: true, authMode: c.get("authMode") }));
-getApi("/api/dashboard", c => dashboard(c.env));
+getApi("/api/dashboard", c => dashboard(c.env, c.req.raw));
 getApi("/api/calendar", c => calendar(c.env));
+getApi("/api/workspace", async c => json(await readWorkspace(c.env)));
+getApi("/api/workspace/export", c => exportWorkspace(c.env));
+getApi("/api/workspace/history", c => workspaceHistory(c.env));
+getApi("/api/workspace/versions/:revision", c => workspaceVersion(c.env, c.req.param("revision") || ""));
+app.post("/api/workspace/preview", c => previewWorkspace(c.req.raw));
+app.post("/api/workspace/import-legacy", c => previewLegacy(c.env));
+app.put("/api/workspace", c => saveWorkspace(c.req.raw, c.env));
+getApi("/api/materials", c => listMaterials(c.env));
+app.post("/api/materials", c => uploadMaterial(c.req.raw, c.env));
+getApi("/api/materials/:id", c => downloadMaterial(c.env, c.req.param("id") || ""));
 
 app.use("*", async (c, next) => {
   if (c.req.path.startsWith("/api/")) return json({ error: "接口不存在" }, 404);

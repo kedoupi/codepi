@@ -1,6 +1,7 @@
 import type { CalendarView } from "../calendar";
 import type { Snapshot } from "./format";
 import { validHash } from "./router.svelte";
+import type { WorkspaceView } from "../../../worker/workspace-types";
 
 export type AuthState = "unknown" | "authenticated" | "anonymous";
 export type DataState = "loading" | "ready" | "empty" | "failed";
@@ -14,6 +15,9 @@ export const session = $state({
   auth: "unknown" as AuthState,
   dataState: "loading" as DataState,
   snapshot: null as Snapshot | null,
+  online: null as WorkspaceView | null,
+  workspaceOpen: false,
+  workspaceDirty: false,
   loading: false,
   notice: "",
   ssoMode: undefined as boolean | undefined,
@@ -27,6 +31,9 @@ export const session = $state({
   clear() {
     this.returnHash = validHash(location.hash);
     this.snapshot = null;
+    this.online = null;
+    this.workspaceOpen = false;
+    this.workspaceDirty = false;
     this.calendar = null;
     this.auth = "anonymous";
     this.loading = false;

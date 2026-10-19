@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json",
     "test": "vitest run",
     "test:scripts": "node --test scripts/check-deploy-regression.mjs scripts/check-sync-status.mjs",
-    "db:local": "wrangler d1 migrations apply gu-production --local",
+    "db:local": "wrangler d1 migrations apply codepi-gu --local",
     "check:deploy": "node scripts/check-deploy.mjs"
   },
   "engines": {

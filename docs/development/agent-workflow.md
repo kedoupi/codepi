@@ -132,7 +132,7 @@ node --test scripts/agent/check.test.mjs
 | `packages/shared/` 的静态布局、i18n、产品清单及明确静态配置 | 首页测试、类型、构建与资产检查 |
 | `packages/shared/styles/`、`packages/shared/brand.ts`、`packages/shared/email/`、未知 shared 路径 | 保守检查全部应用与服务，再测 shared auth client |
 | `services/auth/` 或 `packages/shared/auth/` | 全部应用与服务（含 MCP、Ops）本地检查 + shared auth client 测试 |
-| `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
+| `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查；Worker/schema 改动追加 Ops 原件消费者检查 |
 | `apps/gzh/` | test、typecheck、build |
 | `apps/health/` | test、typecheck、build、资产、正常与 SSO 浏览器回归；API / Health 内部共享逻辑变动追加 MCP |
 | `services/mcp/` / `packages/shared/mcp/` | MCP 协议、授权与真实本地 RPC 集成测试、typecheck、build、授权页浏览器验收；RPC 契约同时检查 Health |

@@ -17,9 +17,9 @@ const js = 'console.log("public build fixture")';
 const css = 'body { color: #0f172a; }';
 await Promise.all([writeFile(path.join(dir, 'index.html'), index), writeFile(path.join(dir, 'assets/index-fixture.js'), js), writeFile(path.join(dir, 'assets/index-fixture.css'), css)]);
 const prod = { binding: 'DB', database_name: 'codepi-gu', database_id: '11111111-1111-4111-8111-111111111111' };
-const config = () => ({ name: 'codepi-gu', main: 'worker/index.ts', assets: { directory: './dist', binding: 'ASSETS', run_worker_first: true }, vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }] });
+const config = () => ({ name: 'codepi-gu', main: 'worker/index.ts', assets: { directory: './dist', binding: 'ASSETS', run_worker_first: true }, vars: { ENVIRONMENT: 'production', SSO_ENABLED: '1', AUTH_CLIENT_ID: 'gu', AUTH_ORIGIN: 'https://auth.codepi.app' }, services: [{ binding: 'AUTH', service: 'codepi-auth' }], d1_databases: [{ ...prod }], r2_buckets: [{ binding: 'MATERIALS', bucket_name: 'codepi-gu-uploads' }] });
 const json = (body, status = 200, cache = 'no-store') => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
-const routes = () => ({ '/api/health': () => json({ ok: true, sso_enabled: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401), '/api/calendar': () => json({ error: 'Login required' }, 401) });
+const routes = () => ({ '/api/health': () => json({ ok: true, sso_enabled: true }), '/login': () => new Response(index, { headers: { 'Content-Type': 'text/html' } }), '/assets/index-fixture.js': () => new Response(js, { headers: { 'Content-Type': 'text/javascript' } }), '/assets/index-fixture.css': () => new Response(css, { headers: { 'Content-Type': 'text/css' } }), '/api/me': () => json({ error: 'Login required' }, 401), '/api/dashboard': () => json({ error: 'Login required' }, 401), '/api/calendar': () => json({ error: 'Login required' }, 401), ...Object.fromEntries(['/api/workspace', '/api/workspace/export', '/api/workspace/history', '/api/workspace/versions/1', '/api/materials', '/api/materials/missing'].map(p => [p, () => json({ error: 'Login required' }, 401)])) });
 function fetcher(overrides = {}) {
   const handlers = { ...routes(), ...overrides };
   return async (url, options) => {
@@ -40,6 +40,8 @@ for (const [name, mutate] of [
   ['missing production binding', c => { delete c.d1_databases; }],
   ['malformed ID', c => { c.d1_databases[0].database_id = 'invalid'; }],
   ['wrong production database name', c => { c.d1_databases[0].database_name = 'codepi-gu-staging'; }],
+  ['missing materials binding', c => { delete c.r2_buckets; }],
+  ['wrong materials bucket', c => { c.r2_buckets[0].bucket_name = 'codepi-ops-backups'; }],
   ['missing environment marker', c => { delete c.vars.ENVIRONMENT; }],
   ['disabled SSO', c => { c.vars.SSO_ENABLED = '0'; }],
   ['missing AUTH service', c => { c.services = []; }],
@@ -72,14 +74,14 @@ for (const [name, override, expected] of [
 ]) test(`health rejects ${name}`, async () => assert.rejects(health(override), expected));
 test('health requires an existing local build', async () => assert.rejects(checkHealth('https://gu.example', { distDir: path.join(dir, 'missing'), fetcher: fetcher() }), /Local dist\/index.html is missing/));
 test('network error is sanitized', async () => assert.rejects(checkHealth('https://gu.example', { distDir: dir, fetcher: async () => { throw new Error('private provider body'); } }), error => /network\/TLS/.test(error.message) && !error.message.includes('private provider')));
-test('auth requires authentication-only JSON 401 from all three private endpoints', async () => assert.match(await auth(), /authentication-only 401/));
+test('auth requires authentication-only JSON 401 from all private endpoints', async () => assert.match(await auth(), /authentication-only 401/));
 test('auth accepts explicit signed-out SSO metadata without private data', async () => {
   assert.match(await auth({ '/api/me': () => json({ error: 'Login required', authenticated: false, authMode: 'sso' }, 401) }), /authentication-only 401/);
 });
 test('auth rejects a contradictory authenticated=true response', async () => {
   await assert.rejects(auth({ '/api/me': () => json({ error: 'Login required', authenticated: true }, 401) }), /without private data/);
 });
-for (const endpoint of ['/api/me', '/api/dashboard', '/api/calendar']) {
+for (const endpoint of ['/api/me', '/api/dashboard', '/api/calendar', '/api/workspace', '/api/workspace/export', '/api/workspace/history', '/api/workspace/versions/1', '/api/materials', '/api/materials/missing']) {
   for (const status of [200, 302, 403, 503]) test(`auth rejects ${endpoint} status ${status}`, async () => assert.rejects(auth({ [endpoint]: () => json({ data: 'private fixture' }, status) }), new RegExp(`received ${status}`)));
   test(`auth rejects leaked fields at ${endpoint}`, async () => assert.rejects(auth({ [endpoint]: () => json({ error: 'Login required', data: 'private fixture' }, 401) }), /without private data/));
 }
