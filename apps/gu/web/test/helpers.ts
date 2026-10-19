@@ -176,6 +176,9 @@ export function resetClientState() {
     /* ignore */
   }
   session.snapshot = null;
+  session.online = null;
+  session.workspaceOpen = false;
+  session.workspaceDirty = false;
   session.calendar = null;
   session.calendarFailed = false;
   session.auth = "unknown";

@@ -13,33 +13,35 @@
   import Positions from "./components/Positions.svelte";
   import Reports from "./components/Reports.svelte";
   import Status from "./components/Status.svelte";
+  import Workspace from "./components/Workspace.svelte";
+  import type { WorkspaceView } from "../../worker/workspace-types";
+  import { parseHash } from "./lib/router.svelte";
 
-  const NAV_ITEMS = [
+  const NAV_ITEMS = $derived(session.online || session.workspaceOpen ? [
+    ["workspace", "账户与持仓"], ["transactions", "成交流水"], ["rules", "投资规则"],
+    ["materials", "资料库"], ["reports", "研究报告"], ["status", "版本与导出"],
+  ] : [
     ["overview", "总览"],
     ["positions", "持仓与风控"],
     ["reports", "研究与报告"],
     ["status", "数据状态"],
-  ] as const;
+    ["workspace", "线上工作台"],
+  ]);
 
   const parsed = $derived.by(() => {
-    const [rawPage, rawId] = router.hash.slice(1).split("/");
-    let id = "";
-    try {
-      id = rawId ? decodeURIComponent(rawId) : "";
-    } catch {
-      /* Unknown links return the list. */
-    }
-    const page = (["positions", "reports", "status"].includes(rawPage)
-      ? rawPage
-      : "overview") as "overview" | "positions" | "reports" | "status";
-    return { page, id };
+    return parseHash(router.hash);
   });
 
   const subtitle = $derived(
-    session.snapshot
+    session.online ? `线上账户 · 版本 ${session.online.revision}` : session.snapshot
       ? `持仓确认 ${String(session.snapshot.data.account[0].holdings_as_of)}`
       : "",
   );
+
+  $effect(() => {
+    if (["workspace", "transactions", "rules", "materials"].includes(parsed.page))
+      session.workspaceOpen = true;
+  });
 
   /** 提示条自动收起：仅对「已…」类的完成提示，和旧实现的 6 秒一致。 */
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -67,8 +69,15 @@
       await api("/api/me");
       if (version !== session.loadVersion) return;
       session.auth = "authenticated";
-      const next = (await api("/api/dashboard")) as unknown as Snapshot;
+      const response = await api("/api/dashboard");
       if (version !== session.loadVersion) return;
+      if (response.mode === "online") {
+        session.online = response.workspace as WorkspaceView;
+        session.snapshot = null;
+        session.dataState = "ready";
+        return;
+      }
+      const next = response as unknown as Snapshot;
       if (!next.data?.account?.length)
         throw new Error("数据批次不完整，请重新同步");
       session.snapshot = next;
@@ -123,10 +132,14 @@
   }
 
   async function logout() {
+    if (session.workspaceDirty && !confirm("放弃未保存的草稿并退出？可以先导出草稿。")) return;
     session.loadVersion++;
     try {
       await api("/api/auth/logout", {});
       session.snapshot = null;
+      session.online = null;
+      session.workspaceOpen = false;
+      session.workspaceDirty = false;
       session.calendar = null;
       session.auth = "anonymous";
       session.loading = false;
@@ -163,6 +176,14 @@
   }
 
   function onHashChange() {
+    const next = parseHash(location.hash);
+    if (!session.online && session.workspaceOpen && ["overview", "positions"].includes(next.page)) {
+      if (session.workspaceDirty && !confirm("放弃未保存的草稿并返回旧看板？可以先导出草稿。")) {
+        history.replaceState(null, "", `/${router.hash}`);
+        return;
+      }
+      session.workspaceOpen = false;
+    }
     syncFromLocation();
     window.scrollTo(0, 0);
     // 等路由状态落到 DOM 再移动焦点，和旧实现 render() 之后的顺序一致。
@@ -205,7 +226,7 @@
           <a
             href="#{id}"
             data-nav={id}
-            aria-current={parsed.page === id ? "page" : undefined}
+            aria-current={parsed.page === id || (session.online && parsed.page === "overview" && id === "workspace") ? "page" : undefined}
             ><span class="nav-dot"></span>{title}</a
           >
         {/each}
@@ -224,6 +245,7 @@
           >
         </div>
         <div class="actions">
+          {#if !session.online && !session.workspaceOpen}
           <button
             id="refresh"
             title="重新读取网站已同步批次，不采集新行情"
@@ -231,6 +253,7 @@
             onclick={() => void load()}
             >{session.loading ? "刷新中…" : "刷新数据"}</button
           >
+          {/if}
           <button id="logout" onclick={() => void logout()}>退出</button>
         </div>
       </header>
@@ -246,7 +269,9 @@
         {session.notice}
       </p>
       <main id="content" tabindex="-1" aria-busy={session.loading}>
-        {#if !session.snapshot}
+        {#if session.auth === "authenticated" && (session.online || session.workspaceOpen || ["workspace", "transactions", "rules", "materials"].includes(parsed.page))}
+          <Workspace page={parsed.page} />
+        {:else if !session.snapshot}
           <div class="empty">
             <span class="seal"
               >{session.auth === "authenticated"
@@ -263,6 +288,9 @@
             <p>
               可用“刷新数据”重试。账户、持仓和报告会在完整批次同步后显示。
             </p>
+            {#if session.auth === "authenticated"}
+              <a class="text-link" href="#workspace">创建线上账户，无需本地脚本</a>
+            {/if}
           </div>
         {:else}
           {#if session.snapshot.data.account[0].data_mode === "demo"}
@@ -282,7 +310,8 @@
         {/if}
       </main>
       <footer>
-        刷新数据只读取网站已同步批次。行情与账户确认时间分别记录，成交以券商凭证为准。
+        {session.online ? "账户在线维护。参考估值、账户确认与报告日期分别记录，成交以券商凭证为准。"
+          : "刷新数据只读取网站已同步批次。行情与账户确认时间分别记录，成交以券商凭证为准。"}
       </footer>
     </div>
   </div>

@@ -34,6 +34,9 @@ export function validateConfig(config) {
   requireCheck(production?.database_name === "codepi-gu" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(production.database_id)
     && !production.database_id.startsWith("00000000-0000-0000-0000-"),
     "Provision a real production D1 DB binding; placeholders are not accepted.");
+  requireCheck(config.r2_buckets?.length === 1 && config.r2_buckets[0].binding === "MATERIALS"
+    && config.r2_buckets[0].bucket_name === "codepi-gu-uploads",
+    "GU materials must use the private codepi-gu-uploads bucket through MATERIALS.");
 }
 
 export async function checkConfig() {
@@ -136,7 +139,8 @@ export async function checkHealth(origin, { distDir = path.join(guDir, "dist"), 
 }
 
 export async function checkAuth(origin, { fetcher = fetch } = {}) {
-  for (const endpoint of ["/api/me", "/api/dashboard", "/api/calendar"]) {
+  for (const endpoint of ["/api/me", "/api/dashboard", "/api/calendar", "/api/workspace",
+    "/api/workspace/export", "/api/workspace/history", "/api/workspace/versions/1", "/api/materials", "/api/materials/missing"]) {
     const response = await getResponse(fetcher, origin, endpoint);
     requireCheck(response.status === 401, `${endpoint}: expected unauthenticated 401, received ${response.status}.`);
     const body = await readJson(response, endpoint);

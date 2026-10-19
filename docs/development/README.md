@@ -24,7 +24,7 @@
 | 要改什么 | 先读 | 调用关系与验证重点 |
 | --- | --- | --- |
 | 首页、博客、Desk | [Web 规则](../../apps/web/AGENTS.md)、[Web README](../../apps/web/README.md) | 静态公开内容与私有聚合分开；Desk 依赖 Auth 和三应用摘要接口 |
-| GU | [GU 规则](../../apps/gu/AGENTS.md)、[GU README](../../apps/gu/README.md) | 金额、来源、快照与上传契约；相关生成脚本在仓库外 |
+| GU | [GU 规则](../../apps/gu/AGENTS.md)、[GU README](../../apps/gu/README.md) | 线上账户/规则版本、资料鉴权、金额与来源语义；Worker/schema 还检查 Ops 原件备份；旧快照切换及部署状态见任务记录 |
 | GZH | [GZH 规则](../../apps/gzh/AGENTS.md)、[GZH README](../../apps/gzh/README.md) | 草稿、审阅、预览和发布状态，不隐式对外发文 |
 | Health UI、数据、Oura 同步 | [Health 规则](../../apps/health/AGENTS.md)、[Health README](../../apps/health/README.md) | 日期/覆盖/同步语义；API 或内部数据能力变动还检查 MCP |
 | 统一登录、shared auth | [Auth 规则](../../services/auth/AGENTS.md)、[SSO 客户端说明](../../packages/shared/auth/README.md) | 五个客户端：GU、Health、GZH、Desk、MCP；网站 SSO 与提供方/MCP 授权分开 |

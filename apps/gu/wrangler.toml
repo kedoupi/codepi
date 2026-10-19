@@ -27,6 +27,10 @@ database_name = "codepi-gu"
 database_id = "4d3b6713-85dd-4f61-ac55-9925db72394b"
 migrations_dir = "migrations"
 
+[[r2_buckets]]
+binding = "MATERIALS"
+bucket_name = "codepi-gu-uploads"
+
 [observability]
 enabled = true
 head_sampling_rate = 1

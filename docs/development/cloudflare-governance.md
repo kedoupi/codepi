@@ -171,8 +171,14 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
    Auth SSO callback registry）缺失即违规；
 10. 八个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
     进入调用日志。应用日志仍不得自行输出凭证或私人数据。
-11. Ops 必须关闭公网入口，仅声明约定的两个 Cron、独立 R2 和 Workflow，
-    不得新增 D1、Auth 或其他 service binding。
+11. Ops 必须关闭公网入口，仅声明约定的两个 Cron、独立 R2、Workflow 与
+    `GU → codepi-gu#GuMaterialsBackup` 只读原件能力；该 binding 缺失、目标错误、
+    entrypoint 缺失或错误均违规。不得新增业务 D1、Auth、GU R2 或其他 service binding。
+12. GU 资料仅允许 `MATERIALS → codepi-gu-uploads`，不与备份桶共用。
+    首发该单一 R2 允许 `planned` 登记，不放宽 GU 的 Worker/D1 校验；
+    发布前需创建并核验无公开域名、无公开 r2.dev 入口。静态配置不证明存储已就绪。
+    GU D1 备份包含资料元数据，原件单独加密；六库与原件均成功才有完整回执，
+    恢复到隔离 D1/R2 后核对鉴权下载，不能以 D1 导出代替原件验收。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`
@@ -201,11 +207,15 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 - 巡检共用本地 HTTP/SSO/MCP/Health 断言，通过 GitHub API 对照八个 Worker 的活跃
   `BUILD_SHA` 和逐提交历史；文档或无关应用更新不报警。历史缺失、分流、凭证缺失
   和备份过期均失败，不降低既有 30 小时门槛。
-- Ops 不绑定业务 D1/Auth，不开放公网 URL；只绑定独立私有 R2 和自身 Workflow。
+- Ops 不绑定业务 D1/Auth，不开放公网 URL；绑定独立私有 R2、自身 Workflow 与
+  精确的 GU 只读原件 RPC，不直接绑定 GU bucket，不增加需要两侧同步的 secret。
   专用账户 token 仅有 D1 Write（导出要求）和 Workers Scripts Read；R2 使用 binding。
 - 备份在内存中公钥加密，R2 按前缀保留 14 天；Cloudflare 之外的密文经 GitHub API
   存私有 Release，独立记录回执。没有 GitHub 凭证时保留 R2 副本，跨平台状态失败。
   不把同账户 R2 当成异地恢复保障。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
+- 原件清单在 D1 导出后冻结，只包含追加式资料索引；每件核对大小和 SHA-256，
+  缺失或损坏使本次完整备份失败。单件 8 MiB、每次最多 1000 件，超过明确失败；
+  不得截断清单并称成功。扩大上限或增加资料删除/改写须同步验证恢复一致性。
 - Workflow 保存非敏感报告并保持失败；Cron 检查上一份报告的失败和停滞，以调用错误
   触发现有 Issues 通知。策略启用、日志存在和实际邮件送达分别验收。
 - 发布治理执行脚本回归、迁移追加守门及语法/JSON lint；CI 增加 Ops 单测与真实本地

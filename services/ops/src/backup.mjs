@@ -10,6 +10,13 @@ export const PART_BYTES = 5 * 1024 * 1024;
 const MAX_EXPORT_BYTES = 1024 * 1024 * 1024;
 const receiptKey = key => `${key}.receipt.json`;
 
+function identityFor(entry) {
+  return JSON.stringify(entry.kind === 'gu-material' ? {
+    kind: entry.kind, material_id: entry.material_id, object_key: entry.object_key,
+    source_bytes: entry.source_bytes, source_sha256: entry.source_sha256, created_at: entry.created_at,
+  } : { database: entry.database, database_id: entry.database_id, created_at: entry.created_at });
+}
+
 export async function objectDigest(object) {
   assert.ok(object?.body, 'backup ciphertext is missing');
   const hash = createHash('sha256');
@@ -35,9 +42,7 @@ export async function verifyBackupObject(bucket, key, entry, recipient) {
   const receipt = await bucket.get(receiptKey(key));
   assert.ok(object && receipt && receipt.size <= 4096, 'completed backup ciphertext or receipt is missing or changed');
   const saved = await receipt.json();
-  const identity = JSON.stringify({
-    database: entry.database, database_id: entry.database_id, created_at: entry.created_at,
-  });
+  const identity = identityFor(entry);
   assert.ok(object.size === entry.bytes && object.customMetadata?.key_id === recipient
     && object.customMetadata?.identity === identity && saved.etag === object.etag
     && JSON.stringify(saved.entry) === JSON.stringify(entry),
@@ -46,10 +51,16 @@ export async function verifyBackupObject(bucket, key, entry, recipient) {
 }
 
 export async function backupDatabase(name, databaseId, publicKey, createdAt, options) {
-  const { bucket, key } = options;
   const metadata = { database: name, database_id: databaseId, created_at: createdAt };
+  return backupStream(metadata, publicKey, { ...options, file: `${name}.sql.enc`,
+    open: () => downloadExport(databaseId, options) });
+}
+
+export async function backupStream(metadata, publicKey, options) {
+  const { bucket, key, file } = options;
+  const label = options.label ?? 'D1 export';
   const recipient = keyId(publicKey);
-  const identity = JSON.stringify(metadata);
+  const identity = identityFor(metadata);
   const objectOptions = {
     httpMetadata: { contentType: 'application/octet-stream' },
     customMetadata: { identity, key_id: recipient },
@@ -57,7 +68,7 @@ export async function backupDatabase(name, databaseId, publicKey, createdAt, opt
   const saveReceipt = async object => {
     assert.ok(object?.customMetadata?.identity === identity && object.customMetadata?.key_id === recipient,
       'existing backup object has invalid metadata');
-    const entry = { ...metadata, file: `${name}.sql.enc`, bytes: object.size, sha256: await objectDigest(object) };
+    const entry = { ...metadata, file, bytes: object.size, sha256: await objectDigest(object) };
     await bucket.put(receiptKey(key), JSON.stringify({ etag: object.etag, entry }),
       { httpMetadata: { contentType: 'application/json' } });
     return entry;
@@ -68,8 +79,8 @@ export async function backupDatabase(name, databaseId, publicKey, createdAt, opt
     if (receipt) {
       assert.ok(receipt.size <= 4096, 'backup receipt is too large');
       const { entry } = await receipt.json();
-      assert.ok(entry?.database === name && entry.database_id === databaseId && entry.created_at === createdAt
-        && entry.file === `${name}.sql.enc` && /^[a-f0-9]{64}$/.test(entry.sha256),
+      assert.ok(entry && identityFor(entry) === identity
+        && entry.file === file && /^[a-f0-9]{64}$/.test(entry.sha256),
       'existing backup receipt has invalid metadata');
       await verifyBackupObject(bucket, key, entry, recipient);
       return entry;
@@ -80,15 +91,19 @@ export async function backupDatabase(name, databaseId, publicKey, createdAt, opt
   }
   assert.equal(await bucket.head(receiptKey(key)), null, 'backup ciphertext expired; start a new instance');
 
-  const body = await downloadExport(databaseId, options);
+  const body = await options.open();
   const { cipher, prefix } = createEnvelope(publicKey, metadata);
+  const sourceHash = createHash('sha256');
   let inputBytes = 0;
   const bounded = new Transform({
     transform(chunk, _encoding, done) {
       inputBytes += chunk.byteLength;
       if (inputBytes > (options.maxBytes ?? MAX_EXPORT_BYTES)) {
-        done(new Error('D1 export exceeds the streaming size limit'));
-      } else done(null, chunk);
+        done(new Error(`${label} exceeds the streaming size limit`));
+      } else {
+        sourceHash.update(chunk);
+        done(null, chunk);
+      }
     },
   });
   const compressed = createGzip();
@@ -121,11 +136,13 @@ export async function backupDatabase(name, databaseId, publicKey, createdAt, opt
     for (;;) {
       let chunk;
       try { chunk = await reader.next(); }
-      catch { throw new Error('D1 export stream failed or exceeded the streaming size limit'); }
+      catch { throw new Error(`${label} stream failed or exceeded the streaming size limit`); }
       if (chunk.done) break;
       await append(cipher.update(chunk.value));
     }
-    assert.ok(inputBytes > 0, 'D1 export is empty');
+    assert.ok(inputBytes > 0, `${label} is empty`);
+    if (options.expectedBytes !== undefined) assert.equal(inputBytes, options.expectedBytes, `${label} size mismatch`);
+    if (options.expectedSha256 !== undefined) assert.equal(sourceHash.digest('hex'), options.expectedSha256, `${label} SHA-256 mismatch`);
     await append(cipher.final());
     cipher.getAuthTag().copy(first, prefix.length - 16);
     if (upload) {

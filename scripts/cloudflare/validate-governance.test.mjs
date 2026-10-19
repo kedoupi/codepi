@@ -26,6 +26,7 @@ const REGISTRY_ROWS = [
   ['worker-ops', 'production', 'worker', 'codepi-ops', '-', 'planned'],
   ['workflow-ops', 'production', 'workflow', 'codepi-ops', '-', 'planned'],
   ['r2-ops', 'production', 'r2', 'codepi-ops-backups', '-', 'planned'],
+  ['r2-gu-uploads', 'production', 'r2', 'codepi-gu-uploads', '-', 'planned'],
   ['worker-mcp', 'production', 'worker', 'codepi-mcp', 'mcp.codepi.app', 'planned'],
   ['d1-mcp', 'production', 'd1', 'codepi-mcp', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
@@ -142,6 +143,10 @@ name = "codepi-ops"
 workers_dev = false
 preview_urls = false
 routes = []
+[[services]]
+binding = "GU"
+service = "codepi-gu"
+entrypoint = "GuMaterialsBackup"
 [vars]
 ENVIRONMENT = "production"
 [triggers]
@@ -157,7 +162,7 @@ ${OBSERVABILITY}
 `;
 }
 
-test('ops remains private, stateless and bound only to its owned R2 and Workflow', () => {
+test('ops remains private with only its owned R2, Workflow and exact GU backup entrypoint', () => {
   assert.deepEqual(run(legalFiles()), []);
   for (const config of [
     opsConfig().replace('workers_dev = false', 'workers_dev = true'),
@@ -166,6 +171,9 @@ test('ops remains private, stateless and bound only to its owned R2 and Workflow
     opsConfig().replace('crons = ["*/30 * * * *", "0 18 * * *"]', 'crons = ["* * * * *"]'),
     opsConfig().replace('bucket_name = "codepi-ops-backups"', 'bucket_name = "unrelated"'),
     opsConfig().replace('class_name = "OperationsWorkflow"', 'class_name = "OtherWorkflow"'),
+    opsConfig().replace('entrypoint = "GuMaterialsBackup"', 'entrypoint = "OtherEntrypoint"'),
+    opsConfig().replace('entrypoint = "GuMaterialsBackup"', ''),
+    opsConfig().replace('service = "codepi-gu"', 'service = "codepi-health-api"'),
     opsConfig() + '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "codepi-health"\n',
     opsConfig() + '\n[[services]]\nbinding = "AUTH"\nservice = "codepi-auth"\n',
   ]) {
@@ -216,6 +224,7 @@ database_id = "${U[app]}"
 ENVIRONMENT = "production"
 AUTH_ORIGIN = "https://auth.codepi.app"
 AUTH_CLIENT_ID = "${app}"
+${app === 'gu' ? '[[r2_buckets]]\nbinding = "MATERIALS"\nbucket_name = "codepi-gu-uploads"\n' : ''}
 ${OBSERVABILITY}
 `;
 }
@@ -225,6 +234,22 @@ function webWorkerConfig() {
     .replace('run_worker_first = true', 'run_worker_first = ["/api/*", "/desk", "/desk/*"]\nnot_found_handling = "404-page"')
     .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk');
 }
+
+test('GU materials has an exact owned bucket and narrowly scoped planned allowance', () => {
+  for (const config of [
+    privateWorkerConfig().replace('binding = "MATERIALS"', 'binding = "BACKUPS"'),
+    privateWorkerConfig().replace('bucket_name = "codepi-gu-uploads"', 'bucket_name = "codepi-ops-backups"'),
+    privateWorkerConfig() + '\n[[r2_buckets]]\nbinding = "EXTRA"\nbucket_name = "codepi-gu-uploads"\n',
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'apps/gu/wrangler.toml': config } })).some(v => v.includes('gu must bind only MATERIALS')));
+  }
+  const rows = REGISTRY_ROWS.filter(r => r[0] !== 'r2-gu-uploads');
+  assert.ok(run(legalFiles({ registryRows: rows })).some(v => v.includes('codepi-gu-uploads has no registry record')));
+  const unknown = REGISTRY_ROWS.map(r => r[0] === 'r2-gu-uploads' ? [...r.slice(0, 5), 'unknown'] : r);
+  assert.ok(run(legalFiles({ registryRows: unknown })).some(v => v.includes('codepi-gu-uploads is registered as unknown')));
+  const plannedWorker = REGISTRY_ROWS.map(r => r[0] === 'worker-gu' ? [...r.slice(0, 5), 'planned'] : r);
+  assert.ok(run(legalFiles({ registryRows: plannedWorker })).some(v => v.startsWith('gu:') && v.includes('no managed production')));
+});
 
 test('www preserves API-first routing and forbids staging asset overrides', () => {
   for (const config of [

@@ -1,4 +1,4 @@
-# D1 备份与恢复 runbook
+# D1 与 GU 原件备份恢复 runbook
 
 当前环境为 local + production。D1 Time Travel 用于快速回溯；加密导出用于在
 Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，当前调度与
@@ -16,8 +16,8 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
-- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部六库
-  成功后才提交 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
+- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部六库和
+  GU 有索引原件成功后才提交 v2 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
   缺少 GitHub token 或复制失败时，不得称为跨平台备份完成。Release 当前不自动删除。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）和 Workers Scripts Read，不将本机管理 token 放入 Worker。
@@ -43,6 +43,11 @@ Time Travel bookmark；六库本机导出和解密记录保留在早期任务中
 解密 6/6 通过。跨平台 Release 副本和云端 GitHub 版本核对仍因缺少 `GITHUB_TOKEN`
 失败；待所有者方便时配置后复验，不能把 R2 完整成功写成跨平台恢复保障已完成。
 该次执行也不替代后续定时新鲜度和异机恢复演练。
+
+GU 原件链路为后续本地实现，尚未发布；不能用上述六库记录断言原件已有生产副本。
+原件通过 GU 的只读 named RPC 取得，公钥格式、私钥位置与 D1 共用；
+原件的大小和内容 SHA-256、密文大小和 SHA-256 分别保存。完整回执含原件覆盖信息，
+旧 D1-only 回执不满足新巡检。具体一致性与上限见[定时运维](cloudflare-operations.md#gu-原件)。
 
 历史 Actions 六库 artifact 未生成的故障不再代表当前自动备份状态，也不要求恢复旧
 Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面为准，不在本 runbook
@@ -100,6 +105,49 @@ MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或�
 `kdp_sso_transactions`，保留客户端注册 `oauth_clients`，让客户端重新授权；
 不得把历史 token 的“未撤销”状态直接恢复到线上。此清理属于事故恢复中的显式步骤，
 通用 restore 脚本不会自动修改生产库。授权备份仍按敏感数据加密保管。
+
+## GU 原件隔离恢复与验收
+
+1. 选择同一次完整 v2 备份，下载 `manifest.json`、`codepi-gu.sql.enc` 及全部
+   `materials/gu-material-<UUID>.bin.enc` 到 Git 之外。GitHub Release 附件为平铺文件名，
+   可直接放在下载目录；脚本优先读取 `materials/`，不存在时读取平铺附件。
+   原 `.receipt.json` 用于备份重试，恢复只需完整 manifest 与对应密文。
+2. 按前节用 `d1-restore.mjs` 把这份 GU SQL 导入全新空 D1，核对 schema 与行数。
+   记录恢复 UUID，不复用或绑定生产库。
+3. 执行原件恢复，`--out` 必须是父目录已存在、目标本身尚不存在的 Git 外目录：
+
+   ```bash
+   node scripts/cloudflare/gu-materials-restore.mjs \
+     --backup-dir /path/outside-repo/download \
+     --private-key "$HOME/.config/kdp.cool/backup/recovery-private-key.pem" \
+     --database-id <new-recovery-D1-UUID> \
+     --out /path/outside-repo/gu-recovered
+   ```
+
+   需要本机 `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN`，只读查询恢复库
+   的 `gu_materials`。工具拒绝所有已登记的生产 UUID、旧版无原件 manifest、
+   错误私钥、重复项、路径越界、符号链接密文、缺失文件及大小/摘要/GCM/身份不符。
+   同时验证匹配的 GU SQL 密文摘要；不会自动导入 D1 或写入任何 R2。
+4. 工具将原件写到 `<out>/materials/<UUID>`，目录 `0700`、文件 `0600`，
+   保留原 `object_key`。每个恢复库索引都必须匹配原件大小和 SHA-256；全部验证后才写
+   `restore-report.json`。普通异常删除本次部分恢复目录；不覆盖已有目录。
+   断电、强制终止后需检查 Git 外临时目录并按授权处理残留明文。
+5. 清单可能比 D1 导出稍新，工具保留并单独计数 `extra_objects`，不自动补写资料索引。
+   核对 `indexed` 等于恢复库索引行数，并核对完整件数；不能把额外原件自动当作已登记资料。
+   未索引的失败上传残留不在备份承诺中，不凭一次失败回执自动清理。
+6. 为实际流程验收创建隔离私有 R2，将恢复目录中的 `materials/<UUID>` 按原 key
+   上传；GU 使用隔离 D1/R2 和独立合成登录配置启动。真实恢复库含私人数据时，
+   禁止开放临时公网 URL，SSO/会话策略另按授权安排。不得为演练改生产 binding。
+7. 确认匿名 `/api/materials/:id` 为 401，登录后索引名称、类型、大小与原 D1 一致，
+   下载为 attachment、`Cache-Control: no-store`，逐件内容摘要一致；
+   GU 的公开 HTTP 不提供备份 RPC 路径。缺任一原件即失败。
+8. 记录备份 instance、key_id、隔离 D1/R2、恢复件数/索引件数、摘要和下载结果，
+   不记录文件名、正文或凭证。正式生产切换及临时库/桶/明文清理分别按授权执行。
+
+`pnpm --dir services/ops test:runtime` 提供本地合成演练：原生 GU RPC → Workflow →
+加密 R2 → GitHub digest stub → GU SQL 与原件恢复 → 另一组本地 D1/R2 →
+真实 GU 会话下载。D1 导入用本地原生 D1 API 执行解密 SQL，不调用远程 Wrangler；
+它不替代真实跨账户恢复、生产 SSO 或离线私钥保管的验收。
 
 ## 演练与失效场景
 
