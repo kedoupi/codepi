@@ -1,9 +1,11 @@
 # D1 备份与恢复 runbook
 
 当前环境为 local + production。D1 Time Travel 用于快速回溯；加密导出用于在
-Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，运行与演练
-证据见 [平台可靠性任务](tasks/2026-10-18-platform-reliability.md) 和
-[MCP 运维补齐](tasks/2026-10-19-mcp-operations.md)。
+Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，当前调度与
+最新验收见 [Cloudflare 定时运维任务](tasks/2026-10-19-cloudflare-operations.md)。
+[平台可靠性任务](tasks/2026-10-18-platform-reliability.md) 和
+[MCP 运维补齐](tasks/2026-10-19-mcp-operations.md) 保留早期实现与故障证据，
+不作为当前调度或待办清单。
 
 ## 备份架构
 
@@ -20,8 +22,8 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）和 Workers Scripts Read，不将本机管理 token 放入 Worker。
   运行细节见[定时运维](cloudflare-operations.md)。恢复私钥不上云。
-- 手动 Actions 仍可输出相同格式的 14 天 artifact，保留历史恢复入口；其账户分钟
-  限制尚未调整，不能将工作流文件存在当作当前自动备份已恢复。
+- 手动 Actions 仍可输出相同格式的 14 天 artifact，保留应急恢复入口；
+  已记录的账户分钟限制见任务证据，不能将工作流文件存在当作该入口当前可用。
 
 | 数据库 | 配置来源 |
 | --- | --- |
@@ -34,12 +36,17 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 库 UUID 固定在 `scripts/cloudflare/backup-core.mjs`，测试校验其与实际 binding
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
-Time Travel bookmark；2026-10-19 六库本机导出、密文完整性和现有私钥内存解密已通过，
-包含 MCP 授权库。新的 GitHub 六库 artifact 尚待验收：当次 backup job 无 runner/steps，
-未生成 artifact。后续只读诊断已确认 Actions 账户免费分钟用尽、额外预算为 $0，
-重跑仍被计费限制拦截；预算调整尚未获所有者明确决定。
-本机快照不代表定时日备或异机保存已恢复。实际可回溯窗口以账户套餐和
-控制面为准，不在本 runbook 假定固定天数。
+Time Travel bookmark；六库本机导出和解密记录保留在早期任务中。
+
+2026-10-19 的[最新验收](tasks/2026-10-19-cloudflare-operations.md#大库修复发布与真实验收)
+已确认 Cloudflare Workflow 完成六库 R2 密文、manifest 与完成回执，现有恢复私钥内存
+解密 6/6 通过。跨平台 Release 副本和云端 GitHub 版本核对仍因缺少 `GITHUB_TOKEN`
+失败；待所有者方便时配置后复验，不能把 R2 完整成功写成跨平台恢复保障已完成。
+该次执行也不替代后续定时新鲜度和异机恢复演练。
+
+历史 Actions 六库 artifact 未生成的故障不再代表当前自动备份状态，也不要求恢复旧
+Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面为准，不在本 runbook
+假定固定天数。
 
 ## 密钥保管
 
@@ -98,13 +105,15 @@ MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或�
 
 至少每季度做一次合成恢复演练：生成合成 SQL，经生产公钥加密，使用离线私钥和同一
 恢复脚本导入临时 D1，再查询合成表验证。不得用真实健康/投资记录构造 fixture。
-首次生产备份工作流成功后，还要核对 artifact 完整性和私钥解密结果。
+新备份链路启用后，还要核对密文与 manifest 完整性和私钥解密结果；
+R2 成功、跨平台复制与恢复导入分别验收。
 
-本次最新演练与首次 artifact 状态以任务记录为准；旧版对称加密脚本的成功演练不能
+最新演练与各存储副本状态以任务记录为准；旧版对称加密脚本的成功演练不能
 作为当前 envelope 和恢复脚本已验收的证据。
 
-- GitHub 工作流失败依赖 Actions 通知设置，需所有者接收运行失败通知；不能仅凭
-  workflow 文件断言已收到邮件。
+- 当前 Cron/Workflows 告警按[定时运维](cloudflare-operations.md)核验 Issues 与
+  实际送达；手动 GitHub 工作流另依赖 Actions 通知设置。不能仅凭策略或 workflow
+  文件断言已收到邮件。
 - GitHub 不可用时可以评估 Cloudflare Time Travel；Cloudflare 不可用时可在本地
   解密现存备份。两者不保证与同一事故中的账户访问同时可用。
 - artifact 只保留 14 天；如需更长保留，下载密文到另一处安全介质。不要把

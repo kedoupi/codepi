@@ -1,10 +1,10 @@
 # kdp.cool Architecture Baseline
 
-> 2026-10-15 更新：产品方向已转为个人数字空间。本文中旧工具站的广告、增长与产品范围描述不再作为现行目标；以 `../superpowers/plans/2026-10-15-personal-digital-space-roadmap.md` 和 `personal-design-system.md` 为准。独立构建与部署边界继续保留。
-
-> 状态：基线决策。后续架构任务优先读取本文，不重复讨论已确认的总体方向。
->
-> 范围：只记录已完成仓库调查、线上验证和 reviewer 诊断结论。不包含本文件之外的重构方案。
+> 状态：历史基线，已被[工程架构与部署模型](workspace-and-deployment.md)替代。
+> 下文的旧工具站、独立 lockfile、Pages、源码 alias 和“不做 workspace/Workers”
+> 是当时的决策；ADR 的 Accepted 也仅描述当时状态，不再约束新开发。
+> 当前约束从[根 AGENTS](../../AGENTS.md)和[文档入口](../README.md)读取。
+> 正文保留用于理解旧架构及其问题，不作为当前资源或待办清单。
 
 ## 1. 已确认保留的架构决策
 

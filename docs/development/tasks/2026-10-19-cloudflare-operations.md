@@ -166,10 +166,18 @@
 
 ## 当前剩余项
 
-1. 所有者配置仅允许 `kedoupi/codepi`、Contents Read and write 的 `GITHUB_TOKEN`
-   到 Ops runtime secret；随后复跑 monitor 与 backup，验收云端版本核对和
-   GitHub Release 的完整跨平台回执。不得把凭证发到聊天或写入 Git。
-2. 实际告警邮件送达、恢复私钥异机保管与恢复演练仍未验收；真实 AI 客户端 MCP
-   验收仍为独立任务。Health 30 小时新鲜度本轮已通过，不再列为当前故障。
+1. **TODO：补齐 Ops GitHub 运行凭证并完成跨平台验收（等待所有者方便操作）。**
+   2026-10-19 再次确认环境中没有 `GITHUB_TOKEN` / `GH_TOKEN`，本机 `gh` 登录无效；
+   当前 GitHub 连接器未提供创建或导出长期运行凭证的工具。所有者目前不在电脑旁，
+   已决定暂记 TODO，不要求立即手动操作，不用其他账户凭证扩大权限来绕过。
+   后续配置仅允许 `kedoupi/codepi`、Contents Read and write 的 `GITHUB_TOKEN`
+   到 `codepi-ops` runtime secret；凭证不得发到聊天或写入 Git。
+   配置后由 Agent 核验权限并重跑 monitor 与 backup，确认八个 Worker 的云端版本核对、
+   六库 R2 清单、GitHub Release 的六份密文与 manifest 摘要，以及跨平台成功回执。
+   完成前保留两项明确失败状态；已验收的六库 R2 备份继续保留。
+2. 实际告警邮件送达、恢复私钥异机保管与恢复演练仍未验收。所有者已于 2026-10-19
+   确认 Claude 手机端连接并使用 MCP；其他客户端及刷新、撤销等专项验收见
+   [MCP 任务记录](2026-10-18-unified-mcp.md)。Health 30 小时新鲜度本轮已通过，
+   不再列为当前故障。
 3. GitHub Actions 账户额度问题与本次发布分开；本地验证和云端验收已实际执行，
    不将 Actions 未运行标为通过。

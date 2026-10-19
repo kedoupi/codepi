@@ -1,14 +1,14 @@
 # GU 私人投资工作台
 
-kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。2026-10-17 已从 Pages 切换到 Workers，发布走 `wrangler deploy`，正式域名由 Worker custom domain 管理；切换与配置重建证据见 [GU 运行配置重建](../../docs/development/tasks/2026-10-17-gu-runtime-bootstrap.md)。
+kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu`（Workers Static Assets 架构，`run_worker_first = true`，全部请求先进 Hono 鉴权链再回源静态资产），生产入口为 `https://gu.codepi.app`，通过 `auth.codepi.app` 统一登录；退出会撤销对应的中心会话。资源与域名核验记录见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。2026-10-17 已从 Pages 切换到 Workers，发布遵循[本地发布操作](../../docs/development/local-release.md)，正式域名由 Worker custom domain 管理；切换与配置重建证据见 [GU 运行配置重建](../../docs/development/tasks/2026-10-17-gu-runtime-bootstrap.md)。
 
 统一登录中心固定向本人邮箱发送验证码，登录后查看持仓、风控、报告与数据来源。生产启用 `SSO_ENABLED=1`，旧的本地验证码接口关闭；本地及预览可显式关闭 SSO 用于隔离测试。私人数据仅通过会话鉴权 API 读取，不打包进静态资源。
 
 ## 代码与验证
 
-- `web/src/`：Vite + TypeScript 前端；`charts.ts` 生成配置缺口、风控距离和历史权重图。
+- `web/src/`：Svelte 5 + Vite + TypeScript 前端；`charts.ts` 生成配置缺口、风控距离和历史权重图。
 - `worker/app.ts`：Hono 路由与中间件，处理登录、数据校验与同步；`worker/index.ts` 是 Worker 入口（`main = "worker/index.ts"`，由 wrangler 直接编译，不再需要 esbuild 预打包）和统一安全响应头。
-- `migrations/`：D1 结构；生产与预览使用独立数据库。
+- `migrations/`：D1 结构；本地自动测试使用合成数据，staging 已退役。
 - `test/app.test.ts`：认证、同步、旧批次兼容与图表语义回归测试。
 - `test/routing.test.ts`：路由顺序、精确路径与方法、Origin、静态资源边界和错误响应回归测试。
 - `web/test/session.test.ts`：前端会话过期、路由返回与并发刷新回归测试。
@@ -55,7 +55,7 @@ python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --url https://
 
 Google 投资日历曾于 2026-10-15 完成固定 ID 配置和首份真实只读快照同步。2026-10-17 重构切换没有恢复旧 `INVESTMENT_CALENDAR_ID` 与 `UPLOAD_TOKEN`，当前新 Worker 的日历为未连接，外部上传尚未重新接入；旧上传命令需先完成新凭证配置才能使用。长期 Google 授权和自动调度也尚未接入。前端区分未连接、查询为空、失败和过期。接口与离线同步状态检查见 [多 Agent 同步契约](docs/multi-agent-sync.md)。现金、港股股数和早期成交批次仍需券商凭证核实。
 
-本地检查与只验证的 CI 不执行部署。远程迁移和发布遵循 [CF 治理规范](../docs/development/cloudflare-governance.md) 的受控入口，不把检查脚本当作发布工具。发布后，对与部署 source SHA 对应的本地构建执行：
+本地检查与只验证的 CI 不执行部署。远程迁移和发布遵循 [CF 治理规范](../../docs/development/cloudflare-governance.md) 与[本地发布操作](../../docs/development/local-release.md)，不把检查脚本当作发布工具。发布后，对与部署 source SHA 对应的本地构建执行：
 
 ```bash
 npm run check:deploy -- --url https://gu.codepi.app

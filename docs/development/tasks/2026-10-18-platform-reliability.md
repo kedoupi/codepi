@@ -1,5 +1,10 @@
 # Production reliability follow-up
 
+> Historical delivery and incident record. Subsequent MCP/backup work continued in
+> [MCP operations](2026-10-19-mcp-operations.md) and [Cloudflare operations](2026-10-19-cloudflare-operations.md).
+> The latter records successful Health freshness and six-database R2 verification.
+> Use the [task index](README.md) for remaining work; the failures below retain their original dates.
+
 - Status: PR #97 merged as `85c060b`; normal release policy is local publishing
   from merged main. That source is deployed to both Health API and frontend,
   and live checks passed. Identity diagnostics confirmed different IDs with an

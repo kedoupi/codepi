@@ -38,7 +38,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 远程迁移和发布遵循 [CF 治理规范](../../docs/development/cloudflare-governance.md) 的受控入口。以下是 Desk 配置依赖与验收顺序，不代表本次已执行，也不授权重新创建现有资源；实际资源、绑定及未决项见 [CF 资源登记表](../../docs/development/cloudflare-resource-registry.md)。
 
 1. 核对 Auth 中心已支持 `desk`，同环境 `SSO_CLIENTS` 中已有对应注册，production 精确回调为 `https://codepi.app/api/auth/callback`。只有注册缺失且获授权时才新增独立 secret；不要覆盖原客户端或无故轮换现有凭证，不把 secret 写进仓库。
-2. 核对三个应用 Worker 的只读接口和各自独立的 `DESK_SUMMARY_TOKEN`，仅在缺失或明确获授权轮换时配对写入。禁止复用 SSO、Oura、上传或 MCP token。staging 不继承生产凭证。
+2. 核对三个应用 Worker 的只读接口和各自独立的 `DESK_SUMMARY_TOKEN`，仅在缺失或明确获授权轮换时配对写入。禁止复用 SSO、Oura、上传或 MCP token。本地测试只用合成配置；staging 已退役。
 3. 核对工作台专用 D1：production 为 `codepi-desk`（staging 库已随 2026-10-18 staging 退役删除），仅存 SSO 事务与会话，不绑定三个业务库。迁移来自 `apps/web/migrations/`，是否已应用按对应环境核实，不因本文重复建库。
 4. 核对 `codepi-www` production 的 Worker 绑定和变量（staging named environment 已于 2026-10-18 退役删除）：
 
@@ -54,9 +54,9 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 | `GU_SUMMARY_TOKEN` | 与 GU 的摘要 token 一致 |
 | `WECHAT_SUMMARY_TOKEN` | 与公众号的摘要 token 一致 |
 
-5. 受控 workflow 在 `apps/web/` 执行 `npm run build`，输出 `dist`，再由 `wrangler deploy` 同时上传 `worker/index.ts` 和静态资产。`assets.run_worker_first = ["/api/*", "/desk", "/desk/*"]` 保证 API 不被静态文件覆盖，其余页面直接使用 Static Assets；`_headers` 和路径型 `_redirects` 继续生效；www 的 Desk 跳转由 Worker 实现。旧 Pages `_worker.js` 与 `_routes.json` 不再产出，并由 `.assetsignore` 排除。
+5. 按[本地发布操作](../../docs/development/local-release.md)从干净且等于远程 main 的源码持锁发布：在 `apps/web/` 执行 `npm run build`，输出 `dist`，再由 `deploy-worker.mjs web <SHA>` 封装 Wrangler 上传 `worker/index.ts` 与静态资产并记录版本。Actions 只验证。`assets.run_worker_first = ["/api/*", "/desk", "/desk/*"]` 保证 API 不被静态文件覆盖，其余页面直接使用 Static Assets；`_headers` 和路径型 `_redirects` 继续生效；www 的 Desk 跳转由 Worker 实现。旧 Pages `_worker.js` 与 `_routes.json` 不再产出，并由 `.assetsignore` 排除。
 6. 实际验收登录、三来源读取、摘要、退出、其他应用会话撤销。代码已为 www 的工作台页面和 GET API 配置到 apex 的临时跳转；www 的写请求拒绝执行。发布后确认跳转生效，勿额外登记 www 回调。
-7. 回退需同时核对 Worker version、域名归属与配对凭证；旧 Pages 若凭证已轮换，不能只恢复 DNS 就视作可用回退。如退役工作台，撤销 desk 注册及三份摘要凭证，保留原应用注册与数据库。
+7. 回退需同时核对 Worker version、域名归属与配对凭证，旧 Pages 已退役，不能作为现成回退目标。如退役工作台，撤销 desk 注册及三份摘要凭证，保留原应用注册与数据库。
 
 缺少配置时接口明确拒绝请求；不要临时绕过登录使页面“看起来能用”。
 

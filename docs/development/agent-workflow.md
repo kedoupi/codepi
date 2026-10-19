@@ -4,6 +4,10 @@
 
 这套流程面向 kedoupi（codepi）的多 agent 开发：你确定目标和验收，不同工具、模型或会话中的 agent 共同遵循仓库规则。默认一个独立写入任务对应一个 worktree；小修改直接实施，跨应用、数据库或公共接口变更才写任务记录。
 
+开工只需先明确：目标与验收、实际 worktree/起始 SHA、已有改动、允许写入路径、
+需要先完成的依赖。新 Agent 按[修改范围导航](README.md#按修改范围选路)读取相关规则；
+续做从[任务索引](tasks/README.md)定位记录，不遍历全部历史计划。
+
 ## 日常怎么用
 
 使用任意 coding agent 打开分配给它的 worktree，从明确的基线开始。已有任务继续使用原 worktree。各工具入口见 [工具兼容说明](agent-compatibility.md)。通用任务指令不依赖插件或专用命令：
@@ -86,7 +90,10 @@ git worktree add -b codex/task-name ~/.worktrees/kdp.cool/codex/task-name <已�
 
 说明分配表由谁维护、在哪个工作目录，所有参与者确认同一版分配后再开工。Git 跟踪的任务文档在各 worktree 中各有副本，不能作为实时锁或自动同步的任务队列。不能访问协调者记录的 agent 由用户转交分配内容，不推测其他 agent 的状态。
 
-按业务边界拆：首页 `apps/web/`、健康 `apps/health/`、投资 `apps/gu/`、公众号 GZH `apps/gzh/`、统一登录 `services/auth/`。`packages/shared/`、根规范和 CI 作为公共改动由一个任务统一负责。
+按业务边界拆：首页 `apps/web/`、健康 `apps/health/`、投资 `apps/gu/`、公众号 `apps/gzh/`；
+支撑服务分别为统一登录 `services/auth/`、MCP `services/mcp/`、运维 `services/ops/`。
+`packages/shared/`、Health/MCP RPC、根规范、发布脚本和 CI 等共同接触的文件由一个
+任务统一负责。Ops 与 `scripts/cloudflare/` 有运行时复用关系，不能按目录分开后假定互不影响。
 
 例如“统一登录接口 + GU 页面适配”先确定接口字段、错误码、兼容方式及回调规则；一个 agent 改公共契约，另一个在独立 worktree 改 GU 消费端。未集成前明确记录依赖和未验证项，不能把本地假实现当作完整联调。
 
@@ -120,16 +127,17 @@ node --test scripts/agent/check.test.mjs
 
 | 改动范围 | 自动检查 |
 | --- | --- |
-| `apps/web/` | `npm test`、`npm run typecheck:desk`、`npm run build:functions`、`npm run build` |
+| `apps/web/` | `npm test`、`npm run typecheck:desk`、`npm run build`、`npm run test:assets` |
 | 退役工具站路径（`calc/`、`convert/`、`text/`、`dev/`、`ai/`） | 视为跨应用改动，保守检查全部剩余应用 |
-| `packages/shared/` 的静态布局、组件、i18n 等 | 首页 build |
-| `packages/shared/styles/`、`packages/shared/brand.ts`、`packages/shared/email/`、未知 shared 路径 | 保守检查首页和三个服务，再测 shared auth client |
-| `services/auth/` 或 `packages/shared/auth/` | auth、首页/Desk、GU、GZH、Health 全部本地检查 + shared auth client 测试 |
+| `packages/shared/` 的静态布局、i18n、产品清单及明确静态配置 | 首页测试、类型、构建与资产检查 |
+| `packages/shared/styles/`、`packages/shared/brand.ts`、`packages/shared/email/`、未知 shared 路径 | 保守检查全部应用与服务，再测 shared auth client |
+| `services/auth/` 或 `packages/shared/auth/` | 全部应用与服务（含 MCP、Ops）本地检查 + shared auth client 测试 |
 | `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查 |
 | `apps/gzh/` | test、typecheck、build |
-| `apps/health/` | test、typecheck、build、正常与 SSO 浏览器回归 |
+| `apps/health/` | test、typecheck、build、资产、正常与 SSO 浏览器回归；API / Health 内部共享逻辑变动追加 MCP |
 | `services/mcp/` / `packages/shared/mcp/` | MCP 协议、授权与真实本地 RPC 集成测试、typecheck、build、授权页浏览器验收；RPC 契约同时检查 Health |
-| CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 治理检查；按脚本映射追加相关应用检查，不能替代控制面验收 |
+| `services/ops/` | CF 治理、Ops 单测、构建、原生 Workerd/Workflows/R2 合成运行 |
+| CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 脚本测试/治理；脚本变动还包含 Ops，其他追加范围以实际映射为准 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |
 | `scripts/agent/`、项目 skills、工具入口、开发流程文档 | 工作流脚本回归测试；规范和 skill 内容仍需审查 |
 | 根 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`.npmrc` | 全应用、shared auth、CF 治理与工作流检查 |
@@ -137,13 +145,18 @@ node --test scripts/agent/check.test.mjs
 
 这是导航摘要，具体选择以 [检查脚本](../../scripts/agent/check.mjs)、[回归测试](../../scripts/agent/check.test.mjs) 和当次预览为准，并非完整依赖图。新增应用、共享导入或检查命令时同步更新映射与回归测试；手动检查本次实际调用关系。纯应用 README/AGENTS 改动不触发应用构建，产品内容中的 Markdown 仍会触发构建。
 
-脚本通过只表示自动检查通过。任何 UI 修改还要查看桌面与移动端、关键操作、空/错/登录状态；Auth/GU/GZH 目前没有在该入口中自动执行完整浏览器验收，必须按改动补做。远程绑定、真实 OAuth、邮件投递和线上数据均需独立验收。
+脚本通过只表示自动检查通过。任何 UI 修改还要查看桌面与移动端、关键操作、空/错/登录状态；Web 的 `test:browser:desk` 与 Auth/GU/GZH 完整浏览器验收不在该入口中自动执行，必须按改动补做。远程绑定、真实 OAuth、邮件投递和线上数据均需独立验收。
+
+本地检查范围与生产发布范围不同：前者由 `scripts/agent/check.mjs` 决定，
+后者由 `scripts/cloudflare/release-scope.mjs` 和各服务上次成功发布 SHA 决定。
+文档-only 检查通过不要求重发业务 Worker；也不能据本次只改文档就忽略之前积压的发布改动。
 
 本脚本提供本地一致入口，不保证 PR 被强制阻挡。远程发布入口与门禁以 [CF 治理规范](cloudflare-governance.md) 和当前 workflow 为准；不沿用已被替换的旧 workflow 名称。配置文件存在不证明 GitHub 审批、分支保护或远程发布已经生效，核验结果记录在对应任务和资源登记表。
 
 ## 跨会话任务记录
 
 长任务、多个工作单元或需要换 agent 时，在 `docs/development/tasks/<task-id>.md` 使用以下最小记录。任务仍沿用已有设计方案时链接它，不复制一遍。短修复直接在最终回复中记录即可。
+新任务或接续状态变化时更新[任务索引](tasks/README.md)中的简短入口；详细证据只写在任务文件。
 
 ```markdown
 # <任务名称>
@@ -165,13 +178,25 @@ node --test scripts/agent/check.test.mjs
 
 ## 验证证据
 - 命令、运行目录、结果；未运行项目及原因
+- 来源：本地合成测试 / 控制面查询 / 真实流程 / 用户确认；日期与对应版本
 
 ## 继续工作
 - 下一项具体操作、已知问题、集成依赖和授权范围
+- 哪些 Agent 可继续执行，哪些等待所有者操作；不将单个阻塞扩成全部未完成
 - 涉及历史分支或资源清理时：候选判定记录、主动不合并项、明确保留项
 ```
 
 记录中不存 token、Cookie、私人健康/财务数据或真实邮件内容。任务文档是交接事实，不是扩大权限的授权来源。
+
+## 文档随实现收尾
+
+改变目录、接口、命令、部署方式或共享消费者时，同批校正其现行说明；入口由
+[文档导航](../README.md)和[开发导航](README.md)维护。被替代的方案添加历史标记和
+替代链接，原验证结果保留。不要为每次交付复制一套规则或新建同义 skill。
+
+交付前核对：相关链接能定位、命令确实在当前 manifest/脚本中存在、任务状态有证据、
+其他 Agent 能通过提交或明确的本地交接拿到文件。规范在一个 worktree 更新，不代表
+其他窗口已读取或 GitHub/main 已同步。
 
 ## 维护方式
 
