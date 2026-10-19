@@ -10,29 +10,33 @@ export async function offsiteRelease(manifest, prefix, bucket, { token, request 
   let release = await api(`/releases/tags/${tag}`, { allow404: true });
   if (!release) release = await api('/releases', { method: 'POST', body: {
     tag_name: tag, target_commitish: 'main', name: tag, prerelease: true, make_latest: 'false',
-    body: 'Encrypted CodePi D1 backup. Complete only when manifest.json and all matching ciphertext assets are present.',
+    body: 'Encrypted CodePi D1 and GU materials backup. Complete only when manifest.json and all matching ciphertext assets are present.',
   } });
   assert.ok(Number.isSafeInteger(release?.id) && release.id > 0 && release.tag_name === tag,
     'GitHub returned a mismatched backup release');
   const assets = [];
-  for (let page = 1; page <= 2; page++) {
+  for (let page = 1; page <= 12; page++) {
     const batch = await api(`/releases/${release.id}/assets?per_page=100&page=${page}`);
     assert.ok(Array.isArray(batch), 'GitHub release assets unavailable');
     assets.push(...batch);
     if (batch.length < 100) break;
-    assert.ok(page < 2, 'too many assets in backup release');
+    assert.ok(page < 12, 'too many assets in backup release');
   }
   // Manifest is uploaded last, so a partially transferred release cannot look complete.
-  const files = [...manifest.databases.map(entry => entry.file), 'manifest.json'];
-  for (const file of files) {
-    assert.ok(file === 'manifest.json' || /^codepi-[a-z]+\.sql\.enc$/.test(file), 'invalid backup filename');
-    const object = await bucket.get(`${prefix}/${file}`);
+  const files = [
+    ...manifest.databases.map(entry => ({ ...entry, key: `${prefix}/${entry.file}` })),
+    ...(manifest.materials?.entries ?? []).map(entry => ({ ...entry, key: `${prefix}/materials/${entry.file}` })),
+    { file: 'manifest.json', key: `${prefix}/manifest.json`,
+      sha256: createHash('sha256').update(JSON.stringify(manifest)).digest('hex') },
+  ];
+  assert.equal(new Set(files.map(entry => entry.file)).size, files.length, 'duplicate backup filenames');
+  for (const { file, key, sha256 } of files) {
+    assert.ok(file === 'manifest.json' || /^codepi-[a-z]+\.sql\.enc$/.test(file)
+      || /^gu-material-[a-f0-9-]{36}\.bin\.enc$/.test(file), 'invalid backup filename');
+    const object = await bucket.get(key);
     assert.ok(object, 'R2 backup object missing during offsite copy');
     const hash = await objectDigest(object);
-    const expected = file === 'manifest.json'
-      ? createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
-      : manifest.databases.find(entry => entry.file === file)?.sha256;
-    assert.equal(hash, expected, 'R2 backup does not match the complete manifest');
+    assert.equal(hash, sha256, 'R2 backup does not match the complete manifest');
     const digest = `sha256:${hash}`;
     const existing = assets.filter(asset => asset.name === file);
     assert.ok(existing.length <= 1, 'duplicate GitHub backup asset');
@@ -41,7 +45,7 @@ export async function offsiteRelease(manifest, prefix, bucket, { token, request 
         'GitHub backup asset cannot be verified; preserve it for investigation');
       continue;
     }
-    const upload = await bucket.get(`${prefix}/${file}`);
+    const upload = await bucket.get(key);
     assert.ok(upload?.etag === object.etag && upload?.size === object.size,
       'R2 backup object changed before offsite copy');
     const asset = await api(`/releases/${release.id}/assets?name=${encodeURIComponent(file)}`, {

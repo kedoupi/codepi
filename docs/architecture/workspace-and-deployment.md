@@ -68,12 +68,17 @@ kdp.cool/
 | Health API | Health D1、Oura 授权、同步、查询和统计 | AUTH Service Binding；`HealthMcp` named RPC 供 MCP 调用 |
 | Auth | 中央身份、OTP 和网站会话 D1 | 服务 GU、Health、GZH、Desk、MCP 五个 SSO 客户端 |
 | MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；HEALTH named RPC；不直接绑定 Health D1 |
-| Ops | 无业务 D1、无公网入口；R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出六库；GitHub API 读取版本历史并复制密文 |
+| Ops | 无业务 D1、无公网入口；R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出六库；经 GU named RPC 只读原件；GitHub API 读取版本历史并复制密文 |
 
 四个产品对应五个部署单元（Health 前后端分开），加 Auth/MCP/Ops 共八个 Worker。
 六个 D1 分别属于 Auth、Desk、GU、GZH、Health、MCP；统一 workspace 不等于合库。
 网站 SSO、Oura 授权和 AI 客户端授权保持各自生命周期，不能相互替代或透传 token。
 具体域名、资源 ID 与部署证据由根 README 和资源登记表维护，不在本表复制。
+
+GU 线上工作台第一阶段在任务分支实现：账户、交易、规则与报告以 GU D1 的确认版本为准，
+原件由 GU 经鉴权访问独立私有 R2；首次确认前可预览旧快照，启用后旧上传不能覆盖账户。
+业务逻辑仍归 GU，不抽到 MCP 或共享层。当前尚未发布、创建远程 R2 或迁移真实资料，
+实现与验收证据见 [GU 线上工作台任务](../development/tasks/2026-10-19-gu-online.md)。
 
 ## 部署模型
 

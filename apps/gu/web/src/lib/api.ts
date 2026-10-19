@@ -8,7 +8,7 @@ export async function api(path: string, body?: unknown, method?: string) {
   const version = session.loadVersion;
   const response = await fetch(path, {
     method: method || (body === undefined ? "GET" : "POST"),
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    headers: body === undefined ? { "X-GU-Workspace": "1" } : { "Content-Type": "application/json", "X-GU-Workspace": "1" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     credentials: "same-origin",
     cache: "no-store",
@@ -45,5 +45,23 @@ export async function api(path: string, body?: unknown, method?: string) {
       },
     );
   }
+  if (!isAuthEndpoint && version !== session.loadVersion)
+    throw new Error("会话或数据读取已变化，请重新读取");
+  return result;
+}
+
+export async function uploadFile(file: File) {
+  const version = session.loadVersion;
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/materials", { method: "POST", body: form,
+    credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(60_000) });
+  if (response.status === 401) {
+    if (version === session.loadVersion) session.clear();
+    throw new Error("登录已过期，请重新登录");
+  }
+  const result = await response.json() as Record<string, unknown>;
+  if (version !== session.loadVersion) throw new Error("会话已变化，请重新读取");
+  if (!response.ok) throw new Error(String(result.error || "上传失败"));
   return result;
 }

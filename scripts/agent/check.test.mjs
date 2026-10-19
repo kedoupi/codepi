@@ -69,7 +69,18 @@ test('Health keeps both browser modes via its existing runner', () => {
 test('GU deployment check is explicitly local configuration only', () => {
   const checks = makePlan(['apps/gu/worker/index.ts']).checks;
   assert.ok(checks.some(check => check.argv.includes('test:scripts')));
-  assert.deepEqual(checks.at(-1).argv, ['npm', 'run', 'check:deploy', '--', '--mode', 'config']);
+  assert.ok(checks.some(check => check.cwd === 'apps/gu'
+    && check.argv.join(' ') === 'npm run check:deploy -- --mode config'));
+});
+
+test('GU server and schema changes validate the Ops material consumer; UI changes stay isolated', () => {
+  for (const file of ['apps/gu/worker/materials-backup.ts', 'apps/gu/worker/materials.ts',
+    'apps/gu/worker/index.ts', 'apps/gu/migrations/0003_online_workspace.sql']) {
+    const plan = makePlan([file]);
+    assert.deepEqual(plan.apps, ['gu', 'ops']);
+    assert.ok(plan.checks.some(check => check.cwd === 'services/ops' && check.argv.includes('test:runtime')));
+  }
+  assert.deepEqual(makePlan(['apps/gu/web/src/App.svelte']).apps, ['gu']);
 });
 
 test('migration changes select the append-only guard and its tests', () => {

@@ -76,6 +76,10 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
 | Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
 
+GU 原件备份首次启用需先完成 GU migration、私有 `MATERIALS` bucket 与 GU 发布，
+再发布绑定 `GuMaterialsBackup` 的 Ops。随后触发完整备份并核验六库、原件、
+跨平台回执及恢复；新巡检不接受旧的 D1-only 回执。详见[定时运维](cloudflare-operations.md#gu-原件)。
+
 六个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
 `BUILD_SHA=<SHA前12位>`，输出实际 version ID；smoke 仍须按第 4 节完成。
 此命令在协调者已有发布锁内运行，不代替构建、迁移和完整发布流程。

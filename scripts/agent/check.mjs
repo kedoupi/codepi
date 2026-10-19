@@ -88,6 +88,7 @@ export function makePlan(files) {
       if (app) {
         apps.add(app);
         if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/shared/')) apps.add('mcp');
+        if (file.startsWith('apps/gu/worker/') || file.startsWith('apps/gu/migrations/')) apps.add('ops');
       }
       else manual.push(file);
     }

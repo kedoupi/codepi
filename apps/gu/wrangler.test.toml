@@ -8,3 +8,7 @@ binding = "DB"
 database_name = "gu-test"
 database_id = "00000000-0000-0000-0000-000000000002"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MATERIALS"
+bucket_name = "gu-materials-test"

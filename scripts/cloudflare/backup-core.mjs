@@ -47,7 +47,7 @@ export function encrypt(sql, publicKey, metadata = {}) {
   return Buffer.concat([prefix, ciphertext]);
 }
 
-export function decrypt(payload, privateKey) {
+export function decrypt(payload, privateKey, { maxBytes } = {}) {
   assert.ok(payload.length > 28 && payload.subarray(0, 8).equals(MAGIC), 'unsupported backup envelope');
   const size = payload.readUInt32BE(8);
   assert.ok(size > 0 && size <= 4096 && payload.length > 12 + size + 16, 'invalid backup header');
@@ -62,7 +62,7 @@ export function decrypt(payload, privateKey) {
   decipher.setAAD(header);
   decipher.setAuthTag(payload.subarray(12 + size, 28 + size));
   const compressed = Buffer.concat([decipher.update(payload.subarray(28 + size)), decipher.final()]);
-  return { sql: gunzipSync(compressed), metadata: info.metadata };
+  return { sql: gunzipSync(compressed, maxBytes === undefined ? {} : { maxOutputLength: maxBytes }), metadata: info.metadata };
 }
 
 export async function cloudflareApi(endpoint, body, { accountId, token, request = fetch }) {

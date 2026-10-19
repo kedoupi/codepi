@@ -1,5 +1,15 @@
 # Cloudflare 资源登记表
 
+2026-10-19 GU 原件备份接续（本地实施，未发布）：Ops 配置增加精确的
+`GU → codepi-gu#GuMaterialsBackup` 只读 binding，原件独立公钥加密，
+v2 完整清单覆盖六库与有索引原件。远程 binding、真实原件备份、跨平台复制和恢复
+仍待授权发布后验收；下表原 Ops 六库验收记录不代表新原件能力已上线。
+
+2026-10-19 GU 线上工作台第一阶段（本地实施，未发布）：预留私有 R2
+`codepi-gu-uploads`，仅由 GU 的 `MATERIALS` binding 访问。尚未创建或核验远程 bucket；
+`planned` 不表示原件存储、公开访问关闭或备份已经就绪。发布前按
+[GU 任务记录](tasks/2026-10-19-gu-online.md)核对资源、迁移和恢复边界。
+
 2026-10-19 大库备份修复发布：PR #104 合并为
 `da3324db27bf3562cf5515237f1f5b6dfe197488`，与已验证分支
 `69a9254349c729ed2104772c5f1cdba0fc86ee30` 的 tree 一致。当前 Codex 从干净且
@@ -305,6 +315,7 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 7ec36e4e-0682-4e42-8e4a-fc87c030fd37；BUILD_SHA da3324db27bf；public endpoints/logs/rollout 已核验 |
 | workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 workflow d91cf7e9-4519-4523-8bb1-4fe1d3b23a25；acceptance-backup-da3324d 六库 R2 完整，offsite 因缺 GitHub token errored；巡检仅剩 GitHub 相关两项失败 |
 | r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、managed domain 关闭、backups/ 与 reports/ 各 14 天生命周期；六库密文、manifest、完成回执、SHA-256 和既有私钥内存解密通过 |
+| r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS | 无公开域名（要求，未核验） | apps/gu/wrangler.toml | planned | 2026-10-19 仅本地声明，未创建、未核验公开访问及备份 |
 <!-- registry-table:end -->
 
 ## 2026-10-16 只读盘点
