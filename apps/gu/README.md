@@ -43,6 +43,11 @@ Schema 由 `worker/workspace-types.ts` 和 `workspace-validation.ts` 定义。�
 
 ### 发布前置与数据迁移
 
+2026-10-19 已经 PR #107 完成 migration、私有资料桶及 GU → Ops 发布，
+真实 GU D1 隔离恢复通过；生产仍为 revision 0、资料 0 件，尚未执行首次确认或真实资料迁移。
+跨平台副本与非空真实原件恢复仍未验收，具体见[任务证据](../../docs/development/tasks/2026-10-19-gu-online.md#实际发布与验收)。
+以下为流程约定，不能据此重复创建既有资源或自动导入账户。
+
 1. 在授权发布中创建并核验私有 R2 `codepi-gu-uploads`（`MATERIALS`），关闭公开域名和公开 r2.dev；登记状态由 `planned` 更新为实际证据。
 2. 对 GU D1 应用追加迁移 `0003_online_workspace.sql`，然后发布兼容代码。迁移本身不启用线上模式、不复制或删除真实数据。
 3. 在登录后从旧快照/导出文件建立草稿，补充规则与原始报告；核实之后确认首次保存。确认前旧批次模式继续可读。
