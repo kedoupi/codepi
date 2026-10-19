@@ -38,13 +38,16 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
 Time Travel bookmark；六库本机导出和解密记录保留在早期任务中。
 
-2026-10-19 的[最新验收](tasks/2026-10-19-cloudflare-operations.md#大库修复发布与真实验收)
-已确认 Cloudflare Workflow 完成六库 R2 密文、manifest 与完成回执，现有恢复私钥内存
-解密 6/6 通过。跨平台 Release 副本和云端 GitHub 版本核对仍因缺少 `GITHUB_TOKEN`
+2026-10-19 的[最新验收](tasks/2026-10-19-gu-online.md#真实备份与隔离恢复)
+已确认 Cloudflare Workflow 完成六库 R2 密文、v2 manifest 与原件覆盖回执，现有恢复私钥内存
+解密 6/6 通过；真实 GU SQL 导入隔离 D1 后，11 张表、21 行的 schema 和全部内容核对一致。
+跨平台 Release 副本和云端 GitHub 版本核对仍因缺少 `GITHUB_TOKEN`
 失败；待所有者方便时配置后复验，不能把 R2 完整成功写成跨平台恢复保障已完成。
 该次执行也不替代后续定时新鲜度和异机恢复演练。
 
-GU 原件链路为后续本地实现，尚未发布；不能用上述六库记录断言原件已有生产副本。
+GU 原件链路已按 GU → Ops 顺序发布并核验只读 named RPC；生产资料索引为 0，
+这次真实原件恢复为 0 件，不能声称非空真实原件已有恢复证据。
+隔离远程 D1/R2 的合成资料鉴权下载通过；首次上传真实资料后须补非空备份和恢复。
 原件通过 GU 的只读 named RPC 取得，公钥格式、私钥位置与 D1 共用；
 原件的大小和内容 SHA-256、密文大小和 SHA-256 分别保存。完整回执含原件覆盖信息，
 旧 D1-only 回执不满足新巡检。具体一致性与上限见[定时运维](cloudflare-operations.md#gu-原件)。
