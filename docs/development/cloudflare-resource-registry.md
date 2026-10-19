@@ -1,14 +1,19 @@
 # Cloudflare 资源登记表
 
-2026-10-19 GU 原件备份接续（本地实施，未发布）：Ops 配置增加精确的
-`GU → codepi-gu#GuMaterialsBackup` 只读 binding，原件独立公钥加密，
-v2 完整清单覆盖六库与有索引原件。远程 binding、真实原件备份、跨平台复制和恢复
-仍待授权发布后验收；下表原 Ops 六库验收记录不代表新原件能力已上线。
-
-2026-10-19 GU 线上工作台第一阶段（本地实施，未发布）：预留私有 R2
-`codepi-gu-uploads`，仅由 GU 的 `MATERIALS` binding 访问。尚未创建或核验远程 bucket；
-`planned` 不表示原件存储、公开访问关闭或备份已经就绪。发布前按
-[GU 任务记录](tasks/2026-10-19-gu-online.md)核对资源、迁移和恢复边界。
+2026-10-19 GU 线上工作台与原件备份已发布：PR #107 合并为
+`05d9d61ce574377a59acfb674f383f2fc24ad4b4`，当前 Codex 从同树、干净且等于
+实时远程 main 的源码持锁，完成 GU migration、私有 `codepi-gu-uploads` 及
+GU → Ops 发布。两个 Worker 均为唯一活跃版本、`BUILD_SHA=05d9d61ce574`；
+Ops 的 `GU → codepi-gu#GuMaterialsBackup`、私有入口、Cron 与持久日志已核验。
+真实实例 `acceptance-gu-05d9d61ce574` 于 `2026-10-19T15:08:11.074Z` 完成六库
+R2 密文和 v2 清单，六库大小/SHA-256/GCM/身份及内存解密 6/6 通过。
+GU 恢复到全新隔离 D1 后，11 表/21 行及全部内容核对一致；
+生产资料为 0 件，非空真实原件恢复仍未验收，隔离远程 D1/R2 合成鉴权下载通过。
+本地生产巡检 24/24；云端巡检 17/19，GitHub 版本核对与跨平台复制仍因缺少
+`GITHUB_TOKEN` 失败，备份 Workflow 为 errored，不能称运维全部完成。
+临时恢复资源保留并登记在资源表之后，不接生产 binding，也不建立长期环境。
+详细版本、恢复与剩余项见 [GU 任务记录](tasks/2026-10-19-gu-online.md#实际发布与验收)。
+以下大库修复等记录保留为历史证据。
 
 2026-10-19 大库备份修复发布：PR #104 合并为
 `da3324db27bf3562cf5515237f1f5b6dfe197488`，与已验证分支
@@ -267,7 +272,7 @@ secret 值、个人数据或 OAuth refresh token。
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
 | worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-19 source 767fb0b3d63a |
 | pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-gu | production | worker | codepi-gu | kedoupi | 投资追踪 GU | private-user-data | 终端用户、worker-www | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 source 767fb0b3d63a |
+| worker-gu | production | worker | codepi-gu | kedoupi | 投资线上工作台 GU | private-user-data | 终端用户、worker-www、worker-ops named RPC | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 version d26774e4-bb80-490d-a63e-d3245bf6c211；BUILD_SHA 05d9d61ce574；SSO smoke 与私有接口拒绝通过 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 source 767fb0b3d63a |
 | pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
@@ -277,7 +282,7 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-health-api | production | worker | codepi-health-api | kedoupi | Health API；统一 MCP named RPC | private-health-data | worker-health（service binding）、worker-mcp（HealthMcp RPC） | 无公网 routes，经 service binding 访问 | apps/health/workers/api/wrangler.toml | managed | 2026-10-19 source 767fb0b3d63a |
 | d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-18 |
 | d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-18 |
-| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-18 |
+| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-19 migration 0003；真实备份隔离恢复 11 表/21 行通过，线上 revision 0 |
 | d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-18 |
 | d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 |
 | d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
@@ -312,11 +317,22 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-19 source 767fb0b3d63a |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
-| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 7ec36e4e-0682-4e42-8e4a-fc87c030fd37；BUILD_SHA da3324db27bf；public endpoints/logs/rollout 已核验 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 workflow d91cf7e9-4519-4523-8bb1-4fe1d3b23a25；acceptance-backup-da3324d 六库 R2 完整，offsite 因缺 GitHub token errored；巡检仅剩 GitHub 相关两项失败 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、managed domain 关闭、backups/ 与 reports/ 各 14 天生命周期；六库密文、manifest、完成回执、SHA-256 和既有私钥内存解密通过 |
-| r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS | 无公开域名（要求，未核验） | apps/gu/wrangler.toml | planned | 2026-10-19 仅本地声明，未创建、未核验公开访问及备份 |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 6818aef1-8144-4e10-bb49-3faa1c46ef8c；BUILD_SHA 05d9d61ce574；public endpoints/logs/rollout/GU entrypoint 已核验 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 acceptance-gu-05d9d61ce574 六库 R2 v2 完整、原件 0 件，offsite 因缺 GitHub token errored；云端巡检 17/19，剩 GitHub 相关两项失败 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、两个 14 天生命周期；v2 清单、六库 SHA-256/GCM/身份/内存解密 6/6 及 GU 隔离导入通过；非空真实原件未验收 |
+| r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-19 已创建；r2.dev 关闭、custom domains 为空；生产索引 0 件，不代表非空恢复已验收 |
 <!-- registry-table:end -->
+
+## 2026-10-19 临时恢复演练资源
+
+以下是 PR #107 的隔离副本，不接生产 binding，不是新的长期环境。
+真实 GU D1 恢复校验后，额外写入了合成会话和一份合成资料探针，仅用于鉴权下载验收；
+资源含私人数据，保留供复核，清理按单独授权执行。不纳入每日生产六库清单。
+
+| 类型 | 名称 / ID | 数据与访问 | 状态 / 证据 |
+| --- | --- | --- | --- |
+| D1 | `codepi-gu-pr-107` / `c46d093c-dc25-4bf9-98e2-127016927b4f` | 真实 GU 备份隔离副本及合成验收记录；无公开应用绑定 | 保留；导入后 11 表/21 行内容一致，合成验收前留存摘要 |
+| R2 | `codepi-gu-uploads-pr-107` | 真实恢复原件 0 件，另有一份合成探针；r2.dev 关闭、无 custom domain | 保留；隔离 GU 登录下载、attachment/no-store、逐字节核对通过，本机服务已停止 |
 
 ## 2026-10-16 只读盘点
 
