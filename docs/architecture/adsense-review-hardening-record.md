@@ -1,7 +1,8 @@
 # AdSense 低价值内容拒审：止血与发布记录
 
-> 用途：记录 2026-10-10 针对 Google AdSense「低价值内容」拒审的诊断、P0/P1 改动、Cloudflare 部署事故与可复用工作流。  
-> 不替代 `README.md` 的日常运维表；过审后的 `<ins>` 切换仍以 README §Post-approval 为准。
+> 状态：2026-10-10 广告阶段的历史诊断与发布记录。广告与旧工具站已退役，
+> 下文审核、广告启用和部署建议不再适用，不恢复 `<ins>` 或 Post-approval 流程。
+> 当前方向见[根 README](../../README.md)，现行操作见[开发导航](../development/README.md)。
 
 ## 1. 背景与目标
 

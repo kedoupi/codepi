@@ -1,5 +1,10 @@
 # MCP 运维补齐
 
+> 阶段记录：后续调度已迁到 Cloudflare，Health 同步新鲜度与六库 R2 备份已验收，
+> 见[定时运维任务](2026-10-19-cloudflare-operations.md)。Claude 手机端已有
+> [所有者使用确认](2026-10-18-unified-mcp.md#2026-10-19-claude-手机端使用确认)。
+> 下文 runner/同步阻塞保留原时点；当前待办从[任务索引](README.md)接续，不要求恢复旧 Actions 调度。
+
 - 状态：代码已合并并完成五个 Worker 的本机发布，六库本地备份已验收。
   完整巡检 22/23；GitHub runner 已确认受账户免费分钟耗尽和零额外预算阻塞。
   Health 当前同步在正常推进，整轮完成的新鲜度告警及六库异机 artifact 仍待验收。

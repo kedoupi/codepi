@@ -22,7 +22,8 @@ kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`。�
 
 ## Quick start
 
-需要 Node ≥ 20 与 [pnpm](https://pnpm.io/) 9+。
+完整项目检查使用 Node 24；pnpm 版本遵循根 `package.json` 的 `packageManager`。
+统一从仓库根安装，当前应用自己的目录不另建 lockfile。
 
 ```bash
 cd <repository-root>
@@ -50,7 +51,9 @@ pnpm dev:api
 
 - `GET /api/auth/oura/start` 仍 **302** 到真实 Oura authorize URL 形状（`cloud.ouraring.com/oauth/authorize?...`，`client_id` 默认为文档占位 `oura_dev_placeholder_client_id`）
 - 生产主机且无 `OURA_CLIENT_ID` → **503**（不会签发假生产 token）
-- 本地可用 **DEV 演示登录**（`GET /api/auth/dev/session`）写入 HttpOnly session；`/api/me/daily` 返回 **kedoupi 个人看板真实日数据**（嵌套 `days[]`），不是编造序列
+- 本地可用 **DEV 演示登录**（`GET /api/auth/dev/session`）写入 HttpOnly session；
+  `/api/me/daily` 返回 `data/synthetic-board.ts` 中的生成式合成样本（嵌套 `days[]`），
+  不读取真实个人数据或旧线上回退接口
 
 真实 OAuth：在 [Oura applications](https://cloud.ouraring.com/oauth/applications) 创建应用，把 `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET` 写入 `.dev.vars` 或 `wrangler secret put`。callback 用 `TOKEN_ENCRYPTION_KEY` 做 AES-GCM 后把 **refresh_token** 写入 D1；前端永不拿到 token。
 

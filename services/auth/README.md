@@ -1,6 +1,6 @@
 # KDP unified login
 
-`codepi-auth` is the first-party login Worker for Health, GU, GZH and the personal desk. It accepts no
+`codepi-auth` is the first-party login Worker for Health, GU, GZH, the personal desk and CodePi MCP. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `packages/shared/brand.ts`.
@@ -24,26 +24,34 @@ client IDs to additional exact callback URLs. It follows the same validation as
 the secret registry and never accepts browser-supplied registrations. The URLs
 are merged with each client's `SSO_CLIENTS.redirectUris`; adding a callback does
 not require rotating unrelated client credentials. Removing one requires checking
-both sources. Keep production and staging callbacks separate; current bindings
+both sources. Keep synthetic local callbacks separate from production; staging is retired. Current bindings
 and dated verification evidence are in the [CF resource registry](../../docs/development/cloudflare-resource-registry.md).
 
 Optional per-client secrets `SSO_CLIENT_SECRET_GU`, `SSO_CLIENT_SECRET_OURA`,
-`SSO_CLIENT_SECRET_GZH` and `SSO_CLIENT_SECRET_DESK` override only the matching
+`SSO_CLIENT_SECRET_GZH`, `SSO_CLIENT_SECRET_DESK` and `SSO_CLIENT_SECRET_MCP` override only the matching
 registered client's secret. An absent override retains `SSO_CLIENTS.secret` for
 existing clients; an empty or short override fails closed. Callback registration
 still comes from the registry and `SSO_EXTRA_REDIRECT_URIS`.
 
+MCP also has an opt-in registration: when `SSO_CLIENT_SECRET_MCP` is present and
+the JSON registry has no `mcp` entry, the center adds that client with the exact
+`https://mcp.codepi.app/api/auth/callback` URI. Extra callbacks are then validated
+normally. Pair its secret with `codepi-mcp/AUTH_CLIENT_SECRET` using the dedicated
+procedure in [local release](../../docs/development/local-release.md#mcp-secret-配对与修复);
+do not rewrite `SSO_CLIENTS` or rotate the other clients to add MCP.
+
 Use these bindings to recover or rotate one client without reading or rewriting
 other credentials in the write-only JSON registry. Set the same new value on the
-center and that app's `AUTH_CLIENT_SECRET`, then redeploy the Pages app through
-the release workflow. Keep the value out of logs and files. Existing sessions for
+center and that client's `AUTH_CLIENT_SECRET` through the authorized pairing/release
+procedure. Keep the value out of logs and files. Existing website sessions for
 that app need a fresh login because their stored references use the old key.
-This does not rotate the center session, OTP, provider or MCP credentials.
+This does not rotate the center session, OTP or provider credentials, and does not
+revoke existing MCP bearer grants.
 
-Health is the exception: its SSO logic and `AUTH_CLIENT_SECRET` are consumed by
-the `codepi-health-api` Worker, while the Pages project only forwards requests.
-To rotate `oura`, update the API Worker's binding instead of the Pages project
-and redeploy through the release workflow with `app=health`.
+Health's SSO logic and `AUTH_CLIENT_SECRET` are consumed by `codepi-health-api`;
+its frontend Worker only forwards API requests. To rotate client ID `oura`,
+update the API Worker's binding, not the frontend. All products now use Workers;
+deployment follows the local release procedure.
 
 Applications bind `AUTH` to this Worker and configure their own `AUTH_CLIENT_ID`,
 `AUTH_CLIENT_SECRET`, `AUTH_ORIGIN` and `SSO_ENABLED`.
@@ -59,21 +67,22 @@ pnpm --dir services/auth typecheck
 pnpm --dir services/auth build
 ```
 
-The tests run the built center plus four real shared-client Workers with service
+The Auth test harness runs the built center plus four synthetic shared-client Workers with service
 bindings and independent D1 databases. Only mail delivery is replaced locally.
 The test registry contains synthetic identities and secrets, and is never
-included in the production bundle.
+included in the production bundle. MCP opt-in registration is tested here;
+the MCP service's own checks cover its protocol, RPC and browser authorization flow.
 
-`node scripts/verify-production.mjs` is an explicit live acceptance test. It sends
-one owner OTP, reads that message through the authorized Resend API without
-logging its contents, signs into all three production apps, and revokes its own
-browser session. It requires the existing `RESEND_API_KEY` environment variable.
-Use `--pause-after-gu` during staged deployments to validate GU before continuing.
-This test is intentionally not part of CI and does not run automatically.
+`scripts/verify-production.mjs` is a legacy live acceptance script, not the
+current release entry. It sends an owner OTP and reads mail through Resend;
+it still includes the retired `codepi-gu.pages.dev` target and does not cover
+Desk/MCP. Correct its targets and obtain the required live-mail authorization
+before using it. Current probes and acceptance steps are in
+[local release](../../docs/development/local-release.md); ordinary tests do not send mail.
 
 For a local browser smoke test, run `node scripts/browser-fixture.mjs`, then open
 `http://localhost:8801/api/auth/login`. The local center uses port 8795 and the
-other clients use 8802/8803. Local fixture OTPs are available in the request-OTP
+other clients use 8802/8803/8804. Local fixture OTPs are available in the request-OTP
 JSON response; production never exposes them.
 
 ## Security and operations
@@ -100,15 +109,15 @@ Remote migrations and deployment use the controlled workflow defined in the
 and recovery steps in the [integration/release workflow](../../docs/development/integration-release.md).
 Do not use an ad hoc `npm run deploy` as the default release path.
 
-The committed `wrangler.jsonc` selects production D1 `codepi-auth` and, under
-production only; the retired `env.staging` (`codepi-auth-staging`) was removed on 2026-10-18. Verify the selected
+The committed `wrangler.jsonc` selects production D1 `codepi-auth`;
+the retired `env.staging` (`codepi-auth-staging`) was removed on 2026-10-18. Verify the selected
 environment and resource ID against the registry before any authorized remote
 migration. Migration state is not inferred from this README.
 
 For local-only initialization, run from `services/auth/`:
 
 ```sh
-npx wrangler d1 migrations apply codepi-auth --local
+pnpm exec wrangler d1 migrations apply codepi-auth --local
 ```
 
 The [original SSO rollout plan](../../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md)

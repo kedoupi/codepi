@@ -25,6 +25,8 @@ Claude 的 skill 入口只有名称、触发描述和共享文件路径，不复
 在分配给本任务的工作目录操作。
 先读取 AGENTS.md，再读取 .agents/skills/kdp-dev/SKILL.md，
 修改目标目录前读取它的局部 AGENTS.md。
+按 docs/development/README.md 选择相关说明；
+续做时从 docs/development/tasks/README.md 找到任务记录并核对当前文件。
 任务：……
 验收：……
 允许修改：……
@@ -48,6 +50,9 @@ Claude 的 skill 入口只有名称、触发描述和共享文件路径，不复
 ## 当前验证边界
 
 入口格式按官方文档核对于 2026-10-15。该日期不是之后新增 skill 的客户端验收日期。本地文件引用、共享 skill 格式与脚本回归检查不能替代端到端会话测试；未逐一启动 Claude Code、Cursor、Gemini CLI 或 Copilot 验收。自动发现还受安装版本、项目可信状态与用户配置影响，首次使用按上面的步骤验收。Copilot 不同界面及模式的指令支持也可能不同。
+
+Claude 手机端使用 Health MCP 的反馈记录在[MCP 任务](tasks/2026-10-18-unified-mcp.md)；
+编码 CLI 的规范加载与 skill 执行需要各自验收，不能由业务 MCP 使用确认推定。
 
 规范通过 Git 版本管理分发。新任务应从包含这组规范的基线开始；已有 worktree 或远程 checkout 不会自动跟随主分支更新。继续已有任务时，先检查当前改动，再按用户授权同步所需版本，不能为了加载规范而覆盖在途工作。工具若缓存项目指令，需要刷新或重新启动会话，并重新执行上面的接入验收。
 

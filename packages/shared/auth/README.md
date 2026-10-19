@@ -13,7 +13,7 @@ Required configuration when `SSO_ENABLED=1`:
 - `DB`: the application's existing database with the SSO migration applied.
 - `AUTH`: service binding to the central auth Worker.
 - `AUTH_ORIGIN`: the central HTTPS origin, without a path or query.
-- `AUTH_CLIENT_ID`: `gu`, `oura` (Health's existing client ID), `gzh` `desk` or `mcp`.
+- `AUTH_CLIENT_ID`: `gu`, `oura` (Health's existing client ID), `gzh`, `desk` or `mcp`.
 - `AUTH_CLIENT_SECRET`: a separate secret per application, also registered centrally.
 
 Only the central subject `kdp-owner` is accepted. The application supplies the
