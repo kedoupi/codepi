@@ -21,9 +21,9 @@ export function keyId(publicKey) {
   return createHash('sha256').update(key.export({ type: 'spki', format: 'der' })).digest('hex');
 }
 
-// CI receives only the public recipient. Each export uses a fresh AES key,
-// wrapped with RSA-OAEP; all envelope metadata is authenticated as GCM AAD.
-export function encrypt(sql, publicKey, metadata = {}) {
+// The tag precedes ciphertext in KDPB001. Streaming writers retain the first
+// multipart part until finalization so old recovery tools can read new backups.
+export function createEnvelope(publicKey, metadata = {}) {
   const key = randomBytes(32);
   const iv = randomBytes(12);
   const header = Buffer.from(JSON.stringify({
@@ -34,10 +34,17 @@ export function encrypt(sql, publicKey, metadata = {}) {
   }));
   const cipher = createCipheriv('aes-256-gcm', key, iv);
   cipher.setAAD(header);
-  const ciphertext = Buffer.concat([cipher.update(gzipSync(sql)), cipher.final()]);
+  key.fill(0);
   const size = Buffer.alloc(4);
   size.writeUInt32BE(header.length);
-  return Buffer.concat([MAGIC, size, header, cipher.getAuthTag(), ciphertext]);
+  return { cipher, prefix: Buffer.concat([MAGIC, size, header, Buffer.alloc(16)]) };
+}
+
+export function encrypt(sql, publicKey, metadata = {}) {
+  const { cipher, prefix } = createEnvelope(publicKey, metadata);
+  const ciphertext = Buffer.concat([cipher.update(gzipSync(sql)), cipher.final()]);
+  cipher.getAuthTag().copy(prefix, prefix.length - 16);
+  return Buffer.concat([prefix, ciphertext]);
 }
 
 export function decrypt(payload, privateKey) {
@@ -95,8 +102,7 @@ export async function exportDatabase(databaseId, options) {
   }
 }
 
-// Keep the raw export bounded: gzip and encryption also allocate memory in a Worker.
-export async function encryptedExport(name, databaseId, publicKey, createdAt, options) {
+export async function downloadExport(databaseId, options) {
   const url = new URL(await exportDatabase(databaseId, options));
   assert.ok(url.protocol === 'https:' && url.hostname.endsWith('.r2.cloudflarestorage.com'),
     'export download URL must be a Cloudflare HTTPS object');
@@ -106,28 +112,10 @@ export async function encryptedExport(name, databaseId, publicKey, createdAt, op
       redirect: 'manual', signal: AbortSignal.timeout(120000),
     });
   } catch { throw new Error('D1 export download failed (network)'); }
-  assert.ok(response.ok && response.body, `export download failed: HTTP ${response.status}`);
-  const limit = options.maxBytes ?? 16 * 1024 * 1024;
-  const reader = response.body.getReader();
-  const chunks = [];
-  let bytes = 0;
-  try {
-    for (;;) {
-      let chunk;
-      try { chunk = await reader.read(); }
-      catch { throw new Error('D1 export download failed (stream)'); }
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      assert.ok(bytes <= limit, 'D1 export exceeds the Worker memory safety limit');
-      chunks.push(Buffer.from(chunk.value));
-    }
-  } finally {
-    await reader.cancel();
+  if (!response.ok || !response.body) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(`export download failed: HTTP ${response.status}`);
   }
-  assert.ok(bytes > 0, 'D1 export is empty');
-  const metadata = { database: name, database_id: databaseId, created_at: createdAt };
-  const encrypted = encrypt(Buffer.concat(chunks), publicKey, metadata);
-  return { encrypted, entry: { ...metadata, file: `${name}.sql.enc`, bytes: encrypted.length,
-    sha256: createHash('sha256').update(encrypted).digest('hex') } };
+  return response.body;
 }
 
