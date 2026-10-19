@@ -7,4 +7,5 @@ packages:
   - apps/health/workers/*
   - services/auth
   - services/mcp
+  - services/ops
   - packages/shared

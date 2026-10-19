@@ -1,0 +1,42 @@
+name = "codepi-ops"
+main = "src/index.mjs"
+compatibility_date = "2026-10-19"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+routes = []
+rules = [{ type = "Text", globs = ["**/backup-public-key.pem"], fallthrough = true }]
+
+[vars]
+ENVIRONMENT = "production"
+CLOUDFLARE_ACCOUNT_ID = "69f1de4c8f3c7411593613711207e7b3"
+BUILD_SHA = "local"
+
+[triggers]
+crons = ["*/30 * * * *", "0 18 * * *"]
+
+[limits]
+cpu_ms = 300000
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.issues]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+head_sampling_rate = 1
+
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "codepi-ops-backups"
+
+[[workflows]]
+binding = "OPERATIONS"
+name = "codepi-ops"
+class_name = "OperationsWorkflow"

@@ -107,12 +107,12 @@ test('drift checks the active version of all seven Workers and never silently sk
   const f = await fixture(t);
   const main = await f.commit('apps/health/apps/web/src/main.ts');
   const results = await checkReleaseDrift({ env, cwd: f.cwd, request: workerRequests(f.base) });
-  assert.equal(results.length, 7);
+  assert.equal(results.length, Object.keys(WORKERS).length);
   assert.equal(results.filter(r => !r.ok).length, 1);
   assert.match(results.find(r => !r.ok).name, /codepi-health active/);
   assert.match(results.find(r => !r.ok).detail, /unreleased changes/);
   const missing = await checkReleaseDrift({ env, cwd: f.cwd, request: workerRequests(undefined) });
-  assert.equal(missing.filter(r => !r.ok).length, 7);
+  assert.equal(missing.filter(r => !r.ok).length, Object.keys(WORKERS).length);
   const current = await checkReleaseDrift({ env, cwd: f.cwd, request: workerRequests(main.slice(0, 12)) });
   assert.ok(current.every(r => r.ok && r.main === main.slice(0, 12)));
 });
@@ -156,5 +156,5 @@ test('SHA-stamped deploy targets only the five simple Workers and requires exact
   f.git('checkout', '-b', 'unmerged');
   const side = await f.commit('services/mcp/src/change.ts');
   assert.throws(() => deployWorker('auth', side, { cwd: f.cwd, execute }), /remote main/);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, Object.keys(DEPLOY_DIRS).length);
 });

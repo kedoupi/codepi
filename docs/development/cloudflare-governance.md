@@ -35,8 +35,8 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`。
-`role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`mcp`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`。
+`role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`mcp`、`backups`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
 
@@ -108,12 +108,12 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 - 每个服务记录实际 source SHA、provider version ID、smoke 结果和时间到
   `deployment-evidence.mjs` JSONL（Git 外），再在资源登记表和任务回填证据。
   无真实 version ID 或 smoke 失败不标成功；登录、提供方授权和数据同步独立验收。
-- 七个 Worker 的活跃版本均须带 `BUILD_SHA`。普通 Worker 通过
+- 八个 Worker 的活跃版本均须带 `BUILD_SHA`。普通 Worker 通过
   `scripts/cloudflare/deploy-worker.mjs` 注入，Health API/MCP 由专用脚本注入；
   Health 前端允许这一构建元数据，但不恢复业务 vars。MCP deploy 自动执行配对和匿名
   契约 smoke，失败不能进入下一发布阶段。
-- `production-monitor.yml` 与 `d1-backup.yml` 仍是独立的定时任务，不参与发布。
-  Actions 不可用时它们仍可能受阻，本地发布成功不等于自动巡检/备份已恢复。
+- 自动巡检与备份由 `services/ops` 的 Cron/Workflows 调度；原两条 Actions 只保留
+  手动应急入口。真实实例、R2 完整备份和跨平台回执分别验收，见[定时运维](cloudflare-operations.md)。
 - 非 main 紧急发布须有明确例外授权和独立记录；本地执行已是正常路径，不再视为
   break-glass，也不要求日后补一条 Actions 部署。
 
@@ -148,7 +148,7 @@ Health API migration/deploy/contract smoke → MCP migration/deploy/smoke → He
 ## 8. 静态守门
 
 `scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、
-gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared service 强制：
+gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 declared service 强制：
 
 1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
    纯代理除外：它不得声明 ENVIRONMENT 等业务 vars，仅发布时注入 BUILD_SHA 元数据）；
@@ -169,8 +169,10 @@ gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
    Auth SSO callback registry）缺失即违规；
-10. 七个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
+10. 八个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
     进入调用日志。应用日志仍不得自行输出凭证或私人数据。
+11. Ops 必须关闭公网入口，仅声明约定的两个 Cron、独立 R2 和 Workflow，
+    不得新增 D1、Auth 或其他 service binding。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
 配置、`scripts/cloudflare/**`、登记表或本规范时，由 `scripts/agent/check.mjs`
@@ -194,17 +196,19 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 
 ## 9. 日常监控与恢复
 
-- `production-monitor.yml` 每 30 分钟执行只读探针，检查统一登录契约、私有 API
-  匿名拒绝、MCP readiness（含 secret 配对）/发现/未授权拒绝、旧泄漏入口保持关闭及
-  Health 自动同步新鲜度。同时以七个 Worker 的活跃 BUILD_SHA 和完整 Git 历史检查
-  main 上该服务是否有未发布代码，Health API/前端分开；文档或无关应用更新不报警。
-  缺失版本/凭证、分流、非祖先或无法核对历史均使定时任务失败；本地可明确跳过无凭证检查。
-- `d1-backup.yml` 每日导出六个生产 D1，含 `codepi-mcp`；加密格式、14 天 artifact 保留、私钥
-  保管及恢复演练遵循 [备份 runbook](cloudflare-backup-restore.md)。
-- 两个工作流只在 main 的 production Environment 运行，复用现有生产凭证。
-  监控需要 D1 查询及 Workers deployment/version 读取权限，调用只读，但当前使用的
-  token 仍有发布权限；专用只读 token 尚未单独配置。
-- GitHub Actions 失败通知依赖所有者的通知设置；Cloudflare 通知策略配置和日志
-  持久化存在，也不等于告警邮件已实际送达。
-- 发布治理 job 同时执行脚本回归、迁移追加守门及语法/JSON lint。
-  依赖更新由 Dependabot 提 PR，仍经过项目的正常审核和合并流程。
+- `services/ops` 的私有 Cron/Workflows 每 30 分钟巡检，UTC 18:00 导出六个 D1；
+  失败步骤最多重试两次，不重新执行已成功的库。旧 Actions 仅保留手动应急入口。
+- 巡检共用本地 HTTP/SSO/MCP/Health 断言，通过 GitHub API 对照八个 Worker 的活跃
+  `BUILD_SHA` 和逐提交历史；文档或无关应用更新不报警。历史缺失、分流、凭证缺失
+  和备份过期均失败，不降低既有 30 小时门槛。
+- Ops 不绑定业务 D1/Auth，不开放公网 URL；只绑定独立私有 R2 和自身 Workflow。
+  专用账户 token 仅有 D1 Write（导出要求）和 Workers Scripts Read；R2 使用 binding。
+- 备份在内存中公钥加密，R2 按前缀保留 14 天；Cloudflare 之外的密文经 GitHub API
+  存私有 Release，独立记录回执。没有 GitHub 凭证时保留 R2 副本，跨平台状态失败。
+  不把同账户 R2 当成异地恢复保障。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
+- Workflow 保存非敏感报告并保持失败；Cron 检查上一份报告的失败和停滞，以调用错误
+  触发现有 Issues 通知。策略启用、日志存在和实际邮件送达分别验收。
+- 发布治理执行脚本回归、迁移追加守门及语法/JSON lint；CI 增加 Ops 单测与真实本地
+  Workflows/R2 合成执行。依赖更新仍由 Dependabot 提 PR 后正常审核。
+
+操作、凭证初始化和运行边界见[定时运维](cloudflare-operations.md)。

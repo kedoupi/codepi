@@ -1,4 +1,4 @@
-name: Production monitor
+name: Production monitor (manual fallback)
 
 # 定时只读巡检生产平台：Auth 健康端点、各私有 app 的匿名拒绝契约与
 # 同环境 SSO 跳转、已退役 CloudBase 泄漏路由保持关闭、Health 自动同步
@@ -7,13 +7,7 @@ name: Production monitor
 # 所有检查均为只读 HTTP/Cloudflare API 调用，脚本绝不打印 secret 或健康数据。
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/production-monitor.yml'
-      - 'scripts/cloudflare/**'
-  schedule:
-    - cron: '*/30 * * * *'
+  # Automatic scheduling now belongs to services/ops on Cloudflare.
   workflow_dispatch:
 
 permissions:

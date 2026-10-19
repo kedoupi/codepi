@@ -34,7 +34,8 @@ kdp.cool/
 │   └── health/  → Health (Svelte + Workers, pnpm workspace member)
 ├── services/
 │   ├── auth/  → shared login Worker
-│   └── mcp/   → unified CodePi MCP (Health first)
+│   ├── mcp/   → unified CodePi MCP (Health first)
+│   └── ops/   → private Cron/Workflows monitoring and encrypted backups
 ├── packages/
 │   └── shared/ → layouts, styles, products, auth client, email templates, desk contract
 ├── scripts/   → agent checks and Cloudflare governance
@@ -85,6 +86,10 @@ There is no monorepo-level `npm test` / `npm run build`. Iterate per app.
 6. **Shared visual contract.** Reuse `packages/shared/styles/tokens.css`, `packages/shared/styles/site.css` and `packages/shared/products.ts`. Personal-site pages must share navigation, typography, colors, spacing and interaction states. Private apps adopt these rules in their own migration phase; do not claim all apps are restyled when only shared tokens exist.
 
 ## Conventions
+
+- **Ops is a support layer.** `services/ops/` runs private Cron/Workflows monitoring and
+  public-key encrypted backups. It is not a fifth product and has no public endpoint.
+  See `docs/development/cloudflare-operations.md`; do not put recovery private keys in runtime secrets.
 
 - **Keep behavior and presentation apart.** Match an existing page before inventing a pattern; shared components beat per-page copies.
 - **No advertising.** Shared ad injection, components and placements have been retired. Do not reintroduce them.

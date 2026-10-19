@@ -1,0 +1,16 @@
+{
+  "name": "@codepi/ops",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "test": "node --test test/*.test.mjs",
+    "test:runtime": "node test/runtime.mjs",
+    "deploy": "node ../../scripts/cloudflare/deploy-worker.mjs ops"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.0"
+  }
+}
