@@ -47,3 +47,55 @@
 - 待执行：PR 合并、干净 main 本地发布、首次六库 R2 密文和现有恢复私钥内存解密、
   Cron/Workflows/公网关闭/日志核验。GitHub 长期凭证仍缺失，不声称跨平台备份或
   云端 main 漂移检查已恢复。
+
+
+## 合并与发布
+
+- PR #103 已用 API squash 合并，main 为 `67f13bb85e7e287074190481487cdd64ed162451`；
+  合并树与已验证分支 tree 相同，无组合差异。发布现场为该 SHA detached checkout，
+  工作区干净且与实时远程 main 一致，并由同一本机生产锁串行执行。
+- `pnpm install --frozen-lockfile` 通过；治理守门、迁移守门、既有实时探针、
+  Auth/Web/GU/GZH/Health/MCP 预检均通过。新增 workspace importer 使现有
+  release-scope 规则保守覆盖八个 Worker，因此全部重发而非仅发布 Ops。
+- 生产发布均记录实际 version：auth `f8c74b7a-45c3-4d03-b995-e39a73267bb8`，
+  web `84990bcd-bcbf-41c6-b973-50489ed8d543`，gu `760e7751-ff21-4a94-b6d6-e33f21f49656`，
+  gzh `5ca9a687-bf00-4632-8d97-ba42021ef6eb`，health-api
+  `95bced50-f987-4595-9baa-967ff05b91f2`，health-web
+  `f93e666f-98c4-43cf-99ae-fa91fd521c1e`，mcp `7f5791a5-7adf-46c6-890c-127dc1b01dff`，
+  ops `c4b6f267-967e-425f-9596-43d3b8a5d137`。均 `BUILD_SHA=67f13bb85e7e`；
+  各服务既有 smoke 通过后记录。Ops 的控制面、隔离和 Cron 验收通过，完整 Workflow
+  备份仍见下方失败记录。本地 `checkReleaseDrift` 8/8 通过。
+- Auth、Desk、GU、GZH、MCP D1 migration 均返回无待应用；Health API migration
+  无待应用。MCP 发布脚本完成配对与匿名契约 smoke；旧有真实 AI 客户端验收仍未做。
+- 证据保存在 Git 外：`/tmp/codepi-ops-release-67f13bb-*.log/json` 与
+  `/tmp/codepi-ops-release-67f13bb-evidence.jsonl`。
+
+## 云端控制面验收
+
+- Ops Worker `c4b6f267-967e-425f-9596-43d3b8a5d137` 为唯一 100% 承流版本；
+  只绑定 BACKUPS、OPERATIONS、CLOUDFLARE_API_TOKEN secret、BUILD_SHA、
+  CLOUDFLARE_ACCOUNT_ID、ENVIRONMENT；公网 routes/workers.dev/preview URL 均为空，
+  subdomain/previews 均 disabled。Cron 为 `*/30 * * * *` 与 `0 18 * * *`，
+  observability、持久日志、query redaction 与 Issues 均启用。
+- R2 `codepi-ops-backups` managed domain 关闭，无 custom domain；`backups/`
+  与 `reports/` 各有 14 天删除生命周期。专用 token `codepi-ops-runtime`
+  active，权限仅为 D1 Write 与 Workers Scripts Read，无 Worker 发布、R2 或 token 管理权限。
+  现有 incident 与 Workers Issues 邮件策略启用；邮件送达未验收。
+- 首次手动 backup 实例 `acceptance-backup-67f13bb` 于 04:10:23 UTC 启动，
+  auth、desk、gu、gzh 四库加密导出成功；`codepi-health` 原始 SQL 导出三次均
+  超过 16 MiB Worker 内存上限，实例于 04:12:40 UTC errored。
+  因六库未完成，未写 `reports/backup/r2-success.json`、
+  `reports/backup/offsite-success.json` 或完整 manifest，也不把 4/6 密文当完整备份。
+- monitor 未手动触发：此时它必然因 16 MiB 备份缺口和缺失 `GITHUB_TOKEN`
+  失败。恢复入口是独立架构任务（流式/分块导出、Durable Object、非 Worker 容器
+  或手动应急备份二选一），不是把容量上限静默放大。云备份完整性、跨平台副本、
+  告警邮件送达均不能声称恢复。
+
+## 回填后的未完成项
+
+1. 设计并实现 Health >16 MiB 的可靠备份方案，先保留手动 `d1-backup.yml`
+   作为已授权应急入口；实现后重跑首次六库 R2、manifest 和恢复私钥内存解密。
+2. 用户配置仅含 repo Contents 读写的 `GITHUB_TOKEN` secret 后，重跑 monitor 与
+   backup，验证 GitHub 历史检查与跨平台 Release 回执。
+3. 明确恢复私钥的异机托管方案并演练；真实 AI 客户端 MCP 验收与 Health 整轮同步
+   仍是独立剩余项。Actions 账户额度仍耗尽，不代表 CI 通过。
