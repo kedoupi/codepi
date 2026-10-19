@@ -1,10 +1,18 @@
 # Cloudflare 资源登记表
 
-2026-10-19 MCP 运维补齐（本地实现，待合并启用）：备份清单从原五库扩为六库，
-纳入 `codepi-mcp`；MCP 探针与按服务代码判断的版本漂移检查接入巡检。
-只读控制面核实七个活跃版本与下面首发记录一致；仅 Health API/MCP 有 BUILD_SHA，
-其余五个须经带 SHA 的发布后才能通过新巡检。未轮换 secret、未生成新的备份 artifact。
-代码和激活边界见 [运维任务](tasks/2026-10-19-mcp-operations.md)；以下首发记录保持历史事实。
+2026-10-19 MCP 运维补齐已合并发布：PR #101 合并为
+`0ce7d35636d53291b1b7ebbc7f84d7d7d6a0741b`。当前 Codex 在本机持锁，从干净且与
+实时远程 main 一致的源码为 Auth、Web、GU、GZH、Health 前端补发实际构建版本，
+均带 `BUILD_SHA=0ce7d35636d5`；Health API/MCP 保留运行代码未变的首发版本。
+七个 Worker 的活跃版本、绑定、Cron、持久日志、脱敏和 Issues 通过控制面核验；
+七项代码漂移和 MCP 五项探针全部通过。完整巡检 22/23，唯一失败仍为 Health
+最后完整自动同步约 84 小时前，未降低门槛。
+
+六库备份清单已包含 `codepi-mcp`，本机六份密文、manifest、完整性和现有私钥内存解密
+已验收，未产生 SQL 明文文件。GitHub backup run `39192113905` 与 monitor run
+`39192113912` 均无 runner/steps，前者 artifacts 为空；定时运行及新异机备份仍未恢复。
+未轮换 secret；真实 AI 客户端流程未验收。逐服务前后 version、快照位置和剩余项见
+[运维任务](tasks/2026-10-19-mcp-operations.md)；以下首发记录保持历史事实。
 
 2026-10-19 统一 MCP 首发完成（北京时间；UTC 完成时间 `2026-10-18T16:36:41.754Z`）：
 PR #99 已合并为 `767fb0b3d63a43aed8f2ca0a78a7b7a9271cabe4`，当前 Codex 在本机持有发布锁，
@@ -250,7 +258,7 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-18 |
 | alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-18 |
-| backup-d1-artifact | production | actions-artifact | kedoupi/kdp.cool: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，MCP 新接入待启用（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 run 39090056809 / artifact 12122019076 经 GitHub connector 下载；zip API digest、原五库 manifest 字节数/sha256、key_id 与 GCM AAD 验证及私钥内存解密全部通过；MCP artifact 待验收，私钥异机托管仍未验证 |
+| backup-d1-artifact | production | actions-artifact | kedoupi/kdp.cool: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，清单已启用、runner 待恢复（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-19 六库本机密文、manifest、sha256、GCM AAD 与私钥内存解密通过；run 39192113905 无 runner/steps/artifact，六库异机 artifact 待验收；2026-10-18 原五库 artifact 12122019076 的下载/解密证据保留，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |

@@ -2,7 +2,8 @@
 
 当前环境为 local + production。D1 Time Travel 用于快速回溯；加密导出用于在
 Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，运行与演练
-证据见 [本次任务记录](tasks/2026-10-18-platform-reliability.md)。
+证据见 [平台可靠性任务](tasks/2026-10-18-platform-reliability.md) 和
+[MCP 运维补齐](tasks/2026-10-19-mcp-operations.md)。
 
 ## 备份架构
 
@@ -31,7 +32,9 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 库 UUID 固定在 `scripts/cloudflare/d1-backup.mjs`，测试校验其与实际 binding
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
-Time Travel bookmark；MCP 新纳入备份的首次 artifact 尚待验收。实际可回溯窗口以账户套餐和
+Time Travel bookmark；2026-10-19 六库本机导出、密文完整性和现有私钥内存解密已通过，
+包含 MCP 授权库。新的 GitHub 六库 artifact 尚待验收：当次 backup job 无 runner/steps，
+未生成 artifact。本机快照不代表定时日备或异机保存已恢复。实际可回溯窗口以账户套餐和
 控制面为准，不在本 runbook 假定固定天数。
 
 ## 密钥保管
