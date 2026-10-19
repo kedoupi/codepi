@@ -52,12 +52,18 @@ The source remains the reviewed commit. Record the actual UUID/version in the
 resource registry after the first release; a planned registry row is not readiness.
 
 1. Deploy compatible Auth support and Health's named RPC first.
-2. Pair Auth's `SSO_CLIENT_SECRET_MCP` with this Worker's `AUTH_CLIENT_SECRET`
-   through an authorized secret channel. Never rotate the four existing clients.
+2. For an explicitly authorized credential initialization/rotation, run
+   `node scripts/cloudflare/pair-mcp-secret.mjs --rotate` from the repository root,
+   before acquiring the normal release lock. It generates one value, updates only
+   Auth's `SSO_CLIENT_SECRET_MCP` and this Worker's `AUTH_CLIENT_SECRET`, and checks
+   readiness. Partial failures stop the operation. Never rotate the four existing clients.
 3. Follow `docs/development/local-release.md`: hold the production release lock
    and use the clean, merged source matching remote main. Run
    `pnpm --dir services/mcp run deploy <full-source-SHA>` locally.
-4. Run `MCP_EXPECT_BUILD=<short-SHA> pnpm --dir services/mcp check:live`.
+4. Deploy automatically runs `check:live` with the expected SHA; any failed readiness,
+   discovery or anonymous rejection check fails the release after preserving the uploaded
+   version ID. To check separately, run
+   `MCP_EXPECT_BUILD=<short-SHA> pnpm --dir services/mcp check:live`.
 5. Reauthorize and test ChatGPT, Claude and the actual Agent CLI. Test sleep trends,
    month comparisons, missing data, automatic refresh and revocation.
 6. Verify Health's old `/mcp`, `/oauth/*` and discovery URLs return 404 JSON.
@@ -69,3 +75,9 @@ the old Health MCP code and grant management API are removed in this release.
 Old client grants do not transfer; each client must connect to the new endpoint
 and authorize again. Historical Health migrations/tables, saved records and Oura
 credentials remain intact. There is no legacy enable/disable switch.
+
+MCP D1 is included in the six-database encrypted backup. Never restore historical
+token/revocation state directly into production; invalidate restored credentials and
+require reauthorization as described in `docs/development/cloudflare-backup-restore.md`.
+The production monitor checks this origin and compares each active Worker version's
+`BUILD_SHA` with relevant changes on main, not merely with the latest commit string.

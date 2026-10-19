@@ -38,6 +38,12 @@ writeFileSync(config, source
   .replace('migrations_dir = "migrations"', `migrations_dir = ${JSON.stringify(path.join(cwd, 'migrations'))}`));
 cli(['d1', 'migrations', 'apply', 'codepi-mcp', '--remote', '--config', config]);
 const output = cli(['deploy', '--config', config, '--var', `BUILD_SHA:${sha.slice(0, 12)}`]);
-// Deployment output contains provider identifiers, never token responses.
+// Preserve the actual version even when post-deploy acceptance fails.
 process.stdout.write(output);
+const smoke = spawnSync(process.execPath, [path.join(cwd, 'scripts/check-live.mjs')], {
+  cwd, encoding: 'utf8', env: { ...process.env, MCP_CHECK_ORIGIN: 'https://mcp.codepi.app', MCP_EXPECT_BUILD: sha.slice(0, 12) },
+});
+if (smoke.error || smoke.status !== 0) {
+  throw new Error('MCP was deployed but post-deploy readiness/credential-pair smoke failed; stop the release and run check:live');
+}
 console.log(JSON.stringify({ service: 'codepi-mcp', database_id: databases[0].uuid, source_sha: sha }));
