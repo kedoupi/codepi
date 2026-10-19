@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 // The monitor talks to live origins only in CI; unit coverage here pins the
 // shape of the critical assertions (SSO redirect targets, leak-route closure)
 // by exercising the module against stubbed fetch implementations.
-import { runMonitor } from './production-monitor.mjs';
+import { runMonitor as runPlatformMonitor } from './production-monitor.mjs';
+// Git/control-plane version scenarios are covered with real repositories in release-drift.test.mjs.
+const runMonitor = options => runPlatformMonitor({ ...options, versionCheck: async () => [] });
 
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {
@@ -23,6 +25,22 @@ function stubFetch(handler) {
 
 function happyHandler({ syncAgeHours = 1 } = {}) {
   return async target => {
+    if (target.hostname === 'mcp.codepi.app') {
+      if (target.pathname === '/api/health') return jsonResponse({ ok: true, service: 'codepi-mcp', build: 'a'.repeat(12) });
+      if (target.pathname === '/.well-known/oauth-protected-resource/mcp') {
+        return jsonResponse({ resource: target.origin + '/mcp', authorization_servers: [target.origin] });
+      }
+      if (target.pathname === '/.well-known/oauth-authorization-server') return jsonResponse({
+        issuer: target.origin, authorization_endpoint: target.origin + '/oauth/authorize',
+        token_endpoint: target.origin + '/oauth/token', code_challenge_methods_supported: ['S256'],
+      });
+      if (target.pathname === '/mcp') return jsonResponse({ error: 'unauthorized' }, {
+        status: 401, headers: { 'www-authenticate': `Bearer resource_metadata="${target.origin}/.well-known/oauth-protected-resource/mcp"` },
+      });
+      if (target.pathname === '/connections') {
+        return new Response(null, { status: 302, headers: { location: '/api/auth/login?return=%2Fconnections' } });
+      }
+    }
     if (target.origin === 'https://auth.codepi.app' && target.pathname === '/api/health') {
       return jsonResponse({ ok: true });
     }
@@ -67,6 +85,40 @@ test('monitor passes against a healthy platform', async () => {
     globalThis.fetch = realFetch;
     process.env = savedEnv;
   }
+});
+
+test('monitor catches MCP credential mismatch, broken discovery and anonymous access', async t => {
+  const savedEnv = { ...process.env };
+  t.after(() => { process.env = savedEnv; });
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
+  const base = happyHandler();
+  t.mock.method(globalThis, 'fetch', stubFetch(async target => {
+    if (target.hostname === 'mcp.codepi.app') {
+      if (target.pathname === '/api/health') return jsonResponse({ ok: false }, { status: 503 });
+      if (target.pathname.startsWith('/.well-known/')) return jsonResponse({ issuer: 'https://wrong.invalid' });
+      if (target.pathname === '/mcp') return jsonResponse({ result: { tools: [] } });
+    }
+    return base(target);
+  }));
+  const results = await runMonitor();
+  for (const pattern of ['credential pair', 'protected-resource', 'authorization-server', 'anonymous tools']) {
+    assert.equal(results.find(r => r.name.includes(pattern))?.ok, false, pattern);
+  }
+});
+
+test('scheduled strict version requirements reach the drift checker and failures stay visible', async t => {
+  const savedEnv = { ...process.env };
+  t.after(() => { process.env = savedEnv; });
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
+  t.mock.method(globalThis, 'fetch', stubFetch(happyHandler()));
+  const result = { name: 'codepi-mcp active BUILD_SHA matches main code', ok: false, detail: 'unreleased changes' };
+  const results = await runPlatformMonitor({ requireVersions: true, versionCheck: async options => {
+    assert.equal(options.requireVersions, true);
+    return [result];
+  } });
+  assert.ok(results.includes(result));
 });
 
 test('monitor flags a re-opened legacy leak route', async () => {

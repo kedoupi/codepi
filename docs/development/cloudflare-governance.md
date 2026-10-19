@@ -78,6 +78,9 @@ synthetic fixture；删除不涉及真实业务数据。若未来确需云端联
 - 重构允许重建项目自有凭证：在授权 API 执行环境中生成随机值并配对写入服务端与消费者，
   不要求恢复旧值，不输出或落地。第三方凭证不能用随机值代替。初始化/轮换与日常部署分开，
   轮换时明确旧登录态、外部上传客户端及回退版本的影响。
+- MCP 的双端 SSO secret 使用 `scripts/cloudflare/pair-mcp-secret.mjs --rotate`
+  一次生成并配对，通过运行时 readiness 验收；只在获授权的初始化/轮换时运行，
+  不再把分别手填两端作为正常流程。跨 Worker 更新并非原子操作，部分失败必须中止发布。
 
 ## 6. 发布路径（本地执行）
 
@@ -105,6 +108,10 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 - 每个服务记录实际 source SHA、provider version ID、smoke 结果和时间到
   `deployment-evidence.mjs` JSONL（Git 外），再在资源登记表和任务回填证据。
   无真实 version ID 或 smoke 失败不标成功；登录、提供方授权和数据同步独立验收。
+- 七个 Worker 的活跃版本均须带 `BUILD_SHA`。普通 Worker 通过
+  `scripts/cloudflare/deploy-worker.mjs` 注入，Health API/MCP 由专用脚本注入；
+  Health 前端允许这一构建元数据，但不恢复业务 vars。MCP deploy 自动执行配对和匿名
+  契约 smoke，失败不能进入下一发布阶段。
 - `production-monitor.yml` 与 `d1-backup.yml` 仍是独立的定时任务，不参与发布。
   Actions 不可用时它们仍可能受阻，本地发布成功不等于自动巡检/备份已恢复。
 - 非 main 紧急发布须有明确例外授权和独立记录；本地执行已是正常路径，不再视为
@@ -144,7 +151,7 @@ Health API migration/deploy/contract smoke → MCP migration/deploy/smoke → He
 gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared service 强制：
 
 1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
-   纯代理除外：它不得声明 ENVIRONMENT 等 vars）；
+   纯代理除外：它不得声明 ENVIRONMENT 等业务 vars，仅发布时注入 BUILD_SHA 元数据）；
 2. staging 已退役：任何 `[env.staging]` 段、staging 主机名或 `-staging` 资源名
    出现即违规（fail-closed）；
 3. 每个有状态服务恰好声明一个 D1 `DB` binding；重复/冲突的 D1 或 service binding
@@ -162,7 +169,7 @@ gzh、auth、mcp、health-api、health-pages）与登记表，对每个 declared
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
    Auth SSO callback registry）缺失即违规；
-10. 六个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
+10. 七个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
     进入调用日志。应用日志仍不得自行输出凭证或私人数据。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
@@ -188,12 +195,15 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 ## 9. 日常监控与恢复
 
 - `production-monitor.yml` 每 30 分钟执行只读探针，检查统一登录契约、私有 API
-  匿名拒绝、旧泄漏入口保持关闭及 Health 自动同步新鲜度。D1 凭证缺失必须使
-  定时任务失败；本地排查可显式接受跳过 D1 的结果。
-- `d1-backup.yml` 每日导出五个生产 D1；加密格式、14 天 artifact 保留、私钥
+  匿名拒绝、MCP readiness（含 secret 配对）/发现/未授权拒绝、旧泄漏入口保持关闭及
+  Health 自动同步新鲜度。同时以七个 Worker 的活跃 BUILD_SHA 和完整 Git 历史检查
+  main 上该服务是否有未发布代码，Health API/前端分开；文档或无关应用更新不报警。
+  缺失版本/凭证、分流、非祖先或无法核对历史均使定时任务失败；本地可明确跳过无凭证检查。
+- `d1-backup.yml` 每日导出六个生产 D1，含 `codepi-mcp`；加密格式、14 天 artifact 保留、私钥
   保管及恢复演练遵循 [备份 runbook](cloudflare-backup-restore.md)。
 - 两个工作流只在 main 的 production Environment 运行，复用现有生产凭证。
-  监控调用只读，但当前使用的 token 仍有发布权限；专用只读 token 尚未单独配置。
+  监控需要 D1 查询及 Workers deployment/version 读取权限，调用只读，但当前使用的
+  token 仍有发布权限；专用只读 token 尚未单独配置。
 - GitHub Actions 失败通知依赖所有者的通知设置；Cloudflare 通知策略配置和日志
   持久化存在，也不等于告警邮件已实际送达。
 - 发布治理 job 同时执行脚本回归、迁移追加守门及语法/JSON lint。

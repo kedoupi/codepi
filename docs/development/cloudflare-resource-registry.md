@@ -1,5 +1,11 @@
 # Cloudflare 资源登记表
 
+2026-10-19 MCP 运维补齐（本地实现，待合并启用）：备份清单从原五库扩为六库，
+纳入 `codepi-mcp`；MCP 探针与按服务代码判断的版本漂移检查接入巡检。
+只读控制面核实七个活跃版本与下面首发记录一致；仅 Health API/MCP 有 BUILD_SHA，
+其余五个须经带 SHA 的发布后才能通过新巡检。未轮换 secret、未生成新的备份 artifact。
+代码和激活边界见 [运维任务](tasks/2026-10-19-mcp-operations.md)；以下首发记录保持历史事实。
+
 2026-10-19 统一 MCP 首发完成（北京时间；UTC 完成时间 `2026-10-18T16:36:41.754Z`）：
 PR #99 已合并为 `767fb0b3d63a43aed8f2ca0a78a7b7a9271cabe4`，当前 Codex 在本机持有发布锁，
 从与实时远程 main 一致的干净源码依次发布 Auth、Web、GU、GZH、Health API、MCP、
@@ -244,7 +250,7 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-18 |
 | alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-18 |
-| backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 5 个生产 D1 的公钥封装加密日备（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 run 39090056809 / artifact 12122019076 经 GitHub connector 下载；zip API digest、五库 manifest 字节数/sha256、key_id 与 GCM AAD 验证及私钥内存解密全部通过；仅密文存于仓库外，私钥异机托管仍未验证 |
+| backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，MCP 新接入待启用（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-18 run 39090056809 / artifact 12122019076 经 GitHub connector 下载；zip API digest、原五库 manifest 字节数/sha256、key_id 与 GCM AAD 验证及私钥内存解密全部通过；MCP artifact 待验收，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |

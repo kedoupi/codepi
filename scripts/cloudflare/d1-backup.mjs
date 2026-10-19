@@ -12,6 +12,7 @@ export const DATABASES = {
   'codepi-gu': '4d3b6713-85dd-4f61-ac55-9925db72394b',
   'codepi-gzh': 'acedb64c-d374-4e40-b61e-7df7f0766694',
   'codepi-health': '2e35deaa-8066-49c1-b19a-afcd8706d58c',
+  'codepi-mcp': '73c6ef4e-e2a0-41c2-9bce-ab41c7391caa',
 };
 export const PUBLIC_KEY_PATH = fileURLToPath(new URL('./backup-public-key.pem', import.meta.url));
 const MAGIC = Buffer.from('KDPB001\n');

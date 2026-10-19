@@ -97,6 +97,8 @@ MCP 最终浏览器证据：
   生产发布顺序补充为 Auth / 共享消费者 → Health API → MCP → Health 前端。
 - 新 MCP 配置补齐持久日志、查询串脱敏和 Issues；迁移扫描包含独立 MCP D1。
 - 现有五个 D1 的定时备份不变；MCP 仅保存可通过重新授权恢复的会话/授权状态。
+  此为首发决策；随后按所有者要求将 MCP 纳入六库加密备份，见
+  [2026-10-19 运维补齐](2026-10-19-mcp-operations.md)，启用状态以该任务为准。
 - 本轮全部远程变更由当前 Codex 串行执行，其他 worktree 均保持原样。
   实际 PR、source SHA、provider version 和验收结果见下方生产记录。
 - `pnpm install --frozen-lockfile` 和针对 `96516ab` 的完整受影响检查通过：

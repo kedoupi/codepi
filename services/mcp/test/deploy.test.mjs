@@ -14,6 +14,12 @@ async function releaseFixture(t) {
   await mkdir(path.join(service, 'scripts'), { recursive: true });
   await mkdir(bin);
   await copyFile(new URL('../scripts/deploy.mjs', import.meta.url), path.join(service, 'scripts/deploy.mjs'));
+  await writeFile(path.join(service, 'scripts/check-live.mjs'), `
+import assert from 'node:assert/strict';
+assert.equal(process.env.MCP_CHECK_ORIGIN, 'https://mcp.codepi.app');
+assert.match(process.env.MCP_EXPECT_BUILD, /^[a-f0-9]{12}$/);
+process.exitCode = process.env.FAIL_SMOKE ? 1 : 0;
+`);
   await copyFile(new URL('../wrangler.toml', import.meta.url), path.join(service, 'wrangler.toml'));
   await writeFile(path.join(root, '.gitignore'), '.wrangler/\ncalls.jsonl\ncreated\n');
   const shim = path.join(bin, 'pnpm');
@@ -83,4 +89,13 @@ test('source mismatch, dirty changes and migration failures cannot deploy', asyn
   const failure = f.run(f.sha, { FAIL_MIGRATE: '1' });
   assert.notEqual(failure.status, 0);
   assert.ok((await f.calls()).every(c => c.args[2] !== 'deploy'));
+});
+
+test('a successful upload with failed credential/readiness smoke is not a successful release', async t => {
+  const f = await releaseFixture(t);
+  const result = f.run(f.sha, { FAIL_SMOKE: '1' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /was deployed but post-deploy readiness\/credential-pair smoke failed/);
+  assert.ok((await f.calls()).some(call => call.args[2] === 'deploy'));
+  assert.doesNotMatch(result.stdout, /"source_sha"/);
 });
