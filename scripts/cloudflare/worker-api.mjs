@@ -8,7 +8,7 @@ export async function workerApi(endpoint, { env = process.env, request = fetch, 
     response = await request(
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID)}/workers/scripts/${endpoint}`,
       {
-        method, redirect: 'error', signal: AbortSignal.timeout(20000),
+        method, redirect: 'manual', signal: AbortSignal.timeout(20000),
         headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}`, 'content-type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}),
       },

@@ -7,14 +7,14 @@ import { remoteMain } from './release-drift.mjs';
 
 export const DEPLOY_DIRS = {
   auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh',
-  'health-web': 'apps/health/apps/web',
+  'health-web': 'apps/health/apps/web', ops: 'services/ops',
 };
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
 // Called inside the release coordinator's lock, after build/migrations.
 // Health API and MCP retain their specialized deployment scripts.
 export function deployWorker(service, sha, { cwd = root, execute = spawnSync } = {}) {
-  assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|gzh|health-web');
+  assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|gzh|health-web|ops');
   assert.match(sha ?? '', /^[a-f0-9]{40}$/, 'pass the full merged source SHA');
   const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   assert.equal(git(['rev-parse', 'HEAD']), sha, 'source does not match HEAD');
@@ -33,7 +33,7 @@ export function deployWorker(service, sha, { cwd = root, execute = spawnSync } =
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    assert.equal(process.argv.length, 4, 'Usage: deploy-worker.mjs <auth|web|gu|gzh|health-web> <full-source-SHA>');
+    assert.equal(process.argv.length, 4, 'Usage: deploy-worker.mjs <auth|web|gu|gzh|health-web|ops> <full-source-SHA>');
     console.log(JSON.stringify(deployWorker(process.argv[2], process.argv[3])));
   } catch (error) {
     console.error(error.message);

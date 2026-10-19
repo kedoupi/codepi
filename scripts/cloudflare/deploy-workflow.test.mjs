@@ -115,10 +115,11 @@ test('MCP CI checks the real Health RPC and browser flow without deployment', as
   assert.doesNotMatch(workflow, /mcp-deploy-production:|pnpm run deploy/);
 });
 
-test('scheduled monitoring fetches full main history and requires both data and version checks', async () => {
+test('manual fallback monitoring fetches full main history and requires strict checks', async () => {
   const workflow = await readFile(new URL('.github/workflows/production-monitor.yml', root), 'utf8');
   assert.match(workflow, /uses: actions\/checkout@v4\n\s+with:\n\s+ref: main\n\s+fetch-depth: 0/);
   assert.match(workflow, /production-monitor\.mjs --require-d1 --require-versions/);
-  assert.match(workflow, /'scripts\/cloudflare\/\*\*'/);
+  assert.doesNotMatch(workflow, /^  (?:schedule|push):/m);
+  assert.match(workflow, /^  workflow_dispatch:/m);
   assert.doesNotMatch(workflow, /continue-on-error|contents: write/);
 });

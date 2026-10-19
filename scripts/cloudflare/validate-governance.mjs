@@ -79,6 +79,9 @@ function tomlCrons(tables, header) {
 function tomlRoutes(section) {
   const assignments = [...section.matchAll(/^[ \t]*routes[ \t]*=/gm)];
   if (!assignments.length) return { patterns: [], entries: [], count: 0, valid: true };
+  if (assignments.length === 1 && /^[ \t]*routes[ \t]*=[ \t]*\[\s*\][ \t]*(?:#[^\n]*)?$/m.test(section)) {
+    return { patterns: [], entries: [], count: 1, valid: true };
+  }
   const array = section.match(/^[ \t]*routes[ \t]*=[ \t]*(\[[\s\S]*?^\s*\])/m)?.[1];
   if (assignments.length !== 1 || !array) return { patterns: [], entries: [], count: assignments.length, valid: false };
   const entries = [...array.matchAll(/\{([^{}]*)\}/g)].map(match => {
@@ -143,6 +146,12 @@ function parseTomlEnv(root, tables, prefix) {
   const crons = tomlCrons(tables, `[${p}triggers]`);
   const duplicate = (all, field) => [...new Set(all.map(item => item[field]).filter((value, i, values) => value && values.indexOf(value) !== i))];
   return {
+    workersDev: tomlBoolean(section, 'workers_dev'),
+    previewUrls: tomlBoolean(section, 'preview_urls'),
+    r2All: tomlTableBodies(tables, `[[${p}r2_buckets]]`)
+      .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'bucket_name') })),
+    workflowsAll: tomlTableBodies(tables, `[[${p}workflows]]`)
+      .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'name'), className: tomlString(body, 'class_name') })),
     logsEnabled: tomlBoolean(observability, 'enabled') === true && tomlBoolean(logs, 'enabled') === true,
     redactQuery: tomlBoolean(observability, 'redact_query_string'),
     persistLogs: tomlBoolean(logs, 'persist'),
@@ -359,6 +368,10 @@ function checkService(spec, cfg, index, violations) {
       }
       continue;
     }
+    if (spec.noAuth) {
+      if (env.authOrigin !== undefined) at(`${envName} ops must not declare AUTH_ORIGIN`);
+      continue;
+    }
     const expectedAuthOrigin = 'https://auth.codepi.app';
     if (env.authOrigin !== expectedAuthOrigin) at(`${envName} AUTH_ORIGIN must be ${expectedAuthOrigin}`);
   }
@@ -391,6 +404,23 @@ function checkService(spec, cfg, index, violations) {
 
   if (spec.id === 'mcp' && (prod.mcpOrigin !== 'https://mcp.codepi.app' || prod.authClientId !== 'mcp')) {
     at('MCP_ORIGIN and AUTH_CLIENT_ID must identify the canonical CodePi MCP service');
+  }
+
+  if (spec.id === 'ops') {
+    if (prod.workersDev !== false || prod.previewUrls !== false || !prod.routesValid || prod.routePatterns.length) {
+      at('ops must disable workers_dev, preview_urls and all public routes');
+    }
+    if (JSON.stringify([...prod.crons].sort()) !== JSON.stringify(['*/30 * * * *', '0 18 * * *'].sort())) {
+      at('ops must declare exactly the monitor and backup Cron schedules');
+    }
+    if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'BACKUPS', name: 'codepi-ops-backups' }])) {
+      at('ops must bind only BACKUPS to codepi-ops-backups');
+    }
+    if (JSON.stringify(prod.workflowsAll) !== JSON.stringify([{ binding: 'OPERATIONS', name: 'codepi-ops', className: 'OperationsWorkflow' }])) {
+      at('ops must bind only OPERATIONS to codepi-ops#OperationsWorkflow');
+    }
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket');
+    for (const workflow of prod.workflowsAll) checkRef(workflow.name, 'production', 'workflow', 'Workflow');
   }
 
   if (spec.authRoutes || spec.id === 'mcp') {
@@ -512,6 +542,8 @@ function checkService(spec, cfg, index, violations) {
 
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
+    { id: 'ops', file: 'services/ops/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-ops', envKey: 'staging',
+      provisionOnRelease: true, noD1: true, noAuth: true, noRoutes: true, cronsRequired: true },
     { id: 'mcp', file: 'services/mcp/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-mcp', d1Name: 'codepi-mcp', envKey: 'staging',
       provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
       serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' } },

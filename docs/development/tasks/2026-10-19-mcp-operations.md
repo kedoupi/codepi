@@ -1,7 +1,8 @@
 # MCP 运维补齐
 
 - 状态：代码已合并并完成五个 Worker 的本机发布，六库本地备份已验收。
-  完整巡检 22/23，Health 同步新鲜度告警、GitHub 定时执行及新异机备份 artifact 仍未解决。
+  完整巡检 22/23；GitHub runner 已确认受账户免费分钟耗尽和零额外预算阻塞。
+  Health 当前同步在正常推进，整轮完成的新鲜度告警及六库异机 artifact 仍待验收。
 - 目标：MCP D1 纳入加密备份；统一 MCP 的巡检与 SSO secret 配对工具；七个生产 Worker
   对照 main 的按服务代码漂移检测。
 - Worktree：`<workspace>/.worktrees/kdp.cool/codex/unified-mcp`，复用已干净的任务 checkout。
@@ -115,7 +116,56 @@ Health API `601e1ddf-eff9-40ee-8d14-b50787240e82`、MCP
 
 ## 剩余独立验收
 
-1. 恢复 GitHub hosted runner 执行，取得包含六库的成功异机 artifact 和实际定时巡检证据。
-2. 独立调查 Health 自动同步的既有上游失败，恢复 30 小时以内的完整成功记录。
+1. 所有者决定 Actions 额外付费预算后，恢复 hosted runner 执行，取得包含六库的成功
+   异机 artifact 和实际定时巡检证据；免费额度耗尽与当前零额外预算已确认。
+2. 验收 Health 当前补同步队列完成，并重新检查 30 小时以内的完整成功记录。
+   当前任务无失败且持续推进，不能继续描述成仍有未经核实的上游故障。
 3. 所有者在实际 AI 客户端完成新 MCP 授权、Health 查询、refresh 与撤销验收。
    当前凭证配对正常，本次未运行轮换工具。
+
+## Runner 根因与 Health 进度复核（2026-10-19）
+
+本轮基线为干净的 `b248c22f0e626291f5d3880f595430287fea0630`，GitHub API 核实
+实时远程 main 与之相同。继续使用同一任务 worktree，当前 Codex 为唯一写入者，
+仅回填本任务、资源登记表和备份 runbook；未修改应用、工作流、预算或生产配置。
+
+### GitHub Actions
+
+- 通过 GitHub API 重跑 backup job `117866982001`，run `39192113905` attempt 2
+  的 job `117871787834` 于 `2026-10-19T03:14:02Z` 至 `03:14:06Z` 再次失败，
+  仍为 `runner_id=0`、`steps=[]`，没有执行备份脚本。
+- 成功对照为 `39090056809` 的 job `117564710265`：同样使用 `ubuntu-latest`，
+  有实际 runner 和成功的导出、加密、上传步骤，不能仅凭本次无步骤就更换 runner 标签。
+- 当前连接器不支持读取 check-run annotations 和 Actions 设置；本机 `gh` API
+  返回 401。使用已有浏览器登录态只读核对 run 摘要和账户计费页后关闭了专用 session，
+  没有提取登录凭证。
+- run 错误明确说明任务因付款或支出限制未启动。账户计费页进一步确认：
+  本月 Actions 分钟为 **2,000 / 2,000，100%**，Actions 额外预算为 **$0**，
+  显示 `Usage blocked`；这是现有 runner 启动失败的直接原因。
+  不再把原因记为未确认的 billing/quota/outage。
+- 提高付费预算需要所有者明确决定；本轮未提高预算、绑定付款方式、注册本机 runner，
+  或修改 CI 来绕过账户限制。定时巡检和六库异机备份仍没有恢复执行证据。
+
+### Health 自动同步
+
+- `2026-10-19T03:15:48.851Z` 的 D1 只读元数据查询：当天整轮任务为 `running`，
+  **68 / 92** 完成、24 待处理、0 失败，任务错误码为空；18 类详细数据集合均有当天
+  成功的同步窗口。未读取健康指标值、用户标识或加密授权内容。
+- `2026-10-19T03:21:09.729Z` 再次只读核对：**71 / 92** 完成、21 待处理、
+  0 失败、`last_error=NULL`。两个快照之间真实 Cron 完成了 3 个任务，
+  不需要再次要求所有者重连来解释当前告警。
+- `auto-sync.ts` 只在整轮任务达到 `completed` 时更新 `last_success_at`；
+  当前该字段仍为 `2026-10-15T15:16:55.898Z`。因此“整轮完成时间超出 30 小时”
+  仍是有效告警，但不能据此推断当前没有成功请求或授权仍然失效。
+- 保留现有 30 小时门槛和历史队列；未手动修改同步状态、跳过待处理任务或清空错误记录。
+  当前恢复进度通过，整轮完成尚未验收。
+- 元数据证据保存在 Git 外：
+  `/tmp/codepi-platform-sync-diagnostics-20261019.json`、
+  `/tmp/codepi-platform-sync-progress-20261019.json`；
+  严格生产巡检日志为 `/tmp/codepi-platform-runner-followup-monitor-20261019.log`。
+
+本轮验证：`node scripts/agent/check.mjs --base b248c22f0e626291f5d3880f595430287fea0630 --run`
+选择并通过 **4 / 4** 本地检查，含 Cloudflare 脚本回归、治理守门、agent 检查回归与 lint；
+`git diff --check` 通过。严格生产巡检仍为 **22 / 23**，唯一失败是上述整轮完成时间。
+检查日志为 `/tmp/codepi-runner-diagnosis-doc-checks-20261019.log`。
+本轮只有三份运维文档的本地更新，尚未提交或推送，不需要发布应用。

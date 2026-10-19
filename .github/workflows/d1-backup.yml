@@ -1,14 +1,7 @@
-name: D1 backup
+name: D1 backup (manual fallback)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/d1-backup.yml'
-      - 'scripts/cloudflare/d1-backup.mjs'
-      - 'scripts/cloudflare/backup-public-key.pem'
-  schedule:
-    - cron: '0 18 * * *'
+  # Automatic scheduling now belongs to services/ops on Cloudflare.
   workflow_dispatch:
 
 permissions:
