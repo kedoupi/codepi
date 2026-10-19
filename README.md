@@ -2,11 +2,14 @@
 
 `codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/`、`services/mcp/` 与 `packages/shared/` 是支撑层，不新增产品。统一 MCP 首期接入 Health；代码与本地验证状态见[任务记录](docs/development/tasks/2026-10-18-unified-mcp.md)，尚未完成生产发布和真实客户端验收。
+当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/`、`services/mcp/`、`services/ops/` 与 `packages/shared/` 是支撑层，不新增产品。统一 MCP 首期接入 Health，已完成生产发布；2026-10-19 所有者确认已在 Claude 手机端连接并使用，具体验收范围与剩余项见[任务记录](docs/development/tasks/2026-10-18-unified-mcp.md)。
 
 原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
-整体规划见 [个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)；统一视觉规则见 [共享设计规范](docs/architecture/personal-design-system.md)。
+新 Agent 从[工程文档入口](docs/README.md)和[开发导航](docs/development/README.md)开始；
+当前结构见[工程架构](docs/architecture/workspace-and-deployment.md)，剩余工作见
+[任务索引](docs/development/tasks/README.md)。[个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)
+保留最初规划，不能覆盖后续目录、域名与发布决策；统一视觉规则见[共享设计规范](docs/architecture/personal-design-system.md)。
 
 首页是唯一的静态 Astro 站点，通过 `@kedoupi/shared/<subpath>` 复用基础样式、布局与契约，共享入口由严格的 `exports` 白名单声明。所有应用由根 pnpm workspace 统一管理依赖。私人应用保留现有技术栈与数据边界。
 
@@ -18,7 +21,7 @@
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
-| `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
+| `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，服务 GU/Health/GZH/Desk/MCP |
 | `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，Health 首期；独立授权 D1 |
 | `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[运维说明](docs/development/cloudflare-operations.md) |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
@@ -34,7 +37,7 @@
 
 ## SEO + GEO
 
-We optimize for both classical SEO (Google / Bing / DuckDuckGo) and Generative Engine Optimization (citation by ChatGPT, Claude, Perplexity, Google AI Overviews, etc).
+公开内容保留搜索与 AI 可发现性设施；不作为广告或流量增长目标，私有应用和 Desk 数据不进入公开索引。
 
 | Lever                                | Where it lives                              |
 | ------------------------------------ | ------------------------------------------- |
@@ -42,11 +45,9 @@ We optimize for both classical SEO (Google / Bing / DuckDuckGo) and Generative E
 | `robots.txt` explicitly Allows AI bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) | `apps/web/public/robots.txt` |
 | `llms.txt` (site summary + key page links per [llmstxt.org](https://llmstxt.org/)) | `apps/web/public/llms.txt` |
 | Internal links between products | `apps/web/src/components/ProductList.astro` |
-| Crawler Hints (IndexNow protocol — pings Bing/Yandex on changes) | CF zone setting (Caching → Configuration → Crawler Hints) — enabled |
-| Cloudflare "Block AI bots" feature | **Disabled** in CF Security → Bot traffic |
-| Cloudflare "Managed robots.txt" feature | **Disabled** in CF Security → Bot traffic |
+| Cloudflare crawler / AI bot settings | 平台设置须按需只读核实，仓库文件不证明当前开关状态 |
 
-To submit to Google Search Console (next step, manual): add `codepi.app` as a property (DNS verification via a TXT record in CF), then submit `https://codepi.app/sitemap-index.xml`. Repeat for Bing Webmaster.
+搜索平台登记是按需操作，不是 Agent 默认下一步。
 
 ## Local development
 
@@ -108,13 +109,13 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 
 经批准新增应用时同步更新 `packages/shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处。staging 环境已于 2026-10-18 退役，只保留 local 与 production。
 
-退役产品时按顺序执行：先移除代码与入口，再更新 `packages/shared/products.ts` 和文档，然后撤下 Cloudflare Pages 自定义域，最后删除 DNS 记录与项目。数据（D1、对象存储）单独确认后再处理。
+退役产品时按顺序执行：先移除代码与入口，再更新 `packages/shared/products.ts` 和文档，然后按资源登记表撤下 Worker 自定义域/路由，最后处理 DNS 与服务资源。平台管理的 DNS 需核实实际归属；数据（D1、对象存储）单独确认后再处理。具体步骤见[集成与退役流程](docs/development/integration-release.md)。
 
 ## Notes
 
 - `output: 'static'` + `trailingSlash: 'always'` + `format: 'directory'` produces clean URLs like `/about/` with `index.html` inside.
 - Sitemap is emitted as `sitemap-index.xml` (index) referencing `sitemap-0.xml`. `robots.txt` points at the index.
-- The `_headers` file under each site's `public/` is consumed by Cloudflare Pages for security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
+- Static response headers come from the app's `_headers`/asset configuration; Worker-generated responses use their own handlers. Check the app's asset tests and response code when changing either path.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` hold design specs and implementation plans from the brainstorm → plan → execute workflow used to build this repo.
 - `packages/shared/` is a private workspace package. Consumers import its source through the explicit `@kedoupi/shared/<subpath>` exports allowlist; unlisted module paths are rejected.
 
@@ -127,9 +128,9 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 | P3 | GU 视觉统一 | 已上线 |
 | P4 | 公众号工作台（GZH）视觉统一 | 已上线 |
 | P5 | 博客栏目上线（`/blog/`），公开笔记与内容发布 | 博客已上线 |
-| P6 | 本人工作台与按需摘要（`/desk/`） | 已实现，摘要 token 待配置 |
+| P6 | 本人工作台与按需摘要（`/desk/`） | 已部署；登录后的三来源摘要使用验收见任务索引，不凭早期 TODO 判断配置缺失 |
 | P9 | 五站下线、codepi.app 迁域、四产品收尾 | 已完成（Pages 全部退役，四产品均为 Workers Static Assets） |
 | P7 | 公开内容 MCP | 待实施 |
-| P8 | 私人应用的授权 AI 能力 | 按实际使用逐步接入 |
+| P8 | 私人应用的授权 AI 能力 | 统一 MCP 已上线，Health 已在 Claude 手机端使用；其他模块按产品进度设计 |
 
 私人应用全面换肤在各自迁移阶段执行，须沿用共享设计规范并单独验证业务状态。

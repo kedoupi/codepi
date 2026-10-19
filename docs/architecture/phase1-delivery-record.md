@@ -1,6 +1,8 @@
 # Phase 1 交付记录与发布流程
 
-> 用途：记录本次 Phase 1 从 scope review、分支发布、独立审查到 squash merge 的可复用流程。本文是交付记录，不替代 `architecture-baseline.md` 或 `p1-implementation-plan.md`。
+> 状态：旧工具站 Phase 1 的历史交付记录。保留当次 scope、发布与审查证据；
+> 日常操作使用[现行开发流程](../development/agent-workflow.md)与[本地发布](../development/local-release.md)，
+> 不执行下文旧 Pages/工具站的步骤。
 
 ## 1. 交付范围
 

@@ -74,8 +74,10 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes
 | GU | 登录后关键列表与详情、金额/日期语义、空与错误状态；不擅自改真实投资记录 |
 | GZH | 登录、稿件加载、编辑预览与授权范围内的草稿保存；真实发布另需授权 |
 | Health | 登录与数据加载；Oura 提供方授权和 MCP 授权分别验收，不能用网站 SSO 成功替代 |
+| MCP | Auth 凭证配对、发现、匿名拒绝、Health RPC 和实际客户端使用；刷新/撤销单独记录 |
+| Ops | 无公网入口、Cron/Workflows、六库密文和 manifest；R2、跨平台副本、告警送达分别验收 |
 
-UI 变动还检查桌面与移动端。真实邮件、OAuth 重连和会改变外部状态的操作按授权执行；优先使用 synthetic 数据，不复制生产私人数据到 staging。
+UI 变动还检查桌面与移动端。真实邮件、OAuth 重连和会改变外部状态的操作按授权执行；自动测试使用 synthetic 数据，不复制生产私人数据到开发/测试工作区。
 
 密钥操作不输出值，不把控制面返回的掩码/空值重放为整份配置。用最小范围 secret 更新；尤其 `TOKEN_ENCRYPTION_KEY` 关系到已加密 token 的可读性，轮换前必须有重新加密或用户重连方案，不能当作无状态随机字符串直接替换。
 

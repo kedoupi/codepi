@@ -1,7 +1,7 @@
 # 珂抖屁公众号（kedoupi · 公众号工作台）
 
 生产域名：**https://gzh.codepi.app**（须统一登录），Worker 名 `codepi-gzh`。源码目录和产品标识仍为 `gzh`，不再另迁产品域名。
-当前为迁移窗口：Worker 配置已实现，生产域名尚未切换，最新状态与验证见 [GZH 迁移记录](../../docs/development/tasks/2026-10-17-gzh-static-assets.md)。
+已完成 Worker 与正式域名切换，发布与验证证据见 [GZH 迁移记录](../../docs/development/tasks/2026-10-17-gzh-static-assets.md)；登录后的完整稿件流程验收单独记录。
 原 `gzh-preview` 已并入本产品并下线；请勿再使用第二套审稿站。
 
 「过」→ 可推箱；「要改」「拒」→ **需改**（改完可再交审）。不接微信草稿箱 API。
@@ -12,7 +12,7 @@
 
 - 生产域名：**https://gzh.codepi.app**（Worker 名 `codepi-gzh`）
 - 同主机提供看板、`/p/<slug>/` 预览壳（同域正文内嵌进页，外域才降级 iframe）、预览 HTML、`/api/*`，一条 `gzh_session` HttpOnly Cookie 即可在手机里打通
-- 生产登录由 `auth.codepi.app` 统一处理，`SSO_ENABLED=1` 时旧本地 OTP 接口关闭。staging 的 Access 与认证隔离要求遵循 CF 治理规范，不以旧一期范围替代平台约束。
+- 生产登录由 `auth.codepi.app` 统一处理，`SSO_ENABLED=1` 时旧本地 OTP 接口关闭。本地测试用合成身份；staging 已退役。
 - 不接微信草稿箱 API；不要改 `gzh-preview` 仓
 
 ## 产品流
@@ -38,7 +38,7 @@
 Cloudflare **Workers Static Assets** + **Hono Worker** + **D1**。`worker/index.ts` 处理 `/api/*`、登录门闩与私有预览，`dist/` 只放客户端资产。`run_worker_first=true` 保证预览正文先经过会话检查；Worker 明确处理 SPA 路由，未知资源返回 404；含路径编码或重复斜杠的非规范路径在资产解析前拒绝，防止预览正文绕过登录。query 编码不受影响。
 
 ```
-https://gzh.codepi.app/          审核台 H5（Vite）
+https://gzh.codepi.app/          审核台 H5（Svelte 5 + Vite）
 https://gzh.codepi.app/login
 https://gzh.codepi.app/p/<slug>/ 预览壳（会话门闩；同域正文内嵌，外域 iframe）
 https://gzh.codepi.app/previews/ 演示 HTML（同样要登录）
@@ -47,7 +47,7 @@ https://gzh.codepi.app/api/*     Worker：OTP、session、board、review
 
 密钥只走 wrangler secrets，**不要**写进 git / `wrangler.toml` `[vars]`。
 
-下表及 OTP/Cookie 参数描述旧本地登录模式，仅用于 `SSO_ENABLED=0` 的隔离开发/测试，不是生产 SSO 配置清单。生产和 staging 的 Auth binding、SSO 变量与 secret 要求以当前运行配置和下方发布规范为准。
+下表及 OTP/Cookie 参数描述旧本地登录模式，仅用于 `SSO_ENABLED=0` 的隔离开发/测试，不是生产 SSO 配置清单。生产 Auth binding、SSO 变量与 secret 要求以当前运行配置和下方发布规范为准；表中的模式值不表示维护相应远程环境。
 
 | 名称 | 放哪 | 用途 |
 | --- | --- | --- |
@@ -65,20 +65,23 @@ Cookie：`gzh_session`；`HttpOnly; Secure; SameSite=Lax; Path=/`；约 7 天。
 
 ## 运维与受控发布
 
-远程迁移和部署统一遵循 [CF 治理规范](../../docs/development/cloudflare-governance.md) 与 [集成发布流程](../../docs/development/integration-release.md)，使用规定的 GitHub Actions 入口；不要照旧的一期指引连接 Pages Git 自动构建或直接修改 Dashboard 绑定。
+远程迁移和部署遵循 [CF 治理规范](../../docs/development/cloudflare-governance.md)、
+[集成发布流程](../../docs/development/integration-release.md)与[本地发布操作](../../docs/development/local-release.md)：
+PR 合入 main 后，从本机干净源码持锁发布，Actions 只验证。旧 Pages Git 自动构建入口已退役。
 
 ### 资源与迁移目标
 
 - production：Worker `codepi-gzh`，D1 `codepi-gzh`，`AUTH` 指向 `codepi-auth`。
 - staging：已于 2026-10-18 全面退役，仓库与云端的 named environment、D1 和域名均已删除；只有 local 与 production 两档。
-- 两个环境的 D1 binding 都为 `DB`。准确 UUID 只维护在 [运行配置](wrangler.toml) 和 [资源登记表](../../docs/development/cloudflare-resource-registry.md)，这里不复制易过时的 ID。
+- D1 binding 为 `DB`；本地测试使用本地库。生产 UUID 只维护在 [运行配置](wrangler.toml) 和 [资源登记表](../../docs/development/cloudflare-resource-registry.md)，这里不复制易过时的 ID。
 - 迁移来自 `migrations/`。不要假定现有库是空库或某一 migration 尚未应用；按目标环境核实状态，再经授权的受控流程执行。
 
-本地初始化使用下方的 `db:migrate:local`。`db:migrate:remote` 显式指向 production 库，不是 staging 命令，也不是默认发布入口；仅在符合治理规范且获授权的例外操作中使用，不能直接追加 preview 环境后假定目标会自动切换。如需启用 staging，必须另行落实发布入口和精确迁移目标。
+本地初始化使用下方的 `db:migrate:local`。`db:migrate:remote` 显式指向 production 库，
+不是默认开发命令；生产迁移按本地发布流程和已授权范围执行，不能追加 preview 环境后假定目标自动切换。
 
 ### SSO、密钥与构建
 
-`wrangler.toml` 声明本环境的 `AUTH` binding、`AUTH_CLIENT_ID=gzh`、`AUTH_ORIGIN` 和 `SSO_ENABLED=1`。生产必需的 `AUTH_CLIENT_SECRET` 与 Auth 的 `SSO_CLIENT_SECRET_GZH` override 配对，`DESK_SUMMARY_TOKEN` 与首页的 `WECHAT_SUMMARY_TOKEN` 配对。重构时可安全生成新值；日常部署不轮换。不要把本地 OTP 配置当生产登录配置，也不要把生产凭证复制到 staging。
+`wrangler.toml` 声明本环境的 `AUTH` binding、`AUTH_CLIENT_ID=gzh`、`AUTH_ORIGIN` 和 `SSO_ENABLED=1`。生产必需的 `AUTH_CLIENT_SECRET` 与 Auth 的 `SSO_CLIENT_SECRET_GZH` override 配对，`DESK_SUMMARY_TOKEN` 与首页的 `WECHAT_SUMMARY_TOKEN` 配对。明确授权初始化/轮换时可配对生成新值；日常部署不轮换。不要把本地 OTP 配置当生产登录配置，也不要复制生产凭证到测试环境。
 
 构建在 `apps/gzh/` 执行 `npm run build`，产物为 `dist`，包括客户端页面和 `assets/preview-session.js`。Worker 由 Wrangler 直接从 TypeScript 打包；不再生成或上传 `_worker.js`。密钥经最小范围的 secret 操作更新，不把控制面掩码或空值重放为整份配置。
 
@@ -96,7 +99,7 @@ npm run db:migrate:local
 npm run dev
 ```
 
-打开 http://127.0.0.1:8788 。隔离的旧 OTP 本地测试需显式设置 `SSO_ENABLED=0`、`ENVIRONMENT=development`，使用合成身份和测试 secret，且不填写真实 `RESEND_API_KEY`；请求 OTP 的响应提供 `dev_otp`，不会把验证码写日志。不要修改生产/staging 的 SSO 设置来跑本地场景。
+打开 http://127.0.0.1:8788 。隔离的旧 OTP 本地测试需显式设置 `SSO_ENABLED=0`、`ENVIRONMENT=development`，使用合成身份和测试 secret，且不填写真实 `RESEND_API_KEY`；请求 OTP 的响应提供 `dev_otp`，不会把验证码写日志。不要修改生产 SSO 设置来跑本地场景。
 
 ```bash
 npm run typecheck
@@ -137,4 +140,4 @@ D1：`accounts` `sessions` `otp_codes` `posts`（含 `is_demo`）`reviews` `desk
 
 ## 一期明确不做
 
-微信推箱 API、多公众号切换、合并 `gzh-preview` draft PR#1。staging 的 Cloudflare Access 是平台隔离要求，不属于此产品功能排除项。
+微信推箱 API、多公众号切换、合并已退役 `gzh-preview` 的旧 draft PR。环境约束遵循现行 CF 治理规范。

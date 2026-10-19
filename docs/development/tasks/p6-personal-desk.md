@@ -1,5 +1,9 @@
 # P6 本人工作台与按需摘要
 
+> 历史实现记录，以下“未部署”和旧路径描述当次现场。后续已完成
+> [Worker 迁移与凭证配对](2026-10-17-web-static-assets.md)；当前接续范围见
+> [任务索引](README.md)，不得据本文件重复创建数据库或执行旧 Pages 发布。
+
 - 状态：本地实现与验证完成，未提交、未部署
 - 工作区：`/Users/codepi/.codex/worktrees/c650/kdp.cool`
 - 基线：`7a55110c031469133b41ccd42c8ab9dc87aff8dc`

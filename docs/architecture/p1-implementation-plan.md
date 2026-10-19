@@ -1,6 +1,8 @@
 # kdp.cool P1 修复与架构治理实施计划
 
-> 状态：Plan only。本文不执行任何代码、配置、Cloudflare 或 DNS 修改。
+> 状态：历史 P1 计划，原冻结边界已由[现行工程架构](workspace-and-deployment.md)替代。
+> 下文不再约束 workspace、Workers 或共享包决策；当前任务从[开发导航](../development/README.md)开始。
+> 原计划不代表当前代码、配置、Cloudflare 或 DNS 状态。
 >
 > 基准：`docs/architecture/architecture-baseline.md`。
 >

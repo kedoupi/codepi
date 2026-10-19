@@ -2,6 +2,10 @@
 
 > 2026-10-10: standalone apps moved into `kedoupi/kdp.cool` and CF projects rebound to this repo.
 
+> Historical migration record. Paths, domains and Pages resources below describe
+> that migration, not the current workspace. Use the [current architecture](workspace-and-deployment.md)
+> and [root README](../../README.md) for ongoing development.
+
 ## Mapping
 
 | Former GitHub | Monorepo path | CF |
