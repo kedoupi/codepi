@@ -8,7 +8,7 @@
 Workflow、R2 桶、两个 Cron 与专用 token 已由控制面核验；无公网域名、
 workers.dev 或 preview URL。备份验收明确失败：`acceptance-backup-67f13bb`
 完成 auth/desk/gu/gzh 四个加密导出，`codepi-health` 原始导出三次超过
-16 MiB Worker 内存上限后实例 errored，未写 R2 完整成功清单，六库备份尚未恢复；
+代码设置的 16 MiB 原始导出保护上限后实例 errored，未写 R2 完整成功清单，六库备份尚未恢复；
 monitor 未触发，`GITHUB_TOKEN` 仍未配置，跨平台备份保持失败。证据见
 [运维任务](tasks/2026-10-19-cloudflare-operations.md)。
 

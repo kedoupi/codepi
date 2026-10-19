@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { DATABASES, encryptedExport, keyId } from '../../../scripts/cloudflare/backup-core.mjs';
+import { DATABASES, keyId } from '../../../scripts/cloudflare/backup-core.mjs';
 import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
 import { offsiteRelease } from './offsite.mjs';
+import { backupDatabase, verifyBackupObject } from './backup.mjs';
 
 export const STEP = { retries: { limit: 2, delay: '30 seconds', backoff: 'exponential' }, timeout: '12 minutes' };
 
@@ -44,7 +45,7 @@ export async function monitorOperation(env, step, event, { monitor = runMonitor 
   return { ok: true, checks: report.results.length };
 }
 
-export async function backupOperation(env, step, event, publicKey, { exportOne = encryptedExport } = {}) {
+export async function backupOperation(env, step, event, publicKey, { exportOne = backupDatabase } = {}) {
   const instanceId = event.instanceId;
   assert.match(instanceId ?? '', /^[a-zA-Z0-9_-]{1,100}$/, 'invalid backup instance ID');
   const started = await step.do('backup metadata', () => ({
@@ -56,21 +57,9 @@ export async function backupOperation(env, step, event, publicKey, { exportOne =
   for (const [name, databaseId] of Object.entries(DATABASES)) {
     entries.push(await step.do(`encrypted export ${name}`, STEP, async () => {
       const key = `${prefix}/${name}.sql.enc`;
-      const existing = await env.BACKUPS.head(key);
-      if (existing) {
-        const entry = JSON.parse(existing.customMetadata?.entry ?? 'null');
-        assert.ok(entry?.database === name && entry.database_id === databaseId
-          && entry.created_at === started.created_at && entry.bytes === existing.size
-          && existing.customMetadata?.key_id === started.key_id
-          && /^[a-f0-9]{64}$/.test(entry.sha256), 'existing backup object has invalid metadata');
-        return entry;
-      }
-      const { encrypted, entry } = await exportOne(name, databaseId, publicKey, started.created_at, {
+      const entry = await exportOne(name, databaseId, publicKey, started.created_at, {
         accountId: env.CLOUDFLARE_ACCOUNT_ID, token: env.CLOUDFLARE_API_TOKEN,
-      });
-      await env.BACKUPS.put(key, encrypted, {
-        httpMetadata: { contentType: 'application/octet-stream' },
-        customMetadata: { entry: JSON.stringify(entry), key_id: started.key_id },
+        bucket: env.BACKUPS, key,
       });
       // No plaintext, encryption keys or signed export URLs enter durable step state.
       return entry;
@@ -79,10 +68,7 @@ export async function backupOperation(env, step, event, publicKey, { exportOne =
   const manifest = { version: 1, created_at: started.created_at, key_id: started.key_id, databases: entries };
   const success = await step.do('commit R2 backup manifest', STEP, async () => {
     for (const entry of entries) {
-      const object = await env.BACKUPS.head(`${prefix}/${entry.file}`);
-      assert.ok(object?.size === entry.bytes && object.customMetadata?.key_id === started.key_id
-        && object.customMetadata?.entry === JSON.stringify(entry),
-      'completed backup ciphertext is missing or changed; start a new instance');
+      await verifyBackupObject(env.BACKUPS, `${prefix}/${entry.file}`, entry, started.key_id);
     }
     await env.BACKUPS.put(`${prefix}/manifest.json`, JSON.stringify(manifest),
       { httpMetadata: { contentType: 'application/json' } });

@@ -83,7 +83,7 @@
   现有 incident 与 Workers Issues 邮件策略启用；邮件送达未验收。
 - 首次手动 backup 实例 `acceptance-backup-67f13bb` 于 04:10:23 UTC 启动，
   auth、desk、gu、gzh 四库加密导出成功；`codepi-health` 原始 SQL 导出三次均
-  超过 16 MiB Worker 内存上限，实例于 04:12:40 UTC errored。
+  超过代码设置的 16 MiB 原始导出保护上限，实例于 04:12:40 UTC errored。
   因六库未完成，未写 `reports/backup/r2-success.json`、
   `reports/backup/offsite-success.json` 或完整 manifest，也不把 4/6 密文当完整备份。
 - monitor 未手动触发：此时它必然因 16 MiB 备份缺口和缺失 `GITHUB_TOKEN`
@@ -99,3 +99,34 @@
    backup，验证 GitHub 历史检查与跨平台 Release 回执。
 3. 明确恢复私钥的异机托管方案并演练；真实 AI 客户端 MCP 验收与 Health 整轮同步
    仍是独立剩余项。Actions 账户额度仍耗尽，不代表 CI 通过。
+
+## 大库备份修复（本地验证完成，待合并发布）
+
+- 基线 `06b5e01c695fc1291147a634e5241519b89bc69b`，与开工时实时远程 main 一致；
+  原 worktree 干净，复用为 `codex/ops-streaming-backup`。当前 Codex 是唯一写入者、
+  共享备份格式负责人和发布者，无并行写入。
+- 范围：`scripts/cloudflare/backup-core.mjs`、`github-api.mjs`、
+  `services/ops/` 及相关运维文档；不改变业务应用、数据库 schema、订阅或第三方凭据。
+- 保留 KDPB001 envelope、gzip、AES-GCM/RSA-OAEP 和恢复私钥。下载与压缩按流处理，
+  以 5 MiB 分片上传 R2；第一片等待最终 GCM tag 再上传，文件格式保持不变。
+  完成后流式核对 SHA-256，单独的元数据回执绑定 R2 ETag，支持上传完成后的中断恢复。
+- 1 GiB 原始导出上限是运行时间/流量保护，不是内存上限；常驻密文缓冲为两片，
+  不缓存整库 SQL。跨平台上传也改用流，避免在后续复制环节重新缓冲整个密文。
+- 验收：超过 16 MiB 的难压缩合成 SQL、多片上传失败与取消、缺失/变化的密文和回执、
+  旧恢复格式、原生 Workerd/Workflows/R2 大文件流程；合并发布后重跑真实六库备份
+  和私钥内存解密。GitHub token 缺失时 offsite 仍失败，R2 完整成功单独确认。
+- 针对性单测 **22/22** 通过；原生 Workerd/Workflows/R2 验证 64 MiB 以上合成 SQL、
+  分片上传、旧格式恢复、缺 token 失败和流式跨平台复制通过。
+  初次测试发现 Node `CompressionStream` 提前读完源流；改为 `node:stream` +
+  `node:zlib` 背压管道后，上传失败取消源流的断言通过，原生运行时也已重验。
+  日志：`/tmp/codepi-ops-streaming-tests.log`、`/tmp/codepi-ops-streaming-runtime.log`。
+- 全任务受影响检查 **7/7** 通过，包含 CF 脚本 **93/93**、Agent 工作流 **25/25**、
+  Ops 单测 **14/14**、治理守门、119 个脚本/18 份 JSON lint、构建及原生执行。
+  迁移追加守门与 `git diff --check` 通过，未变更依赖；最终差异自行审查，
+  未另起独立审查 Agent。原生测试有 Miniflare RPC disposal 提示，流程断言均通过。
+  日志：`/tmp/codepi-ops-streaming-checks.log`。
+- `github-api.mjs` 使用 Workerd `FixedLengthStream` 包装跨平台请求体，
+  使 GitHub 收到明确的 Content-Length；流错误或传输超时会取消复制，保留失败状态。
+- 以八个服务上次成功发布的 `67f13bb85e7e287074190481487cdd64ed162451`
+  累计核对发布范围，本次仅 Ops 受影响。控制面确认旧版本仍为
+  `c4b6f267-967e-425f-9596-43d3b8a5d137`，未配置 `GITHUB_TOKEN`。
