@@ -8,7 +8,7 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 - `.github/workflows/d1-backup.yml` 每日 UTC 18:00（北京时间次日 02:00）运行，
   也可在 main 上手动 dispatch。GitHub 定时调度可能延迟，不保证精确执行时刻。
-- 通过 D1 polling export API 依次导出 5 个生产库。导出可能暂时影响该库请求，
+- 通过 D1 polling export API 依次导出 6 个生产库（包含 MCP 授权库）。导出可能暂时影响该库请求，
   因此安排在低峰；不创建第二套业务环境。
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
@@ -27,9 +27,11 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 | `codepi-gu` | `apps/gu/wrangler.toml` |
 | `codepi-gzh` | `apps/gzh/wrangler.toml` |
 | `codepi-health` | `apps/health/workers/api/wrangler.toml` |
+| `codepi-mcp` | `services/mcp/wrangler.toml` 精确名称解析；UUID 由资源登记表核对 |
 
 库 UUID 固定在 `scripts/cloudflare/d1-backup.mjs`，测试校验其与实际 binding
-一致。五个生产库已验证可取得 Time Travel bookmark；实际可回溯窗口以账户套餐和
+一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
+Time Travel bookmark；MCP 新纳入备份的首次 artifact 尚待验收。实际可回溯窗口以账户套餐和
 控制面为准，不在本 runbook 假定固定天数。
 
 ## 密钥保管
@@ -58,7 +60,7 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 3. 准备匹配的恢复私钥及本机环境变量 `CLOUDFLARE_ACCOUNT_ID` /
    `CLOUDFLARE_API_TOKEN`，使用 D1 写权限。不把值放进命令参数或日志。
 4. 从仓库根目录，以当前 lockfile 中的 Wrangler 创建一个全新的空恢复库，
-   记录其 UUID。不要使用五个生产库 UUID，不向已存数据的库直接导入。
+   记录其 UUID。不要使用六个生产库 UUID，不向已存数据的库直接导入。
 5. 执行恢复脚本：
 
    ```bash
@@ -77,6 +79,13 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
    另行评估和执行；脚本成功不等于生产已切换。
 7. 把备份 run、恢复目标 UUID、验证结果和临时资源清理情况记录到任务文档。
    真实备份恢复出的临时库仍属于私人数据，清理前按授权确认。
+
+MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或授权码消费。
+恢复到临时库后、任何生产 binding 切换之前，必须清除恢复库中的 `mcp_tokens`、
+`oauth_auth_codes`、`oauth_consent_requests`、`kdp_sso_sessions` 和
+`kdp_sso_transactions`，保留客户端注册 `oauth_clients`，让客户端重新授权；
+不得把历史 token 的“未撤销”状态直接恢复到线上。此清理属于事故恢复中的显式步骤，
+通用 restore 脚本不会自动修改生产库。授权备份仍按敏感数据加密保管。
 
 ## 演练与失效场景
 

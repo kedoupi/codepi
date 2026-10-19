@@ -66,23 +66,52 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 
 | 顺序 / 服务 | 目录 | 构建 / 迁移 / 发布 |
 | --- | --- | --- |
-| Auth | `services/auth` | `pnpm exec wrangler deploy --dry-run` → `pnpm exec wrangler d1 migrations apply codepi-auth --remote` → `pnpm exec wrangler deploy` |
-| Web / Desk | `apps/web` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-desk --remote` → `pnpm exec wrangler deploy` |
-| GU | `apps/gu` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gu --remote` → `pnpm exec wrangler deploy` |
-| GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `pnpm exec wrangler deploy` |
+| Auth | `services/auth` | `pnpm exec wrangler deploy --dry-run` → `pnpm exec wrangler d1 migrations apply codepi-auth --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs auth <完整sourceSHA>` |
+| Web / Desk | `apps/web` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-desk --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs web <完整sourceSHA>` |
+| GU | `apps/gu` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gu --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gu <完整sourceSHA>` |
+| GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gzh <完整sourceSHA>` |
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
 | MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
-| Health 前端 | `apps/health/apps/web` | `pnpm build` → `pnpm exec wrangler deploy` |
+| Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
+
+五个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
+`BUILD_SHA=<SHA前12位>`，输出实际 version ID；smoke 仍须按第 4 节完成。
+此命令在协调者已有发布锁内运行，不代替构建、迁移和完整发布流程。
+Health 前端只增加构建元数据，不恢复 DB、AUTH 或业务 vars；巡检从控制面读取其独立
+版本，不把它代理的 `/api/health`（Health API 版本）当作前端版本。
 
 Health API 的现有脚本已包含 dry-run、权限/当前版本预检、D1 migration、带 SHA 的
 版本上传、切换 100% 流量和 Cron 核对；不得用裸 `wrangler deploy` 丢失这些步骤。
 前端使用 Workers Static Assets，不使用已退役的 Pages deploy。
 
-MCP 首发前单独配对 Auth 的 `SSO_CLIENT_SECRET_MCP` 与 MCP 的
-`AUTH_CLIENT_SECRET`；既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
+MCP 的 Auth `SSO_CLIENT_SECRET_MCP` 与自身 `AUTH_CLIENT_SECRET` 由下方统一命令配对；
+既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
 必须先就绪，MCP 验收通过后才发布展示新地址的 Health 前端。MCP D1 只保存授权状态，
-不复用 Health 数据库；旧客户端需重新授权。MCP 授权状态当前不包含在五个业务 D1 的
-定时备份中，丢失时通过重新授权恢复，不影响 Health 历史和 Oura 凭证。
+不复用 Health 数据库；旧客户端需重新授权。MCP D1 现纳入六库加密日备，恢复时须避免
+复活快照后已撤销或已消费的授权，见备份 runbook。2026-10-19 此项取代首发时“不备份授权状态”的决策。
+MCP deploy 现在自动执行精确 build、凭证配对、发现、匿名拒绝和连接管理入口 smoke；
+上传成功但 smoke 失败仍以非零状态退出，后续发布停止。
+
+### MCP secret 配对与修复
+
+这不是日常发布步骤。只有在明确授权初始化/轮换 MCP 的项目自有凭证时，从根目录执行：
+
+```bash
+node scripts/cloudflare/pair-mcp-secret.mjs --rotate
+```
+
+命令自行持有同一个 production release lock，在普通发布开始前单独运行。它先核实
+两个 Worker 都只有单一活跃版本且不存在未发布的较新版本，然后在内存生成一个随机值，
+只更新 `codepi-auth/SSO_CLIENT_SECRET_MCP` 与 `codepi-mcp/AUTH_CLIENT_SECRET`，
+并执行真实 readiness 检查。不会输出或保存值，不覆盖 `SSO_CLIENTS`、其他客户端或
+Oura 凭证。输出只含前后 Worker version ID 和配对结果。
+此工具要求两个 Worker 已存在；MCP 浏览器会话或进行中的授权事务在轮换后可能需要重新登录。
+MCP bearer token 不因这条配对命令自动撤销。
+
+两个远程写入不是原子事务。任一步失败都报告不完整或不确定，停止发布；重新执行已授权的
+整条配对命令会用一个新值覆盖这同一对 secret。两端写入成功但健康检查失败时先运行
+`pnpm --dir services/mcp check:live` 排查，不反复轮换来掩盖 Auth 故障。
+secret 更新也会创建部署；回退 Worker 可能带回旧 secret，回退后必须重新检查配对。
 
 Health 示例（在仓库根运行，替换基线，凭证只从已授权环境读取）：
 
@@ -118,7 +147,8 @@ GU/GZH 为 `AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN`。Health 前端为纯代理�
 精确 build 契约，不把“secret 名存在”当作成功登录。
 
 发布日志必须解析出真实 Worker version ID（`deployment-evidence.mjs worker-version`），
-解析失败不能标成功。逐服务记录 JSONL（输出位置在 Git 之外）：
+解析失败不能标成功。普通 Worker 的新发布封装已完成解析，JSON 输出的 `version` 就是
+该标识，`smoke: pending` 仍须完成上表验收。逐服务记录 JSONL（输出位置在 Git 之外）：
 
 ```bash
 node scripts/cloudflare/deployment-evidence.mjs append \
@@ -139,6 +169,14 @@ node scripts/cloudflare/deployment-evidence.mjs append \
 不自动重跑旧 Actions 部署。凭证、域名、数据清理必须保持各自授权边界。
 
 `production-monitor.yml` 和 `d1-backup.yml` 仍负责定时巡检和加密备份，部署迁到本机
-不表示它们已经恢复。可按需本地执行 `node scripts/cloudflare/production-monitor.mjs --require-d1`；
+不表示它们已经恢复。可按需本地执行
+`node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`；
 备份按既有备份 runbook 执行，异机保存与密钥保管仍须另行验收。不把个人电脑临时在线
 描述成全天候调度保障。
+
+巡检要求完整 Git 历史，查询实时远程 main，以各 Worker 当前 100% 承流版本的
+`BUILD_SHA` 为基线，逐提交累计检查发布相关路径。只改文档或测试、其他独立服务时可保留
+旧 SHA；共享认证/依赖改动保守覆盖消费者。回滚到存在后续代码改动的旧版本会报警；
+非祖先、缺失 SHA/历史、权限不足、分流或无法取得远程 main 均失败，不当成一致。
+调度读取 main 的完整历史；若 main 在 checkout 后前进到本地尚无的提交，该次失败，
+刷新 checkout 后重跑。初次启用前须给五个缺少 SHA 的 Worker 补一次带标记发布。

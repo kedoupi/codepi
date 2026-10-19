@@ -5,6 +5,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { decrypt, encrypt, exportDatabase, keyId, runBackup, DATABASES, PUBLIC_KEY_PATH } from './d1-backup.mjs';
+import { parseRegistry } from './validate-governance.mjs';
 
 const pair = () => generateKeyPairSync('rsa', { modulusLength: 3072,
   publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
@@ -64,14 +65,22 @@ test('backup writes only encrypted files and a portable manifest; refuses missin
   await assert.rejects(runBackup({ outDir: dir, env: {} }), /credentials/);
 });
 
-test('all five database IDs match the actual Wrangler bindings', async () => {
+test('all six databases are covered, including the release-resolved MCP binding', async () => {
   const configs = { 'codepi-auth': 'services/auth/wrangler.jsonc', 'codepi-desk': 'apps/web/wrangler.toml',
     'codepi-gu': 'apps/gu/wrangler.toml', 'codepi-gzh': 'apps/gzh/wrangler.toml',
-    'codepi-health': 'apps/health/workers/api/wrangler.toml' };
+    'codepi-health': 'apps/health/workers/api/wrangler.toml', 'codepi-mcp': 'services/mcp/wrangler.toml' };
   assert.deepEqual(Object.keys(DATABASES).sort(), Object.keys(configs).sort());
+  const registry = parseRegistry(await readFile(new URL('../../docs/development/cloudflare-resource-registry.md', import.meta.url), 'utf8'));
+  const managed = registry.filter(row => row.environment === 'production' && row.resource_type === 'd1' && row.status === 'managed');
+  assert.deepEqual(managed.map(row => row.physical_name.split(' (')[0]).sort(), Object.keys(DATABASES).sort(),
+    'every managed production D1 must have a backup and restore protection');
   for (const [name, file] of Object.entries(configs)) {
     const config = await readFile(new URL('../../' + file, import.meta.url), 'utf8');
-    assert.ok(config.includes(DATABASES[name]), `${name} must match its deployed binding`);
+    assert.ok(managed.some(row => row.physical_name === `${name} (${DATABASES[name]})`), `${name} UUID must match the registry`);
+    if (name === 'codepi-mcp') {
+      assert.match(config, /database_name = "codepi-mcp"/);
+      assert.doesNotMatch(config, /database_id\s*=/, 'MCP resolves its ID at release time');
+    } else assert.ok(config.includes(DATABASES[name]), `${name} must match its deployed binding`);
   }
 });
 
