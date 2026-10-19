@@ -1,7 +1,8 @@
 # 本地发布操作
 
 2026-10-18 起，正常路径为：本地检查与审查 → PR 合入 main → 本机从合并后的
-main 构建、迁移、发布、验收。GitHub Actions 只提供附加验证以及独立的巡检/备份；
+main 构建、迁移、发布、验收。GitHub Actions 提供附加验证和手动应急入口，
+定时巡检/备份由 Cloudflare 执行，见[定时运维](cloudflare-operations.md)；
 部署不等待 hosted runner。环境仍为 local + production。
 治理约束见 [Cloudflare 规范](cloudflare-governance.md)，不新增依赖或另一套环境。
 
@@ -73,8 +74,9 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
 | MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
+| Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
 
-五个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
+六个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
 `BUILD_SHA=<SHA前12位>`，输出实际 version ID；smoke 仍须按第 4 节完成。
 此命令在协调者已有发布锁内运行，不代替构建、迁移和完整发布流程。
 Health 前端只增加构建元数据，不恢复 DB、AUTH 或业务 vars；巡检从控制面读取其独立
@@ -168,15 +170,16 @@ node scripts/cloudflare/deployment-evidence.mjs append \
 兼容时回退到已记录版本，或修复后重新发布。D1 限额恢复后从当前 main 重新走本流程，
 不自动重跑旧 Actions 部署。凭证、域名、数据清理必须保持各自授权边界。
 
-`production-monitor.yml` 和 `d1-backup.yml` 仍负责定时巡检和加密备份，部署迁到本机
-不表示它们已经恢复。可按需本地执行
-`node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`；
-备份按既有备份 runbook 执行，异机保存与密钥保管仍须另行验收。不把个人电脑临时在线
-描述成全天候调度保障。
+定时巡检与加密日备由 `services/ops` 的 Cloudflare Cron/Workflows 执行，原
+`production-monitor.yml` / `d1-backup.yml` 仅保留手动应急入口。验收须核实真实
+Workflow 实例、R2 六库完成清单、跨平台回执和私有访问。GitHub 运行凭证缺失时，
+版本核对和跨平台备份明确失败；详见[定时运维](cloudflare-operations.md)。
+本地仍可执行 `node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`。
 
-巡检要求完整 Git 历史，查询实时远程 main，以各 Worker 当前 100% 承流版本的
+本地巡检要求完整 Git 历史，查询实时远程 main，以各 Worker 当前 100% 承流版本的
 `BUILD_SHA` 为基线，逐提交累计检查发布相关路径。只改文档或测试、其他独立服务时可保留
 旧 SHA；共享认证/依赖改动保守覆盖消费者。回滚到存在后续代码改动的旧版本会报警；
 非祖先、缺失 SHA/历史、权限不足、分流或无法取得远程 main 均失败，不当成一致。
-调度读取 main 的完整历史；若 main 在 checkout 后前进到本地尚无的提交，该次失败，
+云端调度通过 GitHub API 分页读取逐提交历史，不需要 Git checkout。
+本地巡检若 main 在 checkout 后前进到本地尚无的提交，该次失败，
 刷新 checkout 后重跑。初次启用前须给五个缺少 SHA 的 Worker 补一次带标记发布。

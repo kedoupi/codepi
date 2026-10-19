@@ -7,19 +7,21 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 ## 备份架构
 
-- `.github/workflows/d1-backup.yml` 每日 UTC 18:00（北京时间次日 02:00）运行，
-  也可在 main 上手动 dispatch。GitHub 定时调度可能延迟，不保证精确执行时刻。
+- 自动任务由 `services/ops` 的 Cloudflare Cron/Workflows 执行，每日 UTC 18:00
+  （北京时间次日 02:00）；原 `d1-backup.yml` 为手动应急入口，不再定时消耗 runner。
 - 通过 D1 polling export API 依次导出 6 个生产库（包含 MCP 授权库）。导出可能暂时影响该库请求，
   因此安排在低峰；不创建第二套业务环境。
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
-- 密文和 `manifest.json` 上传到本私有 GitHub 仓库的 Actions artifact
-  `d1-backup-<run-id>-<attempt>`，`retention-days: 14`，由平台到期删除。
-  不使用另一个 Git 仓库保存备份，也不依赖删除 Git 文件实现保留策略。
-- 工作流使用 GitHub `production` Environment 已有的
-  `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN`。导出要求 D1 写权限，
-  本次没有增加 PAT、对称备份密钥或其他 Actions secret。
+- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部六库
+  成功后才提交 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
+  缺少 GitHub token 或复制失败时，不得称为跨平台备份完成。Release 当前不自动删除。
+- R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
+  D1 Write（导出要求）和 Workers Scripts Read，不将本机管理 token 放入 Worker。
+  运行细节见[定时运维](cloudflare-operations.md)。恢复私钥不上云。
+- 手动 Actions 仍可输出相同格式的 14 天 artifact，保留历史恢复入口；其账户分钟
+  限制尚未调整，不能将工作流文件存在当作当前自动备份已恢复。
 
 | 数据库 | 配置来源 |
 | --- | --- |
@@ -30,11 +32,13 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 | `codepi-health` | `apps/health/workers/api/wrangler.toml` |
 | `codepi-mcp` | `services/mcp/wrangler.toml` 精确名称解析；UUID 由资源登记表核对 |
 
-库 UUID 固定在 `scripts/cloudflare/d1-backup.mjs`，测试校验其与实际 binding
+库 UUID 固定在 `scripts/cloudflare/backup-core.mjs`，测试校验其与实际 binding
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
 Time Travel bookmark；2026-10-19 六库本机导出、密文完整性和现有私钥内存解密已通过，
 包含 MCP 授权库。新的 GitHub 六库 artifact 尚待验收：当次 backup job 无 runner/steps，
-未生成 artifact。本机快照不代表定时日备或异机保存已恢复。实际可回溯窗口以账户套餐和
+未生成 artifact。后续只读诊断已确认 Actions 账户免费分钟用尽、额外预算为 $0，
+重跑仍被计费限制拦截；预算调整尚未获所有者明确决定。
+本机快照不代表定时日备或异机保存已恢复。实际可回溯窗口以账户套餐和
 控制面为准，不在本 runbook 假定固定天数。
 
 ## 密钥保管
@@ -58,7 +62,7 @@ Time Travel bookmark；2026-10-19 六库本机导出、密文完整性和现有�
 
 1. 确认事故时间与目标库。优先评估 D1 Time Travel；直接回溯生产库属于单独的
    事故操作，先记录目标 bookmark、影响范围和授权。
-2. 下载目标成功 backup run 的 artifact，在仓库之外解压。检查 `manifest.json`
+2. 下载目标完整的 R2 前缀或私有 Release 附件到仓库之外（历史 Actions artifact 仍适用）。检查 `manifest.json`
    是否包含所需库、公钥指纹及导出时间；下载解压后的密文可用 SHA-256 对照 manifest。
 3. 准备匹配的恢复私钥及本机环境变量 `CLOUDFLARE_ACCOUNT_ID` /
    `CLOUDFLARE_API_TOKEN`，使用 D1 写权限。不把值放进命令参数或日志。

@@ -20,6 +20,7 @@
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，四个产品共同依赖 |
 | `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，Health 首期；独立授权 D1 |
+| `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[运维说明](docs/development/cloudflare-operations.md) |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
 部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。

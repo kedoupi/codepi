@@ -2,9 +2,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp' };
+export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp', ops: 'services/ops' };
 export const staticApps = ['web'];
-export const privateApps = ['auth', 'gu', 'gzh', 'health', 'mcp'];
+export const privateApps = ['auth', 'gu', 'gzh', 'health', 'mcp', 'ops'];
 const allApps = [...staticApps, ...privateApps];
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -37,13 +37,13 @@ export function makePlan(files) {
   const addAll = () => { add(allApps); sharedAuth = true; };
 
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-    'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
+    'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
   const migrationDirs = ['apps/web/migrations/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
     'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
   const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))
     || file.startsWith('scripts/agent/check-migrations'));
   for (const file of files) {
-    if (file.startsWith('scripts/cloudflare/')
+    if (file.startsWith('services/ops/') || file.startsWith('scripts/cloudflare/')
       || file === '.github/workflows/deploy-platform.yml'
       || ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)
       || file === 'docs/development/cloudflare-resource-registry.md'
@@ -52,6 +52,7 @@ export function makePlan(files) {
   }
 
   for (const file of files) {
+    if (file.startsWith('scripts/cloudflare/')) add(['ops']);
     if (['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)) {
       addAll();
       workflow = true;
@@ -120,6 +121,10 @@ export function makePlan(files) {
       check(dirOf(app), 'pnpm', 'build');
       check(dirOf(app), 'pnpm', 'test:assets');
       check(dirOf(app), 'pnpm', 'test:browser:built');
+    } else if (app === 'ops') {
+      check(dirOf(app), 'pnpm', 'test');
+      check(dirOf(app), 'pnpm', 'build');
+      check(dirOf(app), 'pnpm', 'test:runtime');
     } else if (app === 'mcp') {
       check(dirOf(app), 'pnpm', 'test');
       check(dirOf(app), 'pnpm', 'typecheck');

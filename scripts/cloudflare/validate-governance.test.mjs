@@ -23,6 +23,9 @@ const U = {
 };
 
 const REGISTRY_ROWS = [
+  ['worker-ops', 'production', 'worker', 'codepi-ops', '-', 'planned'],
+  ['workflow-ops', 'production', 'workflow', 'codepi-ops', '-', 'planned'],
+  ['r2-ops', 'production', 'r2', 'codepi-ops-backups', '-', 'planned'],
   ['worker-mcp', 'production', 'worker', 'codepi-mcp', 'mcp.codepi.app', 'planned'],
   ['d1-mcp', 'production', 'd1', 'codepi-mcp', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
@@ -120,6 +123,7 @@ function authConfig() {
 
 function legalFiles(overrides = {}) {
   return {
+    'services/ops/wrangler.toml': opsConfig(),
     'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
     'apps/web/wrangler.toml': webWorkerConfig(),
     'apps/gu/wrangler.toml': privateWorkerConfig(),
@@ -131,6 +135,43 @@ function legalFiles(overrides = {}) {
     ...overrides.files,
   };
 }
+
+function opsConfig() {
+  return `
+name = "codepi-ops"
+workers_dev = false
+preview_urls = false
+routes = []
+[vars]
+ENVIRONMENT = "production"
+[triggers]
+crons = ["*/30 * * * *", "0 18 * * *"]
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "codepi-ops-backups"
+[[workflows]]
+binding = "OPERATIONS"
+name = "codepi-ops"
+class_name = "OperationsWorkflow"
+${OBSERVABILITY}
+`;
+}
+
+test('ops remains private, stateless and bound only to its owned R2 and Workflow', () => {
+  assert.deepEqual(run(legalFiles()), []);
+  for (const config of [
+    opsConfig().replace('workers_dev = false', 'workers_dev = true'),
+    opsConfig().replace('preview_urls = false', 'preview_urls = true'),
+    opsConfig().replace('routes = []', 'routes = [\n  { pattern = "codepi.app", custom_domain = true }\n]'),
+    opsConfig().replace('crons = ["*/30 * * * *", "0 18 * * *"]', 'crons = ["* * * * *"]'),
+    opsConfig().replace('bucket_name = "codepi-ops-backups"', 'bucket_name = "unrelated"'),
+    opsConfig().replace('class_name = "OperationsWorkflow"', 'class_name = "OtherWorkflow"'),
+    opsConfig() + '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "codepi-health"\n',
+    opsConfig() + '\n[[services]]\nbinding = "AUTH"\nservice = "codepi-auth"\n',
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'services/ops/wrangler.toml': config } })).some(v => v.startsWith('ops:')));
+  }
+});
 
 function fixtureRoot(files) {
   const root = mkdtempSync(path.join(tmpdir(), 'cf-gov-'));

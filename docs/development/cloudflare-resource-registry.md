@@ -1,5 +1,14 @@
 # Cloudflare 资源登记表
 
+2026-10-19 后续只读诊断：GitHub Actions 的账户免费分钟已用完（2,000 / 2,000），
+额外预算为 $0，账户页显示 `Usage blocked`；备份 run `39192113905` attempt 2
+仍未分配 runner。定时巡检与六库异机备份尚未恢复，未修改预算。
+Health 当天同步并非仍在授权阻塞：`2026-10-19T03:15:48.851Z` 为 68 / 92 完成，
+`03:21:09.729Z` 推进到 71 / 92，0 失败且当前错误为空；18 类详细集合有当天成功窗口。
+整轮成功时间仍是 `2026-10-15T15:16:55.898Z`，30 小时告警保留，整轮完成待验收。
+证据与访问边界见 [运维任务](tasks/2026-10-19-mcp-operations.md)。
+本段未涉及 Worker 发布或生产数据写入；以下为此前核验快照。
+
 2026-10-19 MCP 运维补齐已合并发布：PR #101 合并为
 `0ce7d35636d53291b1b7ebbc7f84d7d7d6a0741b`。当前 Codex 在本机持锁，从干净且与
 实时远程 main 一致的源码为 Auth、Web、GU、GZH、Health 前端补发实际构建版本，
@@ -265,6 +274,9 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-19 source 767fb0b3d63a |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS | 无公网入口 | services/ops/wrangler.toml | planned | 2026-10-19 待发布 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | planned | 2026-10-19 待发布 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | planned | 2026-10-19 待创建；14 天到期 |
 <!-- registry-table:end -->
 
 ## 2026-10-16 只读盘点
