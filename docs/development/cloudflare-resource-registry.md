@@ -1,5 +1,21 @@
 # Cloudflare 资源登记表
 
+2026-10-19 大库备份修复发布：PR #104 合并为
+`da3324db27bf3562cf5515237f1f5b6dfe197488`，与已验证分支
+`69a9254349c729ed2104772c5f1cdba0fc86ee30` 的 tree 一致。当前 Codex 从干净且
+等于实时远程 main 的源码持锁发布 Ops，新 version
+`7ec36e4e-0682-4e42-8e4a-fc87c030fd37` 承接 100% 流量，
+`BUILD_SHA=da3324db27bf`，前一版本为 `c4b6f267-967e-425f-9596-43d3b8a5d137`。
+真实实例 `acceptance-backup-da3324d` 于 `2026-10-19T07:50:13.808Z` 完成全部六库
+R2 密文、manifest 和完成回执；六份密文的 SHA-256、GCM、库身份及既有私钥内存解密
+全部通过，明文未落地。原来的 16 MiB 代码保护限制已被有背压的流式分片上传替代，
+没有修改恢复格式、私钥或业务数据。本地生产巡检 24/24 通过，含八个 Worker 的版本核对。
+Ops 隔离、Cron、R2 14 天生命周期、最小权限 token、持久日志与 Issues 再次核验通过。
+跨平台复制仍因缺少 `GITHUB_TOKEN` 失败；实例于 `2026-10-19T07:51:45.060Z`
+errored，R2 完整副本保留。云端巡检已确认 R2 备份新鲜度通过，剩余失败为 GitHub
+版本核对和跨平台副本，未标记为全部恢复。详细证据见
+[运维任务](tasks/2026-10-19-cloudflare-operations.md)。以下首发记录保留为历史快照。
+
 2026-10-19 定时运维迁移发布（北京时间）：PR #103 合并为
 `67f13bb85e7e287074190481487cdd64ed162451`，合并树与已验证分支
 `94429e0508581fb643a5f6f8b48e1662290983ac` 一致。当前 Codex 在本机持有发布锁，
@@ -286,9 +302,9 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-19 source 767fb0b3d63a |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
-| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version c4b6f267-967e-425f-9596-43d3b8a5d137；BUILD_SHA 67f13bb85e7e；public endpoints/logs/rollout 已核验 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 workflow d91cf7e9-4519-4523-8bb1-4fe1d3b23a25；acceptance backup 因 Health >16 MiB errored，完整备份未恢复 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、managed domain 关闭、backups/ 与 reports/ 各 14 天生命周期；首次验收仅 4/6 密文，未写成功清单 |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 7ec36e4e-0682-4e42-8e4a-fc87c030fd37；BUILD_SHA da3324db27bf；public endpoints/logs/rollout 已核验 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 workflow d91cf7e9-4519-4523-8bb1-4fe1d3b23a25；acceptance-backup-da3324d 六库 R2 完整，offsite 因缺 GitHub token errored；巡检仅剩 GitHub 相关两项失败 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、managed domain 关闭、backups/ 与 reports/ 各 14 天生命周期；六库密文、manifest、完成回执、SHA-256 和既有私钥内存解密通过 |
 <!-- registry-table:end -->
 
 ## 2026-10-16 只读盘点
