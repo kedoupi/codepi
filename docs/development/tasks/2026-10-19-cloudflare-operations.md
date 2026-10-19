@@ -1,5 +1,7 @@
 # Cloudflare 定时运维迁移
 
+- 当前状态：大库流式备份已合并发布，真实六库 R2 备份与既有私钥内存解密通过；
+  云端 GitHub 版本核对和跨平台副本仍因缺少 `GITHUB_TOKEN` 失败，详见文末。
 - 目标：将每 30 分钟巡检和每日六库加密备份从 Actions runner 迁到 Cloudflare。
 - 基线：`b248c22f0e626291f5d3880f595430287fea0630`，开工时与实时远程 main 一致。
 - Worktree：`/Users/codepi/.worktrees/kdp.cool/codex/unified-mcp`。
@@ -91,7 +93,7 @@
   或手动应急备份二选一），不是把容量上限静默放大。云备份完整性、跨平台副本、
   告警邮件送达均不能声称恢复。
 
-## 回填后的未完成项
+## 首发时未完成项（历史，后续进展见下文）
 
 1. 设计并实现 Health >16 MiB 的可靠备份方案，先保留手动 `d1-backup.yml`
    作为已授权应急入口；实现后重跑首次六库 R2、manifest 和恢复私钥内存解密。
@@ -100,7 +102,7 @@
 3. 明确恢复私钥的异机托管方案并演练；真实 AI 客户端 MCP 验收与 Health 整轮同步
    仍是独立剩余项。Actions 账户额度仍耗尽，不代表 CI 通过。
 
-## 大库备份修复（本地验证完成，待合并发布）
+## 大库备份修复（已合并发布，六库 R2 验收通过）
 
 - 基线 `06b5e01c695fc1291147a634e5241519b89bc69b`，与开工时实时远程 main 一致；
   原 worktree 干净，复用为 `codex/ops-streaming-backup`。当前 Codex 是唯一写入者、
@@ -130,3 +132,44 @@
 - 以八个服务上次成功发布的 `67f13bb85e7e287074190481487cdd64ed162451`
   累计核对发布范围，本次仅 Ops 受影响。控制面确认旧版本仍为
   `c4b6f267-967e-425f-9596-43d3b8a5d137`，未配置 `GITHUB_TOKEN`。
+
+## 大库修复发布与真实验收
+
+- PR #104 经 API squash 合并为 `da3324db27bf3562cf5515237f1f5b6dfe197488`；
+  与已验证的 `69a9254349c729ed2104772c5f1cdba0fc86ee30` tree 完全一致。
+  当前 Codex 从该干净、等于实时远程 main 的 detached checkout 持有生产锁发布，
+  冻结安装、构建、治理、迁移守门与 `git diff --check` 通过；保留同树的本地检查证据。
+- 仅发布 Ops，新 version 为 `7ec36e4e-0682-4e42-8e4a-fc87c030fd37`，
+  唯一承接 100% 流量，`BUILD_SHA=da3324db27bf`。前一 version 为
+  `c4b6f267-967e-425f-9596-43d3b8a5d137`；其余七个 Worker 运行代码未变，保留原版本。
+- 控制面复查：Ops 无公网域名，workers.dev/preview URL 关闭；两个 Cron、
+  BACKUPS/OPERATIONS 绑定、持久日志、查询串脱敏、Issues、私有 R2 和 14 天生命周期
+  均保持预期。专用 token 仍仅为 D1 Write 与 Workers Scripts Read，未更新凭证或订阅。
+- `acceptance-backup-da3324d` 于 `2026-10-19T07:49:36.763Z` 启动，
+  `07:50:13.808Z` 完成六库 R2 密文、manifest 和完成回执。Auth/Desk/GU/GZH/Health/MCP
+  均导出成功，修复了首发的 Health 容量失败。随后逐份核对 SHA-256、GCM、
+  库 ID 与时间元数据，并用现有恢复私钥内存解密，**6/6** 通过；明文未保存。
+  Git 外仅保留密文和 manifest，目录 `/tmp/codepi-ops-verified-ciphertext-jmFETR`。
+- offsite 步骤因缺少 `GITHUB_TOKEN` 重试三次后失败，实例于
+  `2026-10-19T07:51:45.060Z` errored；报告明确 `r2=complete`、`offsite=failed`、
+  `reason=github_token_missing`，无跨平台成功回执。R2 完整成功不等于 Workflow 全绿。
+- `node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`
+  **24/24** 通过，包含八个 Worker 的 main 版本核对、MCP 配对和 Health 同步新鲜度。
+  手动 `acceptance-monitor-da3324d` 报告确认六库 R2 30 小时新鲜度通过，
+  剩余两项失败为缺 GitHub token 的云端版本核对、缺少跨平台完整副本；
+  重试三次后实例于 `2026-10-19T07:52:53.739Z` errored。
+- 证据：`/tmp/codepi-ops-streaming-release-*.log/json`、
+  `/tmp/codepi-ops-control-da3324d.json`、`/tmp/codepi-ops-instance-acceptance-*.json`、
+  `/tmp/codepi-ops-backup-verified-da3324d.json`、
+  `/tmp/codepi-ops-streaming-local-monitor.log`、
+  `/tmp/codepi-ops-streaming-deployment-evidence.jsonl`。
+
+## 当前剩余项
+
+1. 所有者配置仅允许 `kedoupi/kdp.cool`、Contents Read and write 的 `GITHUB_TOKEN`
+   到 Ops runtime secret；随后复跑 monitor 与 backup，验收云端版本核对和
+   GitHub Release 的完整跨平台回执。不得把凭证发到聊天或写入 Git。
+2. 实际告警邮件送达、恢复私钥异机保管与恢复演练仍未验收；真实 AI 客户端 MCP
+   验收仍为独立任务。Health 30 小时新鲜度本轮已通过，不再列为当前故障。
+3. GitHub Actions 账户额度问题与本次发布分开；本地验证和云端验收已实际执行，
+   不将 Actions 未运行标为通过。
