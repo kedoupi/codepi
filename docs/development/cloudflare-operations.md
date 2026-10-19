@@ -35,20 +35,26 @@
 
 ## 六库备份
 
-每库一个持久步骤：D1 polling export → 内存下载 → gzip → AES-256-GCM →
-RSA-3072 公钥封装 → R2。格式与本地 `d1-backup.mjs` / `d1-restore.mjs` 相同，
+每库一个持久步骤：D1 polling export → 流式下载 → gzip → AES-256-GCM →
+RSA-3072 公钥封装 → R2 分片上传。格式与本地 `d1-backup.mjs` / `d1-restore.mjs` 相同，
 公钥只有一个来源；恢复私钥不进入 Worker、Workflow 或 R2。
 
-每个原始 SQL 导出上限 16 MiB，六库串行处理，避免 Worker 内存耗尽。超过上限必须
-报错并评估流式导出，不静默截断。D1 导出可能暂时影响对应库，故安排在低峰。
+六库串行处理，不缓存整库 SQL。通过带背压的压缩管道和 5 MiB 密文分片限制常驻缓冲；
+KDPB001 格式的认证 tag 位于密文之前，因此第一片等最终 tag 就绪后最后上传。
+上传失败会取消源流并中止分片上传，不生成完成清单。原始 SQL 上限为 1 GiB，
+用于限制单次运行的时间与流量，超过上限明确失败。这不是 Worker 内存上限，
+也不再使用原来的 16 MiB 整库缓冲保护。D1 导出可能暂时影响对应库，故安排在低峰。
 SQL、解密密钥和 D1 signed URL 都不作为持久步骤返回值。
 
 对象在 `backups/<instance>/` 下，全部六库完成后才写 `manifest.json`。
-成功步骤在重试时复用已写入的密文，保持 envelope 和 manifest 一致；
+上传完成后再次流式计算密文 SHA-256，在同前缀的 `.receipt.json` 中绑定 R2 ETag、
+库身份和摘要。成功步骤在重试时复用已写入的密文，保持 envelope 和 manifest 一致；
+若上传提交后、回执写入前中断，重试只对已提交的密文补算摘要，不重新导出。
+密文过期、身份或 ETag 不一致时失败，需新建备份实例。
 半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示六库 R2 完整备份，
 不表示已有 Cloudflare 之外的副本。
 
-有 `GITHUB_TOKEN` 时，逐个把密文经 API 上传私有 Release，manifest 最后上传，
+有 `GITHUB_TOKEN` 时，逐个把密文经流式 API 上传私有 Release，manifest 最后上传，
 按 GitHub 返回的 SHA-256 验证。重试只接受名称、状态和 digest 完全匹配的既有附件，
 不删除或覆盖不一致的附件。全部完成后才写
 `reports/backup/offsite-success.json`。Release 不消耗 Actions runner；
@@ -87,8 +93,8 @@ R2 写入通过 bucket binding；不会把本机的管理 token 放进 Worker。
 从 `services/ops/` 使用 workspace 锁定的 Wrangler：
 
 ```bash
-pnpm exec wrangler workflows trigger codepi-ops --params '{"kind":"monitor"}'
-pnpm exec wrangler workflows trigger codepi-ops --params '{"kind":"backup"}'
+pnpm exec wrangler workflows trigger codepi-ops '{"kind":"monitor"}'
+pnpm exec wrangler workflows trigger codepi-ops '{"kind":"backup"}'
 pnpm exec wrangler workflows instances list codepi-ops
 pnpm exec wrangler workflows instances describe codepi-ops <instance-id>
 pnpm exec wrangler r2 bucket lifecycle list codepi-ops-backups

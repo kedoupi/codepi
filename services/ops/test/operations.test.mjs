@@ -2,32 +2,16 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import test from 'node:test';
-import { DATABASES, encryptedExport, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
+import { DATABASES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
 import { assertRecentMonitor, backupFreshness, backupOperation, monitorOperation, scheduleOperation } from '../src/operations.mjs';
 import { offsiteRelease } from '../src/offsite.mjs';
+import { backupDatabase } from '../src/backup.mjs';
+import { bucketFixture, exportRequest } from './fixtures.mjs';
 
 const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
   publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
 const event = { instanceId: 'backup-synthetic' };
 
-export function bucketFixture() {
-  const data = new Map();
-  const body = value => {
-    const row = { ...value };
-    row.arrayBuffer = async () => Uint8Array.from(row.bytes).buffer;
-    row.json = async () => JSON.parse(row.bytes.toString());
-    return row;
-  };
-  return {
-    data,
-    async head(key) { return data.has(key) ? body(data.get(key)) : null; },
-    async get(key) { return this.head(key); },
-    async put(key, value, options = {}) {
-      const bytes = Buffer.from(typeof value === 'string' ? value : value);
-      data.set(key, { bytes, size: bytes.length, ...options });
-    },
-  };
-}
 function stepFixture() {
   const state = new Map();
   return { state, async do(name, options, fn) {
@@ -36,11 +20,9 @@ function stepFixture() {
     return state.get(name);
   } };
 }
-const exportStub = (name, id, publicKey, time) => encryptedExport(name, id, publicKey, time, {
-  accountId: 'acct', token: 'synthetic', request: async url => new URL(url).hostname === 'api.cloudflare.com'
-    ? Response.json({ success: true, result: { status: 'complete',
-      result: { signed_url: 'https://export.r2.cloudflarestorage.com/synthetic?SECRET' } } })
-    : new Response('CREATE TABLE synthetic(id);'),
+const exportStub = (name, id, publicKey, time, options) => backupDatabase(name, id, publicKey, time, {
+  ...options, accountId: 'acct', token: 'synthetic',
+  request: exportRequest(() => 'CREATE TABLE synthetic(id);'),
 });
 
 test('partial exports never publish a manifest and resuming does not re-export completed databases', async () => {
@@ -81,7 +63,9 @@ test('a put followed by an interrupted workflow reuses the existing ciphertext',
   await assert.rejects(backupOperation(env, step, event, keys.publicKey, { exportOne: exportStub }), /GITHUB_TOKEN/);
   for (const name of Object.keys(DATABASES)) step.state.delete(`encrypted export ${name}`);
   await assert.rejects(backupOperation(env, step, event, keys.publicKey, {
-    exportOne: () => { throw new Error('must reuse saved ciphertext'); },
+    exportOne: (name, id, publicKey, time, options) => backupDatabase(name, id, publicKey, time, {
+      ...options, request: () => { throw new Error('must reuse saved ciphertext'); },
+    }),
   }), /GITHUB_TOKEN/);
 });
 
@@ -157,19 +141,20 @@ test('Cron delivery creates deterministic instance IDs and handles duplicate del
   } }), /offline/);
 });
 
-test('export rejects redirects to another host and excessive plaintext without printing a signed URL', async () => {
-  const options = { accountId: 'acct', token: 'synthetic', maxBytes: 5,
+test('export rejects excessive plaintext without printing a signed URL', async () => {
+  const options = { accountId: 'acct', token: 'synthetic', maxBytes: 5, bucket: bucketFixture(), key: 'oversized',
     request: async url => new URL(url).hostname === 'api.cloudflare.com'
       ? Response.json({ success: true, result: { status: 'complete',
         result: { signed_url: 'https://export.r2.cloudflarestorage.com/data?SECRET' } } })
       : new Response('too much synthetic SQL') };
-  await assert.rejects(encryptedExport('synthetic', 'db', keys.publicKey, 'date', options), error =>
-    /memory safety limit/.test(error.message) && !error.message.includes('SECRET'));
+  await assert.rejects(backupDatabase('synthetic', 'db', keys.publicKey, 'date', options), error =>
+    /streaming size limit/.test(error.message) && !error.message.includes('SECRET'));
 });
 
 test('offsite uploads ciphertext and manifest last; retries verify digests and never overwrite a mismatch', async () => {
   const bucket = bucketFixture(), assets = [], writes = [];
-  const manifest = { databases: [{ file: 'codepi-auth.sql.enc' }] };
+  const manifest = { databases: [{ file: 'codepi-auth.sql.enc',
+    sha256: createHash('sha256').update('ciphertext').digest('hex') }] };
   const prefix = 'backups/synthetic';
   await bucket.put(`${prefix}/codepi-auth.sql.enc`, Buffer.from('ciphertext'));
   await bucket.put(`${prefix}/manifest.json`, JSON.stringify(manifest));
@@ -179,7 +164,10 @@ test('offsite uploads ciphertext and manifest last; retries verify digests and n
     if (u.hostname === 'uploads.github.com') {
       const name = u.searchParams.get('name');
       writes.push(name);
-      const asset = { name, state: 'uploaded', digest: `sha256:${createHash('sha256').update(init.body).digest('hex')}` };
+      assert.ok(init.body instanceof ReadableStream);
+      const bytes = Buffer.from(await new Response(init.body).arrayBuffer());
+      assert.equal(Number(init.headers['content-length']), bytes.length);
+      const asset = { name, state: 'uploaded', digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}` };
       assets.push(asset);
       return Response.json(asset);
     }

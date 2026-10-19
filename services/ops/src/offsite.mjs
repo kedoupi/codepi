@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { githubApi } from '../../../scripts/cloudflare/github-api.mjs';
+import { objectDigest } from './backup.mjs';
 
 export async function offsiteRelease(manifest, prefix, bucket, { token, request = fetch } = {}) {
   assert.ok(token, 'GITHUB_TOKEN with repository Contents write access is required for offsite backup');
@@ -28,8 +28,12 @@ export async function offsiteRelease(manifest, prefix, bucket, { token, request 
     assert.ok(file === 'manifest.json' || /^codepi-[a-z]+\.sql\.enc$/.test(file), 'invalid backup filename');
     const object = await bucket.get(`${prefix}/${file}`);
     assert.ok(object, 'R2 backup object missing during offsite copy');
-    const bytes = Buffer.from(await object.arrayBuffer());
-    const digest = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+    const hash = await objectDigest(object);
+    const expected = file === 'manifest.json'
+      ? createHash('sha256').update(JSON.stringify(manifest)).digest('hex')
+      : manifest.databases.find(entry => entry.file === file)?.sha256;
+    assert.equal(hash, expected, 'R2 backup does not match the complete manifest');
+    const digest = `sha256:${hash}`;
     const existing = assets.filter(asset => asset.name === file);
     assert.ok(existing.length <= 1, 'duplicate GitHub backup asset');
     if (existing.length) {
@@ -37,8 +41,11 @@ export async function offsiteRelease(manifest, prefix, bucket, { token, request 
         'GitHub backup asset cannot be verified; preserve it for investigation');
       continue;
     }
+    const upload = await bucket.get(`${prefix}/${file}`);
+    assert.ok(upload?.etag === object.etag && upload?.size === object.size,
+      'R2 backup object changed before offsite copy');
     const asset = await api(`/releases/${release.id}/assets?name=${encodeURIComponent(file)}`, {
-      method: 'POST', upload: true, body: bytes,
+      method: 'POST', upload: true, body: upload.body, contentLength: upload.size,
     });
     assert.ok(asset?.state === 'uploaded' && asset.name === file && asset.digest === digest,
       'GitHub backup upload did not confirm its digest');
