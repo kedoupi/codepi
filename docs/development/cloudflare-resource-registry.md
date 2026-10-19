@@ -1,5 +1,16 @@
 # Cloudflare 资源登记表
 
+2026-10-20 GU 非空资料迁移与恢复验收完成：生产工作区为 revision 1，资料索引 112 件；
+实例 `acceptance-gu-nonempty-20261019-1907d1ed` 完成六库及全部资料的 R2 密文和完整回执。
+现有私钥解密通过，真实 GU 隔离 D1 的 11 表/132 行及全部 112 份资料的隔离鉴权下载
+核对一致。GU/Ops 的活跃 version 与 `BUILD_SHA=05d9d61ce574` 未变，
+生产资料桶、备份桶与新恢复桶均无公开访问。跨平台复制仍为
+`offsite=failed / github_token_missing`，不将 R2 完整成功视为跨平台保障。
+新隔离资源见下方临时资源记录；原投资目录未修改，大正文恢复工具修复和本次证据
+仍为任务 worktree 未提交改动。详细证据见
+[GU 非空迁移与恢复](tasks/2026-10-19-gu-online.md#2026-10-20-投资资料迁移与非空恢复)。
+以下首次发布记录保留为历史状态。
+
 2026-10-19 GU 线上工作台与原件备份已发布：PR #107 合并为
 `05d9d61ce574377a59acfb674f383f2fc24ad4b4`，当前 Codex 从同树、干净且等于
 实时远程 main 的源码持锁，完成 GU migration、私有 `codepi-gu-uploads` 及
@@ -318,9 +329,9 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-19 source 767fb0b3d63a |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
 | worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 6818aef1-8144-4e10-bb49-3faa1c46ef8c；BUILD_SHA 05d9d61ce574；public endpoints/logs/rollout/GU entrypoint 已核验 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-19 acceptance-gu-05d9d61ce574 六库 R2 v2 完整、原件 0 件，offsite 因缺 GitHub token errored；云端巡检 17/19，剩 GitHub 相关两项失败 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-19 私有、两个 14 天生命周期；v2 清单、六库 SHA-256/GCM/身份/内存解密 6/6 及 GU 隔离导入通过；非空真实原件未验收 |
-| r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-19 已创建；r2.dev 关闭、custom domains 为空；生产索引 0 件，不代表非空恢复已验收 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 acceptance-gu-nonempty-20261019-1907d1ed 六库及 112 原件 R2 v2 完整；offsite 因缺 GitHub token errored；云端版本核对与跨平台凭证仍待处理 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；六库和 112 份资料大小/SHA-256/GCM/身份通过，GU 隔离 D1 与全部原件恢复通过；14 天生命周期证据沿用 2026-10-19 |
+| r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
 <!-- registry-table:end -->
 
 ## 2026-10-19 临时恢复演练资源
@@ -333,6 +344,18 @@ secret 值、个人数据或 OAuth refresh token。
 | --- | --- | --- | --- |
 | D1 | `codepi-gu-pr-107` / `c46d093c-dc25-4bf9-98e2-127016927b4f` | 真实 GU 备份隔离副本及合成验收记录；无公开应用绑定 | 保留；导入后 11 表/21 行内容一致，合成验收前留存摘要 |
 | R2 | `codepi-gu-uploads-pr-107` | 真实恢复原件 0 件，另有一份合成探针；r2.dev 关闭、无 custom domain | 保留；隔离 GU 登录下载、attachment/no-store、逐字节核对通过，本机服务已停止 |
+
+## 2026-10-20 非空资料恢复演练资源
+
+下列资源只用于本次真实备份的隔离恢复，不接生产 binding，不纳入每日六库清单，
+未部署公开 Worker。名称中的 `pr-108` 仅是临时资源标识，本次没有创建 PR #108。
+本机验收服务已停止；资源包含私人投资资料，保留供复核。`expires_on` 尚待所有者
+确认，不存在自动删除承诺；清理是下一步的单独授权操作。
+
+| 类型 | 名称 / ID | 数据与访问 | last_verified | expires_on | cleanup_evidence |
+| --- | --- | --- | --- | --- | --- |
+| D1 | `codepi-gu-pr-108` / `cc32b12c-f445-4152-9c8f-6e521b1d7fd4` | 真实 GU 隔离副本；验收会话写入前 11 表/132 行全量一致，之后仅加入合成验收会话 | 2026-10-20 恢复及鉴权下载通过；无生产绑定 | 待所有者确认 | 未执行，保留供复核 |
+| R2 | `codepi-gu-uploads-pr-108` | 112 份真实资料，原 key 和摘要一致；r2.dev 关闭、无 custom domain；未添加合成资料 | 2026-10-20 112/112 登录下载、匿名 401、attachment/no-store 通过 | 待所有者确认 | 未执行，保留供复核 |
 
 ## 2026-10-16 只读盘点
 
