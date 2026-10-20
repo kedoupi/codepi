@@ -5,7 +5,7 @@
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：`<workspace>/.worktrees/kdp.cool/codex/codepi-mcp-domains`
 - 分支：`codex/codepi-mcp-domains`
-- 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，先 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`，再合并 `origin/main` 的 `c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6`。
+- 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，先 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`，再合并 `origin/main` 的 `c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6` 与 `f4c0c91dd33b4283605d8ec8b1997dc38e8071eb`。
 - 协调者、公共契约与集成负责人：本聊天 Codex。
 - 授权：本地实现与验证；2026-10-20 用户授权按审查切片提交、推送并创建 PR。未授权合并、生产资源创建、secret 配对、迁移或部署。
 - 根工作区 `.workbuddy-ai/` 为用户保留文件，不读取、不修改、不清理。
@@ -112,7 +112,9 @@ Health SSO 浏览器用例另外等待自动同步和首页请求结束、移动
 ## 验证证据
 
 以下均在主集成 worktree 运行，使用合成数据；主体检查覆盖本轮审查修复，
-最终组合检查覆盖合并 `origin/main` `c83cc8c` 后的完整树：
+最终组合检查覆盖未提交的 `origin/main` `f4c0c91` 合并树。由于合并尚未
+提交，检查脚本以当时的合并基 `c83cc8c` 为 review base，共识别 256 个变更
+文件，已包含 Vite 8 / Svelte 插件 7 升级：
 
 | 范围 | 实际检查 | 结果 |
 | --- | --- | --- |
@@ -135,14 +137,14 @@ re-export 真实 `MeImportsBackup` 验证原件 provider contract。
 最终组合检查已执行并通过（`Passed 43 selected local checks`）：
 
 ```bash
-HEALTH_BROWSER_PORT=48184 node scripts/agent/check.mjs \
+HEALTH_BROWSER_PORT=48185 node scripts/agent/check.mjs \
   --base c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6 --run
 ```
 
 该轮检查包含并发首次登录、latest main 的品牌资源改动、浏览器点击重排与
-SSO repair details 重挂载修复，43 项全部通过。第一次合并 `origin/main` 时
-`pnpm-lock.yaml` 发生冲突，已采用 main 版本并基于全部 workspace 重新生成；
-`pnpm install --frozen-lockfile` 通过。
+SSO repair details 重挂载修复，以及 Vite 8 下的 GU、GZH、Health 构建，43 项
+全部通过。两次合并 `origin/main` 时 `pnpm-lock.yaml` 均发生冲突，已采用 main
+版本并基于全部 workspace 重新生成；`pnpm install --frozen-lockfile` 通过。
 
 补充检查全部通过：
 
