@@ -62,6 +62,22 @@ function stagedInsert(sql, table) {
   return statements;
 }
 
+function firstStatement(db, sql) {
+  let length = Math.min(1024, sql.length);
+  for (;;) {
+    try {
+      const statement = db.prepare(sql.slice(0, length));
+      // A prefix can be valid SQL before the real statement ends (for example
+      // before another VALUES row). Accept it only when SQLite stops before
+      // the prefix boundary, or the entire remaining export has been supplied.
+      if (length === sql.length || statement.sourceSQL.length < length) return statement;
+    } catch (error) {
+      if (length === sql.length) throw error;
+    }
+    length = Math.min(sql.length, length * 2);
+  }
+}
+
 // D1 exports can contain a valid large TEXT value inside an over-limit INSERT.
 // Stage only those literals, retaining Wrangler's atomic import and the original schema.
 export function prepareRestoreSql(input) {
@@ -79,7 +95,7 @@ export function prepareRestoreSql(input) {
       if (!/^(?:PRAGMA\s+defer_foreign_keys\s*=\s*(?:TRUE|ON|1)\s*;|CREATE\s+(?:TABLE|INDEX|UNIQUE\s+INDEX|TRIGGER|VIEW)\b|INSERT\s+INTO\b|DELETE\s+FROM\s+sqlite_sequence\b)/i.test(command)) {
         throw new Error();
       }
-      const statement = db.prepare(rest);
+      const statement = firstStatement(db, rest);
       if (!statement.sourceSQL || !rest.startsWith(statement.sourceSQL)) throw new Error();
       statement.setReadBigInts(true);
       statement.run();
