@@ -73,7 +73,8 @@ revision。协调者修改 MCP schema/联调测试与文档。列表契约为首
 ## 已实现
 
 - MCP：八项 scope、逐工具鉴权、读写权限分离、按读权限聚合的 `get_context`、
-  超时降级与 UTF-8 内容预算。保留已有 Health grants，刷新不能扩大权限。
+  超时降级与 UTF-8 内容预算。保留已有 Health grants；当前授权策略见下方
+  “后续授权策略调整”。
 - Project：独立应用、SSO、项目卡、按 task 交接、request_id 幂等、
   GitHub Link 分页/断点、原子同步租约、真实 merged_at、列表和大卡片分页。
 - CLI：官方 SDK、PKCE/DCR、原子凭证、跨进程锁及同进程刷新合并、
