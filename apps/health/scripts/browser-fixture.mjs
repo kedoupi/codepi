@@ -244,6 +244,16 @@ const server = createServer(async (req, res) => {
       const date = back => shiftDay(today, -back);
       if (scenario === 'records' || scenario === 'journal') {
         const journal = scenario === 'journal';
+        const phaseFor = () => {
+          // 5-minute stages: light → deep → light → REM cycles ending awake.
+          const segments = [[2, 6], [1, 8], [2, 10], [3, 5], [2, 9], [1, 6], [2, 8], [3, 4], [2, 6], [1, 4], [2, 5], [4, 1]];
+          return segments.map(([code, count]) => String(code).repeat(count)).join('');
+        };
+        const seriesFor = (base, spread) => ({
+          interval: 300,
+          items: Array.from({ length: 72 }, (_, index) => index % 29 === 13 ? null
+            : Math.round((base + Math.sin(index / 6) * spread) * 10) / 10),
+        });
         for (let back = 0; back < 30; back++) {
           if (back === 1) continue; // A missing day must not appear as zero hours.
           const day = date(back);
@@ -252,11 +262,16 @@ const server = createServer(async (req, res) => {
             const sampleHours = [7.4, 6.8, 7.6, 7.2, 8.1, 6.9, 7.5][back % 7];
             const payload = {
               id, day, type, total_sleep_duration: seconds, time_in_bed: seconds + 1800,
-              bedtime_start: `${day}T${hour}:00:00+08:00`, bedtime_end: `${day}T${type === 'sleep' ? '15' : '08'}:30:00+08:00`,
+              bedtime_start: `${day}T${hour}:00:00+08:00`, bedtime_end: `${day}T${type === 'sleep' ? '15' : '08'}:00:00+08:00`,
               deep_sleep_duration: seconds / 4, rem_sleep_duration: seconds / 4, light_sleep_duration: seconds / 2,
-              awake_time: 1800, efficiency: 92, average_hrv: type === 'sleep' ? null : 42,
+              awake_time: 1800, latency: 720, efficiency: 92, average_hrv: type === 'sleep' ? null : 42,
               average_heart_rate: 55, lowest_heart_rate: 48, average_breath: 14.2,
             };
+            if (type === 'long_sleep') {
+              payload.sleep_phase_5_min = phaseFor();
+              payload.heart_rate = seriesFor(56, 6);
+              payload.hrv = seriesFor(42, 8);
+            }
             if (journal && type === 'long_sleep') {
               payload.total_sleep_duration = Math.round(sampleHours * 3600);
               payload.time_in_bed = payload.total_sleep_duration + 1800;
