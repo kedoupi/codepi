@@ -1,7 +1,7 @@
 ---
 import * as siteConfig from '@site/site.config.js';
 import { defaultLocale, getLocale } from '@kedoupi/shared/i18n/config.js';
-import { PRODUCT_BRAND } from '@kedoupi/shared/brand';
+import { CODEPI_SYMBOL_SVG, PRODUCT_BRAND } from '@kedoupi/shared/brand';
 import '@kedoupi/shared/styles/site.css';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
@@ -46,7 +46,9 @@ const jsonLd = {
   <meta name="description" content={description} />
   <meta name="robots" content={robots} />
   <link rel="canonical" href={canonicalURL} />
+  <link rel="icon" href="/favicon.ico" sizes="32x32" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonicalURL} />
@@ -62,8 +64,8 @@ const jsonLd = {
   <header>
     <div class="kdp-container kdp-header-inner">
       <a href="/" class="kdp-brand" aria-label={personalSite ? `${PRODUCT_BRAND} 首页` : siteName}>
-        <span class="kdp-mark" aria-hidden="true">k</span>
-        <span class="kdp-wordmark">{personalSite ? <>kedoupi<small>(codepi)</small></> : siteName}</span>
+        <span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} />
+        <span class="kdp-wordmark">{personalSite ? <>Code<span class="kdp-wordmark-pi">Pi</span></> : siteName}</span>
       </a>
       <nav class="kdp-nav" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
         {navLinks.map((link) => (
@@ -80,8 +82,8 @@ const jsonLd = {
     <div class="kdp-container kdp-footer-inner">
       <div>
         <a href="/" class="kdp-brand" aria-label={personalSite ? PRODUCT_BRAND : siteName}>
-          <span class="kdp-mark" aria-hidden="true">k</span>
-          <span class="kdp-wordmark">{personalSite ? <>kedoupi<small>(codepi)</small></> : siteName}</span>
+          <span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} />
+          <span class="kdp-wordmark">{personalSite ? <>Code<span class="kdp-wordmark-pi">Pi</span></> : siteName}</span>
         </a>
         <p class="kdp-footer-note">{personalSite ? footerNote : tagline}</p>
       </div>
