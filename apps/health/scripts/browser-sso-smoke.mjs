@@ -172,6 +172,12 @@ try {
   await page.evaluate(() => new Promise(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.evaluate(async () => { await fetch('/__test/provider-identity', { method: 'POST' }); });
+  // The settings component may be rebuilt after a focus-triggered session refresh.
+  await page.evaluate(() => {
+    const details = document.querySelector('.connection-repair');
+    if (!details) throw new Error('connection repair details are missing');
+    details.open = true;
+  });
   await page.click('loc=css:.connection-repair button[type="submit"]');
   await page.waitForFunction(async () => {
     const me = await (await fetch('/api/me')).json();
