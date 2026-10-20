@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import "./style.css";
-  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+  import { CODEPI_SYMBOL_SVG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { api } from "./lib/api";
   import { router, syncFromLocation } from "./lib/router.svelte";
   import { resetFilters, session } from "./lib/state.svelte";
@@ -217,8 +217,8 @@
   <div class="workspace">
     <aside class="sidebar">
       <a class="brand" href="#overview" aria-label="{brand} · GU"
-        ><span class="brand-mark">k</span><span
-          >kedoupi<small>codepi · 个人投资工作台</small></span
+        ><span class="brand-mark" aria-hidden="true">{@html CODEPI_SYMBOL_SVG}</span><span
+          ><span class="brand-code">Code</span><span class="brand-pi">Pi</span><small>个人投资工作台</small></span
         ></a
       >
       <nav aria-label="主导航">
