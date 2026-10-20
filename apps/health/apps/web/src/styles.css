@@ -423,8 +423,7 @@ h1{
   .card{min-height:120px}
   .hero-row{flex-direction:row;align-items:flex-end;justify-content:space-between}
   .range{align-self:auto}
-  --row-chart:220px;
-  --pair-chart:230px;
+  :root{--row-chart:220px;--pair-chart:230px}
 }
 @media (min-width:720px){
   .chrome-inner{height:48px}
@@ -432,8 +431,7 @@ h1{
   h1{font-size:24px}
   .viz-row{grid-template-columns:repeat(2,minmax(0,1fr))}
   .avgs,.contrib-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  --row-chart:260px;
-  --pair-chart:260px;
+  :root{--row-chart:260px;--pair-chart:260px}
   .bar-row{grid-template-columns:80px 1fr 28px}
   .panel{padding:16px}
 }
