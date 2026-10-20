@@ -1,0 +1,28 @@
+{
+  "spacePx": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "radiusPx": {
+    "control": 10,
+    "card": 14,
+    "dialog": 18
+  },
+  "motionMs": {
+    "fast": 150,
+    "normal": 220
+  },
+  "breakpointsPx": {
+    "mobile": 0,
+    "tablet": 768,
+    "desktop": 1024,
+    "wide": 1440
+  }
+}
