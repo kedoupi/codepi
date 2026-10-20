@@ -9,6 +9,14 @@
 临时资源和明文已清理。云端巡检 34/34。详见
 [领域扩展任务](tasks/2026-10-20-codepi-mcp-domains.md)。
 
+2026-10-20 Project GitHub 同步后续验收：`GITHUB_TOKEN` 已按所有者确认的只读
+fine-grained 权限配置为 `secret_text`。Secret 变更生成新 Worker version
+`bb43c090-0370-43c3-b5f6-c3242df79da5`，保持 `BUILD_SHA=58bd615c317d`、两个 Secret、
+D1/Auth/Assets 绑定和 `fetch`/`scheduled` handlers。下一次生产 Cron 于
+`2026-10-20T10:15:38Z` 将 commits、pull requests、issues、AGENTS.md 和任务文档五个
+来源全部同步成功，无 checkpoint/error；写入 286 条仓库事件和 30 条任务文档索引，
+`card_fields` 4 条、活跃同步租约 0。
+
 2026-10-20 Workers Issues 自动告警已完成端到端验收：补齐此前缺失的自动触发规则，
 十个生产 Worker 各有首次阈值 1 与静默 3600 秒后复发两条规则，共 20 条，
 均按 service 限定并引用原邮件策略。隔离合成异常的 automatic run、通知历史和 Gmail
@@ -346,7 +354,7 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
-| worker-project | production | worker | codepi-project | kedoupi | Project 项目卡与任务交接 | private-user-data | 终端用户、worker-mcp ProjectMcp | project.codepi.app | apps/project/wrangler.toml | managed | 2026-10-20 version 52803b30-31f7-49e6-b56f-b9dfb73ed45b；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过；GITHUB_TOKEN 未配置，真实同步未验收 |
+| worker-project | production | worker | codepi-project | kedoupi | Project 项目卡与任务交接 | private-user-data | 终端用户、worker-mcp ProjectMcp | project.codepi.app | apps/project/wrangler.toml | managed | 2026-10-20 version bb43c090-0370-43c3-b5f6-c3242df79da5；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过；AUTH_CLIENT_SECRET 与只读 GITHUB_TOKEN 均为 secret_text；Cron 五来源同步成功，286 事件、30 任务索引 |
 | d1-project | production | d1 | codepi-project (03612540-2ac6-4dd2-9bf6-ed431dda17c9) | kedoupi | Project 数据与 SSO 会话 | private-user-data | worker-project DB、Ops 加密导出 | - | apps/project/migrations | managed | 2026-10-20 2 个 migration；v3 隔离恢复 10 表/3 行全量内容与类型一致 |
 | worker-me | production | worker | codepi-me | kedoupi | Me 确认区、资料与经历 | private-user-data | 终端用户、worker-mcp MeMcp、worker-ops MeImportsBackup | me.codepi.app | apps/me/wrangler.toml | managed | 2026-10-20 version 42a25c9c-a14a-4b65-b855-49265bc8baef；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过 |
 | d1-me | production | d1 | codepi-me (7236c118-1f92-4b07-8283-e731c2771953) | kedoupi | Me 数据、导入索引与 SSO 会话 | private-user-data | worker-me DB、Ops 加密导出 | - | apps/me/migrations | managed | 2026-10-20 1 个 migration；v3 隔离恢复 10 表/2 行全量内容与类型一致 |
