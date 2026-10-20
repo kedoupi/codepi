@@ -1,8 +1,8 @@
 # Cloudflare 定时运维迁移
 
-- 当前状态：大库流式备份已合并发布，真实六库 R2 备份与既有私钥内存解密通过；
-  手动 GitHub 完整副本已另行验收；云端 GitHub 版本核对和自动跨平台复制仍因缺少
-  `GITHUB_TOKEN` 失败，详见文末与[跨平台验收](2026-10-20-github-offsite.md)。
+- 当前状态：大库流式备份与 GU 原件覆盖已发布；手动 GitHub 副本和新 Workflow 的
+  自动跨平台复制均已验收。六库、112 份原件下载及内存解密通过，云端巡检 26/26，
+  详见文末与[跨平台验收](2026-10-20-github-offsite.md)；下方缺凭证失败保留为历史。
 - 目标：将每 30 分钟巡检和每日六库加密备份从 Actions runner 迁到 Cloudflare。
 - 基线：`b248c22f0e626291f5d3880f595430287fea0630`，开工时与实时远程 main 一致。
 - Worktree：`/Users/codepi/.worktrees/kdp.cool/codex/unified-mcp`。
@@ -167,18 +167,15 @@
 
 ## 当前剩余项
 
-1. **TODO：补齐 Ops GitHub 运行凭证并验收自动复制（等待所有者配置专用凭证）。**
-   2026-10-20 本机 `gh` 登录现已可用，本次仅在进程内用于 API 复制和验证，
-   未转存到 Worker。定时备份 `backup-20261019T180026000Z` 的六库、112 份资料及
-   manifest 共 119 个附件已存入私有 Release，从 GitHub 下载、摘要和内存解密全部通过；
-   详见[跨平台验收](2026-10-20-github-offsite.md)。此前本机登录无效的记录保留为历史。
-   自动复制仍需所有者创建 fine-grained PAT，仅选择 `kedoupi/kdp.cool`，
-   授予 Contents Read and write，安全写入 `codepi-ops/GITHUB_TOKEN`。
-   当前 API/连接器未提供创建此专用凭证的能力；不扩大本机 OAuth 权限或转存到 Worker，
-   凭证不得发到聊天或写入 Git。
-   配置后由 Agent 核验权限、创建新 backup 实例再运行 monitor，确认八个 Worker 云端
-   版本核对、六库与 GU 原件清单、GitHub 附件摘要和自动跨平台成功回执。
-   完成前保留两项云端失败状态；本次手动回执独立存放，不改写自动 Workflow 报告。
+1. **Ops GitHub 运行凭证与自动复制已验收，不再是阻塞项。**
+   所有者配置凭证后，确认 `GITHUB_TOKEN` 为加密 Secret。新 backup 实例
+   `acceptance-github-backup-20261020T010216314Z` 为 `complete`，
+   自动复制六库、112 份原件及 manifest 共 119 个附件到私有 Release `417899953`，
+   自动跨平台回执匹配；从 GitHub 独立下载、摘要与内存解密全部通过。
+   新 monitor 实例 `acceptance-github-monitor-20261020T010216314Z` 云端 26/26，
+   包含八个 Worker 的 GitHub 版本核对及两处完整备份新鲜度。
+   详见[跨平台验收](2026-10-20-github-offsite.md)。本机 `gh` 未转存到 Worker，
+   旧失败报告与独立手动回执保留；本轮手动触发生产 Workflow，没有等待下一次 Cron。
 2. 实际告警邮件送达、恢复私钥异机保管仍未验收。
    后续 [GU 非空恢复](2026-10-19-gu-online.md#2026-10-20-投资资料迁移与非空恢复)已完成六库密文校验、
    GU 隔离 D1 的 11 表/132 行恢复及全部 112 份真实资料的鉴权下载，不替代其他五库的
