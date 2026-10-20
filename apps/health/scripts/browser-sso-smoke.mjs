@@ -119,6 +119,9 @@ try {
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.today-scores');
   await page.waitForFunction(() => document.querySelector('.journal-sync-line button')?.disabled === false);
+  await page.waitForSelector('.automatic-sync');
+  await page.waitForFunction(() => [...document.querySelectorAll('.journal-hrv, .journal-sleep')]
+    .every(element => element.getAttribute('aria-busy') === 'false'));
   await page.evaluate(async () => {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
@@ -165,6 +168,9 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: '/tmp/oura-sso-identity-repair-mobile.png' });
   await page.cdp('Emulation.clearDeviceMetricsOverride');
+  await page.waitForFunction(() => innerWidth >= 1200);
+  await page.evaluate(() => new Promise(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.evaluate(async () => { await fetch('/__test/provider-identity', { method: 'POST' }); });
   await page.click('loc=css:.connection-repair button[type="submit"]');
   await page.waitForFunction(async () => {
