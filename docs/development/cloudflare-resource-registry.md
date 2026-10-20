@@ -1,5 +1,10 @@
 # Cloudflare 资源登记表
 
+2026-10-20 CodePi MCP 领域扩展正在本地实施。新增 Project/Me 资源均为 planned；
+下方已有生产证据不适用于尚未部署的领域、MCP 新绑定或 Ops 新覆盖。
+部署后需核验新增 Worker 的 Issues 规则、授权配对、完整备份与恢复，
+见[领域扩展任务](tasks/2026-10-20-codepi-mcp-domains.md)。
+
 2026-10-20 Workers Issues 自动告警已完成端到端验收：补齐此前缺失的自动触发规则，
 八个生产 Worker 各有首次阈值 1 与静默 3600 秒后复发两条规则，共 16 条，
 均按 service 限定并引用原邮件策略。隔离合成异常的 automatic run、通知历史和 Gmail
@@ -336,6 +341,11 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
+| worker-project | production | worker | codepi-project | kedoupi | Project 项目卡与任务交接 | private-user-data | 终端用户、worker-mcp ProjectMcp | project.codepi.app | apps/project/wrangler.toml | planned | 未创建；2026-10-20 本地实现 |
+| d1-project | production | d1 | codepi-project | kedoupi | Project 数据与 SSO 会话 | private-user-data | worker-project DB、Ops 加密导出 | - | apps/project/migrations | planned | 未创建；无 UUID |
+| worker-me | production | worker | codepi-me | kedoupi | Me 确认区、资料与经历 | private-user-data | 终端用户、worker-mcp MeMcp、worker-ops MeImportsBackup | me.codepi.app | apps/me/wrangler.toml | planned | 未创建；2026-10-20 本地实现 |
+| d1-me | production | d1 | codepi-me | kedoupi | Me 数据、导入索引与 SSO 会话 | private-user-data | worker-me DB、Ops 加密导出 | - | apps/me/migrations | planned | 未创建；无 UUID |
+| r2-me-imports | production | r2 | codepi-me-imports | kedoupi | Me 私有导入原文 | private-user-data | worker-me IMPORTS；Ops 仅通过 MeImportsBackup RPC | 无公开入口 | apps/me/wrangler.toml | planned | 未创建；私有性与恢复待验收 |
 | worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-19 source 767fb0b3d63a |
 | pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-gu | production | worker | codepi-gu | kedoupi | 投资线上工作台 GU | private-user-data | 终端用户、worker-www、worker-ops named RPC | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 version d26774e4-bb80-490d-a63e-d3245bf6c211；BUILD_SHA 05d9d61ce574；SSO smoke 与私有接口拒绝通过 |

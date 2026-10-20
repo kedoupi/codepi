@@ -63,10 +63,15 @@ export function exportRequest(makeBody, onExport = () => {}) {
   };
 }
 
-export function materialFixture(bodies = ['Synthetic private material']) {
+export function materialFixture(bodies = ['Synthetic private material'], {
+  prefix = 'materials', idKind = 'uuid',
+} = {}) {
   const rows = bodies.map((body, i) => {
-    const bytes = Buffer.from(body), id = `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
-    return { cursor: i + 1, id, object_key: `materials/${id}`, size: bytes.length,
+    const bytes = Buffer.from(body);
+    const id = idKind === 'ulid'
+      ? `01J${String(i + 1).padStart(23, '0')}`
+      : `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
+    return { cursor: i + 1, id, object_key: `${prefix}/${id}`, size: bytes.length,
       sha256: createHash('sha256').update(bytes).digest('hex'), bytes };
   });
   return {

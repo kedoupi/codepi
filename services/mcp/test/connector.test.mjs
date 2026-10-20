@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, ORIGIN, hash } from './runtime.mjs';
+import { healthData } from './health-pages.mjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -20,7 +21,8 @@ test('SSO, resource bound OAuth, SDK transport and private Health RPC work toget
   const f = await fixture(t), grant = await f.grant();
   const discovery = await (await f.at('/.well-known/oauth-protected-resource/mcp')).json();
   assert.equal(discovery.resource, ORIGIN + '/mcp');
-  assert.deepEqual(discovery.scopes_supported, ['health.read', 'health.sync']);
+  assert.deepEqual(discovery.scopes_supported, ['context.read', 'projects.read', 'projects.write',
+    'health.read', 'health.sync', 'me.read', 'me.write', 'invest.read']);
   const unauthorized = await f.rpc('x'.repeat(43), 'tools/list');
   assert.equal(unauthorized.status, 401);
   assert.match(unauthorized.headers.get('WWW-Authenticate'), /oauth-protected-resource/);
@@ -33,8 +35,8 @@ test('SSO, resource bound OAuth, SDK transport and private Health RPC work toget
   assert.equal(listed.body.result.tools.find(t => t.name === 'health_query_records').annotations.readOnlyHint, false);
   const directory = await f.tool(grant.access_token, 'list_data_sources');
   assert.deepEqual(directory.structuredContent.sources.map(s => s.id), ['health']);
-  const catalog = await f.tool(grant.access_token, 'health_get_catalog');
-  assert.equal(catalog.structuredContent.collections.find(c => c.name === 'sleep').metrics[4].unit, 'ms');
+  const catalog = await healthData(f, grant.access_token, 'health_get_catalog');
+  assert.equal(catalog.collections.find(c => c.name === 'sleep').metrics[4].unit, 'ms');
   // The HTTP dispatcher does not expose the capability, even with spoofed identity.
   const publicRpc = await f.health.fetch('https://health.example/internal/mcp', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User-ID': 'health-owner' },

@@ -1,3 +1,5 @@
+import { isSsoClientId } from "@kedoupi/shared/auth/clients";
+
 /** First-party SSO adapter shared by the independently deployed KDP products. */
 export interface SsoEnv {
   DB: D1Database;
@@ -38,13 +40,13 @@ export function ssoEnabled(env: SsoEnv): boolean {
 
 function config(env: SsoEnv): Config {
   if (!env.AUTH || !env.AUTH_ORIGIN || !env.AUTH_CLIENT_SECRET
-    || !["gu", "oura", "gzh", "desk", "mcp"].includes(env.AUTH_CLIENT_ID ?? "")) {
+    || !isSsoClientId(env.AUTH_CLIENT_ID ?? "")) {
     // Names only: diagnose missing runtime bindings without exposing credential values.
     console.error("sso_configuration_error", JSON.stringify({ missing: [
       ...(!env.AUTH ? ["AUTH"] : []),
       ...(!env.AUTH_ORIGIN ? ["AUTH_ORIGIN"] : []),
       ...(!env.AUTH_CLIENT_SECRET ? ["AUTH_CLIENT_SECRET"] : []),
-      ...(!["gu", "oura", "gzh", "desk", "mcp"].includes(env.AUTH_CLIENT_ID ?? "") ? ["AUTH_CLIENT_ID"] : []),
+      ...(!isSsoClientId(env.AUTH_CLIENT_ID ?? "") ? ["AUTH_CLIENT_ID"] : []),
     ] }));
     throw new SsoError("auth_not_configured", 503);
   }
@@ -132,6 +134,17 @@ async function central<T>(cfg: Config, path: string, payload: unknown): Promise<
   }
   try { return await response.json() as T; }
   catch { throw new SsoError("auth_unavailable", 503); }
+}
+
+/** Validate the paired client credential without creating or reading a real login. */
+export async function ssoReady(env: SsoEnv): Promise<boolean> {
+  if (!ssoEnabled(env)) return false;
+  try {
+    const result = await central<{ active?: unknown }>(config(env), "session", {
+      session_ref: "0".repeat(43),
+    });
+    return result?.active === false;
+  } catch { return false; }
 }
 
 async function refKey(secret: string): Promise<CryptoKey> {

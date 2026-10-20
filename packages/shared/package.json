@@ -8,6 +8,7 @@
     "./brand": "./brand.ts",
     "./products": "./products.ts",
     "./auth/client": "./auth/client.ts",
+    "./auth/clients": "./auth/clients.ts",
     "./auth/schema.sql": "./auth/schema.sql",
     "./desk/contract": "./desk/contract.ts",
     "./email/otp": "./email/otp.ts",

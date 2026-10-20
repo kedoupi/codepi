@@ -4,7 +4,10 @@ import { runAutomaticSync } from "./lib/auto-sync.ts";
 import { normalizeApiError, storageQuotaResetAt } from "./lib/errors.ts";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { executeHealthOperation } from "./lib/health-data.ts";
-import type { HealthRequest, HealthReply } from "@kedoupi/shared/mcp/contract";
+import { pageHealthData, prepareHealthPage, splitHealthRequestArgs } from "./lib/health-mcp-page.ts";
+import { emptySummary } from "@kedoupi/shared/desk/contract";
+import { buildHealthSummary } from "./routes/desk-summary.ts";
+import type { HealthReply, HealthRequest, SourceSummary } from "@kedoupi/shared/mcp/contract";
 
 /** RPC capability only: no public HTTP route can invoke these operations. */
 export class HealthMcp extends WorkerEntrypoint<Env> {
@@ -13,11 +16,40 @@ export class HealthMcp extends WorkerEntrypoint<Env> {
       return { ok: false, error: "not_owner", status: 403 };
     }
     try {
-      return { ok: true, data: await executeHealthOperation(this.env, this.env.PERSONAL_OWNER_ID, input.operation, input.args) };
+      const requestNow = Date.now();
+      const { rawArgs, cursor } = splitHealthRequestArgs(input.args);
+      const prepared = await prepareHealthPage(input.operation, rawArgs, cursor);
+      const snapshotNow = prepared.binding
+        ? Date.parse(prepared.binding.generated_at)
+        : requestNow;
+      const executionArgs = prepared.binding
+        && (input.operation === "query_records" || input.operation === "aggregate")
+        ? { ...rawArgs, refresh: false }
+        : rawArgs;
+      const data = await executeHealthOperation(
+        this.env,
+        this.env.PERSONAL_OWNER_ID,
+        input.operation,
+        executionArgs,
+        snapshotNow,
+      );
+      return {
+        ok: true,
+        data: await pageHealthData(input.operation, data, prepared, new Date(snapshotNow).toISOString()),
+      };
     } catch (failure) {
       const error = normalizeApiError(failure);
       return { ok: false, error: error.code, status: error.status };
     }
+  }
+
+  async summary(subject: string): Promise<SourceSummary> {
+    if (subject !== "kdp-owner" || !this.env.PERSONAL_OWNER_ID || this.env.PERSONAL_OWNER_ID === "dev-local") {
+      const { privateMetric: _privateMetric, ...empty } = emptySummary("health", "未授权");
+      return { ...empty, status: "unavailable" };
+    }
+    const { privateMetric: _privateMetric, ...summary } = await buildHealthSummary(this.env);
+    return summary;
   }
 }
 

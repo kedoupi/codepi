@@ -18,5 +18,6 @@ const bundle = await build({
     },
   }],
 });
-const { default: worker } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { default: worker, HealthMcp } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 export default worker;
+export { HealthMcp };

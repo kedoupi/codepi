@@ -151,7 +151,7 @@ export class CdpPage {
   reload() { return this.navigate('Page.reload', { ignoreCache: true }); }
 
   async click(locator) {
-    const point = await this.evaluate(({ selector, text }) => {
+    const point = await this.evaluate(async ({ selector, text }) => {
       const matches = [...document.querySelectorAll(selector)]
         .filter(el => text === null || el.textContent.trim() === text)
         .filter(el => el.getClientRects().length);
@@ -159,10 +159,36 @@ export class CdpPage {
       const el = matches[0];
       if (el.disabled) throw new Error(`Disabled control: ${selector}`);
       el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
-      const box = el.getBoundingClientRect();
+      let box = el.getBoundingClientRect();
+      if (box.top < 0 || box.bottom > innerHeight) {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        box = el.getBoundingClientRect();
+      }
+      if (box.top < 0 || box.bottom > innerHeight) {
+        scrollTo(0, scrollY + box.top - (innerHeight - box.height) / 2);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        box = el.getBoundingClientRect();
+      }
       const x = box.left + box.width / 2, y = box.top + box.height / 2;
       const hit = document.elementFromPoint(x, y);
-      if (!hit || (hit !== el && !el.contains(hit))) throw new Error(`Control is covered: ${selector}`);
+      if (!hit || (hit !== el && !el.contains(hit))) {
+        const hitLabel = hit
+          ? `${hit.tagName.toLowerCase()}${hit.id ? `#${hit.id}` : ''}.${String(hit.className).trim().replace(/\s+/g, '.')}`
+          : 'none';
+        const style = getComputedStyle(el);
+        const details = el.closest('details');
+        const state = [
+          `visible=${el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })}`,
+          `display=${style.display}`,
+          `visibility=${style.visibility}`,
+          `pointer-events=${style.pointerEvents}`,
+          `opacity=${style.opacity}`,
+          `details.open=${details?.open ?? 'none'}`,
+        ].join(' ');
+        throw new Error(
+          `Control is covered: ${selector} (hit ${hitLabel}; ${state}; target ${JSON.stringify(box.toJSON())}; scroll ${scrollX},${scrollY})`,
+        );
+      }
       return { x, y };
     }, parseLocator(locator));
     await this.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });

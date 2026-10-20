@@ -10,7 +10,8 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
-  'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app']);
+  'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
+  'project.codepi.app', 'me.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 // staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
@@ -272,6 +273,12 @@ const BAD_STATUSES = ['legacy-pending-retirement', 'legacy-preview', 'unknown'];
 function checkService(spec, cfg, index, violations) {
   const at = (msg) => violations.push(`${spec.id}: ${msg}`);
   const { production: prod, stagingPresent, assetsTables = [], envAssetsHeaders = [] } = cfg;
+  const allowPlannedWorker = spec.allowPlanned?.worker === true;
+  const allowPlannedD1 = spec.allowPlanned?.d1 === true;
+  const allowPlannedHosts = new Set(spec.allowPlanned?.hosts ?? []);
+  const allowPlannedServices = new Set(spec.allowPlanned?.services ?? []);
+  const allowPlannedR2 = new Set(spec.allowPlanned?.r2 ?? []);
+  const allowPlannedWorkflows = new Set(spec.allowPlanned?.workflows ?? []);
   // staging 已退役：配置文件不得再声明 staging 环境。
   if (stagingPresent) at('staging environment is retired; remove the [env.staging] section');
   const environments = [['production', prod]];
@@ -281,7 +288,8 @@ function checkService(spec, cfg, index, violations) {
     if (!rows?.length) { at(`referenced ${label} ${token} has no registry record`); return; }
     // Pages, Workers and D1 can have the same physical name in separate namespaces.
     const typedRows = rows.filter(row => typeHint === 'host' ? HOST_TYPES.has(row.resource_type) : row.resource_type === typeHint);
-    const hasManaged = typedRows.some(row => (row.status === 'managed' || (spec.provisionOnRelease || allowPlanned) && row.status === 'planned') && row.environment === env);
+    const hasManaged = typedRows.some(row => (row.status === 'managed'
+      || allowPlanned && row.status === 'planned') && row.environment === env);
     // 域名迁移过渡：同一 host 可同时有 managed 新资源行和 legacy 旧资源行（域名待切换）。
     // 仅对 host 放宽——只要存在覆盖该 env 的 managed 行，legacy 行视为如实记录的过渡状态。
     // worker/d1 等同名资源不适用：managed 行不得掩盖同命名空间的 legacy/unknown 冲突。
@@ -291,16 +299,16 @@ function checkService(spec, cfg, index, violations) {
       at(`referenced ${label} ${token} has no managed ${env} registry row`);
     }
   };
-  const checkD1 = (d1, env) => {
+  const checkD1 = (d1, env, allowPlanned = false) => {
     if (!d1?.name || !d1.id) return;
-    checkRef(d1.name, env, 'd1', 'D1');
-    checkRef(d1.id, env, 'd1', 'D1');
+    checkRef(d1.name, env, 'd1', 'D1', allowPlanned);
+    checkRef(d1.id, env, 'd1', 'D1', allowPlanned);
     const rows = [...new Set([...(index.get(d1.name) ?? []), ...(index.get(d1.id) ?? [])])]
       .filter(row => row.resource_type === 'd1');
     for (const bad of BAD_STATUSES) {
       if (rows.some(row => row.status === bad)) at(`referenced D1 ${d1.name} is registered as ${bad}`);
     }
-    if (!rows.some(row => (row.status === 'managed' || spec.provisionOnRelease && row.status === 'planned') && row.environment === env && row.resource_type === 'd1'
+    if (!rows.some(row => (row.status === 'managed' || allowPlanned && row.status === 'planned') && row.environment === env && row.resource_type === 'd1'
       && row.physical_name.startsWith(`${d1.name} (`) && row.physical_name.includes(`(${d1.id})`))) {
       at(`${env} D1 ${d1.name} (${d1.id}) has no managed ${env} registry row matching both name and database_id`);
     }
@@ -336,10 +344,10 @@ function checkService(spec, cfg, index, violations) {
     if (d1.binding !== 'DB') at(`${envName} D1 binding must be "DB", got ${d1.binding}`);
     if (d1.name !== expectedName) at(`${envName} D1 database_name must be ${expectedName}, got ${d1.name}`);
     if (!d1.id && spec.provisionOnRelease) {
-      checkRef(d1.name, envName, 'd1', 'D1 reserved for release-time provisioning');
+      checkRef(d1.name, envName, 'd1', 'D1 reserved for release-time provisioning', allowPlannedD1);
     } else {
       if (!d1.id) at(`${envName} D1 database_id is missing`);
-      checkD1(d1, envName);
+      checkD1(d1, envName, allowPlannedD1);
     }
   };
 
@@ -405,6 +413,9 @@ function checkService(spec, cfg, index, violations) {
   if (spec.id === 'mcp' && (prod.mcpOrigin !== 'https://mcp.codepi.app' || prod.authClientId !== 'mcp')) {
     at('MCP_ORIGIN and AUTH_CLIENT_ID must identify the canonical CodePi MCP service');
   }
+  if (spec.authClientId && prod.authClientId !== spec.authClientId) {
+    at(`AUTH_CLIENT_ID must be ${spec.authClientId}, got ${prod.authClientId}`);
+  }
 
   if (spec.id === 'ops') {
     if (prod.workersDev !== false || prod.previewUrls !== false || !prod.routesValid || prod.routePatterns.length) {
@@ -419,15 +430,25 @@ function checkService(spec, cfg, index, violations) {
     if (JSON.stringify(prod.workflowsAll) !== JSON.stringify([{ binding: 'OPERATIONS', name: 'codepi-ops', className: 'OperationsWorkflow' }])) {
       at('ops must bind only OPERATIONS to codepi-ops#OperationsWorkflow');
     }
-    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket');
-    for (const workflow of prod.workflowsAll) checkRef(workflow.name, 'production', 'workflow', 'Workflow');
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket',
+      allowPlannedR2.has(bucket.name));
+    for (const workflow of prod.workflowsAll) checkRef(workflow.name, 'production', 'workflow', 'Workflow',
+      allowPlannedWorkflows.has(workflow.name));
   }
 
   if (spec.id === 'gu') {
     if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'MATERIALS', name: 'codepi-gu-uploads' }])) {
       at('gu must bind only MATERIALS to codepi-gu-uploads');
     }
-    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket', bucket.name === 'codepi-gu-uploads');
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket',
+      allowPlannedR2.has(bucket.name));
+  }
+  if (spec.id === 'me') {
+    if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'IMPORTS', name: 'codepi-me-imports' }])) {
+      at('me must bind only IMPORTS to codepi-me-imports');
+    }
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket',
+      allowPlannedR2.has(bucket.name));
   }
 
   if (spec.authRoutes || spec.id === 'mcp') {
@@ -435,6 +456,19 @@ function checkService(spec, cfg, index, violations) {
       const expected = spec.id === 'mcp' ? 'mcp.codepi.app' : 'auth.codepi.app';
       if (env.routeEntries.length !== 1 || env.routeEntries[0]?.pattern !== expected || env.routeEntries[0]?.customDomain !== true) {
         at(`${envName} auth route must be exactly custom_domain ${expected}`);
+      }
+    }
+  }
+
+  if (spec.customDomainRoutes) {
+    for (const [envName, env] of environments) {
+      const expected = [...spec.customDomainRoutes].sort();
+      const actual = env.routeEntries
+        .filter(route => route.customDomain)
+        .map(route => route.pattern)
+        .sort();
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        at(`${envName} custom domains must be exactly [${expected.join(', ')}]`);
       }
     }
   }
@@ -511,6 +545,8 @@ function checkService(spec, cfg, index, violations) {
         oura: ['https://health.kdp.cool/api/auth/callback', 'https://health.codepi.app/api/auth/callback'],
         gzh: ['https://gzh.codepi.app/api/auth/callback'],
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
+        project: ['https://project.codepi.app/api/auth/callback'],
+        me: ['https://me.codepi.app/api/auth/callback'],
       },
     };
     for (const [envName, env] of environments) {
@@ -519,7 +555,7 @@ function checkService(spec, cfg, index, violations) {
       const expected = expectedCallbacks[envName];
       if (!callbacks || Array.isArray(callbacks) || typeof callbacks !== 'object'
         || JSON.stringify(Object.keys(callbacks).sort()) !== JSON.stringify(Object.keys(expected).sort())) {
-        at(`auth ${envName} SSO callback clients must be exactly gu, oura, gzh, desk`);
+        at(`auth ${envName} SSO callback clients must be exactly ${Object.keys(expected).sort().join(', ')}`);
         continue;
       }
       for (const [client, urls] of Object.entries(expected)) {
@@ -531,10 +567,15 @@ function checkService(spec, cfg, index, violations) {
     }
   }
 
-  const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name']];
+  const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name',
+    allowPlannedWorker]];
   for (const [envName, env] of environments) {
-    for (const service of env.servicesAll) refs.push([service.service, envName, 'worker', `service binding ${service.binding}`]);
-    for (const pattern of env.routePatterns) refs.push([pattern.replace(/\/.*$/, ''), envName, 'host', 'route host']);
+    for (const service of env.servicesAll) refs.push([service.service, envName, 'worker',
+      `service binding ${service.binding}`, allowPlannedServices.has(service.binding)]);
+    for (const pattern of env.routePatterns) {
+      const host = pattern.replace(/\/.*$/, '');
+      refs.push([host, envName, 'host', 'route host', allowPlannedHosts.has(host)]);
+    }
     const authHost = hostOf(env.authOrigin);
     if (authHost) refs.push([authHost, envName, 'host', 'AUTH_ORIGIN host']);
     for (const origin of [env.frontendOrigin, env.frontendOrigins]) {
@@ -544,18 +585,36 @@ function checkService(spec, cfg, index, violations) {
     const redirectHost = hostOf(env.ouraRedirect);
     if (redirectHost) refs.push([redirectHost, envName, 'host', 'OURA_REDIRECT_URI host']);
   }
-  for (const [token, env, typeHint, label] of refs) checkRef(token, env, typeHint, label);
+  for (const [token, env, typeHint, label, allowPlanned] of refs) {
+    checkRef(token, env, typeHint, label, allowPlanned);
+  }
 }
 
 export function collectViolations({ root = ROOT, registryFile = REGISTRY, requireAll = true } = {}) {
   const specs = [
     { id: 'ops', file: 'services/ops/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-ops', envKey: 'staging',
       provisionOnRelease: true, noD1: true, noAuth: true, noRoutes: true, cronsRequired: true,
-      serviceBindings: { GU: { production: 'codepi-gu' } }, serviceEntrypoints: { GU: 'GuMaterialsBackup' } },
+      allowPlanned: { services: ['ME'] },
+      serviceBindings: { GU: { production: 'codepi-gu' }, ME: { production: 'codepi-me' } },
+      serviceEntrypoints: { GU: 'GuMaterialsBackup', ME: 'MeImportsBackup' } },
     { id: 'mcp', file: 'services/mcp/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-mcp', d1Name: 'codepi-mcp', envKey: 'staging',
       provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
-      serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' } },
-      serviceEntrypoints: { HEALTH: 'HealthMcp' } },
+      allowPlanned: { services: ['PROJECT', 'ME'] },
+      serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' },
+        PROJECT: { production: 'codepi-project' }, ME: { production: 'codepi-me' }, GU: { production: 'codepi-gu' } },
+      serviceEntrypoints: { HEALTH: 'HealthMcp', PROJECT: 'ProjectMcp', ME: 'MeMcp', GU: 'GuMcp' } },
+    { id: 'project', file: 'apps/project/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-project',
+      d1Name: 'codepi-project', envKey: 'staging', provisionOnRelease: true, authClientId: 'project',
+      allowPlanned: { worker: true, d1: true, hosts: ['project.codepi.app'] },
+      routesRequired: true, requiredRoutes: { prod: ['project.codepi.app'] },
+      customDomainRoutes: ['project.codepi.app'],
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    { id: 'me', file: 'apps/me/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-me',
+      d1Name: 'codepi-me', envKey: 'staging', provisionOnRelease: true, authClientId: 'me',
+      allowPlanned: { worker: true, d1: true, hosts: ['me.codepi.app'], r2: ['codepi-me-imports'] },
+      routesRequired: true, requiredRoutes: { prod: ['me.codepi.app'] },
+      customDomainRoutes: ['me.codepi.app'],
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',

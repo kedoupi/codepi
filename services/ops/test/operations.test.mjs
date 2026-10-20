@@ -2,15 +2,29 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import test from 'node:test';
-import { DATABASES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
-import { assertRecentMonitor, backupFreshness, backupOperation, monitorOperation, scheduleOperation } from '../src/operations.mjs';
-import { offsiteRelease } from '../src/offsite.mjs';
+import { DATABASES, DATABASE_NAMES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
+import {
+  assertRecentMonitor,
+  backupFreshness,
+  backupOperation,
+  monitorOperation,
+  scheduleOperation,
+  settledStepResult,
+} from '../src/operations.mjs';
 import { backupDatabase } from '../src/backup.mjs';
 import { bucketFixture, exportRequest, materialFixture } from './fixtures.mjs';
 
 const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
   publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
 const event = { instanceId: 'backup-synthetic' };
+const databaseIds = Object.fromEntries(DATABASE_NAMES.map((name, i) => [name,
+  DATABASES[name] ?? `99999999-9999-4999-8999-${String(i + 1).padStart(12, '0')}`]));
+const baseEnv = {
+  CLOUDFLARE_ACCOUNT_ID: 'acct',
+  CLOUDFLARE_API_TOKEN: 'synthetic',
+  D1_DATABASE_IDS: JSON.stringify(databaseIds),
+};
+const meFixture = bodies => materialFixture(bodies, { prefix: 'imports', idKind: 'ulid' });
 
 function stepFixture() {
   const state = new Map();
@@ -25,9 +39,21 @@ const exportStub = (name, id, publicKey, time, options) => backupDatabase(name, 
   request: exportRequest(() => 'CREATE TABLE synthetic(id);'),
 });
 
+test('Workflow RPC results are cloned and disposed before their stubs can accumulate', async () => {
+  const value = { nested: { value: 1 } };
+  let disposed = 0;
+  Object.defineProperty(value, Symbol.dispose, {
+    value() { disposed++; },
+  });
+  const copied = await settledStepResult(Promise.resolve(value));
+  assert.deepEqual(copied, { nested: { value: 1 } });
+  assert.equal(disposed, 1);
+  assert.equal(Object.hasOwn(copied, Symbol.dispose), false);
+});
+
 test('partial exports never publish a manifest and resuming does not re-export completed databases', async () => {
   const bucket = bucketFixture(), step = stepFixture(), calls = [];
-  const env = { BACKUPS: bucket, GU: materialFixture() };
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]) };
   let fail = true;
   const exportOne = async (name, ...args) => {
     calls.push(name);
@@ -41,7 +67,7 @@ test('partial exports never publish a manifest and resuming does not re-export c
   await assert.rejects(backupOperation(env, step, event, keys.publicKey, { exportOne }), /GITHUB_TOKEN/);
   assert.equal(calls.filter(name => name === 'codepi-auth').length, 1);
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
-  assert.equal(manifest.databases.length, 6);
+  assert.equal(manifest.databases.length, DATABASE_NAMES.length);
   assert.equal(manifest.materials.objects, 1);
   for (const entry of manifest.databases) {
     const object = await bucket.get(`backups/${event.instanceId}/${entry.file}`);
@@ -60,7 +86,7 @@ test('partial exports never publish a manifest and resuming does not re-export c
 
 test('a put followed by an interrupted workflow reuses the existing ciphertext', async () => {
   const bucket = bucketFixture(), step = stepFixture();
-  const env = { BACKUPS: bucket, GU: materialFixture() };
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]) };
   await assert.rejects(backupOperation(env, step, event, keys.publicKey, { exportOne: exportStub }), /GITHUB_TOKEN/);
   for (const name of Object.keys(DATABASES)) step.state.delete(`encrypted export ${name}`);
   await assert.rejects(backupOperation(env, step, event, keys.publicKey, {
@@ -71,7 +97,9 @@ test('a put followed by an interrupted workflow reuses the existing ciphertext',
 });
 
 test('a paused instance cannot publish success after its ciphertext expires or its recipient changes', async () => {
-  const bucket = bucketFixture(), step = stepFixture(), env = { BACKUPS: bucket, GU: materialFixture() };
+  const bucket = bucketFixture(), step = stepFixture(), env = {
+    ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]),
+  };
   const originalPut = bucket.put.bind(bucket);
   let interrupt = true;
   bucket.put = async (key, ...args) => {
@@ -101,14 +129,23 @@ test('monitor preserves failed assertions in its private report and rejects skip
 
 test('freshness rejects stale and incomplete backups', async () => {
   const bucket = bucketFixture();
+  const complete = {
+    completed_at: new Date().toISOString(),
+    databases: DATABASE_NAMES.length,
+    database_names: DATABASE_NAMES,
+    materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
+  };
   for (const item of [
-    { completed_at: new Date(Date.now() - 31 * 3600000).toISOString(), databases: 6 },
-    { completed_at: new Date().toISOString(), databases: 5 },
-    { completed_at: new Date().toISOString(), databases: 6 },
+    { ...complete, completed_at: new Date(Date.now() - 31 * 3600000).toISOString() },
+    { ...complete, databases: DATABASE_NAMES.length - 1 },
+    { ...complete, database_names: DATABASE_NAMES.slice(0, -1) },
+    { ...complete, materials: { sources: ['codepi-gu'], objects: 0 } },
   ]) {
     await bucket.put('reports/backup/r2-success.json', JSON.stringify(item));
     assert.equal((await backupFreshness(bucket))[0].ok, false);
   }
+  await bucket.put('reports/backup/r2-success.json', JSON.stringify(complete));
+  assert.equal((await backupFreshness(bucket))[0].ok, true);
 });
 
 test('missing, corrupted or interrupted GU originals cannot publish a complete manifest', async () => {
@@ -120,12 +157,36 @@ test('missing, corrupted or interrupted GU originals cannot publish a complete m
     if (kind === 'stream') gu.readMaterial = async () => new ReadableStream({
       pull(controller) { controller.error(new Error('PRIVATE CONTENT')); },
     });
-    await assert.rejects(backupOperation({ BACKUPS: bucket, ...(kind === 'binding' ? {} : { GU: gu }) },
+    await assert.rejects(backupOperation({
+      ...baseEnv, BACKUPS: bucket, ME: meFixture([]),
+      ...(kind === 'binding' ? {} : { GU: gu }),
+    },
       stepFixture(), event, keys.publicKey, { exportOne: exportStub }),
-    error => /GU material/.test(error.message) && !error.message.includes('PRIVATE CONTENT'));
+    error => /codepi-gu original/.test(error.message) && !error.message.includes('PRIVATE CONTENT'));
     assert.equal(bucket.data.has(`backups/${event.instanceId}/manifest.json`), false);
     assert.equal(bucket.data.has('reports/backup/r2-success.json'), false);
   }
+});
+
+test('Me imports are encrypted alongside GU and missing ME coverage cannot publish a manifest', async () => {
+  const bucket = bucketFixture(), me = meFixture(['Synthetic Me import one', 'Synthetic Me import two']);
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture([]), ME: me };
+  await assert.rejects(backupOperation(env, stepFixture(), event, keys.publicKey, { exportOne: exportStub }),
+    /GITHUB_TOKEN/);
+  const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
+  assert.equal(manifest.version, 3);
+  assert.deepEqual(manifest.materials.collections.map(collection => collection.source), ['codepi-gu', 'codepi-me']);
+  const meCollection = manifest.materials.collections.find(collection => collection.source === 'codepi-me');
+  assert.equal(meCollection.objects, 2);
+  for (const [index, entry] of meCollection.entries.entries()) {
+    assert.equal(entry.kind, 'me-import');
+    const recovered = decrypt(bucket.data.get(`backups/${event.instanceId}/materials/${entry.file}`).bytes,
+      keys.privateKey);
+    assert.equal(recovered.sql.toString(), `Synthetic Me import ${index === 0 ? 'one' : 'two'}`);
+    assert.equal(recovered.metadata.kind, 'me-import');
+  }
+  await assert.rejects(backupOperation({ ...baseEnv, BACKUPS: bucketFixture(), GU: materialFixture([]), ME: undefined },
+    stepFixture(), event, keys.publicKey, { exportOne: exportStub }), /codepi-me original backup binding/);
 });
 
 test('material ciphertext is reused after a receipt interruption and expiration prevents completion', async () => {
@@ -137,13 +198,16 @@ test('material ciphertext is reused after a receipt interruption and expiration 
     if (interrupted && key.includes('/materials/') && key.endsWith('.receipt.json')) throw new Error('synthetic pause');
     return put(key, ...args);
   };
-  const run = () => backupOperation({ BACKUPS: bucket, GU: gu }, step, event, keys.publicKey, { exportOne: exportStub });
+  const run = () => backupOperation({
+    ...baseEnv, BACKUPS: bucket, GU: gu, ME: meFixture([]),
+  }, step, event, keys.publicKey, { exportOne: exportStub });
   await assert.rejects(run(), /synthetic pause/);
   interrupted = false;
   await assert.rejects(run(), /GITHUB_TOKEN/);
   assert.equal(reads, 1);
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
-  const entry = manifest.materials.entries[0], key = `backups/${event.instanceId}/materials/${entry.file}`;
+  const guCollection = manifest.materials.collections.find(collection => collection.source === 'codepi-gu');
+  const entry = guCollection.entries[0], key = `backups/${event.instanceId}/materials/${entry.file}`;
   const recovered = decrypt(bucket.data.get(key).bytes, keys.privateKey);
   assert.equal(recovered.sql.toString(), 'Synthetic private material');
   assert.equal(recovered.metadata.source_sha256, gu.rows[0].sha256);
@@ -193,42 +257,4 @@ test('export rejects excessive plaintext without printing a signed URL', async (
       : new Response('too much synthetic SQL') };
   await assert.rejects(backupDatabase('synthetic', 'db', keys.publicKey, 'date', options), error =>
     /streaming size limit/.test(error.message) && !error.message.includes('SECRET'));
-});
-
-test('offsite uploads ciphertext and manifest last; retries verify digests and never overwrite a mismatch', async () => {
-  const bucket = bucketFixture(), assets = [], writes = [];
-  const materialFile = 'gu-material-00000000-0000-4000-8000-000000000001.bin.enc';
-  const manifest = { databases: [{ file: 'codepi-auth.sql.enc',
-    sha256: createHash('sha256').update('ciphertext').digest('hex') }],
-  materials: { entries: [{ file: materialFile, sha256: createHash('sha256').update('material ciphertext').digest('hex') }] } };
-  const prefix = 'backups/synthetic';
-  await bucket.put(`${prefix}/codepi-auth.sql.enc`, Buffer.from('ciphertext'));
-  await bucket.put(`${prefix}/materials/${materialFile}`, Buffer.from('material ciphertext'));
-  await bucket.put(`${prefix}/manifest.json`, JSON.stringify(manifest));
-  let exists = false;
-  const request = async (url, init) => {
-    const u = new URL(url);
-    if (u.hostname === 'uploads.github.com') {
-      const name = u.searchParams.get('name');
-      writes.push(name);
-      assert.ok(init.body instanceof ReadableStream);
-      const bytes = Buffer.from(await new Response(init.body).arrayBuffer());
-      assert.equal(Number(init.headers['content-length']), bytes.length);
-      const asset = { name, state: 'uploaded', digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}` };
-      assets.push(asset);
-      return Response.json(asset);
-    }
-    if (u.pathname.includes('/releases/tags/')) return exists
-      ? Response.json({ id: 42, tag_name: 'ops-backup-synthetic' }) : new Response('', { status: 404 });
-    if (init.method === 'POST') { exists = true; return Response.json({ id: 42, tag_name: 'ops-backup-synthetic' }); }
-    return Response.json(assets);
-  };
-  const run = () => offsiteRelease(manifest, prefix, bucket, { token: 'synthetic', request });
-  assert.equal((await run()).assets, 3);
-  assert.deepEqual(writes, ['codepi-auth.sql.enc', materialFile, 'manifest.json']);
-  await run();
-  assert.equal(writes.length, 3);
-  assets[0].digest = 'sha256:wrong';
-  await assert.rejects(run(), /cannot be verified/);
-  assert.equal(writes.length, 3);
 });

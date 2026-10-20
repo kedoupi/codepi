@@ -72,12 +72,13 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | GU | `apps/gu` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gu --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gu <完整sourceSHA>` |
 | GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gzh <完整sourceSHA>` |
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
+| Project / Me | `apps/project` / `apps/me` | `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app <project或me> --sha <完整sourceSHA>`；首次初始化按末节执行 |
 | MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
 | Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
 
 GU 原件备份首次启用需先完成 GU migration、私有 `MATERIALS` bucket 与 GU 发布，
-再发布绑定 `GuMaterialsBackup` 的 Ops。随后触发完整备份并核验六库、原件、
+再发布绑定 `GuMaterialsBackup` 的 Ops。随后触发完整备份并核验当前清单全部数据库、原件、
 跨平台回执及恢复；新巡检不接受旧的 D1-only 回执。详见[定时运维](cloudflare-operations.md#gu-原件)。
 
 六个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
@@ -176,7 +177,7 @@ node scripts/cloudflare/deployment-evidence.mjs append \
 
 定时巡检与加密日备由 `services/ops` 的 Cloudflare Cron/Workflows 执行，原
 `production-monitor.yml` / `d1-backup.yml` 仅保留手动应急入口。验收须核实真实
-Workflow 实例、R2 六库完成清单、跨平台回执和私有访问。GitHub 运行凭证缺失时，
+Workflow 实例、R2 当前全库完成清单、跨平台回执和私有访问。GitHub 运行凭证缺失时，
 版本核对和跨平台备份明确失败；详见[定时运维](cloudflare-operations.md)。
 本地仍可执行 `node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`。
 
@@ -188,3 +189,42 @@ Workflow 实例、R2 六库完成清单、跨平台回执和私有访问。GitHu
 本地巡检若 main 在 checkout 后前进到本地尚无的提交，该次失败，
 刷新 checkout 后重跑。历史上的缺 SHA 补发已记录在任务文件中；继续操作时只对
 实时核实缺少标记的服务处理，不照旧记录无条件重发五个 Worker。
+
+## Project / Me / GU MCP 扩展发布
+
+本轮只准备本地实现，不授权远程执行。获授权后在干净、已合并 main 上完成受影响验证，
+并在第 1 节同一个发布 shell 中持续持锁。首发依赖顺序如下：
+
+1. 先发布并验证 Auth；Project/Me 的 opt-in 客户端此时仍未启用，既有客户端保持可用。
+2. 创建并核验私有 `codepi-me-imports` R2，准备 Project 的 GitHub 只读授权。
+   两个新 D1 可在下一步用显式 `--provision-d1` 创建；不生成假的资源 UUID。
+3. 构建 Project/Me，分别运行
+   `node scripts/cloudflare/deploy-domain.mjs --app project --sha <完整sourceSHA> --provision-d1`
+   和对应 `--app me` 命令。脚本解析真实 D1、执行 migration、首次上传 Worker。
+   这一阶段会产生实际活跃版本，输出仍为 `smoke: pending`；未配对的 `/api/health`
+   返回 503 是初始化中状态，不记成功，也不继续部署依赖它们的 MCP/Ops。
+4. Worker 已存在后再配对各自 secret，并执行真实 readiness 验收。
+   `pair-mcp-secret.mjs` CLI 自行取锁，不能在当前已持锁的 shell 里重入该 CLI；
+   协调者在已持锁的发布 shell 内调用同一导出函数：
+
+   ```bash
+   node --input-type=module -e 'const { pairClientSecret } = await import("./scripts/cloudflare/pair-mcp-secret.mjs"); for (const client of ["project", "me"]) console.log(JSON.stringify(await pairClientSecret({ client })));'
+   ```
+
+   只输出前后版本与配对结果；配对读取当前活跃版本，所以不能移到首次上传之前。
+   任一端写入或 readiness 失败即停止。锁外独立修复时才使用
+   `node scripts/cloudflare/pair-mcp-secret.mjs --rotate --client project` 或 `--client me`。
+5. 核对 Project/Me 的 `/api/health` 返回 200，包含正确 `build`、
+   `sso_enabled=true`、`sso_ready=true`；再验收匿名私有接口拒绝、真实登录及原件私有访问。
+   完成 Health API、GU 的 named RPC 发布和验收后，依次发布 MCP、Ops、公开产品入口。
+
+每步都复核实际 bindings、当前源版本与远程 main。GitHub 只读同步 token 不能由随机
+secret 代替；只能通过已授权配置设置。普通更新不重复初始化资源或轮换既有 SSO secret。
+
+Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署配置；审查源码不填假 UUID。
+新桶必须无公开域名、无 r2.dev 公开访问。新增 Worker 要单独建立并验收 Issues 自动规则。
+执行新 Ops 后核对 v3 完整清单、GitHub 跨平台副本、非空 Me 原文隔离恢复；旧 v2 回执不够。
+
+旧统一 MCP Health grants 保留，无须强制全部重连；仅新权限需要再次同意。
+真实验收包含 Claude 手机端、Codex、codepi CLI，逐项记录权限隔离、刷新、撤销和接力。
+计划、代码、发布和真实客户端状态分别填写[任务记录](tasks/2026-10-20-codepi-mcp-domains.md)。

@@ -3,21 +3,43 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { DATABASES, encrypt, exportDatabase, keyId } from './backup-core.mjs';
-export { DATABASES, cloudflareApi, decrypt, encrypt, exportDatabase, keyId } from './backup-core.mjs';
+import {
+  DATABASES,
+  DATABASE_NAMES,
+  encrypt,
+  exportDatabase,
+  keyId,
+  resolveProductionDatabases,
+} from './backup-core.mjs';
+export { DATABASES, DATABASE_NAMES, cloudflareApi, decrypt, encrypt, exportDatabase, keyId } from './backup-core.mjs';
 
 export const PUBLIC_KEY_PATH = fileURLToPath(new URL('./backup-public-key.pem', import.meta.url));
 
 export async function runBackup({ outDir, publicKey, env = process.env, request = fetch,
-  databases = DATABASES, now = new Date(), wait, timeoutMs } = {}) {
+  databases, resolveDatabases = resolveProductionDatabases,
+  now = new Date(), wait, timeoutMs } = {}) {
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const token = env.CLOUDFLARE_API_TOKEN;
   assert.ok(accountId && token && outDir, 'Cloudflare credentials and --out <dir> are required');
+  let selected;
+  if (databases) selected = Object.entries(databases);
+  else {
+    const resolved = await resolveDatabases({
+      accountId,
+      token,
+      request,
+      explicit: env.D1_DATABASE_IDS,
+    });
+    assert.equal(resolved.length, DATABASE_NAMES.length, 'resolved D1 inventory is incomplete');
+    assert.deepEqual(resolved.map(database => database.name), [...DATABASE_NAMES],
+      'resolved D1 inventory does not match the required names');
+    selected = resolved.map(database => [database.name, database.id]);
+  }
   publicKey ??= await readFile(PUBLIC_KEY_PATH, 'utf8');
   const recipient = keyId(publicKey);
   await mkdir(outDir, { recursive: true, mode: 0o700 });
   const manifest = { version: 1, created_at: now.toISOString(), key_id: recipient, databases: [] };
-  for (const [name, databaseId] of Object.entries(databases)) {
+  for (const [name, databaseId] of selected) {
     const url = await exportDatabase(databaseId, { accountId, token, request, wait, timeoutMs });
     const parsed = new URL(url);
     assert.ok(parsed.protocol === 'https:' && parsed.hostname.endsWith('.r2.cloudflarestorage.com'),
