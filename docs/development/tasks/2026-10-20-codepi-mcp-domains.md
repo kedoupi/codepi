@@ -13,7 +13,8 @@
 ## 实施约定
 
 1. 公共基础先完成，再依次集成 Project + CLI、Me、GU；三个领域全部完成才算首期完成。
-2. 保持旧 Health grants；refresh 只能保持或缩小；逐工具校验 scope，摘要单独要求读权限。
+2. 保持旧 Health grants；逐工具校验 scope，摘要单独要求读权限。2026-10-20
+   后续决策改为连接一次授予全部当前 scope，旧 partial grant 在 refresh 时升级为全量。
 3. `get_context` 并发摘要，每个来源 2 秒超时；UTF-8 限制为概览 4 KiB、详情页 12 KiB、总概览 8 KiB。
 4. Project 交接必填 task_id、状态、分支、base SHA；PR/commit 可选。GitHub 按 Link 翻页，失败不推进完成游标，保留分页断点。未知任务状态显示 unknown。
 5. CLI 复用锁定的官方 MCP SDK；凭证原子写入、跨进程刷新锁、锁内重读。OAuth 仅 HTTP loopback IP 可变端口，其余精确匹配。
@@ -86,6 +87,24 @@ revision。协调者修改 MCP schema/联调测试与文档。列表契约为首
   隔离恢复与生产身份排除；Workflow 步骤结果复制后释放 RPC 对象。
 - 配套：共享 Auth client 注册、真实 SSO readiness、发布与巡检登记、
   受影响检查/CI、根规则/skills、架构与首次发布和恢复手册。
+
+## 后续授权策略调整
+
+2026-10-20，所有者确认 CodePi 是单用户系统，登录授权本身就是连接确认，
+因此 MCP 授权页改为展示并一次性授予当前全部已支持 scope：
+`context.read projects.read projects.write health.read health.sync me.read me.write invest.read`。
+授权页不再让客户端逐项勾选，也不要求为了 `projects.write` 或 `me.write` 重新授权；
+客户端只请求部分 scope 时，token 仍返回全量 scope。已有的部分授权在下一次
+refresh 时升级为全量，若要撤回权限则在 `/connections` 撤销整个客户端连接。
+逐工具读写隔离仍保留，write scope 仍不隐含对应的 read scope；这是授权范围策略
+的变化，不是领域数据边界的变化。
+
+本地验证新增覆盖：授权页不生成逐项 scope checkbox、授权码保存全量 scope、
+旧 partial grant refresh 后得到全量 scope、浏览器连接返回全量 scope。
+实际执行 `pnpm --dir services/mcp test` 为 36/36 通过，受影响检查
+`node scripts/agent/check.mjs --base b7839cc --run` 为 6/6 通过，桌面及 390px
+浏览器授权验收通过。生产 D1 只读核对显示两个现有活动连接的 access/refresh token
+均为全量 scope；ChatGPT 已加载完整 20 个工具，未执行真实写入调用。
 
 ## 审查修复
 

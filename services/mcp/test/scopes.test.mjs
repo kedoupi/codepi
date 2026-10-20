@@ -2,38 +2,36 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, ORIGIN } from './runtime.mjs';
 
-test('chosen scope is persisted, empty selection preserves consent and expansion is rejected', async t => {
+test('one owner login grants every supported scope without per-scope selection', async t => {
   const f = await fixture(t);
   const pending = await f.grant({ scope: 'context.read projects.read health.read', consentOnly: true });
-  const { scope: _, ...empty } = pending.approval;
   const headers = { Origin: ORIGIN, Cookie: pending.cookie };
-  const none = await f.post('/oauth/authorize', empty, headers);
-  assert.equal(none.status, 200);
-  assert.match(await none.text(), /至少选择一项/);
-  const bad = await f.post('/oauth/authorize', { ...empty, scope: 'me.read' }, headers);
-  assert.equal(bad.status, 403);
-  assert.equal((await bad.json()).error, 'invalid_scope');
-  assert.equal((await f.post('/oauth/authorize', { ...empty, scope: 'context.read' }, headers)).status, 302);
+  assert.doesNotMatch(pending.html, /<input[^>]+name="scope"/);
+  for (const scope of f.allScopes.split(' ')) assert.ok(pending.html.includes(scope), scope);
+  const approved = await f.post('/oauth/authorize', pending.approval, headers);
+  assert.equal(approved.status, 302);
+  const consent = await f.db.prepare('SELECT scope FROM oauth_consent_requests').first();
+  assert.equal(consent.scope, f.allScopes);
   const saved = await f.db.prepare('SELECT scope FROM oauth_auth_codes').first();
-  assert.equal(saved.scope, 'context.read');
-  assert.match(pending.html, /value="health.read">/);
-  assert.match(pending.html, /value="projects.read" checked/);
+  assert.equal(saved.scope, f.allScopes);
 });
 
-test('refresh can shrink but cannot expand, and connection display unions live families', async t => {
+test('refresh upgrades legacy partial grants and connection display unions live families', async t => {
   const f = await fixture(t), grant = await f.grant({ scope: 'context.read projects.read projects.write' });
   const request = { grant_type: 'refresh_token', client_id: grant.client.client_id, refresh_token: grant.refresh_token };
-  const expanded = await f.post('/oauth/token', { ...request, scope: 'context.read me.read' });
-  assert.equal((await expanded.json()).error, 'invalid_scope');
-  const reduced = await f.post('/oauth/token', { ...request, scope: 'projects.read' });
-  assert.equal(reduced.status, 200);
-  const pair = await reduced.json();
-  assert.equal(pair.scope, 'projects.read');
+  const unknown = await f.post('/oauth/token', { ...request, scope: 'unknown.scope' });
+  assert.equal((await unknown.json()).error, 'invalid_scope');
+  const upgraded = await f.post('/oauth/token', { ...request, scope: 'projects.read' });
+  assert.equal(upgraded.status, 200);
+  const pair = await upgraded.json();
+  assert.equal(pair.scope, f.allScopes);
   const names = (await f.rpc(pair.access_token, 'tools/list')).body.result.tools.map(t => t.name);
-  assert.deepEqual(names, ['list_data_sources', 'projects_list', 'project_get']);
+  for (const name of ['project_handoff_save', 'health_get_sync_status', 'memory_save', 'invest_get_portfolio']) {
+    assert.ok(names.includes(name), name);
+  }
   await f.grant({ scope: 'me.read', client: grant.client });
   const connections = await (await f.at('/connections', { headers: { Cookie: grant.cookie } })).text();
-  assert.match(connections, /projects.read me.read/);
+  assert.ok(connections.includes(f.allScopes));
 });
 
 test('loopback port variation is allowed but authorization code binds the actual callback', async t => {
