@@ -1,11 +1,11 @@
 # CodePi MCP 领域扩展
 
-- 状态：各模块已集成，审查修复与本地组合验收已完成；PR #121 已包含修复，待最终 CI 复核；未合并、未部署。
+- 状态：各模块已集成，分支已同步最新 main 并通过最终本地组合验收；PR #121 待新 SHA 的 CI 复核；未合并、未部署。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：`<workspace>/.worktrees/kdp.cool/codex/codepi-mcp-domains`
 - 分支：`codex/codepi-mcp-domains`
-- 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，最终 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`。
+- 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，先 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`，再合并 `origin/main` 的 `c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6`。
 - 协调者、公共契约与集成负责人：本聊天 Codex。
 - 授权：本地实现与验证；2026-10-20 用户授权按审查切片提交、推送并创建 PR。未授权合并、生产资源创建、secret 配对、迁移或部署。
 - 根工作区 `.workbuddy-ai/` 为用户保留文件，不读取、不修改、不清理。
@@ -101,16 +101,18 @@ DCR client；现已把 client 读取或注册纳入凭证锁，并在授权码�
 用例，要求只发生一次 DCR、两个授权都成功且最终 refresh token 可刷新。
 
 Health SSO 浏览器用例另外等待自动同步和首页请求结束、移动视口清除后的两帧
-重排，再执行会话撤销与账号修复。该调整只消除测试时序竞态，没有发现产品行为
-缺陷。组合验收后未再发现新的产品行为缺陷；Project 的新独立审查因模型容量
-未完成，仍作为审查覆盖缺口保留。
+重排，再执行会话撤销与账号修复。合并最新 main 后，浏览器点击辅助函数还会在
+布局变化后重新计算目标坐标，必要时显式滚动并输出命中元素诊断；SSO 用例在
+聚焦触发的会话刷新重建设置页后，会重新展开 `.connection-repair`。这些调整只
+消除测试时序竞态，没有发现产品行为缺陷。组合验收后未再发现新的产品行为
+缺陷；Project 的新独立审查因模型容量未完成，仍作为审查覆盖缺口保留。
 
 所有修复仍只属于本地实现；没有真实部署或线上资源变更。
 
 ## 验证证据
 
-以下均在主集成 worktree、基线 `abbafdfe2d04966d66dad2f4f0084075f040caaf`
-之上的未提交改动运行，使用合成数据：
+以下均在主集成 worktree 运行，使用合成数据；主体检查覆盖本轮审查修复，
+最终组合检查覆盖合并 `origin/main` `c83cc8c` 后的完整树：
 
 | 范围 | 实际检查 | 结果 |
 | --- | --- | --- |
@@ -133,11 +135,14 @@ re-export 真实 `MeImportsBackup` 验证原件 provider contract。
 最终组合检查已执行并通过（`Passed 43 selected local checks`）：
 
 ```bash
-HEALTH_BROWSER_PORT=48183 node scripts/agent/check.mjs \
-  --base 2820de261b4134fff538679e6f886ac62f4d9161 --run
+HEALTH_BROWSER_PORT=48184 node scripts/agent/check.mjs \
+  --base c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6 --run
 ```
 
-该轮检查包含并发首次登录与 Health 浏览器等待修复，43 项全部通过。
+该轮检查包含并发首次登录、latest main 的品牌资源改动、浏览器点击重排与
+SSO repair details 重挂载修复，43 项全部通过。第一次合并 `origin/main` 时
+`pnpm-lock.yaml` 发生冲突，已采用 main 版本并基于全部 workspace 重新生成；
+`pnpm install --frozen-lockfile` 通过。
 
 补充检查全部通过：
 
@@ -151,9 +156,10 @@ git diff --check
 
 ## 提交拆分（建议）
 
-按依赖顺序拆成 10 个功能切片，rebase 到最新 main 后增加 1 个测试夹具兼容修正。
-仓库最终以 squash merge 进入 main，因此中间提交只用于审查和回溯，不单独发布；
-只有最后一个提交后的完整树通过了本轮组合检查。PR：
+按依赖顺序拆成 10 个功能切片，并增加 1 个测试夹具兼容修正；分支已合并最新
+main，另保留 Health 浏览器测试稳定性提交。仓库最终以 squash merge 进入 main，
+因此中间提交只用于审查和回溯，不单独发布；只有最后一个提交后的完整树通过了
+本轮组合检查。PR：
 https://github.com/kedoupi/codepi/pull/121
 
 | # | 提交信息 | 主要路径 |
