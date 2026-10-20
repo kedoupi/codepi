@@ -1,6 +1,6 @@
 # CodePi MCP 领域扩展
 
-- 状态：各模块已集成，本地组合验收已完成；已提交、推送并创建 PR #121；未合并、未部署。
+- 状态：各模块已集成，审查修复与本地组合验收已完成；PR #121 已包含修复，待最终 CI 复核；未合并、未部署。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：`<workspace>/.worktrees/kdp.cool/codex/codepi-mcp-domains`
@@ -94,7 +94,16 @@ CLI 并发 401 刷新（含另一调用尚未完成“采用他人刷新结果�
 token 请求的竞态）、错误文本泄露、遗留锁回收、并行任务遗漏与列表续页；
 Me 并发导入串批、本人归档及特殊字符标签检索；Health refresh 与时钟续页失效；
 SSO 配对假阳性、首发配对顺序、跨平台附件容量、恢复目标生产身份排除、
-Workflow RPC 结果释放。最终复核结论在组合验收后回填。
+Workflow RPC 结果释放。最终复核发现并发首次登录可能让两个进程分别注册
+DCR client；现已把 client 读取或注册纳入凭证锁，并在授权码兑换后、写入 token
+前再次核对持久化 `client_id` 与 issuer，凭证被其他进程改写时以
+`credentials_changed` 失败关闭，不覆盖对方的 refresh family。新增双进程回归
+用例，要求只发生一次 DCR、两个授权都成功且最终 refresh token 可刷新。
+
+Health SSO 浏览器用例另外等待自动同步和首页请求结束、移动视口清除后的两帧
+重排，再执行会话撤销与账号修复。该调整只消除测试时序竞态，没有发现产品行为
+缺陷。组合验收后未再发现新的产品行为缺陷；Project 的新独立审查因模型容量
+未完成，仍作为审查覆盖缺口保留。
 
 所有修复仍只属于本地实现；没有真实部署或线上资源变更。
 
@@ -107,7 +116,7 @@ Workflow RPC 结果释放。最终复核结论在组合验收后回填。
 | --- | --- | --- |
 | Project | `pnpm test`、typecheck、build、test:browser | 46 项通过；桌面及 390px 手机冒烟通过，截图已目检 |
 | Me | `pnpm test`、typecheck、build、test:browser | 20 项通过；真实本地 Worker/D1/R2 桌面及手机冒烟通过，截图已目检 |
-| CLI | test、typecheck、build | 53 项通过；包括同进程与跨进程刷新、并发 401 采用他人刷新结果、分页、错误脱敏与 init |
+| CLI | test、typecheck、build | 54 项通过；包括并发首次登录共享 DCR client、同进程与跨进程刷新、并发 401 采用他人刷新结果、分页、错误脱敏与 init |
 | Auth/readiness | shared client、pairing、monitor 定向测试；Auth domain-clients | 27 + 3 项通过；实际 Auth 内部接口接受正确配对、拒绝错误凭证 |
 | Health API | test、typecheck、test:integration、build | 59 + 119 项通过；跨午夜、599→601 秒 freshness、真实变更、实时同步时间均覆盖 |
 | MCP | `pnpm test`、typecheck、build、test:browser | 36 项通过；scope、OAuth、domain grant、Health 分页及浏览器冒烟通过 |
@@ -124,9 +133,11 @@ re-export 真实 `MeImportsBackup` 验证原件 provider contract。
 最终组合检查已执行并通过（`Passed 43 selected local checks`）：
 
 ```bash
-HEALTH_BROWSER_PORT=48178 node scripts/agent/check.mjs \
+HEALTH_BROWSER_PORT=48183 node scripts/agent/check.mjs \
   --base 2820de261b4134fff538679e6f886ac62f4d9161 --run
 ```
+
+该轮检查包含并发首次登录与 Health 浏览器等待修复，43 项全部通过。
 
 补充检查全部通过：
 
