@@ -96,22 +96,28 @@ test('manual backup defaults to the full dynamic D1 inventory instead of silentl
   assert.equal(manifest.databases.length, 8);
 });
 
-test('all six databases are covered, including the release-resolved MCP binding', async () => {
+test('every managed production D1 is covered, including release-resolved Project, Me and MCP bindings', async () => {
   const configs = { 'codepi-auth': 'services/auth/wrangler.jsonc', 'codepi-desk': 'apps/web/wrangler.toml',
     'codepi-gu': 'apps/gu/wrangler.toml', 'codepi-gzh': 'apps/gzh/wrangler.toml',
-    'codepi-health': 'apps/health/workers/api/wrangler.toml', 'codepi-mcp': 'services/mcp/wrangler.toml' };
-  assert.deepEqual(Object.keys(DATABASES).sort(), Object.keys(configs).sort());
+    'codepi-health': 'apps/health/workers/api/wrangler.toml', 'codepi-mcp': 'services/mcp/wrangler.toml',
+    'codepi-project': 'apps/project/wrangler.toml', 'codepi-me': 'apps/me/wrangler.toml' };
+  assert.deepEqual([...DATABASE_NAMES].sort(), Object.keys(configs).sort());
   const registry = parseRegistry(await readFile(new URL('../../docs/development/cloudflare-resource-registry.md', import.meta.url), 'utf8'));
   const managed = registry.filter(row => row.environment === 'production' && row.resource_type === 'd1' && row.status === 'managed');
-  assert.deepEqual(managed.map(row => row.physical_name.split(' (')[0]).sort(), Object.keys(DATABASES).sort(),
+  const runtimeResolved = new Set(['codepi-mcp', 'codepi-project', 'codepi-me']);
+  assert.deepEqual(managed.map(row => row.physical_name.split(' (')[0]).sort(), [...DATABASE_NAMES].sort(),
     'every managed production D1 must have a backup and restore protection');
   for (const [name, file] of Object.entries(configs)) {
     const config = await readFile(new URL('../../' + file, import.meta.url), 'utf8');
-    assert.ok(managed.some(row => row.physical_name === `${name} (${DATABASES[name]})`), `${name} UUID must match the registry`);
-    if (name === 'codepi-mcp') {
-      assert.match(config, /database_name = "codepi-mcp"/);
-      assert.doesNotMatch(config, /database_id\s*=/, 'MCP resolves its ID at release time');
-    } else assert.ok(config.includes(DATABASES[name]), `${name} must match its deployed binding`);
+    assert.match(config, new RegExp(`database_name["']?\\s*[:=]\\s*"${name}"`), `${name} binding must be present`);
+    if (DATABASES[name]) {
+      assert.ok(managed.some(row => row.physical_name === `${name} (${DATABASES[name]})`), `${name} UUID must match the registry`);
+    }
+    if (runtimeResolved.has(name)) {
+      assert.doesNotMatch(config, /database_id\s*=/, `${name} resolves its ID at release time`);
+    } else {
+      assert.ok(config.includes(DATABASES[name]), `${name} must match its deployed binding`);
+    }
   }
 });
 
