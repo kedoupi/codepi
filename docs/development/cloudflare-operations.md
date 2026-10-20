@@ -113,6 +113,20 @@ R2 写入通过 bucket binding；不会把本机的管理 token 放进 Worker。
 现有 ChatGPT GitHub 连接器支持本次仓库操作，但不是 Worker 可长期调用的凭证。
 未配置该 secret 时，GitHub 相关检查和跨平台备份必须保持失败。
 
+凭证类型使用 fine-grained PAT，Repository access 只选择上述仓库，
+Repository permissions 仅设置 Contents 读写，其他保留默认。
+从最新、干净且已合并的 main 持有生产发布锁后，在 `services/ops/` 交互输入：
+
+```bash
+pnpm exec wrangler secret put GITHUB_TOKEN
+```
+
+不得把本机广权限 `gh` OAuth 登录值转存到 Worker。配置后先创建新的 backup 实例，
+核对六库与原件 manifest、Release 附件及自动跨平台成功回执，再运行 monitor。
+一次性通过本机授权复制的密文可以作为手动副本，但其回执须另存，
+不得写成自动 Workflow 成功或消除自动凭证缺失告警。
+最新手动副本与待办见[跨平台验收](tasks/2026-10-20-github-offsite.md)。
+
 ## 操作与证据
 
 从 `services/ops/` 使用 workspace 锁定的 Wrangler：
