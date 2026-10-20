@@ -1,6 +1,6 @@
 # CodePi MCP 领域扩展
 
-- 状态：PR #121 已合并为 `f951f0fd97c784c6c3b5b480ac2ec2a793139828`；2026-10-20 从实时 main `58bd615c317d` 发布十个 Worker，SSO、匿名拒绝、版本漂移、完整备份和 v3 隔离恢复均通过。Project 只读 `GITHUB_TOKEN` 已配置，五个来源的真实 Cron 同步通过；Me 尚无正式非空导入原文。
+- 状态：PR #121 已合并为 `f951f0fd97c784c6c3b5b480ac2ec2a793139828`；2026-10-20 从实时 main `58bd615c317d` 发布十个 Worker，SSO、匿名拒绝、版本漂移、完整备份和 v3 隔离恢复均通过。Project 只读 `GITHUB_TOKEN` 已配置，五个来源的真实 Cron 同步通过；Me 尚无正式非空导入原文。后续 PR #133 已合并为 `3ad248e1c9887e9a652ec85415de0c00a7dc8721`，MCP 全量 scope 授权已发布并完成线上匿名验收。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：实现时为 `/Users/codepi/.worktrees/kdp.cool/codex/codepi-mcp-domains`；最终发布复核使用 `/Users/codepi/.worktrees/kdp.cool/release-58bd615`
@@ -222,6 +222,23 @@ PR 标题建议：
 | Ops | `36c81c0b-5c29-4ede-b805-289a1f6ea753` | 8 库/原件 v3 备份、GitHub 分片复制与巡检通过 |
 | Project | `bb43c090-0370-43c3-b5f6-c3242df79da5` | SSO、匿名 401 与 readiness 通过；只读 GitHub token 生效，五来源真实 Cron 同步通过 |
 | Me | `42a25c9c-a14a-4b65-b855-49265bc8baef` | SSO、匿名 401、空原件覆盖通过 |
+
+### 全量 scope 授权发布
+
+2026-10-20，PR #133 以 squash merge 合入 main，合并提交为
+`3ad248e1c9887e9a652ec85415de0c00a7dc8721`。此前 MCP 活动 version
+`c6b62b1e-bab3-415f-83e4-4da2beeb3643`（`BUILD_SHA=58bd615c317d`）
+由新 version `29c7f8ed-6b40-41ef-95cd-fa4b5b56d931`
+（`BUILD_SHA=3ad248e1c988`）取代，承接 100% 流量。发布使用干净、detached 的
+合并后 main，持有生产发布锁，解析并迁移同一 `codepi-mcp` D1
+`73c6ef4e-e2a0-41c2-9bce-ab41c7391caa`；没有轮换 MCP/Auth secret，也没有写入生产业务数据。
+
+本地验证为 MCP 测试 36/36、typecheck、build、桌面/390px 浏览器授权验收和受影响检查
+6/6；PR 最终 CI 为 4 项通过、0 失败、8 项按路径跳过。线上 readiness、Auth 凭证配对、
+两种 discovery、匿名工具拒绝和连接管理登录跳转均通过。生产 D1 只读核对显示两个既有活动
+连接的 access/refresh token 已为全量 scope；本次之后新连接直接授予全部当前 scope，
+旧 partial grant 在下一次 refresh 时升级，无需重新授权。实际执行的 workflow、版本和
+smoke 证据已写入 Git 外的 `/tmp/codepi-deployment-evidence.jsonl`。
 
 新增生产 D1：`codepi-project` 为
 `03612540-2ac6-4dd2-9bf6-ed431dda17c9`（2 个 migration），
