@@ -185,9 +185,10 @@ export function totalStageSeconds(stages: ReadonlyArray<{ seconds: number | null
 /** Minutes difference between this night and the median of earlier saved nights. */
 export function durationVsMedian(records: SleepRecord[], selected: SleepRecord): { delta: number; count: number } | null {
   if (!finite(selected.total_sleep_duration) || selected.total_sleep_duration <= 0) return null;
-  const values = records
-    .filter(record => record.day < selected.day)
-    .map(record => sleepForDay([record], record.day)[0])
+  if (selected.type !== "long_sleep") return null;
+  const days = [...new Set(records.filter(record => record.day < selected.day).map(record => record.day))];
+  const values = days
+    .map(day => sleepForDay(records, day).find(record => record.type === "long_sleep"))
     .map(record => record?.total_sleep_duration)
     .filter((value): value is number => finite(value) && value > 0)
     .sort((a, b) => a - b);
@@ -220,9 +221,10 @@ export type RoutineNight = { day: string; start: number; end: number; startLabel
 /** Bedtime-to-rise window for the main sleep of each saved night. */
 export function routineNights(records: SleepRecord[], count: number, end: string): RoutineNight[] {
   const nights: RoutineNight[] = [];
-  const days = [...new Set(records.map(record => record.day))].sort().filter(day => day <= end).slice(-count);
+  const since = new Date(Date.parse(`${end}T00:00:00Z`) - (count - 1) * 86_400_000).toISOString().slice(0, 10);
+  const days = [...new Set(records.map(record => record.day))].sort().filter(day => day >= since && day <= end);
   for (const day of days) {
-    const main = sleepForDay(records, day)[0];
+    const main = sleepForDay(records, day).find(record => record.type === "long_sleep");
     if (!main) continue;
     const night = nightInterval(main);
     if (!night) continue;

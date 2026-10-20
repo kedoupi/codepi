@@ -254,19 +254,46 @@ try {
   await navigate('/compare');
   await page.waitForSelector('.metric-table');
   console.log(await page.snapshot());
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.metric-row').length), 7);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.metric-row').length), 6);
+  await page.click('loc=css:.category-tabs button:text-is("活动")');
+  await page.waitForFunction(() => document.querySelectorAll('.metric-row').length === 1
+    && document.querySelector('.metric-row')?.textContent.includes('日均步数'));
+  await page.click('loc=css:.category-tabs button:text-is("压力")');
+  await page.waitForFunction(() => document.querySelectorAll('.metric-row').length === 2
+    && document.querySelector('.metric-row')?.textContent.includes('日间压力时长'));
+  await page.click('loc=css:.category-tabs button:text-is("睡眠与恢复")');
+  await page.waitForFunction(() => document.querySelectorAll('.metric-row').length === 6);
+  await page.click('loc=css:.preset-buttons button:text-is("30 天")');
+  await page.waitForFunction(() => document.querySelector('.range-presets small').textContent.startsWith('30 天对 30 天'));
+  await page.click('loc=css:.preset-buttons button:text-is("自定义")');
+  await page.evaluate(() => {
+    const end = document.querySelector('input[aria-label="当前截止日期"]').value;
+    const input = document.querySelector('.custom-range input');
+    input.value = new Date(Date.parse(`${end}T00:00:00Z`) - 9 * 86400000).toISOString().slice(0, 10);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(() => document.querySelector('.range-presets small').textContent.startsWith('10 天对 10 天'));
+  await page.evaluate(() => {
+    const input = document.querySelector('input[aria-label="当前截止日期"]');
+    input.value = new Date(Date.parse(`${input.value}T00:00:00Z`) - 14 * 86400000).toISOString().slice(0, 10);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(() => document.querySelector('.range-presets small').textContent.startsWith('10 天对 10 天'));
+  await healthy('custom comparison retains its length when moved earlier');
+  await page.reload();
+  await page.waitForSelector('.metric-table');
   await healthy('week comparison');
-  await page.click('loc=css:button:text-is("个人历史参照 · 近 7 天 vs 近 30 天")');
+  await page.click('loc=css:button[data-mode="range"]');
   await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '近 30 天');
   await healthy('7 vs 30 day comparison');
   await holdNextReport('/api/me/insights/compare?mode=week', 'STALE RESPONSE');
-  await page.click('loc=css:button:text-is("区间比较 · 近 7 天 vs 此前 7 天")');
+  await page.click('loc=css:button[data-mode="week"]');
   await page.waitForFunction(() => typeof window.__releaseReport === 'function');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.metric-table').length), 0,
     'old range results must be hidden while loading another mode');
-  await page.click('loc=css:button:text-is("个人历史参照 · 近 7 天 vs 近 30 天")');
+  await page.click('loc=css:button[data-mode="range"]');
   await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '近 30 天');
-  await page.click('loc=css:button:text-is("区间比较 · 近 7 天 vs 此前 7 天")');
+  await page.click('loc=css:button[data-mode="week"]');
   await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '此前 7 天');
   await releaseReport();
   assert.equal(await page.evaluate(() => document.body.textContent.includes('STALE RESPONSE')), false,
@@ -304,16 +331,39 @@ try {
   await page.waitForSelector('[data-testid="sleep-detail"]');
   console.log(await page.snapshot({ scope: 'full_page' }));
   assert.equal(await page.evaluate(() => document.querySelector('[data-testid="sleep-duration"]').textContent), '8 小时 0 分');
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.period-picker button').length), 2);
-  await page.click('loc=css:.period-picker button:text-is("小睡 14:00")');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.period-picker option').length), 2);
+  await page.evaluate(() => {
+    const picker = document.querySelector('.period-picker');
+    picker.value = [...picker.options].find(option => option.textContent === '小睡 14:00').value;
+    picker.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.waitForFunction(() => document.querySelector('[data-testid="sleep-duration"]')?.textContent === '0 小时 30 分');
   await healthy('sleep paginates all periods and preserves missing metrics and days');
-  await page.click('loc=css:.period-picker button:text-is("主睡眠 00:00")');
+  await page.evaluate(() => {
+    const picker = document.querySelector('.period-picker');
+    picker.value = [...picker.options].find(option => option.textContent === '主睡眠 00:00').value;
+    picker.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.waitForSelector('[data-testid="sleep-detail"]');
   await page.screenshot({ path: '/tmp/oura-sleep-desktop.png' });
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('main *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sleep content fits mobile');
   await page.screenshot({ path: '/tmp/oura-sleep-mobile.png' });
+  await navigate('/compare');
+  await page.waitForSelector('.metric-table');
+  await mobileFits('comparison');
+  await page.click('loc=css:.metric-row[aria-controls="metric-detail-efficiency"]');
+  await page.waitForSelector('#metric-detail-efficiency');
+  assert.equal(await page.evaluate(() => document.querySelector('.metric-row.open').nextElementSibling.id), 'metric-detail-efficiency',
+    'mobile detail stays immediately after its selected metric');
+  await page.click('loc=css:.mobile-detail-tabs button:text-is("分布")');
+  await page.waitForFunction(() => document.querySelector('#metric-detail-efficiency .dist-chart').getBoundingClientRect().height > 0
+    && document.querySelector('#metric-detail-efficiency .daily-chart').getBoundingClientRect().height === 0);
+  await healthy('mobile comparison expands in place and switches to distribution');
+  await navigate('/insights');
+  await page.waitForSelector('.finding');
+  await mobileFits('weekly reading');
+  await healthy('mobile weekly reading');
   await navigate('/');
   await page.waitForSelector('.today-scores');
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('main *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'overview content fits mobile');
