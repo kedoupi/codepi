@@ -107,7 +107,7 @@ R2 写入通过 bucket binding；不会把本机的管理 token 放进 Worker。
 新值在内存中直写 `CLOUDFLARE_API_TOKEN` secret，不输出或保存；既有 secret 不轮换。
 两步间断时按返回的非敏感 token ID 调查，不能通过反复创建 token 掩盖故障。
 
-`GITHUB_TOKEN` 需要所有者的一次凭证配置：只选 `kedoupi/codepi`，
+`GITHUB_TOKEN` 首次由所有者配置：只选 `kedoupi/codepi`，
 授予 **Contents: Read and write**，用于历史读取和备份附件。不需要 Actions 或账户管理
 权限。通过 Wrangler secret 输入配置，不放在命令行参数、源码、PR 或聊天中。
 现有 ChatGPT GitHub 连接器支持本次仓库操作，但不是 Worker 可长期调用的凭证。
@@ -115,6 +115,8 @@ R2 写入通过 bucket binding；不会把本机的管理 token 放进 Worker。
 
 凭证类型使用 fine-grained PAT，Repository access 只选择上述仓库，
 Repository permissions 仅设置 Contents 读写，其他保留默认。
+若使用 Cloudflare Dashboard，变量类型必须选择 **Secret**；
+普通 Text 变量不在 `wrangler secret list` 中，也不满足凭证存储约定。
 从最新、干净且已合并的 main 持有生产发布锁后，在 `services/ops/` 交互输入：
 
 ```bash
@@ -125,7 +127,10 @@ pnpm exec wrangler secret put GITHUB_TOKEN
 核对六库与原件 manifest、Release 附件及自动跨平台成功回执，再运行 monitor。
 一次性通过本机授权复制的密文可以作为手动副本，但其回执须另存，
 不得写成自动 Workflow 成功或消除自动凭证缺失告警。
-最新手动副本与待办见[跨平台验收](tasks/2026-10-20-github-offsite.md)。
+2026-10-20 已用新生产 Workflow 验收自动复制，六库、112 份原件及 manifest 共
+119 个 GitHub 附件的独立下载、摘要和内存解密通过，云端巡检 26/26。
+本轮手动触发 Workflow，没有等待下一次 Cron；旧手动副本与失败报告继续保留。
+详细实例、凭证类型修正和剩余项见[跨平台验收](tasks/2026-10-20-github-offsite.md)。
 
 ## 操作与证据
 
