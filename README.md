@@ -9,7 +9,7 @@
 新 Agent 从[工程文档入口](docs/README.md)和[开发导航](docs/development/README.md)开始；
 当前结构见[工程架构](docs/architecture/workspace-and-deployment.md)，剩余工作见
 [任务索引](docs/development/tasks/README.md)。[个人数字空间方案](docs/superpowers/plans/2026-10-15-personal-digital-space-roadmap.md)
-保留最初规划，不能覆盖后续目录、域名与发布决策；统一视觉规则见[共享设计规范](docs/architecture/personal-design-system.md)。
+保留最初规划，不能覆盖后续目录、域名与发布决策；统一视觉规则见[CodePi Design System 规范](docs/architecture/codepi-design-system.md)。
 
 首页是唯一的静态 Astro 站点，通过 `@kedoupi/shared/<subpath>` 复用基础样式、布局与契约，共享入口由严格的 `exports` 白名单声明。所有应用由根 pnpm workspace 统一管理依赖。私人应用保留现有技术栈与数据边界。
 

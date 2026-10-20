@@ -1,0 +1,565 @@
+{
+  "version": "2.0.0",
+  "files": [
+    {
+      "path": ".github/workflows/quality.yml",
+      "sha256": "78f4ef3ba9c9e8560dbd5e17de484ad88e032e21a892649d23097f99a7bc7feb"
+    },
+    {
+      "path": "ACCESSIBILITY.md",
+      "sha256": "50e06dc17de52b049b7fd744b0939c76d20eaec3b016cb1bcc2b063d00c84d22"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "3a8baa0af2d4064ac1902619be08d546990e21053824c3eb0477cdf296d12030"
+    },
+    {
+      "path": "AI_DESIGN_RULES.md",
+      "sha256": "cf4d917bafbe1637971327b7ecbe6d8b383d33215af3140c6fbe3aa51e8cdbf4"
+    },
+    {
+      "path": "BRAND_GUIDELINES.md",
+      "sha256": "3bb00afab06f4bd48375690867854f9b4e09e98ea1bdbfa79ac602c5de4ca861"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "35259358adb9d215bb564a9c75d34eec909f507db5b9a7e6a57482dd32a029be"
+    },
+    {
+      "path": "COMPONENTS.md",
+      "sha256": "ef71130695cc0071d40cd5a5fb3ad8055da986cd0991ad3cc9780e38750c8b1c"
+    },
+    {
+      "path": "DESIGN_SYSTEM.md",
+      "sha256": "32ffa9fb72a31793abebbeb745c7c0526ca4fe3415b6e47537f74ce01a54be7c"
+    },
+    {
+      "path": "DESIGN_TOKENS.md",
+      "sha256": "28ff67828c31203b21067585741aa005234e3e4b5f4573cba8eb42462cc595b9"
+    },
+    {
+      "path": "ICONOGRAPHY.md",
+      "sha256": "03144b8cc3f6f0ec756045ccc9288bc21c158b22aadb24cee1fbbd66e86211e2"
+    },
+    {
+      "path": "LAYOUT.md",
+      "sha256": "d72a22ce88dd6174c6fafcc49688f4f49c9370426aa1e2eac353050d163b1c92"
+    },
+    {
+      "path": "LOADING_SYSTEM.md",
+      "sha256": "b91f1cf115d7b31a31fe4b63d59b5b0d6f8d0a6159127dfc6a2ffe403f1588f3"
+    },
+    {
+      "path": "MOTION.md",
+      "sha256": "53afda11ba97fdc9ec81e0e45713b69b31322936c1ad4bee0617e15636ece770"
+    },
+    {
+      "path": "PLATFORM_ASSETS.md",
+      "sha256": "24d9adfe2ad793763019694503dc6ee82c680fc8e5f820d507fdc64efe2c6637"
+    },
+    {
+      "path": "PLATFORM_COMPLIANCE.md",
+      "sha256": "24d9adfe2ad793763019694503dc6ee82c680fc8e5f820d507fdc64efe2c6637"
+    },
+    {
+      "path": "README.md",
+      "sha256": "a80df63e68651c19ed12fb186e12e0fd3df6a19991cae91fe1569eb41b6a4ea1"
+    },
+    {
+      "path": "TYPOGRAPHY.md",
+      "sha256": "7e7ab2976484f6f5baa64c5d700b3d03558137e472cc1d7442808aad12c8c94a"
+    },
+    {
+      "path": "VALIDATION_REPORT.md",
+      "sha256": "94403b23ac755904e3647fa554a4c73416759f3d90ab70543475ed6f6f9cddd1"
+    },
+    {
+      "path": "VALIDATION_REPORT_V2.md",
+      "sha256": "50f4c106ca6fb07dc010adc7851c8e84355a1880be35606bf1bb7f849e81dee5"
+    },
+    {
+      "path": "apps/playground/index.html",
+      "sha256": "2db7bc4d9158902f17089c3f9e96ad32d40637aaa23d5684fd3ee6ba1f9e4b97"
+    },
+    {
+      "path": "apps/storybook/.storybook/main.ts",
+      "sha256": "5320e589eadc0134d17b1e65b1135813cfc05520c554506b80229e06d1071e11"
+    },
+    {
+      "path": "apps/storybook/.storybook/preview.ts",
+      "sha256": "a71e61d366dad40360517137926c25a6d5401df67cd2fcda8fcb2a374b71472f"
+    },
+    {
+      "path": "apps/storybook/package.json",
+      "sha256": "ef2c3bb5b93b801b5981bd24f6fbef2a0be48eca3d1cbbd767231e0b9120f0b8"
+    },
+    {
+      "path": "assets/app-icon-dark.svg",
+      "sha256": "9455184013658d87f354e74cef2739d49db288826a454bf5d91aa0834da3df33"
+    },
+    {
+      "path": "assets/app-icon-light.svg",
+      "sha256": "ce92e8193fc77ccc9ecf927173ab7d1b5434b805aa46b36f3397303bccf82819"
+    },
+    {
+      "path": "assets/avatar-orange.svg",
+      "sha256": "d3f4eec28240d7cae52f55f6da84480f0f1d57862df3bf0d2c5b309f9231a40e"
+    },
+    {
+      "path": "assets/exports/app-icon-dark-1024.png",
+      "sha256": "e65ac3c92c29290c11a4d9a55259c9ae6b8c67054dcd104cfcd76c147215b6da"
+    },
+    {
+      "path": "assets/exports/app-icon-dark-512.png",
+      "sha256": "68b28e85fdb2337178f756e2bd99bcb6c9006c468e381c829652b8a88a67b9b5"
+    },
+    {
+      "path": "assets/exports/app-icon-dark.svg",
+      "sha256": "e67b4917a9c8aa8421a99f79c0e54f6b5896c7fdc0c81a89d2fc113bca771c5f"
+    },
+    {
+      "path": "assets/exports/app-icon-orange-1024.png",
+      "sha256": "b690dfe5fef5986d634d7d551a100ae11fdf88425061bb01ca26c818016918d4"
+    },
+    {
+      "path": "assets/exports/app-icon-orange-512.png",
+      "sha256": "6c0fece17fa507f810b6be0eaf1d2597f7f125d146c9fd22a4626ac34c4ee3e7"
+    },
+    {
+      "path": "assets/exports/app-icon-orange.svg",
+      "sha256": "4ab0a881e16262878c9ab9e827bc692974ba93f5ea24b4570cd96f75035f0b42"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-1024.png",
+      "sha256": "83c3d06621c2bd98aeb5d818b27c058ea2ec1d3ca117614b3853c2163ca99001"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-128.png",
+      "sha256": "84ed5a353c0470ce18d02b5f206b3aa0d3430a0c4d482e47a61b7ab0df73c0cd"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-16.png",
+      "sha256": "d16e1da56e1bd68056b5a79b3b5a1591448651e7422f6d6362175aabcb364c86"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-180.png",
+      "sha256": "692e02d87c71f74e42213597a6997334a76f6e9cb1315a1e72add5e4f4d13683"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-192.png",
+      "sha256": "56f0248b2bc569b7367fc5630c30654b51890a63fb0fa656167c0b637490c197"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-256.png",
+      "sha256": "a559e1afec99dfe6ee4356a27275f87723a537ef6347e7dd35a8b5b8f4d22cf4"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-32.png",
+      "sha256": "6e694124ff397e38f87424d9782375828efd6c42861135937c7310f7550af944"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-48.png",
+      "sha256": "1d84b5b7a3f43927d40d807d1d81a4c70300b4894fca4fd53e6e4e950cdf7004"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-512.png",
+      "sha256": "d0b5a9bba432f854455e2618d39f458d0f5e83f69c5953f444d756bf69bf6e3d"
+    },
+    {
+      "path": "assets/exports/app-icon-warm-64.png",
+      "sha256": "adfa8ea6455763fd99b203c1b5f4950c298a2d0f40a1505bf2a0d325b84c40f3"
+    },
+    {
+      "path": "assets/exports/app-icon-warm.svg",
+      "sha256": "c151cda810cbbdd28e3f1104320ab39d2225892074772490231da4c66f776ebf"
+    },
+    {
+      "path": "assets/exports/app-icon-white-1024.png",
+      "sha256": "8cfd6d97dbc89beee5a8c5b3c0edb09a58caf9db3510777b560b62d8b02c6342"
+    },
+    {
+      "path": "assets/exports/app-icon-white-512.png",
+      "sha256": "77c6168259c8df2053afa96a895f9d7239f4d44620d9ed6218ddc60ca301dfed"
+    },
+    {
+      "path": "assets/exports/app-icon-white.svg",
+      "sha256": "ff99c98e6f8b9cf18aa15d9d0f849a7282fb10517eb4090b03d22e4fdc859de6"
+    },
+    {
+      "path": "assets/exports/apple-touch-icon.png",
+      "sha256": "692e02d87c71f74e42213597a6997334a76f6e9cb1315a1e72add5e4f4d13683"
+    },
+    {
+      "path": "assets/exports/avatar-orange-256.png",
+      "sha256": "0733878f05a81192cd2f4a34c2c159757cf38443e605bd27e6686990293575c2"
+    },
+    {
+      "path": "assets/exports/avatar-orange-512.png",
+      "sha256": "6c0fece17fa507f810b6be0eaf1d2597f7f125d146c9fd22a4626ac34c4ee3e7"
+    },
+    {
+      "path": "assets/exports/avatar-orange.svg",
+      "sha256": "4ab0a881e16262878c9ab9e827bc692974ba93f5ea24b4570cd96f75035f0b42"
+    },
+    {
+      "path": "assets/exports/avatar-warm-256.png",
+      "sha256": "a559e1afec99dfe6ee4356a27275f87723a537ef6347e7dd35a8b5b8f4d22cf4"
+    },
+    {
+      "path": "assets/exports/avatar-warm-512.png",
+      "sha256": "d0b5a9bba432f854455e2618d39f458d0f5e83f69c5953f444d756bf69bf6e3d"
+    },
+    {
+      "path": "assets/exports/avatar-warm.svg",
+      "sha256": "c151cda810cbbdd28e3f1104320ab39d2225892074772490231da4c66f776ebf"
+    },
+    {
+      "path": "assets/exports/favicon-16.png",
+      "sha256": "ec3bea25940508911a6e6029feafca5de37c902a1d1f0f894538aec2a34c1886"
+    },
+    {
+      "path": "assets/exports/favicon-180.png",
+      "sha256": "c78eac42473a8cf04d68e1fb853c8bbb0bed515295804e28a2d8e5817fded2d6"
+    },
+    {
+      "path": "assets/exports/favicon-32.png",
+      "sha256": "5fbe3afcb73184602b80b9463ed7c539147697939adbfb9b75715b011279a59d"
+    },
+    {
+      "path": "assets/exports/favicon-48.png",
+      "sha256": "7417bbcbfb9ce527052484dc2f562a2fc40877762022ef25efac65399aed638c"
+    },
+    {
+      "path": "assets/exports/favicon-64.png",
+      "sha256": "9a20a9edfb7e3365235b16542a8329705f26a36cc8fe541d61bb5f2d7f5bf1b5"
+    },
+    {
+      "path": "assets/exports/favicon.ico",
+      "sha256": "33611f399753fd4ccb8dfb18c516ef7e082a8899e9326cca801d7e1a3d56218b"
+    },
+    {
+      "path": "assets/exports/favicon.svg",
+      "sha256": "109088ceda29af45f007a6505e5b4ada0675e4d299d94adf3cb145e26fff23e9"
+    },
+    {
+      "path": "assets/exports/wordmark-dark.png",
+      "sha256": "c99e97e8e6ddfd12a8ac5bfcc1d508b029ba1c1da614089c40f3d54ad4f31a97"
+    },
+    {
+      "path": "assets/exports/wordmark-dark.svg",
+      "sha256": "05a71e5a3b1eef380680166fc1a66127d4743e19c6f5b513617ebcb7dab86d46"
+    },
+    {
+      "path": "assets/exports/wordmark-light.png",
+      "sha256": "6bc1be7d49503c7d0ce2dd4765db730f2486cb24527dfbc8342831486f1a1828"
+    },
+    {
+      "path": "assets/exports/wordmark-light.svg",
+      "sha256": "66bee17c38efb9043d285526dc19f72766a9cd4d299da638603b1a003b9a9462"
+    },
+    {
+      "path": "assets/masters/symbol-color.svg",
+      "sha256": "792a4d502b203753378f4cd2da1ee656ccbd509869d5f6c558ea9bf58288fb14"
+    },
+    {
+      "path": "assets/masters/symbol-inverse.svg",
+      "sha256": "bbb32ee1f947c19100d0c92f8111eacdd46fb98d6ae1b63be292fb468d22d5d0"
+    },
+    {
+      "path": "assets/masters/symbol-monochrome.svg",
+      "sha256": "bd5e9f005bc643aa62cb568b73c6f94e889f075c3fc09296b6164e05c7ee8636"
+    },
+    {
+      "path": "assets/platform/android/README.md",
+      "sha256": "44634f91e5f47a99eadbdffe508af3938e311f8d37daf50343b71291e6e6dd5f"
+    },
+    {
+      "path": "assets/platform/android/ic_launcher_background.png",
+      "sha256": "7ffe631f47976b4cae8c0b297f1aa14c24edc208d1926fe0ccdb68e6ac015671"
+    },
+    {
+      "path": "assets/platform/android/ic_launcher_foreground.png",
+      "sha256": "64d35147911c5058bc1863e89f0fe2c7546f4eb2eb929644487ff7ddf2834989"
+    },
+    {
+      "path": "assets/platform/android/ic_launcher_monochrome.png",
+      "sha256": "240b822b0c8693dc1d21655d0d9e04d6742d6bd84ab4b8400ee6717679a03a31"
+    },
+    {
+      "path": "assets/platform/apple/app-icon-dark-1024.png",
+      "sha256": "e664fb5197bd9ed4868ef8b719b357b455c25d36d6ffbd19662c1a792baa8695"
+    },
+    {
+      "path": "assets/platform/apple/app-icon-default-1024.png",
+      "sha256": "42ded0939e4d9c33c7ebff5ef9affdab9d2901ae1140a8e1353ed787ead93693"
+    },
+    {
+      "path": "assets/platform/apple/app-store-1024.png",
+      "sha256": "04773a903fc887b8ae60cbeb041a0516ced8223a40cb857fde185db3f71eddaa"
+    },
+    {
+      "path": "assets/platform/apple/app.icns",
+      "sha256": "875ece881429cd8f2b1d3647e0348c16bea6eaaa851296cb8dd568a0fa394252"
+    },
+    {
+      "path": "assets/platform/apple/icon-composer-notes.md",
+      "sha256": "ce25f6ab623fc2b685940714b561e39d37f8ec9c6899b6fd61d4b4abd7d43fb6"
+    },
+    {
+      "path": "assets/platform/google-play/store-icon-512.png",
+      "sha256": "563a4979637b334c8063b1567b8f322c082a7f7491a8d8ae57bcace1d50e9c66"
+    },
+    {
+      "path": "assets/platform/social/avatar-128.png",
+      "sha256": "c8aaf6f15db4c8182e7994d04d2a4da95a65f321ae92430f0a7b3f3deb026316"
+    },
+    {
+      "path": "assets/platform/social/avatar-256.png",
+      "sha256": "23290bd7c7b162abafd0dacda9f08524e82869f0da3cced8f96283ca41d23fb3"
+    },
+    {
+      "path": "assets/platform/social/avatar-512.png",
+      "sha256": "6e74e793f6ce3b0744bd4256ad9026122192b379b940e24f38cd517160b7211f"
+    },
+    {
+      "path": "assets/platform/web/apple-touch-icon-180.png",
+      "sha256": "1ac1c5b3d7985d05d12ac97a92c335fdc40b4648f6874000f3f9362f047e8f6b"
+    },
+    {
+      "path": "assets/platform/web/favicon-16.png",
+      "sha256": "6f39efb62d36c390c560113db75348161cb3022e2815e5b57c6a7f2bbbe36d18"
+    },
+    {
+      "path": "assets/platform/web/favicon-32.png",
+      "sha256": "93128ffeeef5d70b8e5cb7551abb879356c1f329e9bba57a903f0185a55513f0"
+    },
+    {
+      "path": "assets/platform/web/favicon-48.png",
+      "sha256": "7edce3916d01a45fbb72840d51ada0f744dd6dfc718ae3e1a09b3ce7d0a70c0e"
+    },
+    {
+      "path": "assets/platform/web/manifest.example.json",
+      "sha256": "ba4c66db47133fe4328d70b4a4e8cf5828cefd04d88987eb8394e0d4ef8a3fe6"
+    },
+    {
+      "path": "assets/platform/web/pwa-192.png",
+      "sha256": "9b8fa77074707f342df6862e83a6856ddafdb614a6cbd9e3c3bba367afd495b2"
+    },
+    {
+      "path": "assets/platform/web/pwa-512.png",
+      "sha256": "563a4979637b334c8063b1567b8f322c082a7f7491a8d8ae57bcace1d50e9c66"
+    },
+    {
+      "path": "assets/platform/web/pwa-maskable-192.png",
+      "sha256": "001a9060c7f2a9bc4894d27f36eb7a530f34fe3fa6254e0ebd75592f2171ee27"
+    },
+    {
+      "path": "assets/platform/web/pwa-maskable-512.png",
+      "sha256": "9ba701be0c0f3fc3b25e595600657e15cb4654857cfe229535faf1757ade657b"
+    },
+    {
+      "path": "assets/platform/wechat/avatar-128.png",
+      "sha256": "c8aaf6f15db4c8182e7994d04d2a4da95a65f321ae92430f0a7b3f3deb026316"
+    },
+    {
+      "path": "assets/platform/wechat/avatar-256.png",
+      "sha256": "23290bd7c7b162abafd0dacda9f08524e82869f0da3cced8f96283ca41d23fb3"
+    },
+    {
+      "path": "assets/platform/wechat/avatar-512.png",
+      "sha256": "6e74e793f6ce3b0744bd4256ad9026122192b379b940e24f38cd517160b7211f"
+    },
+    {
+      "path": "assets/platform/windows/app.ico",
+      "sha256": "0d4feed2a020c81565b620262a34b00ff5e67aa6c73ad3a453a98b82747eb122"
+    },
+    {
+      "path": "assets/platform/windows/icon-128.png",
+      "sha256": "0179df61dfe710742fbd27ed8b758517088b0e64ff91b9e3955fc827e15b5587"
+    },
+    {
+      "path": "assets/platform/windows/icon-16.png",
+      "sha256": "36f41be71da732f6c6eae338268d147c1b790e5030dcd9d9b69bb95d72e3c835"
+    },
+    {
+      "path": "assets/platform/windows/icon-24.png",
+      "sha256": "d103e659abc277f382f6935fa3669d21444b15c21972c1a03acb56cb865de85a"
+    },
+    {
+      "path": "assets/platform/windows/icon-256.png",
+      "sha256": "2fe2d385823019f3e4f256cfc7f372f53fc04611f7f25d1d274c77a75bee3cbb"
+    },
+    {
+      "path": "assets/platform/windows/icon-32.png",
+      "sha256": "3f71013e51d0ee996c1ec5439bf289ae8e1ef6edc44f4ed5edb6a22ca59874f9"
+    },
+    {
+      "path": "assets/platform/windows/icon-48.png",
+      "sha256": "b6fe359f1c012cb30cecd8ef1a4773be8a7ecd07185181fedf01bee72a583be7"
+    },
+    {
+      "path": "assets/platform/windows/icon-64.png",
+      "sha256": "84cdcc78d73eff1542424a25880e53fe29ebb62bfe1e47771499e1b70f4d08e0"
+    },
+    {
+      "path": "assets/symbol-transparent.svg",
+      "sha256": "db04645cc517d7990bdacd86a04ecfa9db798df2d5f146b258486908968712ae"
+    },
+    {
+      "path": "assets/web-logo-dark.svg",
+      "sha256": "43d5911c0fcd49f601fe24babba62cfaea5b1f2fea64c734cd1d37bb004d7d13"
+    },
+    {
+      "path": "assets/web-logo-light.svg",
+      "sha256": "fa9b7a21879c9674bdc0edfaff5635047dcf64e30ebbf28ee05155143455fa6e"
+    },
+    {
+      "path": "docs/ai-patterns/AI_COMPONENTS.md",
+      "sha256": "ff497f10fb1f5e8f9b34bb80db508ea0c95bd22ff07b7854755c200b5ccd17a5"
+    },
+    {
+      "path": "docs/governance/GOVERNANCE.md",
+      "sha256": "33abc693fd4f4a769d298443b282b51fc30be6c89391f775904028fc2de3700c"
+    },
+    {
+      "path": "docs/patterns/INTERACTION_STATES.md",
+      "sha256": "7fe6bf4c03499d9eb36b87bd99292b263bc354d3c8b66eb9d701ddb038a80633"
+    },
+    {
+      "path": "docs/qa/QUALITY_GATES.md",
+      "sha256": "20a08fde8b3a2c87277527fb367c63bd5ba2ecbcc6fc8553fe865c3966899916"
+    },
+    {
+      "path": "docs/templates/TEMPLATES.md",
+      "sha256": "aa7ec1d5d7835e2fe146e0a0ceccf2c29fc37af964dcc276fd1b5666fc1282ca"
+    },
+    {
+      "path": "examples/README.md",
+      "sha256": "fbf14cbb1e839187cbc7d9c7257109ec763e7389b26da2a624a2f8474c6c6ea4"
+    },
+    {
+      "path": "examples/preview.html",
+      "sha256": "db541df4ed084d76547bda77c01c75092794ce37dedf8c988bc4625f39716544"
+    },
+    {
+      "path": "loading/VALIDATION.md",
+      "sha256": "63b16a72e307ba0695a4e577658f7304b06b203990f09afd435b367e83340474"
+    },
+    {
+      "path": "loading/demo.html",
+      "sha256": "7796535c40170d6ab837d54a52caaa736772d09462dbe3a63474e6d0f43b4964"
+    },
+    {
+      "path": "loading/loading.css",
+      "sha256": "1e96656c59ffe0b8be7590c70f22b1c673e79e4a08df994bce28cc730e4ab3c7"
+    },
+    {
+      "path": "package.json",
+      "sha256": "306f5e71c07196b5632c295651ad38ed5ab80d7ca30dc67aa2ec103f9255652e"
+    },
+    {
+      "path": "packages/react/package.json",
+      "sha256": "f7218764959b1d183a825ea609586db7e7fd897a7e19a5dcc1a6d3b01467f237"
+    },
+    {
+      "path": "packages/react/src/Button.stories.tsx",
+      "sha256": "512c09f24fd0b442be95453dcc7fe0fabe708a770b2516d282be6b60540cd885"
+    },
+    {
+      "path": "packages/react/src/Button.tsx",
+      "sha256": "043c00d7f5b743d9840a2aa34c6324bcd218d25426df13b27ea9632aff9aecaa"
+    },
+    {
+      "path": "packages/react/src/Card.tsx",
+      "sha256": "e166c613170c6925dae9d63f12d8931375aac222fa0ac630ba36c5617c6df540"
+    },
+    {
+      "path": "packages/react/src/Feedback.stories.tsx",
+      "sha256": "76c1e7031c1119610ae51733a93e24440c2c9dd1abc79ff594fffd2b0bf66813"
+    },
+    {
+      "path": "packages/react/src/Feedback.tsx",
+      "sha256": "e8f13a0ecd5c25d7880dc224864b8fae7a131dab75e826a4f268eacde42cbd61"
+    },
+    {
+      "path": "packages/react/src/Input.stories.tsx",
+      "sha256": "2c997224e2e4c67412344b29f2e2503f522abefb218a0d86c39647bf38c4c7db"
+    },
+    {
+      "path": "packages/react/src/Input.tsx",
+      "sha256": "8756c5c1bc82e69840330ebfef7515b55ed759692a3e63fc5bba3126d3cc1ef3"
+    },
+    {
+      "path": "packages/react/src/Loading.stories.tsx",
+      "sha256": "0ee9bc7a550c1e41def7447f42074e297b026cb7cf94e441e633ea44f1b1d912"
+    },
+    {
+      "path": "packages/react/src/Loading.tsx",
+      "sha256": "6b1539a8e6dc476123948e8cb80fe860ff6e070b9be83c170a1e981888a267d5"
+    },
+    {
+      "path": "packages/react/src/index.ts",
+      "sha256": "67ebf3a69f0a8f47c74c45b30ce85caa5b0c780b4e8236c20cf0086820af81c6"
+    },
+    {
+      "path": "packages/react/src/styles.css",
+      "sha256": "b4aa87d096b4e3eb0aac388f310d0f05d6ad1357e8a8ab81302978da874179ed"
+    },
+    {
+      "path": "packages/react/tsconfig.json",
+      "sha256": "87d82681da796b48f20baee065ce1b3ad50b2a49bbc1b6f0da0cc9451ab5180e"
+    },
+    {
+      "path": "packages/tokens/build.mjs",
+      "sha256": "d2eb61df86a9239f2b75f33c0d8ec09bbbda327d46c879c878cc1bbab36901ac"
+    },
+    {
+      "path": "packages/tokens/dist/tokens.css",
+      "sha256": "66db98ccbea75cdb647217d30c081add37cdccd240150777023f6140ea9be3aa"
+    },
+    {
+      "path": "packages/tokens/src/tokens.json",
+      "sha256": "f618d89cba983f2f2b4a5eb9541cd1290066830cdc14c0d195566255cf2622a9"
+    },
+    {
+      "path": "qa/QA_REPORT.md",
+      "sha256": "312c833f237a5c43c5b49606842ff458c2af8c47a20d8001e3f24eedfd0f10d3"
+    },
+    {
+      "path": "qa/asset-manifest.json",
+      "sha256": "0c36f8c92376ce5108ecd63dc24dee9f727bd5669503b969242b9ef6d47f4457"
+    },
+    {
+      "path": "qa/platform-preview.png",
+      "sha256": "0533901f72ca9b0b45e19782738dcc2111748fd21e2bbcd18e94013490a17fd7"
+    },
+    {
+      "path": "tests/structure.test.mjs",
+      "sha256": "122328129b3f486731146c67edb84ad91de5375381481aeeb4b7d97b9c4e1164"
+    },
+    {
+      "path": "tokens/colors.json",
+      "sha256": "cd0eb2d3d8b329371e830b3072351816429c1f87dd5752103be8d0175e12c09a"
+    },
+    {
+      "path": "tokens/dark.json",
+      "sha256": "94a5e8c98b369b9b3de6f975fe9f2c0886d58fcde1e2c35c3ba0f49c01b92da2"
+    },
+    {
+      "path": "tokens/light.json",
+      "sha256": "8dc515a2dcc8e9ee3fb507198d96f6d7e389eff870b2b199f19e9b61ea2f9bd9"
+    },
+    {
+      "path": "tokens/spacing.json",
+      "sha256": "fb63036514165829614030c94c5d3c7fb38e38a3012ec45e68c04ad5ddca1038"
+    },
+    {
+      "path": "tokens/typography.json",
+      "sha256": "7c8b70e7ae8185714107f406bb519334a9b643fa8baf316b3c40f10b56c6b235"
+    },
+    {
+      "path": "tokens.css",
+      "sha256": "66db98ccbea75cdb647217d30c081add37cdccd240150777023f6140ea9be3aa"
+    }
+  ]
+}
