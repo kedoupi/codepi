@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import "./workspace.css";
+  import "./report.css";
   import { api, errorText, RequestError } from "./lib/api";
   import ComparePage from "./components/ComparePage.svelte";
   import ChromeHeader from "./components/ChromeHeader.svelte";
