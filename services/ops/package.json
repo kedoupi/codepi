@@ -11,6 +11,6 @@
     "deploy": "node ../../scripts/cloudflare/deploy-worker.mjs ops"
   },
   "devDependencies": {
-    "wrangler": "4.151.0"
+    "wrangler": "4.151.1"
   }
 }
