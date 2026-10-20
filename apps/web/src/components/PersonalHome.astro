@@ -1,4 +1,5 @@
 ---
+import { CODEPI_SYMBOL_SVG } from '@kedoupi/shared/brand';
 import { products } from '@kedoupi/shared/products';
 import Icon from './Icon.astro';
 import ProductList from './ProductList.astro';
@@ -18,8 +19,8 @@ import ProductList from './ProductList.astro';
       <circle cx="274" cy="48" r="4" /><circle cx="274" cy="150" r="4" /><circle cx="274" cy="252" r="4" />
     </svg>
     <div class="map-person">
-      <span class="kdp-mark" aria-hidden="true">k</span>
-      <div><strong>kedoupi</strong><span>个人数字空间</span></div>
+      <span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} />
+      <div><strong>CodePi</strong><span>个人数字空间</span></div>
     </div>
     {products.map((product) => (
       <a class={`map-domain map-domain--${product.id}`} href={`/apps/#${product.id}`}>
@@ -112,7 +113,7 @@ import ProductList from './ProductList.astro';
     .desktop-break { display: none; }
     .map-person { gap: 8px; padding: 14px 12px; }
     .map-person strong { font-size: 15px; }
-    .map-person .kdp-mark { width: 28px; height: 28px; font-size: 23px; }
+    .map-person .kdp-mark { width: 28px; height: 28px; }
     .map-domain { min-width: 96px; left: 67%; gap: 6px; font-size: 12px; }
   }
   @media (max-width: 720px) {
@@ -144,7 +145,7 @@ import ProductList from './ProductList.astro';
   }
   @media (max-width: 360px) {
     .map-person strong { font-size: 15px; }
-    .map-person .kdp-mark { width: 28px; height: 28px; font-size: 23px; }
+    .map-person .kdp-mark { width: 28px; height: 28px; }
     .map-person { gap: 8px; padding-inline: 10px; }
     .map-domain { min-width: 95px; gap: 6px; left: 66%; }
   }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+  import { CODEPI_SYMBOL_SVG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { api } from "../lib/api";
   import { session } from "../lib/state.svelte";
 
@@ -66,8 +66,8 @@
   <section class="login-story">
     <div>
       <a class="brand" href="#overview" aria-label="{PRODUCT_BRAND} · GU"
-        ><span class="brand-mark">k</span><span
-          >kedoupi<small>codepi · 个人投资工作台</small></span
+        ><span class="brand-mark" aria-hidden="true">{@html CODEPI_SYMBOL_SVG}</span><span
+          ><span class="brand-code">Code</span><span class="brand-pi">Pi</span><small>个人投资工作台</small></span
         ></a
       >
     </div>

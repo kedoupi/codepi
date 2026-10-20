@@ -101,7 +101,7 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.ok(job, 'www-build must exist');
   const beforeTests = job.split('      - run: npm test')[0];
   assert.match(job, /- run: npm test/);
-  assert.match(beforeTests, /uses: pnpm\/action-setup@v4/);
+  assert.match(beforeTests, /uses: pnpm\/action-setup@v6/);
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
 });
 
@@ -118,7 +118,7 @@ test('MCP CI checks the real Health RPC and browser flow without deployment', as
 
 test('manual fallback monitoring fetches full main history and requires strict checks', async () => {
   const workflow = await readFile(new URL('.github/workflows/production-monitor.yml', root), 'utf8');
-  assert.match(workflow, /uses: actions\/checkout@v4\n\s+with:\n\s+ref: main\n\s+fetch-depth: 0/);
+  assert.match(workflow, /uses: actions\/checkout@v7\n\s+with:\n\s+ref: main\n\s+fetch-depth: 0/);
   assert.match(workflow, /production-monitor\.mjs --require-d1 --require-versions/);
   assert.doesNotMatch(workflow, /^  (?:schedule|push):/m);
   assert.match(workflow, /^  workflow_dispatch:/m);

@@ -28,7 +28,8 @@ await Promise.all([
   })(),
   (async () => {
     const ico = await asset('/favicon.ico', /^image\/(?:x-icon|vnd\.microsoft\.icon)\b/);
-    assert.equal(ico.subarray(0, 6).toString('hex'), '000001000100', 'favicon.ico: invalid ICO');
+    assert.equal(ico.subarray(0, 4).toString('hex'), '00000100', 'favicon.ico: invalid ICO');
+    assert.ok(ico.readUInt16LE(4) >= 1, 'favicon.ico: no images');
   })(),
   (async () => {
     const html = (await asset('/', /^text\/html\b/)).toString();
