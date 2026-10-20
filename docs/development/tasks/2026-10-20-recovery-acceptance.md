@@ -1,6 +1,6 @@
 # 五库恢复与告警送达验收
 
-- 状态：Auth、Desk、GZH、Health、MCP 的真实隔离导入、全量内容核对及临时资源清理通过；平台事件邮件已确认收件。Workers Issues 端到端送达与恢复私钥异机保管仍待验收。
+- 状态：Auth、Desk、GZH、Health、MCP 的真实隔离导入、全量内容核对及临时资源清理通过；平台事件邮件已确认收件。Workers Issues 自动触发与收件已由[后续验收](2026-10-20-workers-issues.md)补齐；恢复私钥异机保管保留 TODO。
 - 日期与执行人：2026-10-20，当前 Codex，单一协调者、写入者、审查者和集成者，无并行写入。
 - 基线：`809a87ea2b547dbc3ccbde4fe9925cc0b7a39e7b`，操作前与实时远程 main 一致。
 - 运维工作区：`/Users/codepi/.worktrees/kdp.cool/codex/gu-online`；工具修复工作区：`/Users/codepi/.worktrees/kdp.cool/codex/recovery-acceptance`。
@@ -115,6 +115,6 @@ Ops dry-run 构建及原生 Workflows/GU RPC/R2 隔离恢复测试。
 
 剩余事项：
 
-1. 用受控合成故障完成 Workers Issues 的问题产生、通知发送及收件验收。
+1. Workers Issues 已由[后续验收](2026-10-20-workers-issues.md)补齐自动触发规则、实际发送与收件，临时资源已清理；上文保留本轮较早时的观察。
 2. 所有者将恢复私钥另存至密码管理器或离线介质，并独立确认异机可取回。
    当前机器上 `0600` 的私钥及本轮成功解密不能证明此项已完成。
