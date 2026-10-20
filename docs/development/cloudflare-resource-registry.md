@@ -1,5 +1,18 @@
 # Cloudflare 资源登记表
 
+2026-10-20 GitHub 自动跨平台复制与云端巡检已验收：所有者配置的 `GITHUB_TOKEN`
+已确认为加密 Secret，凭证类型修正使 Ops 生效 version 更新为
+`22c8ca10-1462-4076-8412-0bd8d05613ba`，`BUILD_SHA=05d9d61ce574` 未变。
+从干净且等于实时远程 main `3982013f7bd8` 的源码持锁创建新 backup 实例
+`acceptance-github-backup-20261020T010216314Z`，六库、112 份原件和 manifest
+自动复制到私有 Release `417899953`，Workflow 为 `complete`，自动成功回执匹配。
+119 个附件独立下载、摘要、GCM、身份和内存解密通过；匿名 Release API 为 404。
+新 monitor 实例 `acceptance-github-monitor-20261020T010216314Z` 云端 26/26，
+包含八个 Worker 的源码范围核对和两处完整备份新鲜度。Ops 私有入口、两个 Cron、
+GU named RPC、日志及备份桶私有访问重新核验通过；没有重新构建业务源码或修改生产数据。
+本轮手动触发生产 Workflow，没有等待下一次 Cron；旧失败与手动回执均保留。
+详见[跨平台验收](tasks/2026-10-20-github-offsite.md)；以下记录保留当时状态。
+
 2026-10-20 GitHub 手动跨平台副本已验收：定时备份
 `backup-20261019T180026000Z` 的六库、112 份原件及 manifest 共 119 个附件已复制至
 私有 `kedoupi/kdp.cool` Release `417885437`。从 GitHub 独立下载、摘要、
@@ -353,9 +366,9 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-20 version 13442128-8f7c-4ae5-9705-9fcaba2001b1；BUILD_SHA fcb838be044c；readiness、发现、匿名拒绝和真实 Health RPC 通过 |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
-| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-19 version 6818aef1-8144-4e10-bb49-3faa1c46ef8c；BUILD_SHA 05d9d61ce574；public endpoints/logs/rollout/GU entrypoint 已核验 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 backup-20261019T180026000Z 六库及 112 原件 R2 v2 完整；手动 GitHub Release 417885437 下载解密通过；自动 offsite 仍缺 token errored，云端巡检 17/19 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；六库和 112 份资料大小/SHA-256/GCM/身份通过，GU 隔离 D1 与全部原件恢复通过；14 天生命周期证据沿用 2026-10-19 |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-20 version 22c8ca10-1462-4076-8412-0bd8d05613ba；BUILD_SHA 05d9d61ce574；凭证类型修正，私有入口/logs/rollout/GU entrypoint 已核验 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 acceptance-github-backup-20261020T010216314Z complete；六库及 112 原件 R2/GitHub 完整、Release 417899953 下载解密通过；新云端巡检 26/26 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；新自动跨平台回执匹配、六库及 112 原件摘要/GCM/身份通过；GU 隔离导入沿用此前验收，14 天生命周期证据沿用 2026-10-19 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
 <!-- registry-table:end -->
 
