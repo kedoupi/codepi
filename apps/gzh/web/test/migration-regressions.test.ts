@@ -178,6 +178,7 @@ describe("gzh Svelte migration regressions", () => {
       takeRecords() { return []; }
       root = null;
       rootMargin = "";
+      scrollMargin = "0px";
       thresholds: number[] = [];
     }
     vi.stubGlobal("IntersectionObserver", FakeIO);
