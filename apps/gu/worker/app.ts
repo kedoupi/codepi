@@ -104,9 +104,11 @@ app.on(["GET", "HEAD"], ["/", "/login"], async c => {
   return c.env.ASSETS.fetch(new Request(`${origin}/`, { method: c.req.method }));
 });
 
+const PUBLIC_ICONS = new Set(["/favicon.svg", "/favicon.ico", "/apple-touch-icon.png"]);
+
 app.get("*", c => {
   // Only compiled public assets are reachable. Investment data never enters dist/.
-  if (/^\/assets\/[a-zA-Z0-9_.-]+\.(?:js|css|svg|woff2)$/.test(c.req.path) || c.req.path === "/favicon.svg") {
+  if (/^\/assets\/[a-zA-Z0-9_.-]+\.(?:js|css|svg|woff2)$/.test(c.req.path) || PUBLIC_ICONS.has(c.req.path)) {
     return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.notFound();
   }
   return c.notFound();
