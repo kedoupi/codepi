@@ -1,5 +1,12 @@
 # Cloudflare 资源登记表
 
+2026-10-20 Workers Issues 自动告警已完成端到端验收：补齐此前缺失的自动触发规则，
+八个生产 Worker 各有首次阈值 1 与静默 3600 秒后复发两条规则，共 16 条，
+均按 service 限定并引用原邮件策略。隔离合成异常的 automatic run、通知历史和 Gmail
+收件已关联，临时 Worker/规则已清理；生产版本、绑定、Cron 与入口配置核对一致。
+恢复私钥异机保管继续保留 TODO。详见[告警验收](tasks/2026-10-20-workers-issues.md)；
+以下记录保留各轮当时状态。
+
 2026-10-20 五库恢复与告警后续验收：直接使用私有 Release `417899953` 的自动备份，
 Auth/Desk/GZH/Health/MCP 共 47 表、138,106 行导入独立临时 D1，全部 schema、字段值、
 类型、完整性及外键检查通过。MCP 隔离库清除快照授权和会话状态，两个客户端注册保持一致。
@@ -368,7 +375,7 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-duoji-mini | production | tunnel | duoji_mini (5e9e0d79-e706-4619-b547-97b09aca5ce7) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-20 策略启用、历史发送与 Gmail 收件已核对 |
-| alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-20 策略启用，未查到发送/收件记录，端到端待验收 |
+| alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-20 16 条 service 自动规则已核对；隔离故障自动发送及 Gmail 收件通过 |
 | backup-d1-artifact | production | actions-artifact | kedoupi/kdp.cool: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，清单已启用、runner 待恢复（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-19 六库本机密文、manifest、sha256、GCM AAD 与私钥内存解密通过；run 39192113905 无 runner/steps/artifact，六库异机 artifact 待验收；2026-10-18 原五库 artifact 12122019076 的下载/解密证据保留，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
@@ -405,6 +412,30 @@ secret 值、个人数据或 OAuth refresh token。
 | --- | --- | --- | --- | --- | --- |
 | D1 | `codepi-gu-pr-108` / `cc32b12c-f445-4152-9c8f-6e521b1d7fd4` | 曾为真实 GU 隔离副本；11 表/132 行及鉴权验收通过，无生产绑定 | 2026-10-20 删除后再次列举确认不存在 | 2026-10-20 已清理 | 已按精确 UUID 删除，正式备份保留 |
 | R2 | `codepi-gu-uploads-pr-108` | 曾含 112 份真实资料，原 key 和摘要一致；私有且未添加合成资料 | 2026-10-20 删除后再次列举确认不存在 | 2026-10-20 已清理 | 逐件清除 112 个对象后删桶，正式备份保留 |
+
+## 2026-10-20 Issues 自动规则与临时验收资源
+
+原策略 `68eee86535f549a384704c8e69887244` 的邮件目的地保持原配置。
+每个生产 Worker 分别配置 `afterOccurrences=1` 与 `afterInactivitySeconds=3600`，
+均为 enabled、service scope；没有账户级广播，也未覆盖 `unknown` Worker。
+首次阈值链路已实际收件，复发条件本轮只核对控制面，未等待一小时再制造异常。
+完整通知与邮箱证据见[验收记录](tasks/2026-10-20-workers-issues.md)。
+
+| service / 消费者 | 首次阈值规则 UUID | 静默后复发规则 UUID | owner / status | last_verified |
+| --- | --- | --- | --- | --- |
+| `codepi-auth` | `2969a9ec-fb99-4456-995a-a0c2150d5984` | `91516a93-5e0e-4acc-822f-de2a5983984e` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-www` | `c3f093da-a479-4f91-bca1-de32d382515a` | `7388b9dc-c1e4-45e5-81a8-eebc439d5d68` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-gu` | `60288a2a-ded7-4e6e-9e60-7446e9fb2720` | `60052daa-b4a9-4a35-a77d-695e5c58b918` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-gzh` | `09c1c7e8-b2e3-4c1d-bc85-6079900d08f9` | `368efdb5-5a65-4f3f-a5a0-b2fb229550df` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-health-api` | `93f45f14-8f88-4210-91ab-fd4dfb1a4c96` | `25e7f944-77d0-4de7-ba82-036280510963` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-health` | `ef976cce-bcb4-464b-a075-007e4616574d` | `bb45c545-ddc3-444a-94b2-502b0f96b89a` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-mcp` | `55413001-a9ce-4181-9c8f-59236cd7bbe1` | `7a80f214-1d79-4a87-aad8-43f484fdb4c5` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-ops` | `9f3fc604-d607-42d3-834d-f5d771e76020` | `ba22abae-d6f9-493c-a9dc-42f442a07a18` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+
+| 类型 | 名称 / ID | 数据与消费者 | last_verified / expires_on | cleanup_evidence |
+| --- | --- | --- | --- | --- |
+| Worker | `codepi-ops-pr-115` / version `d4f05804-cbd4-4ffe-99f6-719fac912750` | synthetic；无 binding/secret/生产消费者，单次故障后关闭 workers.dev/preview | 2026-10-20 已删除 | `2026-10-20T02:42:52.844Z` 删除后再次列举不存在；正式 Worker 配置与版本一致 |
+| issue-automation | `codepi-workers-issues:codepi-ops-pr-115:first` / `65a1aa42-6d76-4203-8484-195b8a6bf75d` | synthetic；只匹配上述临时 Worker | 2026-10-20 已删除 | 精确 UUID 删除后复读规则清单，余下为 16 条正式规则；合成 Issue 先标为 resolved |
 
 ## 2026-10-20 五库临时恢复资源
 

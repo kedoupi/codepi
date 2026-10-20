@@ -181,7 +181,8 @@ Agent 回归 26/26、126 个脚本及 18 个 JSON 的 lint。
 ## 继续工作
 
 1. [后续验收](2026-10-20-recovery-acceptance.md)已确认平台事件邮件实际收件及自然
-   monitor Cron 26/26；Workers Issues 端到端送达与恢复私钥异机保管仍需独立确认。
+   monitor Cron 26/26；[Workers Issues 后续验收](2026-10-20-workers-issues.md)又补齐自动
+   触发、发送与实际收件。恢复私钥异机保管继续保留 TODO，等待所有者后续处理。
 2. 其余五库的 47 表/138,106 行隔离导入、全量核对、MCP 快照授权清理演练与临时资源
    清理已通过，详见上述后续验收；GU 真实隔离恢复沿用已完成记录。
 3. 专用 GitHub 凭证到期或撤销后按原安全流程更新，再用新 backup/monitor 实例验收；
