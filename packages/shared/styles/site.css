@@ -26,8 +26,11 @@ a { text-underline-offset: 4px; }
 .kdp-container { width: min(calc(100% - 64px), var(--kdp-content-width)); margin-inline: auto; }
 .kdp-header-inner { min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .kdp-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--kdp-ink); text-decoration: none; white-space: nowrap; }
-.kdp-mark { display: inline-grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius-control); background: var(--brand-graphite); color: white; font: 700 29px/1 var(--kdp-font); }
-.kdp-wordmark { font-size: 21px; font-weight: 650; letter-spacing: -.5px; }
+/* v1.5 symbol + wordmark: the symbol keeps its master colours; "Code" graphite, "Pi" brand orange. */
+.kdp-mark { display: inline-block; width: 36px; height: 36px; flex-shrink: 0; }
+.kdp-mark svg { display: block; width: 100%; height: 100%; }
+.kdp-wordmark { color: var(--brand-graphite); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.kdp-wordmark-pi { color: var(--brand-orange); }
 .kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .kdp-nav { display: flex; align-items: center; gap: 30px; font-size: 14px; font-weight: 500; }
 .kdp-nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--kdp-text); text-decoration: none; }
@@ -40,7 +43,7 @@ a { text-underline-offset: 4px; }
 .kdp-main--home { padding-block: 0 40px; }
 .kdp-footer { border-top: 1px solid var(--kdp-line); background: var(--kdp-surface); }
 .kdp-footer-inner { display: flex; justify-content: space-between; gap: 24px; padding-block: 26px; }
-.kdp-footer .kdp-mark { width: 30px; height: 30px; font-size: 24px; border-radius: var(--radius-control); }
+.kdp-footer .kdp-mark { width: 30px; height: 30px; }
 .kdp-footer .kdp-wordmark { font-size: 16px; }
 .kdp-footer .kdp-wordmark small { font-size: 12px; }
 .kdp-footer-note { margin: 9px 0 0 42px; font-size: var(--text-caption); color: var(--kdp-muted); }

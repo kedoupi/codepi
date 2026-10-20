@@ -134,15 +134,21 @@ small {
   margin-top: 4px;
 }
 .brand-mark {
-  display: grid;
-  place-items: center;
-  background: var(--forest);
-  color: #fff;
-  width: 42px;
-  height: 48px;
-  border-radius: 12px 12px 4px 12px;
-  font-family: var(--kdp-font);
-  font-size: 26px;
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+.brand-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.brand-code {
+  color: var(--brand-graphite);
+}
+.brand-pi {
+  color: var(--brand-orange);
 }
 .seal {
   display: inline-block;
