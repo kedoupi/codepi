@@ -138,6 +138,7 @@ export async function fixture(t, options = {}) {
   const post = (path, data, headers = {}) => at(path, { method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(data).toString() });
+  const allScopes = 'context.read projects.read projects.write health.read health.sync me.read me.write invest.read';
   async function grant({ exchange = true, scope = 'health.read health.sync', client: existingClient,
     registeredRedirect = REDIRECT, redirectUri = REDIRECT, consentOnly = false } = {}) {
     const cookie = await login();
@@ -153,12 +154,16 @@ export async function fixture(t, options = {}) {
     const approval = {
       consent_id: html.match(/name="consent_id" value="([^"]+)"/)[1],
       csrf_token: html.match(/name="csrf_token" value="([^"]+)"/)[1],
-      client_id: client.client_id, decision: 'approve', state: params.state, scope,
+      client_id: client.client_id, decision: 'approve', state: params.state,
     };
     if (consentOnly) return { client, cookie, approval, html };
     const approved = await post('/oauth/authorize', approval, { Origin: origin, Cookie: cookie });
     if (approved.status !== 302) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
     const code = new URL(approved.headers.get('Location')).searchParams.get('code');
+    // Most tests need isolated legacy grants to prove per-tool enforcement.
+    // Real consent now grants all scopes; keep that path in scopes/browser tests.
+    await db.prepare('UPDATE oauth_auth_codes SET scope=? WHERE code_hash=?')
+      .bind(scope, await hash(code)).run();
     const tokenForm = { grant_type: 'authorization_code', code, client_id: client.client_id,
       redirect_uri: redirectUri, code_verifier: verifier, resource: origin + '/mcp' };
     if (!exchange) return { client, cookie, approval, tokenForm };
@@ -189,7 +194,7 @@ export async function fixture(t, options = {}) {
       DO UPDATE SET synced_at=excluded.synced_at,attempted_at=excluded.attempted_at,last_error=excluded.last_error`)
       .bind('health-owner', collection, from, to, synced, new Date().toISOString(), error).run();
   }
-  return { runtime, db, healthDb, projectDb, meDb, guDb, health, state, at, post, login, grant, rpc, tool, record, cover,
+  return { runtime, db, healthDb, projectDb, meDb, guDb, health, state, at, post, login, grant, rpc, tool, record, cover, allScopes,
     fetch: (input, init) => worker.fetch(input, init) };
 }
 
