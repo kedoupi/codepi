@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import { test, after } from 'node:test';
+import { createRequire } from 'node:module';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const require = createRequire(new URL('../../auth/package.json', import.meta.url));
+const { build } = require('esbuild');
+const dir = await mkdtemp(path.join(tmpdir(), 'codepi-modules-'));
+after(() => rm(dir, { recursive: true, force: true }));
+await build({ entryPoints: [fileURLToPath(new URL('../src/modules.ts', import.meta.url))],
+  bundle: true, format: 'esm', platform: 'node', outfile: path.join(dir, 'modules.mjs') });
+const { callTool, tools } = await import(pathToFileURL(path.join(dir, 'modules.mjs')));
+const ctx = scope => ({ subject: 'kdp-owner', client: 'synthetic-client', clientName: 'Synthetic', scope });
+const summary = source => ({ source, status: 'ok', asOf: '2026-10-20', updatedAt: '2026-10-20T00:00:00Z',
+  stale: false, metrics: [{ label: '状态', value: '可用' }], facts: ['合成记录'], notes: [], attention: [],
+  privateMetric: { label: 'Private', value: 'must never pass' }, unexpected: 'must never pass' });
+
+test('write-only grants expose writes but never summaries or reads', async () => {
+  const context = ctx('context.read projects.write me.write');
+  const names = tools(context.scope).map(t => t.name);
+  assert.ok(names.includes('project_handoff_save'));
+  assert.ok(names.includes('memory_save'));
+  assert.ok(!names.includes('project_get'));
+  assert.ok(!names.includes('me_get_profile'));
+  const env = { PROJECT: { summary() { throw Error('must not call'); } },
+    ME: { summary() { throw Error('must not call'); } } };
+  assert.deepEqual((await callTool(env, context, 'get_context', {})).sources, []);
+  await assert.rejects(callTool(env, context, 'project_get', { project: 'synthetic/repo' }), /tool_not_available/);
+});
+
+test('context whitelist and UTF-8 budget prevent large or private summary fields', async () => {
+  const env = Object.fromEntries(['HEALTH', 'PROJECT', 'ME', 'GU'].map(id => [id, { async summary() {
+    return { ...summary(id.toLowerCase()), facts: Array(10).fill('中文'.repeat(1000)) };
+  } }]));
+  const result = await callTool(env, ctx('context.read health.read projects.read me.read invest.read'), 'get_context', {});
+  assert.equal(result.sources.length, 4);
+  assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 8192);
+  for (const item of result.sources) {
+    assert.equal(item.summary.privateMetric, undefined);
+    assert.equal(item.summary.unexpected, undefined);
+    assert.ok(Buffer.byteLength(JSON.stringify(item.summary)) <= (item.id === 'me' ? 1536 : 4096));
+    assert.ok(item.summary.notes.some(note => note.includes('精简')));
+  }
+  const focus = await callTool(env, ctx('context.read projects.read'), 'get_context', { focus: 'health' });
+  assert.deepEqual(focus.sources, []);
+});
+
+test('one hanging or failed source cannot delay other summaries beyond the deadline', async () => {
+  const env = { HEALTH: { summary: () => new Promise(() => {}) },
+    PROJECT: { summary: async () => summary('project') },
+    ME: { summary: async () => { throw Error('unavailable'); } } };
+  const started = performance.now();
+  const result = await callTool(env, ctx('context.read health.read projects.read me.read'), 'get_context', {});
+  assert.ok(performance.now() - started < 3000);
+  assert.equal(result.sources.find(s => s.id === 'health').summary.status, 'unavailable');
+  assert.equal(result.sources.find(s => s.id === 'project').summary.status, 'ok');
+  assert.equal(result.sources.find(s => s.id === 'me').summary.status, 'unavailable');
+});
+
+test('read-only Health grants force cache-only queries and reject requested synchronization', async () => {
+  let args;
+  const env = { HEALTH: { execute: async request => { args = request.args; return { ok: true, data: {} }; } } };
+  await callTool(env, ctx('health.read'), 'health_query_records', { collection: 'sleep' });
+  assert.equal(args.refresh, false);
+  await assert.rejects(callTool(env, ctx('health.read'), 'health_query_records', { collection: 'sleep', refresh: true }), /insufficient_scope/);
+  assert.ok(tools('health.read').find(t => t.name === 'health_query_records').annotations.readOnlyHint);
+});
+
+test('domain writes receive grant identity, enforce schema and reject spoofed identity', async () => {
+  let received;
+  const env = { PROJECT: { execute: async request => { received = request; return { ok: true, data: { id: 'synthetic' } }; } } };
+  const args = { project: 'synthetic/repo', task_id: 'task-1', status: 'in_progress', summary: 'Done', next: 'Next',
+    branch: 'codex/synthetic', base_sha: 'a'.repeat(40) };
+  await callTool(env, ctx('projects.write'), 'project_handoff_save', args);
+  assert.equal(received.client, 'synthetic-client');
+  assert.equal(received.clientName, 'Synthetic');
+  for (const invalid of [{ ...args, user_id: 'other' }, { ...args, status: 'maybe' }, { ...args, task_id: '' }]) {
+    await assert.rejects(callTool(env, ctx('projects.write'), 'project_handoff_save', invalid), /invalid_arguments/);
+  }
+});

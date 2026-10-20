@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 
 export const MCP_ORIGIN = 'https://mcp.codepi.app';
+export const MCP_SCOPES = Object.freeze([
+  'context.read',
+  'projects.read',
+  'projects.write',
+  'health.read',
+  'health.sync',
+  'me.read',
+  'me.write',
+  'invest.read',
+]);
 
 export async function checkMcpHealth({ origin = MCP_ORIGIN, expectedBuild, request = fetch } = {}) {
   const response = await request(`${origin}/api/health`, {
@@ -31,6 +41,8 @@ export async function checkMcp({ origin = MCP_ORIGIN, expectedBuild, request = f
     assert.ok(body.resource === origin + '/mcp'
       && Array.isArray(body.authorization_servers) && body.authorization_servers.includes(origin),
     'MCP resource or authorization server mismatch');
+    assert.deepEqual(body.scopes_supported, MCP_SCOPES,
+      'MCP protected-resource scopes must exactly match the ordered domain scope set');
   });
   await check('mcp authorization-server discovery', async () => {
     const res = await get('/.well-known/oauth-authorization-server');
@@ -39,6 +51,8 @@ export async function checkMcp({ origin = MCP_ORIGIN, expectedBuild, request = f
     assert.ok(body.issuer === origin && body.authorization_endpoint === origin + '/oauth/authorize'
       && body.token_endpoint === origin + '/oauth/token'
       && body.code_challenge_methods_supported?.includes('S256'), 'MCP OAuth discovery mismatch');
+    assert.deepEqual(body.scopes_supported, MCP_SCOPES,
+      'MCP authorization-server scopes must exactly match the ordered domain scope set');
   });
   await check('mcp anonymous tools are rejected', async () => {
     const res = await get('/mcp', {

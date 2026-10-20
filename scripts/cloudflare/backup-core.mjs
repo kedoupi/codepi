@@ -12,6 +12,64 @@ export const DATABASES = {
   'codepi-health': '2e35deaa-8066-49c1-b19a-afcd8706d58c',
   'codepi-mcp': '73c6ef4e-e2a0-41c2-9bce-ab41c7391caa',
 };
+// A name is a required backup boundary even before its remote D1 exists. The
+// existing six IDs above remain exact; the two new names are resolved by exact
+// name at release time rather than extending the repository with fake IDs.
+export const DATABASE_NAMES = Object.freeze([
+  ...Object.keys(DATABASES),
+  'codepi-project',
+  'codepi-me',
+]);
+export const ORIGINAL_COLLECTIONS = Object.freeze([
+  {
+    source: 'codepi-gu', binding: 'GU', kind: 'gu-material', database: 'codepi-gu',
+    table: 'gu_materials', key_column: 'object_key', size_column: 'size', key_prefix: 'materials',
+    id_pattern: '^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$',
+  },
+  {
+    source: 'codepi-me', binding: 'ME', kind: 'me-import', database: 'codepi-me',
+    table: 'imports', key_column: 'r2_key', size_column: 'bytes', key_prefix: 'imports',
+    id_pattern: '^[0-9A-HJKMNP-TV-Z]{26}$',
+  },
+]);
+
+export function originalCollection(source) {
+  const collection = ORIGINAL_COLLECTIONS.find(item => item.source === source);
+  assert.ok(collection, `unknown original collection ${source}`);
+  return collection;
+}
+
+export function validOriginalId(collection, id) {
+  return typeof id === 'string' && new RegExp(collection.id_pattern).test(id);
+}
+
+export function validOriginalObjectKey(collection, id, objectKey) {
+  return validOriginalId(collection, id)
+    && objectKey === `${collection.key_prefix}/${id}`;
+}
+
+export function originalFileName(collection, id) {
+  assert.ok(validOriginalId(collection, id), `invalid ${collection.source} original ID`);
+  return `${collection.kind}-${id}.bin.enc`;
+}
+
+export function requireDatabaseManifest(entries, { legacy = false } = {}) {
+  const expected = legacy ? Object.keys(DATABASES) : [...DATABASE_NAMES];
+  assert.ok(Array.isArray(entries) && entries.length === expected.length,
+    'backup manifest database coverage is incomplete');
+  const names = new Set();
+  for (const entry of entries) {
+    const name = entry?.database;
+    assert.ok(expected.includes(name) && !names.has(name), 'backup manifest has an invalid or duplicate database');
+    const id = validateDatabaseId(entry.database_id, name);
+    if (DATABASES[name]) assert.equal(id, DATABASES[name], `${name} UUID differs from the managed production ID`);
+    assert.equal(entry.file, `${name}.sql.enc`, 'invalid database backup filename');
+    names.add(name);
+  }
+  assert.deepEqual([...names].sort(), [...expected].sort(),
+    'backup manifest database coverage is incomplete');
+  return entries;
+}
 const MAGIC = Buffer.from('KDPB001\n');
 
 export function keyId(publicKey) {
@@ -79,6 +137,84 @@ export async function cloudflareApi(endpoint, body, { accountId, token, request 
   // Provider error text can contain SQL, URLs or tokens; log only status/codes.
   assert.ok(response.ok && data.success, `Cloudflare request failed: HTTP ${response.status}; codes=${(data.errors || []).map(e => e.code).join(',')}`);
   return data.result;
+}
+
+async function cloudflareGet(endpoint, { accountId, token, request = fetch }) {
+  assert.ok(accountId && token, 'CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required');
+  let response, data;
+  try {
+    response = await request(`https://api.cloudflare.com/client/v4/accounts/${accountId}${endpoint}`, {
+      method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(30000),
+      headers: { authorization: `Bearer ${token}` },
+    });
+    data = await response.json();
+  } catch { throw new Error('Cloudflare D1 inventory failed (network or invalid JSON)'); }
+  assert.ok(response.ok && data.success,
+    `Cloudflare D1 inventory failed: HTTP ${response.status}; codes=${(data.errors || []).map(e => e.code).join(',')}`);
+  return data;
+}
+
+function validateDatabaseId(value, label) {
+  assert.match(value ?? '', /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i,
+    `${label} has an invalid D1 UUID`);
+  return value;
+}
+
+export function parseDatabaseConfig(value) {
+  let mapping = value;
+  if (typeof value === 'string') {
+    try { mapping = JSON.parse(value); }
+    catch { throw new Error('D1_DATABASE_IDS must be valid JSON'); }
+  }
+  assert.ok(mapping && typeof mapping === 'object' && !Array.isArray(mapping),
+    'D1_DATABASE_IDS must map every required database name to its D1 UUID');
+  const actual = Object.keys(mapping).sort();
+  const expected = [...DATABASE_NAMES].sort();
+  assert.deepEqual(actual, expected, 'D1_DATABASE_IDS must contain every required database name and no others');
+  const seen = new Set();
+  return DATABASE_NAMES.map(name => {
+    const id = validateDatabaseId(mapping[name], name);
+    assert.ok(!seen.has(id), 'D1_DATABASE_IDS contains a duplicate UUID');
+    seen.add(id);
+    if (DATABASES[name]) assert.equal(id, DATABASES[name], `${name} UUID differs from the managed production ID`);
+    return { name, id };
+  });
+}
+
+export async function resolveProductionDatabases({ accountId, token, request = fetch, explicit } = {}) {
+  if (explicit) {
+    const databases = parseDatabaseConfig(explicit);
+    assert.equal(databases.length, DATABASE_NAMES.length, 'explicit D1 inventory is incomplete');
+    return databases;
+  }
+  assert.ok(accountId && token, 'CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required to resolve D1 names');
+  const discovered = [];
+  let expectedPages;
+  for (let page = 1; page <= 20; page++) {
+    const data = await cloudflareGet(`/d1/database?page=${page}&per_page=100`,
+      { accountId, token, request });
+    assert.ok(Array.isArray(data.result), 'Cloudflare D1 inventory returned an unexpected payload');
+    discovered.push(...data.result);
+    const totalPages = data.result_info?.total_pages;
+    if (totalPages !== undefined) {
+      assert.ok(Number.isSafeInteger(totalPages) && totalPages >= 1, 'Cloudflare D1 pagination is invalid');
+      expectedPages ??= totalPages;
+      assert.equal(totalPages, expectedPages, 'Cloudflare D1 inventory changed during pagination');
+      if (page === totalPages) break;
+    } else if (data.result.length < 100) break;
+    assert.ok(page < 20, 'Cloudflare D1 inventory exceeds the pagination limit');
+  }
+  assert.ok(discovered.length > 0, 'Cloudflare D1 inventory is empty');
+  const databases = DATABASE_NAMES.map(name => {
+    const matches = discovered.filter(database => database?.name === name);
+    assert.equal(matches.length, 1, `required D1 ${name} was not resolved to exactly one exact-name database`);
+    const id = validateDatabaseId(matches[0].uuid, name);
+    if (DATABASES[name]) assert.equal(id, DATABASES[name], `${name} UUID differs from the managed production ID`);
+    return { name, id };
+  });
+  assert.equal(new Set(databases.map(database => database.id)).size, databases.length,
+    'D1 inventory resolved multiple required names to the same UUID');
+  return databases;
 }
 
 export async function exportDatabase(databaseId, options) {

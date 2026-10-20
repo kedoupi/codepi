@@ -6,9 +6,9 @@ import { readFile, readdir, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promis
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { decrypt, DATABASES } from '../../../scripts/cloudflare/backup-core.mjs';
+import { DATABASES, DATABASE_NAMES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
 import { restoreBackup } from '../../../scripts/cloudflare/d1-restore.mjs';
-import { restoreMaterials } from '../../../scripts/cloudflare/gu-materials-restore.mjs';
+import { restoreOriginals } from '../../../scripts/cloudflare/originals-restore.mjs';
 
 const require = createRequire(import.meta.url);
 const { Miniflare, Response } = createRequire(require.resolve('wrangler'))('miniflare');
@@ -16,12 +16,22 @@ const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
   publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
 const directory = await mkdtemp(path.join(tmpdir(), 'codepi-ops-runtime-'));
 const sessionSecret = 'synthetic-recovery-session-secret';
+const databaseIds = Object.fromEntries(DATABASE_NAMES.map((name, i) => [name,
+  DATABASES[name] ?? `99999999-9999-4999-8999-${String(i + 1).padStart(12, '0')}`]));
 const originals = [Buffer.from('# Synthetic original\n'), randomBytes(6 * 1024 * 1024)];
 const materialRows = originals.map((bytes, i) => {
   const id = `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
   return { id, object_key: `materials/${id}`, name: `synthetic-${i}.txt`, content_type: 'text/plain',
     size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), created_at: '2026-10-19T00:00:00Z' };
 });
+const meOriginals = [Buffer.from('# Synthetic Me import\n'), randomBytes(6 * 1024 * 1024)];
+const meRows = meOriginals.map((bytes, i) => {
+  const id = `01J${String(i + 1).padStart(23, '0')}`;
+  return { id, r2_key: `imports/${id}`, size: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'), created_at: '2026-10-19T00:00:00Z' };
+});
+const guTarget = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const meTarget = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 let runtime;
 try {
   execFileSync('pnpm', ['exec', 'wrangler', 'deploy', '--config', 'test/wrangler.toml', '--dry-run', '--outdir', directory],
@@ -32,22 +42,49 @@ try {
     '--dry-run', '--outdir', guDirectory],
   { stdio: 'pipe', env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
   const guSource = await readFile(path.join(guDirectory, 'index.js'), 'utf8');
+  const meDirectory = path.join(directory, 'me');
+  execFileSync('pnpm', ['exec', 'wrangler', 'deploy', '--config', 'test/wrangler.me.toml', '--dry-run',
+    '--outdir', meDirectory],
+  { stdio: 'pipe', env: { ...process.env, WRANGLER_SEND_METRICS: 'false' } });
+  const meSource = await readFile(path.join(meDirectory, 'fixture-me-worker.js'), 'utf8');
+
   const migrationDirectory = new URL('../../../apps/gu/migrations/', import.meta.url);
   const migrations = await Promise.all((await readdir(migrationDirectory)).filter(file => file.endsWith('.sql')).sort()
     .map(file => readFile(new URL(file, migrationDirectory), 'utf8')));
   const guSql = migrations.join('\n') + '\n' + materialRows.map(row =>
     `INSERT INTO gu_materials(id,object_key,name,content_type,size,sha256,created_at) VALUES('${row.id}','${row.object_key}','${row.name}','${row.content_type}',${row.size},'${row.sha256}','${row.created_at}');`).join('\n');
+  const meSchema = `CREATE TABLE imports (
+    id TEXT PRIMARY KEY,
+    r2_key TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );`;
+  const meSql = meSchema + '\n' + meRows.map(row =>
+    `INSERT INTO imports(id,r2_key,bytes,sha256,created_at) VALUES('${row.id}','${row.r2_key}',${row.size},'${row.sha256}','${row.created_at}');`).join('\n');
+
   const values = object => Object.fromEntries(Object.entries(object).map(([key, value]) => [key, { type: 'json', value }]));
   const guWorker = name => ({ config: {
     name, compatibilityDate: '2026-10-19', compatibilityFlags: ['nodejs_compat'],
     triggers: [{ type: 'fetch', pattern: `${name}.synthetic/*` }],
     manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: guSource } } },
     exports: { GuMaterialsBackup: { type: 'worker' } },
-    env: { DB: { type: 'd1', name: `${name}-db` }, MATERIALS: { type: 'r2', name: `${name}-materials` },
+    env: { DB: { type: 'd1', name: `${name}-gu-db` }, MATERIALS: { type: 'r2', name: `${name}-materials` },
       ...values({ ENVIRONMENT: 'test', SESSION_SECRET: sessionSecret }) },
   } });
-  const exports = [], expected = new Map(), assets = [];
-  let release;
+  const meWorker = name => ({ config: {
+    name, compatibilityDate: '2026-10-19', compatibilityFlags: ['nodejs_compat'],
+    triggers: [{ type: 'fetch', pattern: `${name}.synthetic/*` }],
+    manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: meSource } } },
+    exports: { MeImportsBackup: { type: 'worker' } },
+    env: { DB: { type: 'd1', name: `${name}-me-db` }, IMPORTS: { type: 'r2', name: `${name}-imports` } },
+  } });
+  const exports = [], expected = new Map(), releases = new Map(), releaseAssets = new Map(), uploads = [];
+  const sqlById = new Map([
+    [databaseIds['codepi-gu'], guSql],
+    [databaseIds['codepi-me'], meSql],
+  ]);
+  let nextReleaseId = 100;
   runtime = new Miniflare({
     workers: [{
       config: {
@@ -57,9 +94,11 @@ try {
         exports: { SyntheticWorkflow: { type: 'workflow', name: 'ops-synthetic' } },
         env: {
           ...values({ RECIPIENT: keys.publicKey, CLOUDFLARE_ACCOUNT_ID: 'synthetic-account',
-            CLOUDFLARE_API_TOKEN: 'synthetic-token', BUILD_SHA: 'synthetic' }),
+            CLOUDFLARE_API_TOKEN: 'synthetic-token', D1_DATABASE_IDS: JSON.stringify(databaseIds),
+            BUILD_SHA: 'synthetic' }),
           BACKUPS: { type: 'r2', name: 'ops-synthetic' },
           GU: { type: 'worker', worker: 'gu-source', exportName: 'GuMaterialsBackup' },
+          ME: { type: 'worker', worker: 'me-source', exportName: 'MeImportsBackup' },
           OPERATIONS: { type: 'workflow', name: 'ops-synthetic', worker: 'ops-synthetic', exportName: 'SyntheticWorkflow' },
         },
       },
@@ -72,12 +111,12 @@ try {
         }
         if (url.hostname === 'synthetic.r2.cloudflarestorage.com') {
           const id = url.pathname.slice(1), hash = createHash('sha256');
-          if (id === DATABASES['codepi-gu']) {
-            const bytes = Buffer.from(guSql);
+          if (sqlById.has(id)) {
+            const bytes = Buffer.from(sqlById.get(id));
             expected.set(id, { sha256: hash.update(bytes).digest('hex'), bytes: bytes.length });
             return new Response(bytes);
           }
-          const rows = id === DATABASES['codepi-health'] ? 1024 : 1;
+          const rows = id === databaseIds['codepi-health'] ? 1024 : 1;
           let row = 0, bytes = 0;
           return new Response(new ReadableStream({
             pull(controller) {
@@ -93,39 +132,61 @@ try {
           }, { highWaterMark: 0 }));
         }
         if (url.hostname === 'api.github.com') {
-          if (url.pathname.includes('/releases/tags/')) return release
-            ? Response.json(release) : new Response('', { status: 404 });
-          if (request.method === 'POST') {
-            release = { id: 42, tag_name: (await request.json()).tag_name };
+          const tag = url.pathname.match(/\/releases\/tags\/([^/]+)$/)?.[1];
+          if (tag) {
+            const release = releases.get(decodeURIComponent(tag));
+            return release ? Response.json(release) : new Response('', { status: 404 });
+          }
+          if (request.method === 'POST' && url.pathname.endsWith('/releases')) {
+            const release = { id: nextReleaseId++, tag_name: (await request.json()).tag_name };
+            releases.set(release.tag_name, release);
+            releaseAssets.set(release.id, []);
             return Response.json(release);
           }
-          return Response.json(assets);
+          const id = Number(url.pathname.match(/\/releases\/(\d+)\/assets$/)?.[1]);
+          assert.ok(releaseAssets.has(id), 'synthetic GitHub release is unknown');
+          const assets = releaseAssets.get(id);
+          const page = Number(url.searchParams.get('page')), perPage = Number(url.searchParams.get('per_page'));
+          return Response.json(assets.slice((page - 1) * perPage, page * perPage)
+            .map(({ bytes: _, ...asset }) => asset));
         }
         if (url.hostname === 'uploads.github.com') {
+          const id = Number(url.pathname.match(/\/releases\/(\d+)\/assets$/)?.[1]);
+          assert.ok(releaseAssets.has(id), 'synthetic GitHub upload release is unknown');
           const hash = createHash('sha256');
+          const chunks = [];
           let bytes = 0;
-          for await (const chunk of request.body) { bytes += chunk.byteLength; hash.update(chunk); }
+          for await (const chunk of request.body) {
+            bytes += chunk.byteLength; hash.update(chunk); chunks.push(chunk);
+          }
           assert.equal(Number(request.headers.get('content-length')), bytes,
             'native R2 stream upload must preserve a fixed content length');
           const asset = { name: url.searchParams.get('name'), state: 'uploaded',
-            digest: `sha256:${hash.digest('hex')}` };
-          assets.push(asset);
+            size: bytes, digest: `sha256:${hash.digest('hex')}` };
+          releaseAssets.get(id).push({ ...asset, bytes: Buffer.concat(chunks) });
+          uploads.push({ release_id: id, ...asset });
           return Response.json(asset);
         }
         throw new Error('runtime test attempted an unexpected external request');
       } } },
-    }, guWorker('gu-source'), guWorker('gu-recovery')],
+    }, guWorker('gu-source'), guWorker('gu-recovery'),
+    meWorker('me-source'), meWorker('me-recovery')],
   });
   await runtime.ready;
   const bucket = await runtime.getR2Bucket('BACKUPS', 'ops-synthetic');
   const guDb = await runtime.getD1Database('DB', 'gu-source');
   const guBucket = await runtime.getR2Bucket('MATERIALS', 'gu-source');
+  const meDb = await runtime.getD1Database('DB', 'me-source');
+  const meBucket = await runtime.getR2Bucket('IMPORTS', 'me-source');
   const statements = sql => sql.replace(/--[^\n]*/g, '').split(';').filter(part => part.trim());
   await guDb.batch(statements(guSql).map(sql => guDb.prepare(sql)));
+  await meDb.batch(statements(meSql).map(sql => meDb.prepare(sql)));
   for (const [i, row] of materialRows.entries()) await guBucket.put(row.object_key, originals[i]);
-  // Unindexed leftovers from an uncertain upload are retained by GU but cannot
-  // be presented as indexed originals in a backup.
+  for (const [i, row] of meRows.entries()) await meBucket.put(row.r2_key, meOriginals[i]);
+  // Unindexed leftovers from uncertain uploads are excluded from complete backup coverage.
   await guBucket.put('materials/unindexed-synthetic', 'Synthetic orphan');
+  await meBucket.put('imports/unindexed-synthetic', 'Synthetic orphan');
+
   for (const withGithub of [false, true]) {
     const query = withGithub ? '?withGithub=1' : '';
     const result = await runtime.dispatchFetch(`https://ops.synthetic/start${query}`);
@@ -142,23 +203,32 @@ try {
     const manifestObject = await bucket.get(`${prefix}/manifest.json`);
     assert.ok(manifestObject, `synthetic native workflow failed before manifest: ${JSON.stringify(status)}`);
     const manifest = await manifestObject.json();
-    assert.equal(manifest.databases.length, 6);
-    assert.equal(manifest.materials.objects, originals.length);
-    for (const entry of manifest.materials.entries) {
-      const ciphertext = Buffer.from(await (await bucket.get(`${prefix}/materials/${entry.file}`)).arrayBuffer());
-      assert.equal(createHash('sha256').update(ciphertext).digest('hex'), entry.sha256);
-      const recovered = decrypt(ciphertext, keys.privateKey);
-      assert.equal(createHash('sha256').update(recovered.sql).digest('hex'), entry.source_sha256);
-      assert.equal(recovered.sql.length, entry.source_bytes);
+    assert.equal(manifest.version, 3);
+    assert.equal(manifest.databases.length, DATABASE_NAMES.length);
+    assert.deepEqual(manifest.materials.collections.map(collection => collection.source),
+      ['codepi-gu', 'codepi-me']);
+    assert.equal(manifest.materials.objects, originals.length + meOriginals.length);
+    for (const collection of manifest.materials.collections) {
+      const sourceOriginals = collection.source === 'codepi-gu' ? originals : meOriginals;
+      for (const [i, entry] of collection.entries.entries()) {
+        const ciphertext = Buffer.from(await (await bucket.get(`${prefix}/materials/${entry.file}`)).arrayBuffer());
+        assert.equal(createHash('sha256').update(ciphertext).digest('hex'), entry.sha256);
+        const recovered = decrypt(ciphertext, keys.privateKey);
+        assert.equal(createHash('sha256').update(recovered.sql).digest('hex'), entry.source_sha256);
+        assert.equal(recovered.sql.length, entry.source_bytes);
+        assert.deepEqual(recovered.sql, sourceOriginals[i]);
+        assert.equal(recovered.metadata.kind, collection.kind);
+      }
     }
     for (const entry of manifest.databases) {
       const object = await bucket.get(`${prefix}/${entry.file}`);
       const encrypted = Buffer.from(await object.arrayBuffer());
       assert.equal(createHash('sha256').update(encrypted).digest('hex'), entry.sha256);
       const decrypted = decrypt(encrypted, keys.privateKey);
-      const source = expected.get(DATABASES[entry.database]);
+      const source = expected.get(databaseIds[entry.database]);
+      assert.ok(source, `missing synthetic export for ${entry.database}`);
       assert.equal(createHash('sha256').update(decrypted.sql).digest('hex'), source.sha256);
-      assert.equal(decrypted.metadata.database_id, DATABASES[entry.database]);
+      assert.equal(decrypted.metadata.database_id, databaseIds[entry.database]);
       if (entry.database === 'codepi-health') {
         assert.ok(source.bytes > 64 * 1024 * 1024);
         assert.ok(encrypted.length > 16 * 1024 * 1024);
@@ -167,52 +237,103 @@ try {
     const report = await (await bucket.get('reports/backup/latest.json')).json();
     assert.equal(report.r2, 'complete');
     assert.equal(report.ok, withGithub);
+    assert.deepEqual([...report.database_names].sort(), [...DATABASE_NAMES].sort());
+    assert.deepEqual([...report.materials.sources].sort(), ['codepi-gu', 'codepi-me']);
     assert.equal(!!await bucket.get('reports/backup/offsite-success.json'), withGithub);
   }
-  assert.equal(exports.length, 2 * Object.keys(DATABASES).length);
-  assert.equal(assets.length, 7 + originals.length);
-  assert.equal(assets.at(-1).name, 'manifest.json');
+  assert.equal(exports.length, 2 * DATABASE_NAMES.length);
+  assert.equal(uploads.length, DATABASE_NAMES.length + originals.length + meOriginals.length + 2);
+  assert.equal(uploads.at(-1).name, 'manifest.json');
+  const offsiteTag = 'ops-backup-synthetic-offsite';
+  const mainRelease = releases.get(offsiteTag);
+  const mainAssets = releaseAssets.get(mainRelease.id);
+  assert.deepEqual(mainAssets.map(asset => asset.name), ['offsite-index.json', 'manifest.json']);
+  const offsiteIndexAsset = mainAssets.find(asset => asset.name === 'offsite-index.json');
+  const offsiteIndex = JSON.parse(offsiteIndexAsset.bytes);
+  assert.equal(offsiteIndex.assets, DATABASE_NAMES.length + originals.length + meOriginals.length);
+  assert.equal(offsiteIndex.shards.length, 1);
+  assert.equal(offsiteIndex.shards[0].tag, `${offsiteTag}-part-01`);
+  assert.equal(offsiteIndex.shards[0].assets.length, DATABASE_NAMES.length + originals.length + meOriginals.length);
+  assert.equal(createHash('sha256').update(mainAssets.at(-1).bytes).digest('hex'), offsiteIndex.manifest.sha256);
 
   const prefix = 'backups/synthetic-offsite';
   const manifest = await (await bucket.get(`${prefix}/manifest.json`)).json();
   const backupDir = path.join(directory, 'download');
   await mkdir(path.join(backupDir, 'materials'), { recursive: true, mode: 0o700 });
   await writeFile(path.join(backupDir, 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 });
-  for (const file of ['codepi-gu.sql.enc', ...manifest.materials.entries.map(entry => `materials/${entry.file}`)]) {
+  const files = [
+    ...manifest.databases.map(entry => entry.file),
+    ...manifest.materials.collections.flatMap(collection =>
+      collection.entries.map(entry => `materials/${entry.file}`)),
+  ];
+  for (const file of files) {
     const object = await bucket.get(`${prefix}/${file}`);
     await writeFile(path.join(backupDir, file), Buffer.from(await object.arrayBuffer()), { mode: 0o600 });
   }
   const privateKeyFile = path.join(directory, 'synthetic-recovery.pem');
   await writeFile(privateKeyFile, keys.privateKey, { mode: 0o600 });
-  const databaseId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-  const env = { CLOUDFLARE_ACCOUNT_ID: 'synthetic', CLOUDFLARE_API_TOKEN: 'synthetic' };
-  const recoveryDb = await runtime.getD1Database('DB', 'gu-recovery');
-  let importedSql;
-  await restoreBackup({ file: path.join(backupDir, 'codepi-gu.sql.enc'), privateKeyFile, databaseId, env,
-    request: async () => {
-      const result = await recoveryDb.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type IN ('table','view') AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*'").all();
+  const env = {
+    CLOUDFLARE_ACCOUNT_ID: 'synthetic', CLOUDFLARE_API_TOKEN: 'synthetic',
+    D1_DATABASE_IDS: JSON.stringify(databaseIds),
+  };
+  const guRecoveryDb = await runtime.getD1Database('DB', 'gu-recovery');
+  const meRecoveryDb = await runtime.getD1Database('DB', 'me-recovery');
+  const localRequest = async (url, init) => {
+    try {
+      const id = url.match(/\/database\/([^/]+)\/query$/)?.[1];
+      const db = id === guTarget ? guRecoveryDb : id === meTarget ? meRecoveryDb : undefined;
+      assert.ok(db, 'unexpected isolated recovery database');
+      const body = JSON.parse(init.body);
+      const result = await db.prepare(body.sql).all();
       return globalThis.Response.json({ success: true, result: [{ success: true, results: result.results }] });
-    },
-    execute: (_command, args) => {
-      // Execute the recovered SQL through the native local D1 API below.
-      importedSql = readFileSync(args[args.indexOf('--file') + 1], 'utf8');
-      return { status: 0 };
-    },
-  });
-  await recoveryDb.batch(statements(importedSql).map(sql => recoveryDb.prepare(sql)));
+    } catch (error) {
+      console.error(`local recovery request failed: ${error.message}`);
+      throw error;
+    }
+  };
+  const restoreDatabase = async (database, target, recoveryDb) => {
+    let importedSql;
+    await restoreBackup({
+      file: path.join(backupDir, `${database}.sql.enc`), privateKeyFile, databaseId: target, env,
+      request: localRequest,
+      execute: (_command, args) => {
+        importedSql = readFileSync(args[args.indexOf('--file') + 1], 'utf8');
+        return { status: 0 };
+      },
+    });
+    await recoveryDb.batch(statements(importedSql).map(sql => recoveryDb.prepare(sql)));
+  };
+  await restoreDatabase('codepi-gu', guTarget, guRecoveryDb);
+  await restoreDatabase('codepi-me', meTarget, meRecoveryDb);
+
   const outDir = path.join(directory, 'recovered');
-  const restored = await restoreMaterials({ backupDir, privateKeyFile, databaseId, outDir, env,
-    request: async () => {
-      const result = await recoveryDb.prepare('SELECT id,object_key,size,sha256 FROM gu_materials ORDER BY object_key').all();
-      return globalThis.Response.json({ success: true, result: [{ success: true, results: result.results }] });
-    },
+  const restored = await restoreOriginals({
+    backupDir, privateKeyFile, databaseIds: { 'codepi-gu': guTarget, 'codepi-me': meTarget },
+    outDir, env, request: localRequest,
   });
-  assert.equal(restored.indexed, originals.length);
-  const recoveryBucket = await runtime.getR2Bucket('MATERIALS', 'gu-recovery');
-  for (const row of materialRows) await recoveryBucket.put(row.object_key, await readFile(path.join(outDir, row.object_key)));
+  assert.deepEqual(restored.collections.map(item => [item.source, item.objects, item.indexed, item.extra_objects]), [
+    ['codepi-gu', originals.length, originals.length, 0],
+    ['codepi-me', meOriginals.length, meOriginals.length, 0],
+  ]);
+
+  const guRecoveryBucket = await runtime.getR2Bucket('MATERIALS', 'gu-recovery');
+  for (const row of materialRows) {
+    await guRecoveryBucket.put(row.object_key, await readFile(path.join(outDir, 'codepi-gu', row.object_key)));
+  }
+  const meRecoveryBucket = await runtime.getR2Bucket('IMPORTS', 'me-recovery');
+  for (const [i, row] of meRows.entries()) {
+    const bytes = await readFile(path.join(outDir, 'codepi-me', row.r2_key));
+    assert.deepEqual(bytes, meOriginals[i]);
+    await meRecoveryBucket.put(row.r2_key, bytes);
+    const restoredObject = await meRecoveryBucket.get(row.r2_key);
+    assert.deepEqual(Buffer.from(await restoredObject.arrayBuffer()), meOriginals[i]);
+  }
+  const meIndex = await meRecoveryDb.prepare('SELECT id,r2_key,bytes,sha256 FROM imports ORDER BY rowid').all();
+  assert.deepEqual(meIndex.results.map(row => row.id), meRows.map(row => row.id));
+
   const recovery = await runtime.getWorker('gu-recovery');
   const cookie = '__Host-gu_session=synthetic-recovery-session';
-  await recoveryDb.prepare('INSERT INTO sessions(id,expires_at) VALUES(?,?)')
+  await guRecoveryDb.prepare('INSERT INTO sessions(id,expires_at) VALUES(?,?)')
     .bind(createHmac('sha256', sessionSecret).update('synthetic-recovery-session').digest('hex'), Date.now() + 3600000).run();
   for (const [i, row] of materialRows.entries()) {
     const url = `https://gu-recovery.synthetic/api/materials/${row.id}`;
@@ -227,7 +348,7 @@ try {
     assert.equal((await recovery.fetch(`https://gu-recovery.synthetic${url}`)).status, 401);
     assert.equal((await recovery.fetch(`https://gu-recovery.synthetic${url}`, { headers: { Cookie: cookie } })).status, 404);
   }
-  console.log('PASS native Workflows + named GU RPC + multipart R2: 64+ MiB SQL, encrypted originals, offsite digests, isolated D1/R2 recovery and authenticated downloads');
+  console.log('PASS native Workflows + named GU/Me RPC + multipart R2: eight D1 exports, 64+ MiB SQL, encrypted GU and Me originals, offsite digests, isolated D1/R2 recovery and authenticated GU downloads');
 } finally {
   await runtime?.dispose();
   await rm(directory, { recursive: true, force: true });

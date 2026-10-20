@@ -4,13 +4,17 @@
 巡检和备份由 Cloudflare 执行，不依赖 Actions runner 或个人电脑在线。
 生产部署继续遵循 [本地发布](local-release.md)。
 
+2026-10-20 领域扩展新增 Project/Me 的备份与巡检代码；生产创建、发布及真实验收仍待执行。
+当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
+v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记录是旧覆盖的证据。
+
 ## 运行方式
 
 | 组件 | 职责 |
 | --- | --- |
 | `codepi-ops` Worker | 两个 Cron，无公网 routes、workers.dev 或 preview URL |
 | `codepi-ops` Workflow | 以确定的 instance ID 去重，每个步骤最多重试两次，指数退避 |
-| `codepi-ops-backups` 私有 R2 | 六库与 GU 原件密文、完成清单和运维报告，按前缀保留 14 天 |
+| `codepi-ops-backups` 私有 R2 | 当前全库与 GU/Me 原件密文、完成清单和运维报告，按前缀保留 14 天 |
 | GitHub API | 私有仓库 main/逐提交历史读取；凭证就绪后把密文复制到私有 Release |
 
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
@@ -19,12 +23,13 @@
 
 ## 巡检与失败
 
-复用 `scripts/cloudflare/monitor-core.mjs` 的 Auth、四个产品登录契约、MCP、
+复用 `scripts/cloudflare/monitor-core.mjs` 的 Auth、已登记产品登录契约、MCP、
 旧泄漏入口与 Health 整轮同步新鲜度断言。原来的本地 `production-monitor.mjs`
-命令继续可用。云端额外检查 R2/跨平台的六库与 GU 原件完整备份在 30 小时内完成。
-旧版仅六库的成功回执缺少 `materials` 覆盖信息，会失败而不会继续当作完整备份。
+命令继续可用。Project/Me 还要求真实 SSO 配对就绪。云端检查 R2/跨平台备份在
+30 小时内完成，并按 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 核对全部库名与原件来源。
+旧回执缺少新增数据库、原件集合或身份信息时失败，不继续当作新覆盖的完整备份。
 
-云端版本巡检使用 GitHub REST API，将八个 Worker 的活跃 `BUILD_SHA` 与固定 main
+云端版本巡检使用 GitHub REST API，将登记 Worker 的活跃 `BUILD_SHA` 与固定 main
 快照比较。与本地 Git 实现共用发布范围表；逐提交读取文件列表，不使用 compare API
 的净差异，避免漏掉 revert、删除、重命名和 merge。最多检查 500 个提交、每提交
 最多 3,000 个文件；超过边界、历史缺失、非祖先、分流或缺少凭证均失败。
@@ -40,7 +45,7 @@ Issues 检测、通知策略和自动触发规则是三个独立配置。`observ
 使 Worker 记录问题；邮件策略提供目的地；自动规则决定何时发送。
 仅有前两项不能作为自动通知就绪的证据。控制面核对须读取
 `GET /accounts/<account_id>/workers/observability/issues/automations`，按
-`scripts/cloudflare/release-scope.mjs` 的八个 Worker 核对 service、enabled、policy ID 与触发条件。
+`scripts/cloudflare/release-scope.mjs` 的全部 Worker 核对 service、enabled、policy ID 与触发条件。
 不为此扩大 Ops 运行时 token 权限，管理操作继续使用已授权的 API 身份。
 
 | 规则 | 每个 Worker 的配置 | 行为 |
@@ -59,35 +64,35 @@ Worker/规则并复查生产配置。该次覆盖首次自动触发链路；静�
 重新验收时继续使用隔离合成数据，分别保存 issue/run/history/message ID 与时间，
 不保存邮件正文、地址或退订凭证。详情见[验收记录](tasks/2026-10-20-workers-issues.md)。
 
-## 六库备份
+## 数据库备份
 
 每库一个持久步骤：D1 polling export → 流式下载 → gzip → AES-256-GCM →
 RSA-3072 公钥封装 → R2 分片上传。格式与本地 `d1-backup.mjs` / `d1-restore.mjs` 相同，
 公钥只有一个来源；恢复私钥不进入 Worker、Workflow 或 R2。
 
-六库串行处理，不缓存整库 SQL。通过带背压的压缩管道和 5 MiB 密文分片限制常驻缓冲；
+`DATABASE_NAMES` 中各库串行处理，不缓存整库 SQL。通过带背压的压缩管道和 5 MiB 密文分片限制常驻缓冲；
 KDPB001 格式的认证 tag 位于密文之前，因此第一片等最终 tag 就绪后最后上传。
 上传失败会取消源流并中止分片上传，不生成完成清单。原始 SQL 上限为 1 GiB，
 用于限制单次运行的时间与流量，超过上限明确失败。这不是 Worker 内存上限，
 也不再使用原来的 16 MiB 整库缓冲保护。D1 导出可能暂时影响对应库，故安排在低峰。
 SQL、解密密钥和 D1 signed URL 都不作为持久步骤返回值。
 
-对象在 `backups/<instance>/` 下，全部六库和 GU 有索引原件完成后才写 v2 `manifest.json`。
+对象在 `backups/<instance>/` 下，全部必需库和 GU/Me 有索引原件完成后才写 v3 `manifest.json`。
 上传完成后再次流式计算密文 SHA-256，在同前缀的 `.receipt.json` 中绑定 R2 ETag、
 库身份和摘要。成功步骤在重试时复用已写入的密文，保持 envelope 和 manifest 一致；
 若上传提交后、回执写入前中断，重试只对已提交的密文补算摘要，不重新导出。
 密文过期、身份或 ETag 不一致时失败，需新建备份实例。
-半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示六库及 GU 原件 R2 完整备份，
+半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示当前全库及 GU/Me 原件 R2 完整备份，
 不表示已有 Cloudflare 之外的副本。
 
 ## GU 原件
 
-Ops 仅绑定 `GU → codepi-gu#GuMaterialsBackup`，GU 的 named entrypoint 只提供
+GU 集合使用 `GU → codepi-gu#GuMaterialsBackup`，named entrypoint 只提供
 分页索引和单件流；默认 HTTP handler 不映射它，既不开放内部 URL，也不增加同步 secret。
 Ops 不获得 GU D1/R2 binding。该能力随 GU 先发布，随后发布 Ops 并运行首次完整备份；
 未完成首次备份时，新巡检会拒绝旧 D1-only 回执。
 
-GU 资料索引当前只追加。六库导出后，GU 从 D1 取得 rowid 上限，再按固定上限分页，
+GU 资料索引当前只追加。全部必需库导出后，GU 从 D1 取得 rowid 上限，再按固定上限分页，
 覆盖导出时已有的索引；备份期间后续新上传留给下一次备份。原件清单可能比 D1 导出
 稍新，恢复时只将 D1 引用视为已登记资料，额外原件单独计数，不自动改写账户或资料索引。
 若以后增加删除、修改索引或重建 rowid，必须先调整此一致性约定。
@@ -99,20 +104,39 @@ UUID、object key、大小及摘要，不含文件名或正文。逐件验证源
 缺失、损坏、流中断均失败。单件 8 MiB、最多 1000 件；超限明确失败，需要先扩容并验收。
 原件沿用 ETag/identity/receipt 的中断恢复，不在重试时替换已经提交的密文。
 
-v2 manifest 保留 `databases`，新增 `materials` 的来源、冻结上限、件数与逐件索引；
+历史 v2 manifest 含 `databases` 与单一 GU `materials`；当前 v3 使用
+`materials.collections` 分别记录 GU/Me 的来源、冻结上限、件数与逐件索引；
 每件同时记录源 `source_bytes`/`source_sha256` 和密文 `bytes`/`sha256`。
 KDPB001 envelope 保持 v1，原 D1 解密工具仍可使用。旧 `d1-backup.mjs` 与手动 Actions
 应急入口只导出 D1，不生成原件完整覆盖回执。
 
-有 `GITHUB_TOKEN` 时，逐个把密文经流式 API 上传私有 Release，manifest 最后上传，
-按 GitHub 返回的 SHA-256 验证。重试只接受名称、状态和 digest 完全匹配的既有附件，
-不删除或覆盖不一致的附件。全部完成后才写
+有 `GITHUB_TOKEN` 时，逐个把密文经流式 API 上传私有分片 Release，
+每片最多 900 个附件，名称为 `ops-backup-<instance>-part-01` 等。
+主 Release `ops-backup-<instance>` 最后写 `offsite-index.json` 和原 `manifest.json`；
+索引记录每件密文的分片、文件名、恢复路径、大小和 SHA-256。
+按 GitHub 返回的 SHA-256 和大小验证，重试只复用完全匹配的既有附件，
+不删除或覆盖不一致的附件。八库与两类各 1000 件的上限会生成三片密文，
+旧 v2/v3 单 Release 副本仍可按原 manifest 读取。全部完成后才写
 `reports/backup/offsite-success.json`。Release 不消耗 Actions runner；
-当前实现保留这些密文 Release，清理为独立操作。
+当前实现保留主 Release 及其全部分片，清理为独立操作；不能只保留主 Release
+或只下载它的两个元数据附件就称为有完整副本。
 未配置凭证或上传失败时，保留已完成的 R2 备份，标记 `offsite=failed`，
 Workflow 仍失败，不把同账户 R2 当成跨平台备份。
 
 恢复流程及 MCP 授权状态恢复限制见 [备份 runbook](cloudflare-backup-restore.md)。
+
+## Me 导入原文
+
+`ME → codepi-me#MeImportsBackup` 是另一个限定的只读 named entrypoint，
+提供 `imports` 追加索引的冻结分页与单件原文流。只读取成功 finish 的导入；
+未完成分块不作为正式原文备份。Ops 不绑定 Me D1/R2，也不持有业务登录凭证。
+原文写入 `backups/<instance>/materials/me-import-<ULID>.bin.enc`，
+每件核对索引大小和 SHA-256，再使用同一公钥 envelope 加密。
+
+GU 和 Me 各自最多 1000 件、单件最多 8 MiB；超限使完整备份失败。
+即使某集合没有原件，v3 仍须保留该集合的空记录；不能通过缺省集合冒充已覆盖。
+恢复使用 `originals-restore.mjs` 同时核验两类索引与原文；
+旧 GU-only 工具留给历史 v2 副本，不能验收 v3。
 
 ## 首次初始化与凭证
 
@@ -149,7 +173,7 @@ pnpm exec wrangler secret put GITHUB_TOKEN
 ```
 
 不得把本机广权限 `gh` OAuth 登录值转存到 Worker。配置后先创建新的 backup 实例，
-核对六库与原件 manifest、Release 附件及自动跨平台成功回执，再运行 monitor。
+核对当前必需库与原件 manifest、全部 Release 附件及自动跨平台成功回执，再运行 monitor。
 一次性通过本机授权复制的密文可以作为手动副本，但其回执须另存，
 不得写成自动 Workflow 成功或消除自动凭证缺失告警。
 2026-10-20 已用新生产 Workflow 验收自动复制，六库、112 份原件及 manifest 共

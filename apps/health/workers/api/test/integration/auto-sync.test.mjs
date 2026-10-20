@@ -79,6 +79,23 @@ test('09:00 gate, durable batches, successful empty coverage, score refresh and 
   assert.equal(calls, before, 'completed run must not restart on the same day');
 });
 
+test('a running queue reports the next batch from the live clock, not its old start time', async t => {
+  const f = await fixture(t);
+  const startedAt = new Date(Date.now() - 10 * 60_000).toISOString();
+  await f.queue([pending('heartrate')]);
+  await f.db.prepare("UPDATE auto_sync_state SET started_at=? WHERE user_id='test-user'")
+    .bind(startedAt).run();
+
+  const before = Date.now();
+  const status = await f.status();
+  const after = Date.now();
+  const nextBatchAt = Date.parse(status.next_batch_at);
+
+  assert.ok(nextBatchAt >= before + 120_000, 'next batch cannot be earlier than a fresh Cron interval');
+  assert.ok(nextBatchAt <= after + 120_000, 'next batch must use the current status clock');
+  assert.ok(nextBatchAt > Date.parse(startedAt) + 120_000, 'a long-running queue must not show a past batch time');
+});
+
 test('unverified history is queued; a later failed subwindow overrides older successful coverage', async t => {
   const f = await fixture(t);
   await f.db.prepare(`INSERT INTO health_sync_windows

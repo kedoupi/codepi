@@ -3,6 +3,7 @@ import { app, errorResponse } from "./app";
 import { secureResponse } from "./lib";
 
 export { GuMaterialsBackup } from "./materials-backup";
+export { GuMcp } from "./mcp";
 
 export default {
   async fetch(request: Request, env: Env, ctx?: ExecutionContext) {

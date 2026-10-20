@@ -6,14 +6,21 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import os from 'node:os';
 import path from 'node:path';
-import { DATABASES, encrypt } from './d1-backup.mjs';
+import { DATABASES, DATABASE_NAMES, encrypt } from './d1-backup.mjs';
 import { restoreBackup } from './d1-restore.mjs';
 import { MAX_RESTORE_STATEMENT_BYTES } from './d1-restore-sql.mjs';
 
 const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
   publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs8', format: 'pem' } });
 const databaseId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
-const env = { CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic' };
+const projectDatabaseId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const meDatabaseId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const productionIds = Object.fromEntries(DATABASE_NAMES.map(name => [name,
+  DATABASES[name] ?? (name === 'codepi-project' ? projectDatabaseId : meDatabaseId)]));
+const env = {
+  CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic',
+  D1_DATABASE_IDS: JSON.stringify(productionIds),
+};
 async function fixture(t) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'codepi-restore-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
@@ -32,19 +39,100 @@ test('restores into an empty target with the pinned Wrangler and removes plainte
     assert.equal(command, 'pnpm');
     assert.ok(args.includes('--remote') && args.includes('--config') && args.includes('--yes'));
     sqlPath = args[args.indexOf('--file') + 1];
+    const config = JSON.parse(readFileSync(args[args.indexOf('--config') + 1], 'utf8'));
+    assert.equal(config.d1_databases[0].database_id, databaseId);
     return { status: 0 };
   };
-  await restoreBackup({ ...opts, request: request(0), execute });
+  let queried;
+  await restoreBackup({ ...opts, databaseId: databaseId.toUpperCase(), execute,
+    request: async url => {
+      queried = url;
+      return Response.json({ success: true, result: [{ success: true, results: [{ n: 0 }] }] });
+    } });
+  assert.match(queried, new RegExp(`/d1/database/${databaseId}/query$`));
   await assert.rejects(access(sqlPath), { code: 'ENOENT' });
 });
 
-test('refuses production and nonempty targets before importing any SQL', async t => {
+test('refuses all eight production and nonempty targets before importing any SQL', async t => {
   const opts = await fixture(t);
   const execute = () => { throw new Error('must not import'); };
-  for (const id of Object.values(DATABASES)) {
-    await assert.rejects(restoreBackup({ ...opts, databaseId: id, request: request(0), execute }), /production/);
+  for (const id of Object.values(productionIds)) {
+    await assert.rejects(restoreBackup({ ...opts, databaseId: id.toUpperCase(), request: request(0), execute }), /production/);
   }
   await assert.rejects(restoreBackup({ ...opts, request: request(1), execute }), /must be empty/);
+});
+
+test('refuses a dynamically resolved production source ID even when it is absent from the legacy map', async t => {
+  const opts = await fixture(t);
+  const sourceId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  await writeFile(opts.file, encrypt(Buffer.from('CREATE TABLE sample(id);'), keys.publicKey,
+    { database: 'codepi-project', database_id: sourceId }));
+  let requested = false;
+  await assert.rejects(restoreBackup({
+    ...opts, databaseId: sourceId,
+    request: async () => { requested = true; return Response.json({ success: true }); },
+    execute: () => { throw new Error('must not import'); },
+  }), /production/);
+  assert.equal(requested, false);
+});
+
+test('rejects another empty production database even when the ciphertext source differs', async t => {
+  const opts = await fixture(t);
+  await writeFile(opts.file, encrypt(Buffer.from('CREATE TABLE sample(id);'), keys.publicKey,
+    { database: 'codepi-project', database_id: projectDatabaseId }));
+  let requested = false;
+  await assert.rejects(restoreBackup({
+    ...opts, databaseId: meDatabaseId,
+    request: async () => { requested = true; return Response.json({ success: true }); },
+    execute: () => { throw new Error('must not import'); },
+  }), /production/);
+  assert.equal(requested, false);
+});
+
+test('resolves every production name dynamically and rejects cross-database restore before querying', async t => {
+  const opts = await fixture(t);
+  await writeFile(opts.file, encrypt(Buffer.from('CREATE TABLE sample(id);'), keys.publicKey,
+    { database: 'codepi-project', database_id: projectDatabaseId }));
+  let inventory = 0, queried = false, imported = false;
+  const dynamicEnv = { CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic' };
+  await assert.rejects(restoreBackup({
+    ...opts, env: dynamicEnv, databaseId: meDatabaseId.toUpperCase(),
+    request: async (url, init) => {
+      const target = new URL(url);
+      if (target.pathname.endsWith('/d1/database')) {
+        inventory++;
+        assert.equal(init.method, 'GET');
+        return Response.json({ success: true, result_info: { total_pages: 1 },
+          result: DATABASE_NAMES.map(name => ({ name, uuid: productionIds[name] })) });
+      }
+      queried = true;
+      return Response.json({ success: true, result: [{ success: true, results: [{ n: 0 }] }] });
+    },
+    execute: () => { imported = true; throw new Error('must not import'); },
+  }), /production/);
+  assert.equal(inventory, 1);
+  assert.equal(queried, false);
+  assert.equal(imported, false);
+});
+
+test('fails closed for an incomplete explicit map or an unverifiable exact-name inventory', async t => {
+  const opts = await fixture(t);
+  const incomplete = { ...productionIds };
+  delete incomplete['codepi-me'];
+  let queried = false;
+  await assert.rejects(restoreBackup({
+    ...opts, env: { ...env, D1_DATABASE_IDS: JSON.stringify(incomplete) },
+    request: async () => { queried = true; return Response.json({ success: true }); },
+    execute: () => { throw new Error('must not import'); },
+  }), /every required database name/);
+  assert.equal(queried, false);
+  await assert.rejects(restoreBackup({
+    ...opts, env: { CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic' },
+    request: async () => Response.json({ success: true, result_info: { total_pages: 1 },
+      result: DATABASE_NAMES.slice(1).map(name => ({ name, uuid: productionIds[name] })) }),
+    execute: () => { throw new Error('must not import'); },
+  }), /codepi-auth|exactly one exact-name/);
+  assert.equal(queried, false);
 });
 
 test('failed imports remove plaintext and never echo provider SQL output', async t => {

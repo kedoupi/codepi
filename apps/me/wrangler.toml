@@ -1,0 +1,49 @@
+name = "codepi-me"
+main = "worker/index.ts"
+compatibility_date = "2026-09-16"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+routes = [
+  { pattern = "me.codepi.app", custom_domain = true }
+]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+
+[vars]
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "me"
+AUTH_ORIGIN = "https://auth.codepi.app"
+ENVIRONMENT = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-me"
+# The authorized release creates/resolves the database and injects database_id.
+# No production UUID is invented in reviewed source.
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "IMPORTS"
+bucket_name = "codepi-me-imports"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.issues]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

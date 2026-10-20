@@ -1,4 +1,4 @@
-import { beginLogin, finishLogin, logoutSso, SsoError } from "@kedoupi/shared/auth/client";
+import { beginLogin, finishLogin, logoutSso, ssoReady, SsoError } from "@kedoupi/shared/auth/client";
 import type { Env } from "./env.ts";
 import { authorize, connections, discovery, register, revoke, token } from "./oauth.ts";
 import { mcp } from "./protocol.ts";
@@ -11,19 +11,9 @@ function allowedMcpOrigin(origin: string, env: Env) {
 }
 
 async function ready(env: Env) {
-  if (!env.AUTH_CLIENT_SECRET || env.AUTH_CLIENT_SECRET.length < 32 || !env.AUTH || !env.HEALTH) return false;
-  try {
-    // A nonexistent reference validates the SSO client credential without
-    // creating a login, sending mail or reading the owner's session.
-    const response = await env.AUTH.fetch("https://auth.internal/internal/session", {
-      method: "POST", headers: { "Content-Type": "application/json",
-        Authorization: `Basic ${btoa(`mcp:${env.AUTH_CLIENT_SECRET}`)}` },
-      body: JSON.stringify({ session_ref: "0".repeat(43) }), signal: AbortSignal.timeout(4_000),
-    });
-    if (!response.ok) { await response.body?.cancel(); return false; }
-    const status = await response.json() as { active?: unknown };
-    return typeof status.active === "boolean";
-  } catch { return false; }
+  if (!env.AUTH_CLIENT_SECRET || env.AUTH_CLIENT_SECRET.length < 32 || !env.AUTH || !env.HEALTH
+    || !env.PROJECT || !env.ME || !env.GU) return false;
+  return ssoReady(env);
 }
 
 async function route(request: Request, env: Env) {
@@ -63,7 +53,7 @@ async function route(request: Request, env: Env) {
     return json({ ok: configured, service: "codepi-mcp", build: env.BUILD_SHA ?? "local" }, configured ? 200 : 503);
   }
   if (path === "/" && method === "GET") return page("CodePi MCP", `<p>在 ChatGPT、Claude 或支持远程 MCP 的 Agent CLI 中添加：</p>
-<p><code>${env.MCP_ORIGIN}/mcp</code></p><p>当前提供 Health 查询、统计和自动刷新。连接时使用统一登录并单独授权客户端。</p>
+<p><code>${env.MCP_ORIGIN}/mcp</code></p><p>按需授权 Health、项目、个人记忆与投资数据。先读取概览，再深入各领域。连接时使用统一登录并单独授权客户端。</p>
 <p><a href="/connections">管理已授权客户端</a> · <a href="https://health.codepi.app/">打开 Health</a></p>`);
   return json({ error: "not_found" }, 404);
 }

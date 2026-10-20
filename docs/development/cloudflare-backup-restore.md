@@ -1,4 +1,4 @@
-# D1 与 GU 原件备份恢复 runbook
+# D1 与私有原件备份恢复 runbook
 
 当前环境为 local + production。D1 Time Travel 用于快速回溯；加密导出用于在
 Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，当前调度与
@@ -7,17 +7,29 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 [MCP 运维补齐](tasks/2026-10-19-mcp-operations.md) 保留早期实现与故障证据，
 不作为当前调度或待办清单。
 
+## 2026-10-20 新覆盖
+
+Project/Me D1 与 Me 导入原文已纳入本轮代码设计，尚无生产备份或恢复证据。
+必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`；旧库 UUID 固定，新库必须精确名称解析。
+原件集合来自 `ORIGINAL_COLLECTIONS`：GU `gu_materials` 和 Me `imports`，分别通过
+`GuMaterialsBackup` / `MeImportsBackup` 读取，Ops 不直接绑定业务桶。
+
+新 v3 manifest 必须包含全部数据库和两组原件；缺少某组（包括空组记录）也不算完整备份。
+v2 仍支持历史恢复，不能用它证明 Me 原文已备份。恢复必须固定同一次 manifest，先恢复
+隔离 D1，按对应索引、大小、SHA-256 校验和恢复隔离 R2，然后用该领域的鉴权流程验收。
+不把恢复的 SSO/MCP 授权状态直接送回生产，私钥继续仅由所有者保管。
+
 ## 备份架构
 
 - 自动任务由 `services/ops` 的 Cloudflare Cron/Workflows 执行，每日 UTC 18:00
   （北京时间次日 02:00）；原 `d1-backup.yml` 为手动应急入口，不再定时消耗 runner。
-- 通过 D1 polling export API 依次导出 6 个生产库（包含 MCP 授权库）。导出可能暂时影响该库请求，
+- 通过 D1 polling export API 依次导出 `DATABASE_NAMES` 中的全部生产库（包含 MCP 授权库）。导出可能暂时影响该库请求，
   因此安排在低峰；不创建第二套业务环境。
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
-- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部六库和
-  GU 有索引原件成功后才提交 v2 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
+- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部必需库和
+  GU/Me 有索引原件成功后才提交 v3 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
   缺少 GitHub token 或复制失败时，不得称为跨平台备份完成。Release 当前不自动删除。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）和 Workers Scripts Read，不将本机管理 token 放入 Worker。
@@ -33,6 +45,8 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 | `codepi-gzh` | `apps/gzh/wrangler.toml` |
 | `codepi-health` | `apps/health/workers/api/wrangler.toml` |
 | `codepi-mcp` | `services/mcp/wrangler.toml` 精确名称解析；UUID 由资源登记表核对 |
+| `codepi-project` | `apps/project/wrangler.toml`；本轮 planned，发布时精确名称解析 |
+| `codepi-me` | `apps/me/wrangler.toml`；本轮 planned，发布时精确名称解析 |
 
 库 UUID 固定在 `scripts/cloudflare/backup-core.mjs`，测试校验其与实际 binding
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
@@ -102,12 +116,15 @@ Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面�
 
 1. 确认事故时间与目标库。优先评估 D1 Time Travel；直接回溯生产库属于单独的
    事故操作，先记录目标 bookmark、影响范围和授权。
-2. 下载目标完整的 R2 前缀或私有 Release 附件到仓库之外（历史 Actions artifact 仍适用）。检查 `manifest.json`
+2. 下载目标完整的 R2 前缀或私有 Release 附件到仓库之外（历史 Actions artifact 仍适用）。
+   分片 Release 按下节索引收齐全部附件。检查 `manifest.json`
    是否包含所需库、公钥指纹及导出时间；下载解压后的密文可用 SHA-256 对照 manifest。
 3. 使用仓库约定的 Node 24 环境，准备匹配的恢复私钥及本机环境变量 `CLOUDFLARE_ACCOUNT_ID` /
    `CLOUDFLARE_API_TOKEN`，使用 D1 写权限。不把值放进命令参数或日志。
+   恢复前通过精确名称查询取得 `DATABASE_NAMES` 全部生产 UUID；也可从已核验配置提供完整
+   `D1_DATABASE_IDS` JSON 映射。缺库、重复身份、不完整映射或无法查询均停止恢复。
 4. 从仓库根目录，以当前 lockfile 中的 Wrangler 创建一个全新的空恢复库，
-   记录其 UUID。不要使用六个生产库 UUID，不向已存数据的库直接导入。
+   记录其 UUID。不要使用任何生产库 UUID，不向已存数据的库直接导入。
 5. 执行恢复脚本：
 
    ```bash
@@ -117,7 +134,7 @@ Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面�
      --database-id <new-empty-D1-UUID>
    ```
 
-   脚本拒绝所有已登记的生产 UUID，验证密文认证标签和匹配私钥，通过只读查询确认
+   脚本归一化 UUID 大小写并排除完整生产清单和密文源库，验证密文认证标签和匹配私钥，通过只读查询确认
    目标无业务表/视图，再调用 workspace 固定版本的 Wrangler 导入。临时 SQL 文件
    权限为 `0600`，所在临时目录为 `0700`，成功或普通异常退出时均删除。
    机器断电或强制终止后应检查操作系统临时目录并清理遗留明文。
@@ -143,7 +160,54 @@ MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或�
 不得把历史 token 的“未撤销”状态直接恢复到线上。此清理属于事故恢复中的显式步骤，
 通用 restore 脚本不会自动修改生产库。授权备份仍按敏感数据加密保管。
 
-## GU 原件隔离恢复与验收
+## GitHub 分片副本下载
+
+新版主 Release 只保存 `offsite-index.json` 和原始 `manifest.json`；
+密文分散在索引列出的 `ops-backup-<instance>-part-<编号>` Release。
+下载到尚未使用的 Git 外目录，先核对索引 `format=codepi-offsite-v1`，
+再核对 manifest 字节数、SHA-256 与 `index.manifest` 一致。
+
+遍历 `index.shards`，按其中精确的 `tag` 或 `release_id` 下载该片全部 `assets`。
+每件核对 `file`、`bytes`、`sha256`，并与原 manifest 的对应项比对；
+数据库文件放根目录，原件放 `materials/`，也可全部平铺在同一个下载目录。
+拒绝缺件、重复文件、重复路径、路径越界以及与 manifest 不一致的映射。
+整个目录仅需一份原 manifest，不拼接或重写它。
+所有分片核对完毕后才进入恢复；单个 Release 下载成功不代表完整副本。
+
+旧 v2/v3 单 Release 没有 `offsite-index.json`，仍按原 manifest 直接下载和校验，
+不要据此推断缺少新版分片。现有恢复工具读取原 manifest 与密文，
+无需知道来源是单 Release、分片 Release 还是 R2。
+
+## v3 GU 与 Me 原件隔离恢复
+
+下载同一个 v3 `manifest.json`、全部相关 D1 密文和两类原件密文到 Git 外目录。
+Release 附件可平铺放置，R2 下载也可保留 `materials/` 子目录；不得混合不同备份实例。
+先用 `d1-restore.mjs` 分别将 GU、Me SQL 导入两个全新隔离 D1，
+再指定这两个恢复库执行：
+
+```bash
+node scripts/cloudflare/originals-restore.mjs \
+  --backup-dir /path/outside-repo/download \
+  --private-key /path/outside-repo/recovery-private-key.pem \
+  --database codepi-gu=<GU-recovery-D1-UUID> \
+  --database codepi-me=<Me-recovery-D1-UUID> \
+  --out /path/outside-repo/recovered-originals
+```
+
+`--out` 必须尚不存在且其父目录在 Git 之外。工具校验八库清单与两组原件的覆盖、
+身份、大小、摘要和 GCM，拒绝生产 UUID、不完整清单及索引不匹配；
+只读取隔离 D1，不修改数据库或上传 R2。输出在
+`codepi-gu/materials/<UUID>` 和 `codepi-me/imports/<ULID>`，按原 object key 组织，
+目录 `0700`、文件 `0600`。全部成功后写 `restore-report.json`，
+每组分别记录索引件数和比 D1 快照更新的 `extra_objects`，不自动补写索引。
+
+恢复验收再将原件上传到两组隔离私有 R2，分别启动 GU/Me：
+核对本人鉴权和索引、拒绝匿名读取、原件字节摘要一致、MCP 无原文下载能力。
+本地 Ops runtime 使用真实 `GuMaterialsBackup`、`MeImportsBackup` 和合成 D1/R2；
+它不替代线上非空 Me 导入、跨账户恢复或真实 SSO 验收。
+正式流量切换与临时资源/明文清理继续单独授权。
+
+## 历史 v2 GU 原件隔离恢复与验收
 
 1. 选择同一次完整 v2 备份，下载 `manifest.json`、`codepi-gu.sql.enc` 及全部
    `materials/gu-material-<UUID>.bin.enc` 到 Git 之外。GitHub Release 附件为平铺文件名，

@@ -4,7 +4,16 @@ import { generateKeyPairSync } from 'node:crypto';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { decrypt, encrypt, exportDatabase, keyId, runBackup, DATABASES, PUBLIC_KEY_PATH } from './d1-backup.mjs';
+import {
+  decrypt,
+  encrypt,
+  exportDatabase,
+  keyId,
+  runBackup,
+  DATABASES,
+  DATABASE_NAMES,
+  PUBLIC_KEY_PATH,
+} from './d1-backup.mjs';
 import { parseRegistry } from './validate-governance.mjs';
 
 const pair = () => generateKeyPairSync('rsa', { modulusLength: 3072,
@@ -63,6 +72,28 @@ test('backup writes only encrypted files and a portable manifest; refuses missin
   assert.deepEqual(decrypt(encrypted, keys.privateKey).sql, sql);
   assert.equal(manifest.databases[0].file, 'synthetic.sql.enc');
   await assert.rejects(runBackup({ outDir: dir, env: {} }), /credentials/);
+});
+
+test('manual backup defaults to the full dynamic D1 inventory instead of silently keeping the legacy six', async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'codepi-backup-inventory-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const resolved = DATABASE_NAMES.map((name, i) => ({
+    name,
+    id: DATABASES[name] ?? `99999999-9999-4999-8999-${String(i + 1).padStart(12, '0')}`,
+  }));
+  let resolutions = 0;
+  const manifest = await runBackup({
+    outDir: dir,
+    publicKey: keys.publicKey,
+    env: { CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic' },
+    resolveDatabases: async () => { resolutions++; return resolved; },
+    request: async url => url.includes('api.cloudflare.com')
+      ? ok({ success: true, status: 'complete', result: { signed_url: 'https://export.r2.cloudflarestorage.com/sql' } })
+      : new Response('CREATE TABLE synthetic(id);'),
+  });
+  assert.equal(resolutions, 1);
+  assert.deepEqual(manifest.databases.map(entry => entry.database), [...DATABASE_NAMES]);
+  assert.equal(manifest.databases.length, 8);
 });
 
 test('all six databases are covered, including the release-resolved MCP binding', async () => {

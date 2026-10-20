@@ -1,0 +1,9 @@
+ENVIRONMENT=development
+SSO_ENABLED=1
+AUTH_CLIENT_ID=project
+AUTH_CLIENT_SECRET=replace-with-local-development-client-secret
+AUTH_ORIGIN=http://127.0.0.1:8790
+PROJECT_ORIGIN=http://127.0.0.1:8795
+PROJECT_REPOS=kedoupi/codepi
+GITHUB_TOKEN=replace-with-read-only-token
+BUILD_SHA=local

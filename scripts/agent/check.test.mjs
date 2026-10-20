@@ -77,7 +77,7 @@ test('GU server and schema changes validate the Ops material consumer; UI change
   for (const file of ['apps/gu/worker/materials-backup.ts', 'apps/gu/worker/materials.ts',
     'apps/gu/worker/index.ts', 'apps/gu/migrations/0003_online_workspace.sql']) {
     const plan = makePlan([file]);
-    assert.deepEqual(plan.apps, ['gu', 'ops']);
+    assert.deepEqual(plan.apps, ['gu', 'mcp', 'ops']);
     assert.ok(plan.checks.some(check => check.cwd === 'services/ops' && check.argv.includes('test:runtime')));
   }
   assert.deepEqual(makePlan(['apps/gu/web/src/App.svelte']).apps, ['gu']);
@@ -298,5 +298,18 @@ test('MCP protocol and Health backend changes select the connector integration t
     assert.ok(plan.apps.includes('mcp'));
     assert.ok(plan.checks.some(c => c.cwd === 'services/mcp' && c.argv.join(' ') === 'pnpm test'));
     assert.deepEqual(plan.manual, []);
+  }
+});
+
+test('new domain contracts, storage and CLI select their consumers', () => {
+  const contract = makePlan(['packages/shared/mcp/contract.ts']);
+  for (const app of ['health', 'gu', 'project', 'me', 'mcp', 'cli']) assert.ok(contract.apps.includes(app));
+  assert.deepEqual(makePlan(['apps/project/worker/card.ts']).apps, ['project', 'mcp']);
+  assert.deepEqual(makePlan(['apps/me/worker/imports.ts']).apps, ['me', 'mcp', 'ops']);
+  assert.deepEqual(makePlan(['packages/cli/src/config.mjs']).apps, ['cli']);
+  for (const app of ['project', 'me']) {
+    const plan = makePlan([`apps/${app}/migrations/0001_init.sql`, `apps/${app}/wrangler.toml`]);
+    assert.ok(plan.checks.some(c => c.argv.includes('scripts/agent/check-migrations.mjs')));
+    assert.ok(plan.checks.some(c => c.argv.includes('scripts/cloudflare/validate-governance.mjs')));
   }
 });

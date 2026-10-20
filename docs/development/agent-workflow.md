@@ -135,7 +135,9 @@ node --test scripts/agent/check.test.mjs
 | `apps/gu/` | test、test:scripts、typecheck、build、本地部署配置检查；Worker/schema 改动追加 Ops 原件消费者检查 |
 | `apps/gzh/` | test、typecheck、build |
 | `apps/health/` | test、typecheck、build、资产、正常与 SSO 浏览器回归；API / Health 内部共享逻辑变动追加 MCP |
-| `services/mcp/` / `packages/shared/mcp/` | MCP 协议、授权与真实本地 RPC 集成测试、typecheck、build、授权页浏览器验收；RPC 契约同时检查 Health |
+| `apps/project/`、`apps/me/` | 各自 test、typecheck、build；另做桌面/手机看板验收；Worker/schema 追加 MCP，Me 还追加 Ops |
+| `packages/cli/` | 官方 SDK、OAuth 与跨进程 refresh 单测、typecheck、build；真实客户端授权独立验收 |
+| `services/mcp/` / `packages/shared/mcp/` | MCP 协议、授权与真实本地 RPC 集成测试、typecheck、build、授权页浏览器验收；RPC 契约同时检查各领域与 CLI |
 | `services/ops/` | CF 治理、Ops 单测、构建、原生 Workerd/Workflows/R2 合成运行 |
 | CF 配置、`scripts/cloudflare/`、CF 治理与登记文档 | CF 脚本测试/治理；脚本变动还包含 Ops，其他追加范围以实际映射为准 |
 | `.github/`（工具指令入口除外） | 保守检查全部应用与工作流脚本；CI 语义及是否需额外 CF 检查仍需人工判断 |

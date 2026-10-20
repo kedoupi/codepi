@@ -8,7 +8,7 @@
 | 内容 | 唯一维护位置 | 使用边界 |
 | --- | --- | --- |
 | 个人语言、协作与授权偏好 | 用户级 AGENTS / 工具配置 | 不复制到每个项目 skill |
-| 产品范围、现有技术栈、共享契约 | [根 AGENTS.md](../../AGENTS.md) | 四个产品：首页、GU、GZH、Health；Auth/MCP/Ops/shared 为支撑层 |
+| 产品范围、现有技术栈、共享契约 | [根 AGENTS.md](../../AGENTS.md) | 产品以 shared/products.ts 为准；Auth/MCP/Ops/shared 为支撑层 |
 | 应用与服务内部约束 | 下方“按修改范围选路”表中的局部 `AGENTS.md` | 改对应目录前读取；实现、调用方与测试也要核对 |
 | 开发、验证、协作与交接 | [Agent 开发工作流](agent-workflow.md) | 小任务不强制建计划，多任务明确文件所有权 |
 | 分支核对、集成、发布与退役 | [集成与发布工作流](integration-release.md) | 先核实事实，再执行已授权的变更 |
@@ -27,8 +27,9 @@
 | GU | [GU 规则](../../apps/gu/AGENTS.md)、[GU README](../../apps/gu/README.md) | 线上账户/规则版本、资料鉴权、金额与来源语义；Worker/schema 还检查 Ops 原件备份；旧快照切换及部署状态见任务记录 |
 | GZH | [GZH 规则](../../apps/gzh/AGENTS.md)、[GZH README](../../apps/gzh/README.md) | 草稿、审阅、预览和发布状态，不隐式对外发文 |
 | Health UI、数据、Oura 同步 | [Health 规则](../../apps/health/AGENTS.md)、[Health README](../../apps/health/README.md) | 日期/覆盖/同步语义；API 或内部数据能力变动还检查 MCP |
-| 统一登录、shared auth | [Auth 规则](../../services/auth/AGENTS.md)、[SSO 客户端说明](../../packages/shared/auth/README.md) | 五个客户端：GU、Health、GZH、Desk、MCP；网站 SSO 与提供方/MCP 授权分开 |
-| MCP transport、授权或工具 | [MCP 规则](../../services/mcp/AGENTS.md)、[MCP README](../../services/mcp/README.md)、[架构](../architecture/unified-mcp.md) | MCP 授权 D1 与 Health 业务库分开；通过 named RPC 调用 Health |
+| Project / Me / CLI | [领域契约](../architecture/mcp-domains.md)、各自目录 AGENTS | 任务化交接、确认区、分批导入、OAuth 跨进程刷新；新资源不等于已上线 |
+| 统一登录、shared auth | [Auth 规则](../../services/auth/AGENTS.md)、[SSO 客户端说明](../../packages/shared/auth/README.md) | 客户端以 shared/auth/clients.ts 为准；网站 SSO 与提供方/MCP 授权分开 |
+| MCP transport、授权或工具 | [MCP 规则](../../services/mcp/AGENTS.md)、[MCP README](../../services/mcp/README.md)、[架构](../architecture/unified-mcp.md) | MCP 授权 D1 与业务库分开；通过 named RPC 调用 Health/Project/Me/GU，各工具单独校验 scope |
 | 巡检、备份、运维调度 | [Ops 规则](../../services/ops/AGENTS.md)、[运维流程](cloudflare-operations.md)、[恢复手册](cloudflare-backup-restore.md) | `services/ops/` 与 `scripts/cloudflare/` 共用实现；R2 完整成功与跨平台成功分别记录 |
 | 共享样式、品牌、产品和接口 | [shared 规则](../../packages/shared/AGENTS.md)、[设计规范](../architecture/personal-design-system.md) | 先查 imports 和文件系统读取；公共契约由一个写入者维护 |
 | 发布脚本、CI、资源与域名 | [集成发布](integration-release.md)、[本地发布](local-release.md)、[CF 治理](cloudflare-governance.md) | 检查范围不等于发布范围；多服务发布由一个协调者持锁执行 |
