@@ -30,9 +30,12 @@
 | 内容面 | `--kdp-surface` = `--color-surface`，白色卡片 + 暖灰边框 `--color-border` |
 | 正文与标题 | `--kdp-text` / `--kdp-ink`，均为 `--color-text`（`#2D2A28`） |
 | 次要信息 | `--kdp-muted` = `--color-text-muted`；不能用于不可辨认的低对比度文本 |
-| 主要动作与链接 | `--kdp-accent` = `--color-action`（交互橙 `#C94F20`），悬停 `--color-action-hover`；品牌橙 `#FF713D` 只做点缀，不放白色小字 |
+| 主要动作与链接 | `--kdp-accent` = `--color-action`（交互橙 `#C94F20`），悬停 `--color-action-hover`；品牌橙 `#FF713D` 只做点缀，不放白色小字。`#C94F20` 作小字在暖白底只有 4.3:1，暖白或 `--kdp-accent-soft` 底上的橙色文字用 `--kdp-accent-strong`（`#A83E18`）；导航当前项用正文色 + 橙色下划线 |
+| 控件边界 | `--kdp-line-strong` = `--color-border-strong`（`#8C857E`，v1.5 之外的有意补充，白底 3.6:1）；`--color-border` 只作装饰线 |
+| 焦点 | `:focus-visible` 为 2px `--color-focus` 实线 + 2px 偏移 |
 | 字体 | Inter + Noto Sans SC（回退 PingFang SC / Hiragino Sans GB / Microsoft YaHei）；代码 JetBrains Mono；当前不加载远程字体，未安装时使用回退字体 |
-| 间距 | 4、8、12、16、24、32、48、64px |
+| 字阶 | `--text-h1` 48 / `--text-h2` 32 / `--text-h3` 24 / `--text-body` 16 / `--text-small` 14 / `--text-caption` 12；正文行高 `--leading-body` 1.6，最小字号 12px |
+| 间距 | `--space-1/2/3/4/6/8/12/16` = 4、8、12、16、24、32、48、64px（`--kdp-space-1…8` 为别名） |
 | 圆角 | 控件 10px；卡片 14px；弹窗/主要内容面 18px |
 | 阴影 | 仅用于内容面层级，低强度，不使用通篇重阴影 |
 | 图标 | Lucide 风格，16/20/24px，1.75px 线宽，统一圆形端点；颜色继承 `currentColor` |
