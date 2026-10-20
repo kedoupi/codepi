@@ -28,7 +28,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: node scripts/cloudflare/d1-backup.mjs --out backup-out
       - name: Store encrypted exports outside Cloudflare
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: d1-backup-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
