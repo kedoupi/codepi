@@ -4,6 +4,7 @@ node_modules/
 # build
 dist/
 .astro/
+**/.svelte-check/
 
 # logs
 npm-debug.log*

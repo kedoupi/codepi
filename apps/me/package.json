@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "npm run build && wrangler dev --ip 127.0.0.1 --port 8796",
     "build": "vite build --config web/vite.config.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json --tsgo",
     "test": "vitest run",
     "test:browser": "npm run build && node scripts/browser-smoke.mjs",
     "deploy": "pnpm build && node ../../scripts/cloudflare/deploy-domain.mjs --app me",
@@ -25,10 +25,11 @@
     "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@testing-library/svelte": "^5.2.8",
+    "@typescript/native": "npm:typescript@7.0.2",
     "jsdom": "^26.1.0",
     "svelte": "^5.38.6",
     "svelte-check": "^4.3.1",
-    "typescript": "^5.9.2",
+    "typescript": "~6.0.3",
     "vite": "^6.0.7",
     "vitest": "^4.1.11",
     "wrangler": "^4.37.0"
