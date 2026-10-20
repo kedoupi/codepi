@@ -1,14 +1,12 @@
-import { authorizeSummary, calendarDay, deskJson, emptySummary, finite, shiftDay, type DeskSummary } from "@kedoupi/shared/desk/contract";
+import { authorizeSummary, calendarDay, deskJson, emptySummary, finite, shiftDay, type DeskRange, type DeskSummary } from "@kedoupi/shared/desk/contract";
 import type { Env } from "../env";
 import type { NestedDay } from "../lib/daily";
 
-export async function handleDeskSummary(request: Request, env: Env): Promise<Response> {
-  const denied = await authorizeSummary(request, env.DESK_SUMMARY_TOKEN);
-  if (denied) return denied;
-  if (!env.PERSONAL_OWNER_ID) return deskJson({ error: "owner_not_configured" }, 503);
+export async function buildHealthSummary(env: Env, range: DeskRange = "current"): Promise<DeskSummary> {
+  if (!env.PERSONAL_OWNER_ID) throw new Error("owner_not_configured");
   const now = new Date();
   const today = calendarDay(now);
-  const week = new URL(request.url).searchParams.get("range") === "week";
+  const week = range === "week";
   const from = shiftDay(today, week ? -6 : -89);
   // Deliberately bypass cachedDaily: its read path may refresh Oura and write data.
   const rows = await env.DB.prepare(
@@ -20,7 +18,7 @@ export async function handleDeskSummary(request: Request, env: Env): Promise<Res
     .filter(day => finite(day.sleep?.score) !== null || finite(day.readiness?.score) !== null || finite(day.activity?.steps) !== null);
   const result: DeskSummary = emptySummary("health", week ? "最近 7 天暂无有效健康记录。" : "尚无已同步的健康记录，请进入 Health 查看连接与同步。");
   result.updatedAt = state?.synced_at ?? null;
-  if (!days.length) return deskJson(result);
+  if (!days.length) return result;
   const latest = days.at(-1)!;
   result.status = "ok";
   result.asOf = latest.date;
@@ -50,5 +48,13 @@ export async function handleDeskSummary(request: Request, env: Env): Promise<Res
     }
   }
   if (result.stale) result.attention.push({ label: "检查健康数据同步", href: "https://health.codepi.app/" });
-  return deskJson(result);
+  return result;
+}
+
+export async function handleDeskSummary(request: Request, env: Env): Promise<Response> {
+  const denied = await authorizeSummary(request, env.DESK_SUMMARY_TOKEN);
+  if (denied) return denied;
+  if (!env.PERSONAL_OWNER_ID) return deskJson({ error: "owner_not_configured" }, 503);
+  const range: DeskRange = new URL(request.url).searchParams.get("range") === "week" ? "week" : "current";
+  return deskJson(await buildHealthSummary(env, range));
 }
