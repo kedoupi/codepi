@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { cloudflareApi, DATABASES, decrypt } from './d1-backup.mjs';
+import { prepareRestoreSql } from './d1-restore-sql.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -26,7 +27,7 @@ export async function restoreBackup({ file, privateKeyFile, databaseId, env = pr
   try {
     const sqlFile = path.join(dir, 'restore.sql');
     const configFile = path.join(dir, 'wrangler.json');
-    await writeFile(sqlFile, sql, { mode: 0o600 });
+    await writeFile(sqlFile, prepareRestoreSql(sql), { mode: 0o600 });
     await writeFile(configFile, JSON.stringify({ name: 'codepi-health-restore',
       account_id: accountId, d1_databases: [{ binding: 'DB', database_name: 'restore-target', database_id: databaseId }] }),
     { mode: 0o600 });
