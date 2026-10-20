@@ -1,12 +1,16 @@
 # Cloudflare 资源登记表
 
-2026-10-20 CodePi MCP 领域扩展正在本地实施。新增 Project/Me 资源均为 planned；
-下方已有生产证据不适用于尚未部署的领域、MCP 新绑定或 Ops 新覆盖。
-部署后需核验新增 Worker 的 Issues 规则、授权配对、完整备份与恢复，
-见[领域扩展任务](tasks/2026-10-20-codepi-mcp-domains.md)。
+2026-10-20 CodePi MCP 领域扩展已从实时 main `58bd615c317d` 发布。十个生产 Worker
+均为单一活跃版本、100% 流量且 `BUILD_SHA=58bd615c317d`；Project/Me 的 D1、SSO、
+私有 R2、Issues 规则和 Ops v3 覆盖已创建并回填。生产备份实例
+`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
+覆盖八库和 GU/Me 两类原件，GitHub 分片副本与 120 个 payload 独立下载校验通过；
+8 个隔离 D1 的真实恢复共核对 98 张表、138,986 行，GU 112 份原件逐件通过，
+临时资源和明文已清理。云端巡检 34/34。详见
+[领域扩展任务](tasks/2026-10-20-codepi-mcp-domains.md)。
 
 2026-10-20 Workers Issues 自动告警已完成端到端验收：补齐此前缺失的自动触发规则，
-八个生产 Worker 各有首次阈值 1 与静默 3600 秒后复发两条规则，共 16 条，
+十个生产 Worker 各有首次阈值 1 与静默 3600 秒后复发两条规则，共 20 条，
 均按 service 限定并引用原邮件策略。隔离合成异常的 automatic run、通知历史和 Gmail
 收件已关联，临时 Worker/规则已清理；生产版本、绑定、Cron 与入口配置核对一致。
 恢复私钥异机保管继续保留 TODO。详见[告警验收](tasks/2026-10-20-workers-issues.md)；
@@ -161,7 +165,8 @@ GitHub 附加 CI 的 jobs 没有步骤执行记录且无可下载日志，不记
 OAuth 服务与连接管理代码直接删除。目标行为为 Health 旧连接器 URL 返回 404 JSON，
 客户端改连 `mcp.codepi.app/mcp` 并重新授权；Health 只通过 named RPC 向 MCP 提供数据。
 本轮未访问或修改控制面、远程表或凭证；下方旧 MCP 可达性记录仍是历史证据，
-不能据此声称新入口或旧路径退役已在线验收。MCP Worker/D1 仍为 `planned`。
+不能据此声称新入口或旧路径退役已在线验收。截至 2026-10-18，MCP Worker/D1
+仍为 `planned`；该状态已由 2026-10-20 发布记录取代。
 
 2026-10-18T08:33:58Z 原账号连接修复发布：PR #97 合并为
 `85c060bda5e96755a07bae4164e1aecfe75e95b2`，本 Codex 会话持有本机发布锁，
@@ -341,26 +346,26 @@ secret 值、个人数据或 OAuth refresh token。
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | zone-codepi-app | production | zone | codepi.app | kedoupi | 主站与产品域名 zone | public-dns | 全部产品 | codepi.app | Cloudflare 控制面 | managed | 2026-10-16 |
 | zone-kdp-cool | production | zone | kdp.cool | kedoupi | 历史域名 zone | public-dns | 未审计 | kdp.cool | Cloudflare 控制面 | managed | 2026-10-16 |
-| worker-project | production | worker | codepi-project | kedoupi | Project 项目卡与任务交接 | private-user-data | 终端用户、worker-mcp ProjectMcp | project.codepi.app | apps/project/wrangler.toml | planned | 未创建；2026-10-20 本地实现 |
-| d1-project | production | d1 | codepi-project | kedoupi | Project 数据与 SSO 会话 | private-user-data | worker-project DB、Ops 加密导出 | - | apps/project/migrations | planned | 未创建；无 UUID |
-| worker-me | production | worker | codepi-me | kedoupi | Me 确认区、资料与经历 | private-user-data | 终端用户、worker-mcp MeMcp、worker-ops MeImportsBackup | me.codepi.app | apps/me/wrangler.toml | planned | 未创建；2026-10-20 本地实现 |
-| d1-me | production | d1 | codepi-me | kedoupi | Me 数据、导入索引与 SSO 会话 | private-user-data | worker-me DB、Ops 加密导出 | - | apps/me/migrations | planned | 未创建；无 UUID |
-| r2-me-imports | production | r2 | codepi-me-imports | kedoupi | Me 私有导入原文 | private-user-data | worker-me IMPORTS；Ops 仅通过 MeImportsBackup RPC | 无公开入口 | apps/me/wrangler.toml | planned | 未创建；私有性与恢复待验收 |
-| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（已切换，100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-19 source 767fb0b3d63a |
+| worker-project | production | worker | codepi-project | kedoupi | Project 项目卡与任务交接 | private-user-data | 终端用户、worker-mcp ProjectMcp | project.codepi.app | apps/project/wrangler.toml | managed | 2026-10-20 version 52803b30-31f7-49e6-b56f-b9dfb73ed45b；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过；GITHUB_TOKEN 未配置，真实同步未验收 |
+| d1-project | production | d1 | codepi-project (03612540-2ac6-4dd2-9bf6-ed431dda17c9) | kedoupi | Project 数据与 SSO 会话 | private-user-data | worker-project DB、Ops 加密导出 | - | apps/project/migrations | managed | 2026-10-20 2 个 migration；v3 隔离恢复 10 表/3 行全量内容与类型一致 |
+| worker-me | production | worker | codepi-me | kedoupi | Me 确认区、资料与经历 | private-user-data | 终端用户、worker-mcp MeMcp、worker-ops MeImportsBackup | me.codepi.app | apps/me/wrangler.toml | managed | 2026-10-20 version 42a25c9c-a14a-4b65-b855-49265bc8baef；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过 |
+| d1-me | production | d1 | codepi-me (7236c118-1f92-4b07-8283-e731c2771953) | kedoupi | Me 数据、导入索引与 SSO 会话 | private-user-data | worker-me DB、Ops 加密导出 | - | apps/me/migrations | managed | 2026-10-20 1 个 migration；v3 隔离恢复 10 表/2 行全量内容与类型一致 |
+| r2-me-imports | production | r2 | codepi-me-imports | kedoupi | Me 私有导入原文 | private-user-data | worker-me IMPORTS；Ops 仅通过 MeImportsBackup RPC | 无公开入口 | apps/me/wrangler.toml | managed | 2026-10-20 已创建并验收：无 custom domain、r2.dev 关闭；空集合 0 件被 v3 manifest 明确覆盖 |
+| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-20 version b139385f-1a82-4bcd-8cf2-42ffb3701fb7；BUILD_SHA 58bd615c317d；匿名私有接口拒绝与 SSO 通过 |
 | pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-gu | production | worker | codepi-gu | kedoupi | 投资线上工作台 GU | private-user-data | 终端用户、worker-www、worker-ops named RPC | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 version d26774e4-bb80-490d-a63e-d3245bf6c211；BUILD_SHA 05d9d61ce574；SSO smoke 与私有接口拒绝通过 |
+| worker-gu | production | worker | codepi-gu | kedoupi | 投资线上工作台 GU | private-user-data | 终端用户、worker-www、worker-ops named RPC | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-20 version 7e2212c0-7c96-43fb-b0c9-e725fec6110f；BUILD_SHA 58bd615c317d；100% 流量，匿名拒绝、SSO 与只读 MCP 契约通过 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 source 767fb0b3d63a |
+| worker-gzh | production | worker | codepi-gzh | kedoupi | 发稿台 GZH | private-user-data | 终端用户、worker-www | gzh.codepi.app (custom domain), codepi-gzh.kedoupi.workers.dev | apps/gzh/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-20 version e0ec9bc8-fb98-494f-8ea6-5a0a79c9c678；BUILD_SHA 58bd615c317d；匿名拒绝与 SSO 通过 |
 | pages-gzh-legacy | production | pages | codepi-gzh | kedoupi | GZH 旧 Pages（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-health | production | worker | codepi-health | kedoupi | Health 前端 SPA | private-health-data | 终端用户 | health.codepi.app (custom domain), codepi-health.kedoupi.workers.dev | apps/health/apps/web/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-19 source 767fb0b3d63a |
+| worker-health | production | worker | codepi-health | kedoupi | Health 前端 SPA | private-health-data | 终端用户 | health.codepi.app (custom domain), codepi-health.kedoupi.workers.dev | apps/health/apps/web/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-20 version 8217fc5d-b3d5-4bf4-8255-1345a2732bd9；BUILD_SHA 58bd615c317d；品牌、页面与 SSO 检查通过 |
 | pages-health-legacy | production | pages | codepi-health | kedoupi | 旧 Health Pages（项目已删除） | private-health-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
-| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | worker-www、worker-gu、worker-gzh、worker-health-api、worker-mcp | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-19 source 767fb0b3d63a |
-| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API；统一 MCP named RPC | private-health-data | worker-health（service binding）、worker-mcp（HealthMcp RPC） | 无公网 routes，经 service binding 访问 | apps/health/workers/api/wrangler.toml | managed | 2026-10-20 version c0ef45e9-a3fc-4d7b-9231-2b7057a94c52；BUILD_SHA fcb838be044c；18 项 API 检查与真实告警恢复通过 |
-| d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-18 |
-| d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-18 |
-| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-19 migration 0003；真实备份隔离恢复 11 表/21 行通过，线上 revision 0 |
-| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-18 |
-| d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-18 |
+| worker-auth | production | worker | codepi-auth | kedoupi | 中央 SSO/OTP 认证 | auth-session-data | worker-www、worker-gu、worker-gzh、worker-health-api、worker-mcp、worker-project、worker-me | auth.codepi.app (custom domain), cron 17 3 * * * | services/auth/wrangler.jsonc | managed | 2026-10-20 active version b8838962-fdf5-4a94-ab39-ed827ff3a2b0；BUILD_SHA 58bd615c317d；Project/Me 客户端、secret 配对与 readiness 通过 |
+| worker-health-api | production | worker | codepi-health-api | kedoupi | Health API；统一 MCP named RPC | private-health-data | worker-health（service binding）、worker-mcp（HealthMcp RPC） | 无公网 routes，经 service binding 访问 | apps/health/workers/api/wrangler.toml | managed | 2026-10-20 version 513a14c9-a8b8-4603-b363-ca450c78138c；BUILD_SHA 58bd615c317d；18 项线上 API 契约通过 |
+| d1-auth | production | d1 | codepi-auth (ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1) | kedoupi | 认证会话与用户 | auth-session-data | worker-auth | - | services/auth/wrangler.jsonc | managed | 2026-10-20 v3 隔离恢复 6 表/38 行全量内容与类型一致 |
+| d1-desk | production | d1 | codepi-desk (adfb0f6e-b776-471b-9f25-71982b53cbc4) | kedoupi | Desk 摘要数据 | private-user-data | worker-www | - | apps/web/wrangler.toml | managed | 2026-10-20 v3 隔离恢复 3 表/9 行全量内容与类型一致 |
+| d1-gu | production | d1 | codepi-gu (4d3b6713-85dd-4f61-ac55-9925db72394b) | kedoupi | GU 投资数据 | private-user-data | worker-gu | - | apps/gu/wrangler.toml | managed | 2026-10-20 v3 隔离恢复 11 表/137 行全量内容与类型一致；112 份原件逐件摘要通过，线上 revision 1 |
+| d1-gzh | production | d1 | codepi-gzh (acedb64c-d374-4e40-b61e-7df7f0766694) | kedoupi | GZH 稿件数据 | private-user-data | worker-gzh | - | apps/gzh/wrangler.toml | managed | 2026-10-20 v3 隔离恢复 9 表/13 行全量内容与类型一致 |
+| d1-health | production | d1 | codepi-health (2e35deaa-8066-49c1-b19a-afcd8706d58c) | kedoupi | Health 数据 | private-health-data | worker-health-api | - | apps/health/workers/api/wrangler.toml | managed | 2026-10-20 v3 隔离恢复 22 表/138,738 行全量内容与类型一致 |
 | d1-auth-staging | staging | d1 | codepi-auth-staging (fc9c02d7-96e3-48ea-a568-a2362fa198ea) | kedoupi | staging 认证数据（仅 synthetic fixture） | synthetic | worker-auth-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
 | d1-desk-staging | staging | d1 | codepi-desk-staging (cbbe0037-4132-4ec2-bf6b-2c1ff4363977) | kedoupi | staging Desk 数据（仅 synthetic fixture） | synthetic | worker-www-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
 | d1-gu-staging | staging | d1 | codepi-gu-staging (86d7d48c-ef12-4cd6-932c-38c0a53bcded) | kedoupi | staging GU 数据（仅 synthetic fixture） | synthetic | worker-gu-staging | - | retired | 2026-10-18 已删除 | 2026-10-16 |
@@ -385,17 +390,17 @@ secret 值、个人数据或 OAuth refresh token。
 | tunnel-duoji-mini | production | tunnel | duoji_mini (5e9e0d79-e706-4619-b547-97b09aca5ce7) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | managed | 2026-10-20 策略启用、历史发送与 Gmail 收件已核对 |
-| alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-20 16 条 service 自动规则已核对；隔离故障自动发送及 Gmail 收件通过 |
+| alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-20 20 条 service 自动规则已复读核对，包含 Project/Me；隔离故障自动发送及 Gmail 收件通过 |
 | backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，清单已启用、runner 待恢复（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-19 六库本机密文、manifest、sha256、GCM AAD 与私钥内存解密通过；run 39192113905 无 runner/steps/artifact，六库异机 artifact 待验收；2026-10-18 原五库 artifact 12122019076 的下载/解密证据保留，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
-| worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-20 version 13442128-8f7c-4ae5-9705-9fcaba2001b1；BUILD_SHA fcb838be044c；readiness、发现、匿名拒绝和真实 Health RPC 通过 |
-| d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB | - | release-time exact-name resolution / migrations | managed | 2026-10-19 migration 0001; source 767fb0b3d63a |
-| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-20 version 22c8ca10-1462-4076-8412-0bd8d05613ba；BUILD_SHA 05d9d61ce574；凭证类型修正，私有入口/logs/rollout/GU entrypoint 已核验 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与六库/原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 acceptance-github-backup-20261020T010216314Z complete；六库及 112 原件 R2/GitHub 完整、Release 417899953 下载解密通过；新云端巡检 26/26 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 六库/原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；新自动跨平台回执匹配、六库及 112 原件摘要/GCM/身份通过；GU 隔离导入沿用此前验收，14 天生命周期证据沿用 2026-10-19 |
+| worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC, PROJECT RPC, ME RPC, GU RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-20 version c6b62b1e-bab3-415f-83e4-4da2beeb3643；BUILD_SHA 58bd615c317d；readiness、发现、匿名拒绝和五个领域入口通过 |
+| d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB、Ops 加密导出 | - | release-time exact-name resolution / migrations | managed | 2026-10-20 v3 隔离恢复 7 表/46 行全量内容与类型一致；历史 token/授权码/会话清理演练通过，2 个客户端注册保留 |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU/Me named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-20 version 36c81c0b-5c29-4ede-b805-289a1f6ea753；BUILD_SHA 58bd615c317d；8 库/两类原件备份与 34/34 云端巡检通过 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572 complete；八库与 GU/Me 原件 R2/GitHub 完整；monitor cf_8a2afa9777e330cb8d0147c661fdc25ecd9fa865d95e4081bcb0879eaf84d256 34/34 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；v3 manifest 覆盖 8 库、GU 112 件与 Me 空集合；120 个 GitHub payload 独立解密通过，14 天生命周期证据沿用 2026-10-19 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
 <!-- registry-table:end -->
 
@@ -430,6 +435,7 @@ secret 值、个人数据或 OAuth refresh token。
 均为 enabled、service scope；没有账户级广播，也未覆盖 `unknown` Worker。
 首次阈值链路已实际收件，复发条件本轮只核对控制面，未等待一小时再制造异常。
 完整通知与邮箱证据见[验收记录](tasks/2026-10-20-workers-issues.md)。
+2026-10-20 MCP 领域发布后，Project/Me 已按相同策略补为正式规则，总数由 16 增至 20。
 
 | service / 消费者 | 首次阈值规则 UUID | 静默后复发规则 UUID | owner / status | last_verified |
 | --- | --- | --- | --- | --- |
@@ -441,11 +447,34 @@ secret 值、个人数据或 OAuth refresh token。
 | `codepi-health` | `ef976cce-bcb4-464b-a075-007e4616574d` | `bb45c545-ddc3-444a-94b2-502b0f96b89a` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
 | `codepi-mcp` | `55413001-a9ce-4181-9c8f-59236cd7bbe1` | `7a80f214-1d79-4a87-aad8-43f484fdb4c5` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
 | `codepi-ops` | `9f3fc604-d607-42d3-834d-f5d771e76020` | `ba22abae-d6f9-493c-a9dc-42f442a07a18` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-project` | `5339dd89-9a21-4343-aa0c-1be76370bb68` | `ba04e2c2-556b-48e8-b5f4-9ab37583301a` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
+| `codepi-me` | `b70f43dc-79e6-4b5b-bdb1-f385220bd976` | `8267f2a3-1483-4de3-be7f-3b05665df84a` | kedoupi / managed | 2026-10-20 已启用并复读核对 |
 
 | 类型 | 名称 / ID | 数据与消费者 | last_verified / expires_on | cleanup_evidence |
 | --- | --- | --- | --- | --- |
 | Worker | `codepi-ops-pr-115` / version `d4f05804-cbd4-4ffe-99f6-719fac912750` | synthetic；无 binding/secret/生产消费者，单次故障后关闭 workers.dev/preview | 2026-10-20 已删除 | `2026-10-20T02:42:52.844Z` 删除后再次列举不存在；正式 Worker 配置与版本一致 |
-| issue-automation | `codepi-workers-issues:codepi-ops-pr-115:first` / `65a1aa42-6d76-4203-8484-195b8a6bf75d` | synthetic；只匹配上述临时 Worker | 2026-10-20 已删除 | 精确 UUID 删除后复读规则清单，余下为 16 条正式规则；合成 Issue 先标为 resolved |
+| issue-automation | `codepi-workers-issues:codepi-ops-pr-115:first` / `65a1aa42-6d76-4203-8484-195b8a6bf75d` | synthetic；只匹配上述临时 Worker | 2026-10-20 已删除 | 精确 UUID 删除后复读规则清单，当时余下 16 条正式规则；后续 Project/Me 补至 20 条；合成 Issue 先标为 resolved |
+
+## 2026-10-20 v3 八库恢复临时资源
+
+从生产备份实例
+`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
+创建 8 个全新隔离 D1，无 Worker binding 或生产消费者。每库都与解密后的同次备份
+逐表比对 schema、字段值和类型，并执行 `quick_check` 与外键检查；GU/Me 原件另按
+D1 索引逐件恢复校验。全部临时库于 `2026-10-20T09:40:41Z` 至
+`2026-10-20T09:40:49Z` 按精确 UUID 删除，账户 D1 清单恢复为原八个生产库；
+密文、独立恢复明文和日志目录一并删除。正式 v3 备份与恢复私钥保留。
+
+| 类型 | 临时 D1 名称 / UUID | 恢复结果 | cleanup_evidence |
+| --- | --- | --- | --- |
+| D1 | `codepi-auth-v3-recovery` / `3568a2a0-2f5f-4b77-aaa0-6a118ba2705a` | 6 表/38 行一致 | 删除后全量列举不存在 |
+| D1 | `codepi-desk-v3-recovery` / `cbc92800-9277-4a7c-a7f7-90bbd89585a9` | 3 表/9 行一致 | 删除后全量列举不存在 |
+| D1 | `codepi-gu-v3-recovery` / `f7578c31-de57-4a6a-8ea1-d0b2375cf128` | 11 表/137 行一致；112 份原件通过 | 删除后全量列举不存在 |
+| D1 | `codepi-gzh-v3-recovery` / `fc2cb9f3-fdf5-49fd-9489-5d4ee47b7899` | 9 表/13 行一致 | 删除后全量列举不存在 |
+| D1 | `codepi-health-v3-recovery` / `99a9b330-4f90-4e8d-b944-a0b53788f989` | 22 表/138,738 行一致 | 删除后全量列举不存在 |
+| D1 | `codepi-mcp-v3-recovery` / `2f4d3508-3835-4a61-b67c-809833577b5e` | 7 表/46 行一致；授权状态清理演练通过 | 删除后全量列举不存在 |
+| D1 | `codepi-project-v3-recovery` / `7224f2d0-cb1c-4998-a724-8c1c53717e4d` | 10 表/3 行一致 | 删除后全量列举不存在 |
+| D1 | `codepi-me-v3-recovery` / `519a90e7-1cff-4fd0-8b94-4824b9557b87` | 10 表/2 行一致；空原件集合通过 | 删除后全量列举不存在 |
 
 ## 2026-10-20 五库临时恢复资源
 

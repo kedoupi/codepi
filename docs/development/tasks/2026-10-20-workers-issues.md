@@ -1,6 +1,6 @@
 # Workers Issues 自动告警送达验收
 
-- 状态：首次自动触发、通知发送与收件箱实际送达通过；八个生产 Worker 各有首次/复发规则，共 16 条；临时资源清理与生产配置复查通过。恢复私钥异机保管按所有者要求保留 TODO。
+- 状态：首次自动触发、通知发送与收件箱实际送达通过；本轮先为八个生产 Worker 建立首次/复发规则，共 16 条；后续 MCP 领域发布又为 Project/Me 补 4 条，当前共 20 条。临时资源清理与生产配置复查通过。恢复私钥异机保管按所有者要求保留 TODO。
 - 日期与执行人：2026-10-20，当前 Codex，单一协调者、写入者、审查者和集成者，无并行写入。
 - 基线：`597cd8e6d0951bc353981f63932e788543fd506f`；工作区：`<workspace>/.worktrees/kdp.cool/codex/workers-issues-acceptance`，分支 `codex/workers-issues-acceptance`。
 - 授权：本轮用户明确授权通过既有 API 完成 Workers Issues 端到端验收；沿用本会话审查通过后的 PR 合并与任务临时资源精确清理授权。
@@ -18,6 +18,7 @@
 创建并重新读取核对两类 service 规则：`afterOccurrences=1` 与
 `afterInactivitySeconds=3600`。共 16 条规则均 enabled、service scope，具体 UUID 维护在
 [登记表](../cloudflare-resource-registry.md#2026-10-20-issues-自动规则与临时验收资源)。
+Project/Me 于同日发布后按同一策略补齐至 20 条；最新 UUID 以登记表为准。
 没有建立账户级广播或修改 `unknown` Worker 的告警范围。
 
 首次阈值在跨过阈值时通知一次；静默后复发要求已有一次 occurrence，且至少一小时没有
