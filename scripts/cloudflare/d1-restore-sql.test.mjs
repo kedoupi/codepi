@@ -53,6 +53,40 @@ test('ordinary exports stay byte-for-byte unchanged, including many short statem
   assert.equal(prepareRestoreSql(long), long);
 });
 
+test('many ordinary rows do not repeatedly send the remaining export to SQLite', () => {
+  const sql = 'CREATE TABLE t(id INTEGER PRIMARY KEY,body TEXT);\n' +
+    Array.from({ length: 1000 }, (_, id) => `INSERT INTO t VALUES(${id},'${'x'.repeat(256)}');\n`).join('');
+  const original = DatabaseSync.prototype.prepare;
+  let parsedBytes = 0;
+  DatabaseSync.prototype.prepare = function (input, ...args) {
+    parsedBytes += Buffer.byteLength(input);
+    return original.call(this, input, ...args);
+  };
+  try {
+    assert.equal(prepareRestoreSql(sql), sql);
+  } finally {
+    DatabaseSync.prototype.prepare = original;
+  }
+  assert.ok(parsedBytes < Buffer.byteLength(sql) * 8,
+    `SQLite parsed ${parsedBytes} bytes for a ${Buffer.byteLength(sql)} byte export`);
+});
+
+test('a valid SQL prefix at the parser window boundary does not truncate a multirow insert', () => {
+  const prefix = "\nINSERT INTO t VALUES(1,'";
+  const ending = "')";
+  const firstRow = prefix + 'x'.repeat(1024 - prefix.length - ending.length) + ending;
+  const sql = 'CREATE TABLE t(id INTEGER PRIMARY KEY,body TEXT);' +
+    firstRow + ",(2,'second');\n" + ' '.repeat(MAX_RESTORE_STATEMENT_BYTES);
+  const prepared = prepareRestoreSql(sql);
+  assert.equal(prepared, sql);
+  const db = new DatabaseSync(':memory:');
+  try {
+    db.exec(prepared);
+    assert.equal(db.prepare('SELECT count(*) AS n FROM t').get().n, 2);
+    assert.equal(db.prepare('SELECT body FROM t WHERE id=2').get().body, 'second');
+  } finally { db.close(); }
+});
+
 test('identifiers, blobs, nulls and 64-bit integers beside large text retain their types and values', () => {
   const text = "'".repeat(90000);
   const sql = `-- leading comment
