@@ -23,12 +23,17 @@ const U = {
 };
 
 const REGISTRY_ROWS = [
-  ['worker-ops', 'production', 'worker', 'codepi-ops', '-', 'planned'],
-  ['workflow-ops', 'production', 'workflow', 'codepi-ops', '-', 'planned'],
-  ['r2-ops', 'production', 'r2', 'codepi-ops-backups', '-', 'planned'],
-  ['r2-gu-uploads', 'production', 'r2', 'codepi-gu-uploads', '-', 'planned'],
-  ['worker-mcp', 'production', 'worker', 'codepi-mcp', 'mcp.codepi.app', 'planned'],
-  ['d1-mcp', 'production', 'd1', 'codepi-mcp', '-', 'planned'],
+  ['worker-ops', 'production', 'worker', 'codepi-ops', '-', 'managed'],
+  ['workflow-ops', 'production', 'workflow', 'codepi-ops', '-', 'managed'],
+  ['r2-ops', 'production', 'r2', 'codepi-ops-backups', '-', 'managed'],
+  ['r2-gu-uploads', 'production', 'r2', 'codepi-gu-uploads', '-', 'managed'],
+  ['worker-mcp', 'production', 'worker', 'codepi-mcp', 'mcp.codepi.app', 'managed'],
+  ['d1-mcp', 'production', 'd1', 'codepi-mcp', '-', 'managed'],
+  ['worker-project', 'production', 'worker', 'codepi-project', 'project.codepi.app', 'planned'],
+  ['d1-project', 'production', 'd1', 'codepi-project', '-', 'planned'],
+  ['worker-me', 'production', 'worker', 'codepi-me', 'me.codepi.app', 'planned'],
+  ['d1-me', 'production', 'd1', 'codepi-me', '-', 'planned'],
+  ['r2-me-imports', 'production', 'r2', 'codepi-me-imports', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
   ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
@@ -115,7 +120,14 @@ function authConfig() {
     vars: {
       ENVIRONMENT: 'production',
       AUTH_ORIGIN: 'https://auth.codepi.app',
-      SSO_EXTRA_REDIRECT_URIS: '{"gu":["https://gu.kdp.cool/api/auth/callback","https://gu.codepi.app/api/auth/callback"],"oura":["https://health.kdp.cool/api/auth/callback","https://health.codepi.app/api/auth/callback"],"gzh":["https://gzh.codepi.app/api/auth/callback"],"desk":["https://kdp.cool/api/auth/callback","https://codepi.app/api/auth/callback"]}',
+      SSO_EXTRA_REDIRECT_URIS: JSON.stringify({
+        gu: ['https://gu.kdp.cool/api/auth/callback', 'https://gu.codepi.app/api/auth/callback'],
+        oura: ['https://health.kdp.cool/api/auth/callback', 'https://health.codepi.app/api/auth/callback'],
+        gzh: ['https://gzh.codepi.app/api/auth/callback'],
+        desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
+        project: ['https://project.codepi.app/api/auth/callback'],
+        me: ['https://me.codepi.app/api/auth/callback'],
+      }),
     },
     d1_databases: [{ binding: 'DB', database_name: 'codepi-auth', database_id: U.auth, migrations_dir: 'migrations' }],
     triggers: { crons: ['17 3 * * *'] },
@@ -131,6 +143,8 @@ function legalFiles(overrides = {}) {
     'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
     'services/mcp/wrangler.toml': mcpConfig(),
+    'apps/project/wrangler.toml': domainConfig('project'),
+    'apps/me/wrangler.toml': domainConfig('me'),
     'apps/health/workers/api/wrangler.toml': healthApiConfig(),
     'apps/health/apps/web/wrangler.toml': healthPagesConfig(),
     ...overrides.files,
@@ -147,6 +161,10 @@ routes = []
 binding = "GU"
 service = "codepi-gu"
 entrypoint = "GuMaterialsBackup"
+[[services]]
+binding = "ME"
+service = "codepi-me"
+entrypoint = "MeImportsBackup"
 [vars]
 ENVIRONMENT = "production"
 [triggers]
@@ -162,7 +180,7 @@ ${OBSERVABILITY}
 `;
 }
 
-test('ops remains private with only its owned R2, Workflow and exact GU backup entrypoint', () => {
+test('ops remains private with only its owned R2, Workflow and exact GU/ME backup entrypoints', () => {
   assert.deepEqual(run(legalFiles()), []);
   for (const config of [
     opsConfig().replace('workers_dev = false', 'workers_dev = true'),
@@ -174,6 +192,10 @@ test('ops remains private with only its owned R2, Workflow and exact GU backup e
     opsConfig().replace('entrypoint = "GuMaterialsBackup"', 'entrypoint = "OtherEntrypoint"'),
     opsConfig().replace('entrypoint = "GuMaterialsBackup"', ''),
     opsConfig().replace('service = "codepi-gu"', 'service = "codepi-health-api"'),
+    opsConfig().replace('entrypoint = "MeImportsBackup"', 'entrypoint = "OtherEntrypoint"'),
+    opsConfig().replace('entrypoint = "MeImportsBackup"', ''),
+    opsConfig().replace('service = "codepi-me"', 'service = "codepi-ops"'),
+    opsConfig().replace(/\n\[\[services\]\]\nbinding = "ME"[\s\S]*?entrypoint = "MeImportsBackup"\n?/, '\n'),
     opsConfig() + '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "codepi-health"\n',
     opsConfig() + '\n[[services]]\nbinding = "AUTH"\nservice = "codepi-auth"\n',
   ]) {
@@ -229,13 +251,38 @@ ${OBSERVABILITY}
 `;
 }
 
+function domainConfig(app) {
+  return `
+name = "codepi-${app}"
+main = "worker/index.ts"
+routes = [
+  { pattern = "${app}.codepi.app", custom_domain = true }
+]
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-${app}"
+${app === 'me' ? '[[r2_buckets]]\nbinding = "IMPORTS"\nbucket_name = "codepi-me-imports"\n' : ''}[vars]
+ENVIRONMENT = "production"
+AUTH_ORIGIN = "https://auth.codepi.app"
+AUTH_CLIENT_ID = "${app}"
+${OBSERVABILITY}
+`;
+}
+
 function webWorkerConfig() {
   return privateWorkerConfig({ app: 'www' })
     .replace('run_worker_first = true', 'run_worker_first = ["/api/*", "/desk", "/desk/*"]\nnot_found_handling = "404-page"')
     .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk');
 }
 
-test('GU materials has an exact owned bucket and narrowly scoped planned allowance', () => {
+test('GU materials has an exact managed bucket', () => {
   for (const config of [
     privateWorkerConfig().replace('binding = "MATERIALS"', 'binding = "BACKUPS"'),
     privateWorkerConfig().replace('bucket_name = "codepi-gu-uploads"', 'bucket_name = "codepi-ops-backups"'),
@@ -249,6 +296,78 @@ test('GU materials has an exact owned bucket and narrowly scoped planned allowan
   assert.ok(run(legalFiles({ registryRows: unknown })).some(v => v.includes('codepi-gu-uploads is registered as unknown')));
   const plannedWorker = REGISTRY_ROWS.map(r => r[0] === 'worker-gu' ? [...r.slice(0, 5), 'planned'] : r);
   assert.ok(run(legalFiles({ registryRows: plannedWorker })).some(v => v.startsWith('gu:') && v.includes('no managed production')));
+});
+
+test('Project and Me only reserve their exact planned Worker, D1, host and Me import bucket', () => {
+  assert.deepEqual(run(legalFiles()), []);
+  for (const [file, config, needle] of [
+    ['apps/project/wrangler.toml', domainConfig('project').replace('database_name = "codepi-project"', 'database_name = "codepi-me"'), 'database_name'],
+    ['apps/project/wrangler.toml', domainConfig('project').replace('pattern = "project.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],
+    ['apps/project/wrangler.toml', domainConfig('project').replace('AUTH_CLIENT_ID = "project"', 'AUTH_CLIENT_ID = "gu"'), 'AUTH_CLIENT_ID'],
+    ['apps/project/wrangler.toml', domainConfig('project').replace('service = "codepi-auth"', 'service = "codepi-mcp"'), 'codepi-auth'],
+    ['apps/me/wrangler.toml', domainConfig('me').replace('bucket_name = "codepi-me-imports"', 'bucket_name = "codepi-gu-uploads"'), 'bind only IMPORTS'],
+    ['apps/me/wrangler.toml', domainConfig('me') + '\n[[r2_buckets]]\nbinding = "EXTRA"\nbucket_name = "codepi-me-imports"\n', 'bind only IMPORTS'],
+  ]) {
+    assert.ok(run(legalFiles({ files: { [file]: config } })).some(v => v.includes(needle)),
+      `${file}: expected ${needle}`);
+  }
+  for (const [id, mutate] of [
+    ['worker-project', rows => rows.map(row => row[0] === 'worker-project' ? [...row.slice(0, 5), 'legacy-pending-retirement'] : row)],
+    ['d1-me', rows => rows.filter(row => row[0] !== 'd1-me')],
+    ['r2-me-imports', rows => rows.filter(row => row[0] !== 'r2-me-imports')],
+  ]) {
+    assert.ok(run(legalFiles({ registryRows: mutate(REGISTRY_ROWS) })).length > 0, `${id} must remain exact`);
+  }
+  const fake = domainConfig('project').replace('database_name = "codepi-project"',
+    'database_name = "codepi-project"\ndatabase_id = "99999999-9999-4999-8999-999999999999"');
+  assert.ok(run(legalFiles({ files: { 'apps/project/wrangler.toml': fake } })).some(v => v.includes('database_id')));
+});
+
+test('planned service allowances cover only the new Project and Me bindings', () => {
+  for (const [planned, owner, binding] of [
+    ['worker-auth', 'mcp', 'AUTH'],
+    ['worker-health-api', 'mcp', 'HEALTH'],
+    ['worker-gu', 'ops', 'GU'],
+  ]) {
+    const rows = REGISTRY_ROWS.map(row => row[0] === planned ? [...row.slice(0, 5), 'planned'] : row);
+    const violations = run(legalFiles({ registryRows: rows }));
+    assert.ok(violations.some(v => v.startsWith(`${owner}:`) && v.includes(`service binding ${binding}`)),
+      `${owner} ${binding} must remain a managed dependency`);
+  }
+  const plannedProject = run(legalFiles());
+  assert.deepEqual(plannedProject, []);
+});
+
+test('planned allowances never cover existing Ops, GU or MCP resources', () => {
+  for (const [id, owner] of [
+    ['worker-ops', 'ops'],
+    ['workflow-ops', 'ops'],
+    ['r2-ops', 'ops'],
+    ['worker-mcp', 'mcp'],
+    ['d1-mcp', 'mcp'],
+    ['r2-gu-uploads', 'gu'],
+  ]) {
+    const rows = REGISTRY_ROWS.map(row => row[0] === id ? [...row.slice(0, 5), 'planned'] : row);
+    const violations = run(legalFiles({ registryRows: rows }));
+    assert.ok(violations.some(v => v.startsWith(`${owner}:`) && v.includes('no managed production')),
+      `${id} must remain a managed resource`);
+  }
+});
+
+test('Auth SSO callbacks include only the exact new Project and Me origins', () => {
+  const missing = JSON.parse(authConfig());
+  const extra = JSON.parse(missing.vars.SSO_EXTRA_REDIRECT_URIS);
+  delete extra.project;
+  missing.vars.SSO_EXTRA_REDIRECT_URIS = JSON.stringify(extra);
+  assert.ok(run(legalFiles({ files: { 'services/auth/wrangler.jsonc': JSON.stringify(missing) } }))
+    .some(v => v.startsWith('auth:') && v.includes('SSO callback clients')));
+
+  const wrong = JSON.parse(authConfig());
+  const callbacks = JSON.parse(wrong.vars.SSO_EXTRA_REDIRECT_URIS);
+  callbacks.me = ['https://me.codepi.app/api/auth/callback?redirect=https://evil.example'];
+  wrong.vars.SSO_EXTRA_REDIRECT_URIS = JSON.stringify(callbacks);
+  assert.ok(run(legalFiles({ files: { 'services/auth/wrangler.jsonc': JSON.stringify(wrong) } }))
+    .some(v => v.startsWith('auth:') && v.includes('callback for client me')));
 });
 
 test('www preserves API-first routing and forbids staging asset overrides', () => {
@@ -532,6 +651,18 @@ service = "codepi-auth"
 binding = "HEALTH"
 service = "codepi-health-api"
 entrypoint = "HealthMcp"
+[[services]]
+binding = "PROJECT"
+service = "codepi-project"
+entrypoint = "ProjectMcp"
+[[services]]
+binding = "ME"
+service = "codepi-me"
+entrypoint = "MeMcp"
+[[services]]
+binding = "GU"
+service = "codepi-gu"
+entrypoint = "GuMcp"
 ${OBSERVABILITY}
 `;
 }
@@ -542,6 +673,11 @@ test('MCP reserves its own D1 and requires the named Health RPC capability', () 
     mcpConfig().replace('entrypoint = "HealthMcp"', ''),
     mcpConfig().replace('database_name = "codepi-mcp"', 'database_name = "codepi-health"'),
     mcpConfig().replace('MCP_ORIGIN = "https://mcp.codepi.app"', 'MCP_ORIGIN = "https://health.codepi.app"'),
+    mcpConfig().replace('entrypoint = "ProjectMcp"', 'entrypoint = "OtherEntrypoint"'),
+    mcpConfig().replace('service = "codepi-me"', 'service = "codepi-ops"'),
+    mcpConfig().replace(/\n\[\[services\]\]\nbinding = "PROJECT"[\s\S]*?entrypoint = "ProjectMcp"\n?/, '\n'),
+    mcpConfig().replace(/\n\[\[services\]\]\nbinding = "ME"[\s\S]*?entrypoint = "MeMcp"\n?/, '\n'),
+    mcpConfig().replace(/\n\[\[services\]\]\nbinding = "GU"[\s\S]*?entrypoint = "GuMcp"\n?/, '\n'),
   ]) {
     assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': config } })).some(v => v.startsWith('mcp:')));
   }

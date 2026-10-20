@@ -1,4 +1,4 @@
-name: Validate platform (auth / web / gu / gzh / health / mcp)
+name: Validate platform
 
 # This historical filename is retained for existing checks and links.
 # CI validates only: no production credentials, migrations or deployment jobs.
@@ -20,6 +20,9 @@ on:
       - 'apps/gu/**'
       - 'apps/gzh/**'
       - 'apps/health/**'
+      - 'apps/project/**'
+      - 'apps/me/**'
+      - 'packages/cli/**'
       - 'packages/shared/**'
       - 'scripts/cloudflare/**'
       - 'scripts/agent/**'
@@ -74,6 +77,9 @@ jobs:
       gzh: ${{ steps.map.outputs.gzh }}
       health: ${{ steps.map.outputs.health }}
       mcp: ${{ steps.map.outputs.mcp }}
+      project: ${{ steps.map.outputs.project }}
+      me: ${{ steps.map.outputs.me }}
+      cli: ${{ steps.map.outputs.cli }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,8 +93,8 @@ jobs:
         run: |
           set -euo pipefail
           all_trigger='^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
-          mark_all() { for s in auth web gu gzh health mcp; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
-          for s in auth web gu gzh health mcp; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
+          mark_all() { for s in auth web gu gzh health mcp project me cli; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
+          for s in auth web gu gzh health mcp project me cli; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
           if [ "$EVENT" = 'push' ] || [ "$EVENT" = 'workflow_dispatch' ]; then
             mark_all
             exit 0
@@ -110,6 +116,7 @@ jobs:
           fi
           if printf '%s\n' "$changed" | grep -qE '^apps/gu/'; then
             echo 'gu=yes' >> "$GITHUB_OUTPUT"
+            echo 'mcp=yes' >> "$GITHUB_OUTPUT"
           fi
           if printf '%s\n' "$changed" | grep -qE '^apps/gzh/'; then
             echo 'gzh=yes' >> "$GITHUB_OUTPUT"
@@ -121,7 +128,14 @@ jobs:
           if printf '%s\n' "$changed" | grep -qE '^services/mcp/'; then
             echo 'mcp=yes' >> "$GITHUB_OUTPUT"
           fi
-
+          if printf '%s\n' "$changed" | grep -qE '^apps/(project|me)/'; then
+            echo 'project=yes' >> "$GITHUB_OUTPUT"
+            echo 'me=yes' >> "$GITHUB_OUTPUT"
+            echo 'mcp=yes' >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -qE '^packages/cli/'; then
+            echo 'cli=yes' >> "$GITHUB_OUTPUT"
+          fi
 
   # ---------------- Local checks ----------------
 
@@ -282,3 +296,69 @@ jobs:
           path: ${{ runner.temp }}/health-browser-artifacts
           if-no-files-found: ignore
           retention-days: 7
+
+  project-build:
+    needs: [affected]
+    if: ${{needs.affected.outputs.project == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/project
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  me-build:
+    needs: [affected]
+    if: ${{needs.affected.outputs.me == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/me
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+
+  cli-build:
+    needs: [affected]
+    if: ${{needs.affected.outputs.cli == 'yes'}}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: ${{ github.workspace }}
+        run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build

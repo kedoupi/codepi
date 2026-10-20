@@ -7,6 +7,10 @@ import assert from 'node:assert/strict';
 import { runMonitor as runPlatformMonitor } from './production-monitor.mjs';
 // Git/control-plane version scenarios are covered with real repositories in release-drift.test.mjs.
 const runMonitor = options => runPlatformMonitor({ ...options, versionCheck: async () => [] });
+const MCP_SCOPES = [
+  'context.read', 'projects.read', 'projects.write', 'health.read', 'health.sync',
+  'me.read', 'me.write', 'invest.read',
+];
 
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {
@@ -28,11 +32,15 @@ function happyHandler({ syncAgeHours = 1 } = {}) {
     if (target.hostname === 'mcp.codepi.app') {
       if (target.pathname === '/api/health') return jsonResponse({ ok: true, service: 'codepi-mcp', build: 'a'.repeat(12) });
       if (target.pathname === '/.well-known/oauth-protected-resource/mcp') {
-        return jsonResponse({ resource: target.origin + '/mcp', authorization_servers: [target.origin] });
+        return jsonResponse({
+          resource: target.origin + '/mcp', authorization_servers: [target.origin],
+          scopes_supported: MCP_SCOPES,
+        });
       }
       if (target.pathname === '/.well-known/oauth-authorization-server') return jsonResponse({
         issuer: target.origin, authorization_endpoint: target.origin + '/oauth/authorize',
         token_endpoint: target.origin + '/oauth/token', code_challenge_methods_supported: ['S256'],
+        scopes_supported: MCP_SCOPES,
       });
       if (target.pathname === '/mcp') return jsonResponse({ error: 'unauthorized' }, {
         status: 401, headers: { 'www-authenticate': `Bearer resource_metadata="${target.origin}/.well-known/oauth-protected-resource/mcp"` },
@@ -43,6 +51,12 @@ function happyHandler({ syncAgeHours = 1 } = {}) {
     }
     if (target.origin === 'https://auth.codepi.app' && target.pathname === '/api/health') {
       return jsonResponse({ ok: true });
+    }
+    if (target.hostname === 'project.codepi.app' && target.pathname === '/api/health') {
+      return jsonResponse({ ok: true, build: 'a'.repeat(12), sso_enabled: true, sso_ready: true });
+    }
+    if (target.hostname === 'me.codepi.app' && target.pathname === '/api/health') {
+      return jsonResponse({ ok: true, source: 'me', build: 'a'.repeat(12), sso_enabled: true, sso_ready: true });
     }
     if (target.hostname === 'api.xiaotaozi.cc') {
       return new Response('Forbidden', { status: 403 });
@@ -55,6 +69,7 @@ function happyHandler({ syncAgeHours = 1 } = {}) {
     }
     const app = Object.entries({
       'codepi.app': 'desk', 'gu.codepi.app': 'gu', 'gzh.codepi.app': 'gzh', 'health.codepi.app': 'oura',
+      'project.codepi.app': 'project', 'me.codepi.app': 'me',
     }).find(([host]) => target.hostname === host)?.[1];
     if (!app) return undefined;
     if (target.pathname.endsWith('/me')) {
@@ -177,6 +192,26 @@ test('monitor flags SSO redirects that leave the platform', async () => {
     globalThis.fetch = realFetch;
     process.env = savedEnv;
   }
+});
+
+test('monitor validates Project and Me readiness payloads', async t => {
+  const savedEnv = { ...process.env };
+  t.after(() => { process.env = savedEnv; });
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
+  const base = happyHandler();
+  t.mock.method(globalThis, 'fetch', stubFetch(async target => {
+    if (target.hostname === 'project.codepi.app' && target.pathname === '/api/health') {
+      return jsonResponse({ ok: true, build: 'local', sso_enabled: false });
+    }
+    if (target.hostname === 'me.codepi.app' && target.pathname === '/api/health') {
+      return jsonResponse({ ok: true });
+    }
+    return base(target);
+  }));
+  const results = await runMonitor();
+  assert.equal(results.find(result => result.name === 'project health endpoint')?.ok, false);
+  assert.equal(results.find(result => result.name === 'me health endpoint')?.ok, false);
 });
 
 test('monitor skips the D1 check cleanly without credentials', async () => {

@@ -38,7 +38,9 @@ test('release scope separates Health Workers, includes shared dependencies, and 
   assert.deepEqual(affectedWorkers(['apps/health/apps/web/src/main.ts']), ['health-web']);
   assert.deepEqual(affectedWorkers(['apps/health/workers/api/src/app.ts']), ['health-api', 'mcp']);
   assert.deepEqual(affectedWorkers(['apps/health/shared/date.ts']), ['health-api', 'health-web', 'mcp']);
-  assert.deepEqual(affectedWorkers(['packages/shared/mcp/contract.ts']), ['health-api', 'mcp']);
+  assert.deepEqual(affectedWorkers(['packages/shared/mcp/contract.ts']), ['health-api', 'mcp', 'gu', 'project', 'me']);
+  assert.deepEqual(affectedWorkers(['apps/project/worker/index.ts']), ['project']);
+  assert.deepEqual(affectedWorkers(['apps/me/migrations/0001_init.sql']), ['me']);
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/about.md']), ['web']);
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/docs/example.md']), ['web']);
   assert.deepEqual(affectedWorkers(['services/auth/scripts/build.mjs']).sort(), Object.keys(WORKERS).sort());
@@ -103,7 +105,7 @@ function workerRequests(build, override = () => undefined) {
   };
 }
 
-test('drift checks the active version of all seven Workers and never silently skips unknown builds', async t => {
+test('drift checks every declared Worker and never silently skips unknown builds', async t => {
   const f = await fixture(t);
   const main = await f.commit('apps/health/apps/web/src/main.ts');
   const results = await checkReleaseDrift({ env, cwd: f.cwd, request: workerRequests(f.base) });
