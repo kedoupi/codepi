@@ -1,13 +1,13 @@
 # CodePi MCP 领域扩展
 
-- 状态：各模块已集成，本地组合验收已完成；未提交、推送、合并或部署。
+- 状态：各模块已集成，本地组合验收已完成；已提交、推送并创建 PR #121；未合并、未部署。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：`/Users/codepi/.worktrees/kdp.cool/codex/codepi-mcp-domains`
 - 分支：`codex/codepi-mcp-domains`
-- 基线：`abbafdfe2d04966d66dad2f4f0084075f040caaf`
+- 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，最终 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`。
 - 协调者、公共契约与集成负责人：本聊天 Codex。
-- 授权：本地实现与验证。未授权 Git 提交、远程写入、生产资源创建、secret 配对、迁移或部署。
+- 授权：本地实现与验证；2026-10-20 用户授权按审查切片提交、推送并创建 PR。未授权合并、生产资源创建、secret 配对、迁移或部署。
 - 根工作区 `.workbuddy-ai/` 为用户保留文件，不读取、不修改、不清理。
 
 ## 实施约定
@@ -125,7 +125,7 @@ re-export 真实 `MeImportsBackup` 验证原件 provider contract。
 
 ```bash
 HEALTH_BROWSER_PORT=48178 node scripts/agent/check.mjs \
-  --base abbafdfe2d04966d66dad2f4f0084075f040caaf --run
+  --base 2820de261b4134fff538679e6f886ac62f4d9161 --run
 ```
 
 补充检查全部通过：
@@ -140,8 +140,10 @@ git diff --check
 
 ## 提交拆分（建议）
 
-按依赖顺序拆成 10 个审查切片。仓库最终以 squash merge 进入 main，因此中间提交
-只用于审查和回溯，不单独发布；只有最后一个提交后的完整树通过了本轮组合检查。
+按依赖顺序拆成 10 个功能切片，rebase 到最新 main 后增加 1 个测试夹具兼容修正。
+仓库最终以 squash merge 进入 main，因此中间提交只用于审查和回溯，不单独发布；
+只有最后一个提交后的完整树通过了本轮组合检查。PR：
+https://github.com/kedoupi/kdp.cool/pull/121
 
 | # | 提交信息 | 主要路径 |
 | --- | --- | --- |
@@ -155,6 +157,7 @@ git diff --check
 | 8 | `chore(deploy): register new services in CI, governance and monitoring` | `.github/workflows/deploy-platform.yml`、`scripts/agent/**`、其余 `scripts/cloudflare/**` |
 | 9 | `feat(web): surface Project and Me in the private desk` | `packages/shared/products.ts`、`apps/web/src/pages/desk/index.astro` |
 | 10 | `docs: record MCP domain architecture and acceptance` | `docs/**`、`.agents/skills/**`、根 `AGENTS.md`、根 `README.md` |
+| 11 | `fix(web): reuse upstream GU workspace fixture` | `apps/web/test/runtime.mjs`；移除与 main `4ee5a5b` 重复的建表逻辑 |
 
 PR 标题建议：
 
@@ -162,7 +165,7 @@ PR 标题建议：
 
 ## 尚未执行的发布与真实验收
 
-1. 用户授权后，提交/审查/合入 main；再按本地发布流程固定干净源码与单一发布者。
+1. 审查并合入 main；再按本地发布流程固定干净源码与单一发布者。
 2. Auth → Project/Me 首次上传与 secret 配对/readiness → Health API/GU →
    MCP → Ops/公开入口。新 D1、Me 私有桶、域名、GitHub 只读同步 secret 和
    新 Worker Issues 规则仍待真实创建与验收；planned 登记不是已存在。
