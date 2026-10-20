@@ -242,20 +242,21 @@ const server = createServer(async (req, res) => {
       await db.prepare("DELETE FROM health_sync_windows WHERE collection='sleep'").run();
       const today = calendarDay();
       const date = back => shiftDay(today, -back);
-      if (scenario === 'records' || scenario === 'journal') {
-        const journal = scenario === 'journal';
+      if (scenario === 'records' || scenario === 'journal' || scenario === 'design') {
+        const design = scenario === 'design';
+        const journal = scenario === 'journal' || design;
         const phaseFor = () => {
           // 5-minute stages: light → deep → light → REM cycles ending awake.
           const segments = [[2, 6], [1, 8], [2, 10], [3, 5], [2, 9], [1, 6], [2, 8], [3, 4], [2, 6], [1, 4], [2, 5], [4, 1]];
           return segments.map(([code, count]) => String(code).repeat(count)).join('');
         };
-        const seriesFor = (base, spread) => ({
+        const seriesFor = (base, spread, count = 72) => ({
           interval: 300,
-          items: Array.from({ length: 72 }, (_, index) => index % 29 === 13 ? null
-            : Math.round((base + Math.sin(index / 6) * spread) * 10) / 10),
+          items: Array.from({ length: count }, (_, index) => index % 29 === 13 ? null
+            : Math.round((base + Math.sin(index / 6) * spread + (design ? Math.sin(index * 1.7) * spread / 3 : 0)) * 10) / 10),
         });
-        for (let back = 0; back < 30; back++) {
-          if (back === 1) continue; // A missing day must not appear as zero hours.
+        for (let back = 0; back < (design ? 90 : 30); back++) {
+          if (back === 1 && !design) continue; // A missing day must not appear as zero hours.
           const day = date(back);
           for (const [type, seconds, hour] of [['long_sleep', 28800, '00'], ['sleep', 1800, '14']]) {
             const id = `${day}-${type}`;
@@ -277,6 +278,33 @@ const server = createServer(async (req, res) => {
               payload.time_in_bed = payload.total_sleep_duration + 1800;
               payload.average_hrv = [42, 39, 44, 48, 52, 46, 38][back % 7];
             }
+            if (design && type === 'long_sleep') {
+              const current = back < 7;
+              const minutes = (current ? [444, 464, 425, 465, 438, 420, 410] : [427, 425, 395, 430, 415, 420, 400])[back % 7];
+              const rise = [438, 415, 440, 425, 452, 420, 430][back % 7];
+              const start = rise + 1440 - minutes - 30;
+              const stamp = absolute => {
+                const dayOffset = Math.floor(absolute / 1440) - 1;
+                const minute = ((absolute % 1440) + 1440) % 1440;
+                return `${shiftDay(day, dayOffset)}T${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}:00+08:00`;
+              };
+              payload.total_sleep_duration = minutes * 60;
+              payload.time_in_bed = (minutes + 30) * 60;
+              payload.bedtime_start = stamp(start);
+              payload.bedtime_end = stamp(rise + 1440);
+              payload.deep_sleep_duration = 5280;
+              payload.rem_sleep_duration = 6120;
+              payload.light_sleep_duration = minutes * 60 - 5280 - 6120;
+              payload.efficiency = current ? 94 : 92;
+              payload.latency = current ? 720 : 1080;
+              payload.average_hrv = (current ? [42, 47, 43, 47, 42, 41, 39] : [40, 41, 37, 43, 39, 40, 40])[back % 7];
+              payload.average_heart_rate = current ? 56 : 58;
+              payload.lowest_heart_rate = 49;
+              const count = Math.ceil((minutes + 30) / 5);
+              payload.sleep_phase_5_min = (phaseFor() + phaseFor()).slice(0, count - 1) + '4';
+              payload.heart_rate = seriesFor(56, 4, count);
+              payload.hrv = seriesFor(payload.average_hrv, 6, count);
+            }
             await db.prepare('INSERT INTO health_records (user_id, collection, record_id, day, payload, fetched_at) VALUES (?, ?, ?, ?, ?, ?)')
               .bind('test-user', 'sleep', id, day, JSON.stringify(payload), new Date().toISOString()).run();
           }
@@ -295,8 +323,26 @@ const server = createServer(async (req, res) => {
           await db.prepare("INSERT INTO sync_state (user_id,synced_at,window_to) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET synced_at=excluded.synced_at,window_to=excluded.window_to,last_error=NULL")
             .bind('test-user', new Date().toISOString(), today).run();
         }
+        if (design) {
+          await db.prepare("DELETE FROM health_records WHERE collection IN ('daily_stress','daily_spo2','enhanced_tag')").run();
+          const save = async (collection, back, payload) => {
+            const id = `design-${collection}-${back}`;
+            await db.prepare('INSERT INTO health_records (user_id,collection,record_id,day,payload,fetched_at) VALUES (?,?,?,?,?,?)')
+              .bind('test-user', collection, id, date(back), JSON.stringify({ id, day: date(back), ...payload }), new Date().toISOString()).run();
+          };
+          for (let back = 0; back < 14; back++) {
+            if (![0, 3, 9].includes(back)) await save('daily_stress', back, {
+              stress_high: [0, 125, 115, 0, 110, 155, 145][back % 7] * 60,
+              recovery_high: (back < 7 ? [0, 55, 65, 0, 75, 45, 40] : [30, 35, 40, 0, 55, 45, 47])[back % 7] * 60,
+            });
+            if (back < 2 || back >= 8) await save('daily_spo2', back, { spo2_percentage: { average: back < 7 ? 98.1 : 97.9 } });
+          }
+          for (const [back, custom_name] of [[5, '慢跑 32 分钟'], [4, '晚餐较晚'], [2, '步行 45 分钟'], [1, '呼吸练习 10 分钟']]) {
+            await save('enhanced_tag', back, { start_day: date(back), custom_name });
+          }
+        }
       }
-      if (scenario === 'empty' || scenario === 'records' || scenario === 'journal') {
+      if (scenario === 'empty' || scenario === 'records' || scenario === 'journal' || scenario === 'design') {
         for (const count of [7, 30]) {
           await db.prepare('INSERT INTO health_sync_windows (user_id, collection, window_from, window_to, synced_at, attempted_at) VALUES (?, ?, ?, ?, ?, ?)')
             .bind('test-user', 'sleep', date(count - 1), today, new Date().toISOString(), new Date().toISOString()).run();

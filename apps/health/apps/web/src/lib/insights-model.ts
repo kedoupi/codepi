@@ -12,8 +12,9 @@ export function rollingRanges(end: string): { current: Range; previous: Range } 
 }
 
 export function daysOf(range: Range): string[] {
+  if (!Number.isFinite(Date.parse(`${range.from}T00:00:00Z`)) || !Number.isFinite(Date.parse(`${range.to}T00:00:00Z`))) return [];
   const days: string[] = [];
-  for (let index = 0; index < 7; index++) days.push(shiftDay(range.from, index));
+  for (let day = range.from; day <= range.to; day = shiftDay(day, 1)) days.push(day);
   return days;
 }
 
@@ -37,8 +38,7 @@ export function nightlySeries(
 ): Array<{ date: string; value: number | null }> {
   return daysOf(range).map(date => {
     const main = sleepForDay(sleeps, date).filter(record => record.type === "long_sleep");
-    const rows = main.length ? main : sleepForDay(sleeps, date).slice(0, 1);
-    const weighted = rows
+    const weighted = main
       .map(record => ({ value: pick(record), weight: finite(record.total_sleep_duration) ? record.total_sleep_duration : 0 }))
       .filter(row => finite(row.value) && row.weight > 0);
     if (!weighted.length) return { date, value: null };

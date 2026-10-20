@@ -24,8 +24,10 @@ export function clockTicks(window: { min: number; max: number }, target = 4): nu
   const step = Math.max(30, Math.ceil(span / target / 30) * 30);
   const ticks: number[] = [];
   for (let t = Math.ceil(window.min / step) * step; t < window.max; t += step) ticks.push(t);
-  if (!ticks.length || ticks[0] - window.min > step) ticks.unshift(Math.round(window.min));
-  if (window.max - ticks[ticks.length - 1] > step / 2) ticks.push(Math.round(window.max));
+  if (ticks.length && ticks[0] - window.min < step / 3) ticks.shift();
+  if (ticks.length && window.max - ticks[ticks.length - 1] < step / 3) ticks.pop();
+  ticks.unshift(Math.round(window.min));
+  ticks.push(Math.round(window.max));
   return [...new Set(ticks)].sort((a, b) => a - b);
 }
 
@@ -53,16 +55,21 @@ export function stageRects(night: NightTimeline, height: number): StageRect[] {
   return rects;
 }
 
-function yScale(points: AlignedPoint[], height: number): (value: number) => number {
+export function seriesAxis(points: AlignedPoint[], height: number) {
   const values = points.map(point => point.value).filter(finite);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const pad = Math.max(2, (max - min) * 0.15);
-  const low = Math.floor(min - pad);
-  const high = Math.ceil(max + pad);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const step = Math.max(5, Math.ceil((max - min) / 3 / 5) * 5);
+  const low = Math.floor((min - 1) / step) * step;
+  const high = Math.ceil((max + 1) / step) * step;
   const inner = height - PLOT.top - PLOT.bottom;
-  return value => PLOT.top + (1 - (value - low) / Math.max(1, high - low)) * inner;
+  const y = (value: number) => PLOT.top + (1 - (value - low) / Math.max(1, high - low)) * inner;
+  const ticks: { value: number; y: number }[] = [];
+  for (let value = low; value <= high; value += step) ticks.push({ value, y: y(value) });
+  return { ticks, y };
 }
+
+function yScale(points: AlignedPoint[], height: number) { return seriesAxis(points, height).y; }
 
 export function seriesPath(points: AlignedPoint[], height: number, window: { min: number; max: number }): { line: string; circles: { x: number; y: number }[]; } {
   if (!points.length) return { line: "", circles: [] };
@@ -92,7 +99,7 @@ export function seriesSegments(points: AlignedPoint[], height: number, window: {
     const point = points[index];
     const x = xFor(point.t, window);
     const py = y(point.value);
-    if (point.t - previous.t > intervalMinutes * 2.5) {
+    if (point.t - previous.t > intervalMinutes * 1.5) {
       if (count > 1) segments.push(current);
       current = `M${x.toFixed(1)} ${py.toFixed(1)}`;
       count = 1;

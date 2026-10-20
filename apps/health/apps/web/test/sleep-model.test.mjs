@@ -5,7 +5,7 @@ import {
   alignSeries, alignStages, buildTimeline, durationVsMedian, hrvHistoryRange,
   nightInterval, parseTimestamp, routineNights, stageDurations,
 } from '../src/lib/sleep-model.ts';
-import { compareSeries, mainSleepSeries, nightlySeries, stressSeries } from '../src/lib/insights-model.ts';
+import { compareSeries, daysOf, mainSleepSeries, nightlySeries, stressSeries } from '../src/lib/insights-model.ts';
 
 const night = {
   id: 'main', day: '2026-10-20', type: 'long_sleep',
@@ -35,11 +35,11 @@ test('bedtime bounds cross midnight into one night window', () => {
 
 test('stage string parses into typed 5-minute segments without inventing values', () => {
   const points = stagePoints(night);
-  // RLE runs: 6 light, 6 deep, 6 light, 4 rem, 6 light, 4 deep, 4 light, 2 deep.
-  assert.equal(points.length, 8);
+  assert.equal(points.length, night.sleep_phase_5_min.length);
   assert.equal(points[0].stage, 'light');
-  assert.equal(points[1].stage, 'deep');
-  assert.equal(points[3].stage, 'rem');
+  assert.equal(points[6].stage, 'deep');
+  assert.equal(points[18].stage, 'rem');
+  assert.equal(points.at(-1).offset, (night.sleep_phase_5_min.length - 1) * 300);
   assert.equal(stagePoints({ ...night, sleep_phase_5_min: '229' }).length, 0);
   assert.equal(stagePoints({ ...night, sleep_phase_5_min: null }).length, 0);
 });
@@ -77,6 +77,17 @@ test('median comparison needs earlier saved nights and ignores invalid durations
   const result = durationVsMedian([...earlier, night], night);
   assert.equal(result.delta, Math.round((26640 - 25200) / 60));
   assert.equal(durationVsMedian(earlier.slice(0, 3).concat(night), night), null);
+  const naps = earlier.map(row => ({ ...row, id: `nap-${row.id}`, type: 'sleep', total_sleep_duration: 1800 }));
+  assert.deepEqual(durationVsMedian([...earlier, ...naps, night], night), result);
+  assert.equal(durationVsMedian([...earlier, ...naps], { ...night, type: 'sleep' }), null);
+});
+
+test('stage alignment preserves full-night duration and fallback stage totals', () => {
+  const record = { ...night, sleep_phase_5_min: '2'.repeat(72) + '1'.repeat(12) + '3'.repeat(10) };
+  const timeline = buildTimeline(record);
+  assert.equal(timeline.stages.at(-1).t1 - timeline.stages[0].t0, 470);
+  const totals = stageDurations({ ...record, deep_sleep_duration: null }, timeline.stages);
+  assert.equal(totals.find(row => row.key === 'deep').seconds, 3600);
 });
 
 test('HRV history band only uses explicit earlier main sleep', () => {
@@ -95,13 +106,24 @@ test('routine nights keep main sleep first and preserve wall-clock labels', () =
   assert.equal(nights[0].startLabel, '23:24');
 });
 
-test('nightly series stays main-sleep first and never treats missing as zero', () => {
+test('nightly series keeps naps separate and never treats missing as zero', () => {
   const range = { from: '2026-10-14', to: '2026-10-20' };
-  const records = [night, { ...night, id: 'nap', type: 'sleep', total_sleep_duration: 1800, day: '2026-10-20' }];
+  const records = [night, { ...night, id: 'nap', type: 'sleep', total_sleep_duration: 1800, day: '2026-10-20' },
+    { ...night, id: 'nap-only', type: 'sleep', total_sleep_duration: 1800, day: '2026-10-19' }];
   const series = nightlySeries(records, range, record => record.total_sleep_duration);
   assert.equal(series.length, 7);
   assert.equal(series.at(-1).value, 26640);
+  assert.equal(series.at(-2).value, null);
   assert.equal(series[0].value, null);
+});
+
+test('calendar series covers selected custom and 30-day windows without inventing dates', () => {
+  const month = daysOf({ from: '2026-09-21', to: '2026-10-20' });
+  assert.equal(month.length, 30);
+  assert.equal(month.at(-1), '2026-10-20');
+  assert.deepEqual(daysOf({ from: '2026-10-19', to: '2026-10-20' }), ['2026-10-19', '2026-10-20']);
+  assert.deepEqual(daysOf({ from: '', to: '2026-10-20' }), []);
+  assert.deepEqual(daysOf({ from: '2026-10-20', to: '2026-10-19' }), []);
 });
 
 test('strict main-sleep series rejects unmarked records for HRV', () => {
