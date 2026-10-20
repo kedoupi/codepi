@@ -10,6 +10,7 @@ import {
   listen,
   makeTempDir,
   readBody,
+  refreshWithStore,
   removeTempDir,
 } from "./helpers.mjs";
 
@@ -183,6 +184,142 @@ test("login completes DCR, PKCE and a random loopback callback without printing 
   }
 });
 
+test("concurrent first login shares one DCR client and keeps refresh credentials bound", {
+  skip: process.platform === "win32",
+  timeout: 20_000,
+}, async () => {
+  const dir = await makeTempDir();
+  const serverRef = { value: "" };
+  const exchanges = [];
+  let registrations = 0;
+  let upstreamError = null;
+  const server = createServer(async (req, res) => {
+    const origin = serverRef.value;
+    try {
+      if (req.url === "/.well-known/oauth-authorization-server") {
+        json(res, 200, {
+          issuer: origin,
+          authorization_endpoint: `${origin}/oauth/authorize`,
+          token_endpoint: `${origin}/oauth/token`,
+          registration_endpoint: `${origin}/oauth/register`,
+          scopes_supported: ["context.read", "projects.read", "projects.write"],
+          response_types_supported: ["code"],
+          code_challenge_methods_supported: ["S256"],
+          token_endpoint_auth_methods_supported: ["none"],
+        });
+        return;
+      }
+      if (req.url === "/oauth/register") {
+        const registration = ++registrations;
+        await readBody(req);
+        // Keep registration busy so both new processes reach the race.
+        await new Promise((resolve) => setTimeout(resolve, registration === 1 ? 250 : 650));
+        json(res, 201, {
+          client_id: registration === 1
+            ? "synthetic-concurrent-client"
+            : `synthetic-concurrent-client-${registration}`,
+          client_name: "codepi CLI",
+          redirect_uris: ["http://127.0.0.1/callback"],
+        });
+        return;
+      }
+      if (req.url?.startsWith("/oauth/authorize?")) {
+        const url = new URL(req.url, origin);
+        const redirectUri = url.searchParams.get("redirect_uri");
+        const state = url.searchParams.get("state");
+        assert.ok(redirectUri);
+        assert.ok(state);
+        const callback = new URL(redirectUri);
+        callback.searchParams.set("code", `code-${state}`);
+        callback.searchParams.set("state", state);
+        res.writeHead(302, { Location: callback.href, "Cache-Control": "no-store" }).end();
+        return;
+      }
+      if (req.url === "/oauth/token") {
+        const body = new URLSearchParams(await readBody(req));
+        const clientId = body.get("client_id");
+        if (body.get("grant_type") === "authorization_code") {
+          const code = body.get("code");
+          assert.ok(code);
+          assert.ok(clientId);
+          const refreshToken = `refresh-${code}`;
+          exchanges.push({ code, clientId, refreshToken });
+          json(res, 200, {
+            access_token: `access-${code}`,
+            refresh_token: refreshToken,
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: "context.read projects.read projects.write",
+          });
+          return;
+        }
+        if (body.get("grant_type") === "refresh_token") {
+          const issued = exchanges.find((item) => item.refreshToken === body.get("refresh_token"));
+          if (!issued || issued.clientId !== clientId) {
+            json(res, 400, { error: "invalid_grant" });
+            return;
+          }
+          json(res, 200, {
+            access_token: "rotated-access",
+            refresh_token: "rotated-refresh",
+            token_type: "Bearer",
+            expires_in: 3600,
+            scope: "context.read projects.read projects.write",
+          });
+          return;
+        }
+      }
+      json(res, 404, { error: "not_found" });
+    } catch (error) {
+      upstreamError = error;
+      json(res, 400, { error: "synthetic_test_failure" });
+    }
+  });
+  await listen(server);
+  const address = server.address();
+  serverRef.value = `http://127.0.0.1:${address.port}`;
+  const cli = new URL("../dist/codepi.mjs", import.meta.url).pathname;
+  const first = startLoginProcess(cli, serverRef.value, dir);
+  const second = startLoginProcess(cli, serverRef.value, dir);
+  try {
+    const [firstUrl, secondUrl] = await Promise.all([
+      loginAuthorizationUrl(first),
+      loginAuthorizationUrl(second),
+    ]);
+    const firstCallback = await authorizationCallback(firstUrl);
+    const secondCallback = await authorizationCallback(secondUrl);
+    assert.notEqual(firstCallback.searchParams.get("state"), secondCallback.searchParams.get("state"));
+
+    // Finish authorizations in reverse order to exercise the old race.
+    assert.equal((await fetch(secondCallback)).status, 200);
+    assert.equal(await second.exited, 0, second.stderr);
+    assert.equal((await fetch(firstCallback)).status, 200);
+    assert.equal(await first.exited, 0, first.stderr);
+
+    assert.equal(registrations, 1);
+    assert.equal(exchanges.length, 2);
+    assert.deepEqual([...new Set(exchanges.map((item) => item.clientId))], [
+      "synthetic-concurrent-client",
+    ]);
+    const store = new CredentialStore(serverRef.value, { configDir: dir });
+    const saved = await store.read();
+    const lastExchange = exchanges.find(
+      (item) => item.code === firstCallback.searchParams.get("code"),
+    );
+    assert.equal(saved.client.client_id, "synthetic-concurrent-client");
+    assert.equal(saved.tokens.refresh_token, lastExchange.refreshToken);
+    const refreshed = await refreshWithStore(store);
+    assert.equal(refreshed.refresh_token, "rotated-refresh");
+    assert.equal(upstreamError, null);
+  } finally {
+    first.child.kill();
+    second.child.kill();
+    server.closeAllConnections();
+    await closeServer(server);
+    await removeTempDir(dir);
+  }
+});
+
 for (const denied of [
   { error: "access_denied", exitCode: 2, message: /授权已取消/ },
   { error: "synthetic-access-secret", exitCode: 4, message: /授权失败/ },
@@ -200,6 +337,88 @@ for (const denied of [
     assert.equal(result.saved?.tokens, undefined);
     assert.equal(result.upstreamError, null);
   });
+}
+
+function startLoginProcess(cli, server, configDir) {
+  const child = spawn(process.execPath, [cli, "--server", server, "login", "--json"], {
+    env: {
+      ...process.env,
+      CODEPI_CONFIG_DIR: configDir,
+      PATH: "/nonexistent",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  let urlSettled = false;
+  let resolveUrl;
+  let rejectUrl;
+  const authorizationUrl = new Promise((resolve, reject) => {
+    resolveUrl = resolve;
+    rejectUrl = reject;
+  });
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+    const match = !urlSettled && stderr.match(/https?:\/\/[^\s]+/);
+    if (match) {
+      urlSettled = true;
+      resolveUrl(new URL(match[0]));
+    }
+  });
+  const exited = new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === null) {
+        if (!urlSettled) rejectUrl(new Error(`login exited from ${signal}`));
+        reject(new Error(`login exited from ${signal}`));
+        return;
+      }
+      resolve(code);
+    });
+  });
+  exited.catch(() => undefined);
+  return {
+    child,
+    authorizationUrl,
+    exited,
+    get stdout() {
+      return stdout;
+    },
+    get stderr() {
+      return stderr;
+    },
+  };
+}
+
+async function loginAuthorizationUrl(login) {
+  let timeout;
+  try {
+    return await Promise.race([
+      login.authorizationUrl,
+      new Promise((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("login did not print an authorization URL")),
+          5_000,
+        );
+        timeout.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function authorizationCallback(url) {
+  const response = await fetch(url, { redirect: "manual" });
+  assert.equal(response.status, 302);
+  const location = response.headers.get("location");
+  assert.ok(location);
+  return new URL(location);
 }
 
 async function runDeniedLogin(errorCode) {
