@@ -2,9 +2,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
-export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp', ops: 'services/ops' };
+export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp', ops: 'services/ops', project: 'apps/project', me: 'apps/me', cli: 'packages/cli' };
 export const staticApps = ['web'];
-export const privateApps = ['auth', 'gu', 'gzh', 'health', 'mcp', 'ops'];
+export const privateApps = ['auth', 'gu', 'gzh', 'health', 'project', 'me', 'mcp', 'ops', 'cli'];
 const allApps = [...staticApps, ...privateApps];
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -37,8 +37,10 @@ export function makePlan(files) {
   const addAll = () => { add(allApps); sharedAuth = true; };
 
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
+    'apps/project/wrangler.toml', 'apps/me/wrangler.toml',
     'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
   const migrationDirs = ['apps/web/migrations/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
+    'apps/project/migrations/', 'apps/me/migrations/',
     'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
   const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))
     || file.startsWith('scripts/agent/check-migrations'));
@@ -73,7 +75,7 @@ export function makePlan(files) {
       addAll();
       workflow = true;
     } else if (file.startsWith('packages/shared/mcp/')) {
-      add(['health', 'mcp']);
+      add(['health', 'gu', 'project', 'me', 'mcp', 'cli']);
     } else if (file.startsWith('services/auth/') || file.startsWith('packages/shared/auth/')) {
       add(['web', ...privateApps]);
       sharedAuth = true;
@@ -89,6 +91,9 @@ export function makePlan(files) {
         apps.add(app);
         if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/shared/')) apps.add('mcp');
         if (file.startsWith('apps/gu/worker/') || file.startsWith('apps/gu/migrations/')) apps.add('ops');
+        if (['apps/gu/worker/', 'apps/gu/migrations/', 'apps/project/worker/', 'apps/me/worker/',
+          'apps/project/migrations/', 'apps/me/migrations/'].some(prefix => file.startsWith(prefix))) apps.add('mcp');
+        if (file.startsWith('apps/me/worker/') || file.startsWith('apps/me/migrations/')) apps.add('ops');
       }
       else manual.push(file);
     }

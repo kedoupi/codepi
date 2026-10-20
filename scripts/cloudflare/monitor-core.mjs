@@ -7,6 +7,8 @@ const ORIGINS = {
   gu: 'https://gu.codepi.app',
   gzh: 'https://gzh.codepi.app',
   health: 'https://health.codepi.app',
+  project: 'https://project.codepi.app',
+  me: 'https://me.codepi.app',
 };
 
 // app → [private API path, expected SSO client_id]
@@ -18,7 +20,11 @@ const PRIVATE_APPS = {
   gu: { me: '/api/me', client: 'gu', meStatus: 401 },
   gzh: { me: '/api/me', client: 'gzh', meStatus: 401 },
   health: { me: '/api/me', client: 'oura', meStatus: 200 },
+  project: { me: '/api/me', client: 'project', meStatus: 401 },
+  me: { me: '/api/me', client: 'me', meStatus: 401 },
 };
+
+const HEALTH_APPS = new Set(['project', 'me']);
 
 // The retired CloudBase leak route. Must stay closed: any 2xx here is a breach.
 const LEGACY_ROUTE = 'https://api.xiaotaozi.cc/oura/daily';
@@ -37,6 +43,25 @@ async function checkAuthHealth(results) {
     assert.equal(res.status, 200, `status ${res.status}`);
     const body = await res.json();
     assert.ok(body && typeof body === 'object' && body.ok === true, 'health payload must be {ok:true}');
+    results.push({ name, ok: true });
+  } catch (error) {
+    results.push({ name, ok: false, detail: error.message });
+  }
+}
+
+async function checkAppHealth(app, results) {
+  const name = `${app} health endpoint`;
+  try {
+    const res = await request(`${ORIGINS[app]}/api/health`);
+    assert.equal(res.status, 200, `status ${res.status}`);
+    const body = await res.json();
+    assert.ok(body && typeof body === 'object' && body.ok === true, 'health payload must include ok=true');
+    if (app === 'project' || app === 'me') {
+      assert.match(body.build ?? '', /^[a-f0-9]{7,40}$/, `${app} health must report a source SHA`);
+      assert.equal(body.sso_enabled, true, `${app} health must report SSO enabled`);
+      assert.equal(body.sso_ready, true, `${app} health must validate the Auth credential pair`);
+    }
+    if (app === 'me') assert.equal(body.source, 'me', 'Me health must identify the Me source');
     results.push({ name, ok: true });
   } catch (error) {
     results.push({ name, ok: false, detail: error.message });
@@ -136,7 +161,10 @@ export async function runMonitor({ requireD1 = false, requireVersions = false, c
   versionCheck, env = process.env } = {}) {
   const results = [];
   await checkAuthHealth(results);
-  for (const app of Object.keys(PRIVATE_APPS)) await checkPrivateApp(app, results);
+  for (const app of Object.keys(PRIVATE_APPS)) {
+    if (HEALTH_APPS.has(app)) await checkAppHealth(app, results);
+    await checkPrivateApp(app, results);
+  }
   results.push(...await checkMcp());
   await checkLegacyRouteClosed(results);
   await checkHealthSyncFreshness(results, requireD1, env);
