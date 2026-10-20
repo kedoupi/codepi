@@ -4,21 +4,57 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { cloudflareApi, DATABASES, decrypt } from './d1-backup.mjs';
+import {
+  cloudflareApi,
+  DATABASE_NAMES,
+  decrypt,
+  parseDatabaseConfig,
+  resolveProductionDatabases,
+} from './backup-core.mjs';
 import { prepareRestoreSql } from './d1-restore-sql.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
+
+function explicitDatabaseMap(value) {
+  let mapping = value;
+  if (typeof value === 'string') {
+    try { mapping = JSON.parse(value); }
+    catch { throw new Error('D1_DATABASE_IDS must be valid JSON'); }
+  }
+  assert.ok(mapping && typeof mapping === 'object' && !Array.isArray(mapping),
+    'D1_DATABASE_IDS must map every required database name to its D1 UUID');
+  return parseDatabaseConfig(Object.fromEntries(Object.entries(mapping).map(([name, id]) => [
+    name, typeof id === 'string' ? id.toLowerCase() : id,
+  ])));
+}
+
+async function productionDatabaseIds(env, request) {
+  const databases = env.D1_DATABASE_IDS !== undefined
+    ? explicitDatabaseMap(env.D1_DATABASE_IDS)
+    : await resolveProductionDatabases({
+      accountId: env.CLOUDFLARE_ACCOUNT_ID,
+      token: env.CLOUDFLARE_API_TOKEN,
+      request,
+    });
+  assert.equal(databases.length, DATABASE_NAMES.length,
+    'complete production database identities are required before restore');
+  return new Set(databases.map(database => database.id.toLowerCase()));
+}
 
 // Restore to a new, empty D1 first. Production databases are excluded;
 // a traffic cutover remains a separate, reviewed incident operation.
 export async function restoreBackup({ file, privateKeyFile, databaseId, env = process.env,
   request = fetch, execute = spawnSync }) {
   assert.match(databaseId || '', /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i, 'target D1 UUID is required');
-  assert.ok(!Object.values(DATABASES).includes(databaseId.toLowerCase()), 'refusing to restore over a production database');
+  const targetId = databaseId.toLowerCase();
   const { sql, metadata } = decrypt(await readFile(file), await readFile(privateKeyFile, 'utf8'));
+  assert.notEqual(metadata.database_id?.toLowerCase(), targetId,
+    'refusing to restore over a production database');
+  const productionIds = await productionDatabaseIds(env, request);
+  assert.ok(!productionIds.has(targetId), 'refusing to restore over a production database');
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const token = env.CLOUDFLARE_API_TOKEN;
-  const result = await cloudflareApi(`/d1/database/${databaseId}/query`, {
+  const result = await cloudflareApi(`/d1/database/${targetId}/query`, {
     sql: "SELECT count(*) AS n FROM sqlite_master WHERE type IN ('table','view') AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*'",
   }, { accountId, token, request });
   assert.ok(result?.[0]?.success && result[0].results?.[0]?.n === 0,
@@ -29,7 +65,7 @@ export async function restoreBackup({ file, privateKeyFile, databaseId, env = pr
     const configFile = path.join(dir, 'wrangler.json');
     await writeFile(sqlFile, prepareRestoreSql(sql), { mode: 0o600 });
     await writeFile(configFile, JSON.stringify({ name: 'codepi-health-restore',
-      account_id: accountId, d1_databases: [{ binding: 'DB', database_name: 'restore-target', database_id: databaseId }] }),
+      account_id: accountId, d1_databases: [{ binding: 'DB', database_name: 'restore-target', database_id: targetId }] }),
     { mode: 0o600 });
     const result = execute('pnpm', ['--dir', path.join(root, 'apps/health/workers/api'), 'exec', 'wrangler',
       'd1', 'execute', 'restore-target', '--config', configFile, '--remote', '--file', sqlFile, '--yes', '--json'],

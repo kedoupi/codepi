@@ -11,7 +11,7 @@ const MAX_EXPORT_BYTES = 1024 * 1024 * 1024;
 const receiptKey = key => `${key}.receipt.json`;
 
 function identityFor(entry) {
-  return JSON.stringify(entry.kind === 'gu-material' ? {
+  return JSON.stringify(entry.material_id !== undefined ? {
     kind: entry.kind, material_id: entry.material_id, object_key: entry.object_key,
     source_bytes: entry.source_bytes, source_sha256: entry.source_sha256, created_at: entry.created_at,
   } : { database: entry.database, database_id: entry.database_id, created_at: entry.created_at });
