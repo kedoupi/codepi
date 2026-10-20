@@ -1,8 +1,10 @@
 # CodePi Design System 规范
 
 > 状态：现行规范（2026-10-20 整理）。适用于 kedoupi（codepi）全部产品与支撑页面。
-> 本文把用户提供的 CodePi Design System v1.5 原件、仓库已落地的共享实现和各应用
+> 本文把用户提供的 CodePi Design System v1.5 与 v2.0.0 原件、仓库已落地的共享实现和各应用
 > 主题边界整理成一份可执行规范，供各项目 agent 优化和实现时直接引用。
+> v2.0.0 的颜色、字体、图标规则和全部标志资产与 v1.5 逐字节一致；它新增的是交互状态、
+> 加载、AI 组件合同、治理规则和一套 `--cp-*` token 命名（见第 3.5、9.1–9.3、16 节）。
 > 本文是规范，不是实现证据；某页面是否达标，以该页面的代码、测试和桌面/手机验收为准。
 
 文中 **必须** 表示验收条件，**应** 表示默认做法（偏离须在任务中写明理由），
@@ -14,14 +16,21 @@
 
 1. 用户的明确决定（品牌、标志、配色变更都需要用户批准）。
 2. 本规范。
-3. 品牌原件 `packages/shared/brand/codepi-v1.5/`（用户提供的 v1.5 原样副本，只读，不在此处改写）。
-   原件内部混有 v1.2–v1.5 的历史说明，例如 “`assets/` 仍是旧版 Demo”，这类描述以本文第 3 节的现状为准。
+3. 品牌原件，均为用户提供的原样副本，只读：
+   - `packages/shared/brand/codepi-v2.0/`：v2.0.0 的文档、token 源和加载参考实现；
+   - `packages/shared/brand/codepi-v1.5/`：v1.5，含全部标志与平台图标资产（v2.0.0 资产与之逐字节相同，未重复存放）。
+
+   两者冲突时以 v2.0.0 为准，但第 3.5 节列出的 v2.0.0 缺陷不采用。
+   v2.0.0 包里的 React 组件、Storybook、静态模板、CI 工作流和测试没有放进仓库：
+   本仓库是 Astro + Svelte，新增依赖需要用户批准，且这些代码有第 3.5 节的缺陷。原件内部混有 v1.2–v1.6 的历史说明，
+   例如 “`assets/` 仍是旧版 Demo”，这类描述以本文的现状为准。
 4. 共享实现：`packages/shared/styles/tokens.css`、`packages/shared/styles/site.css`、`packages/shared/brand.ts`。
 5. 各应用主题文件（只能在第 12 节允许的范围内扩展）。
 
 | 用途 | 文件 |
 | --- | --- |
-| 品牌原件（值、资产、平台规范、QA） | `packages/shared/brand/codepi-v1.5/` |
+| 品牌原件 v2.0.0（文档、token 源、交互与加载规范） | `packages/shared/brand/codepi-v2.0/` |
+| 品牌原件 v1.5（值、资产、平台规范、QA） | `packages/shared/brand/codepi-v1.5/` |
 | 共享 token（唯一 CSS 来源） | `packages/shared/styles/tokens.css` |
 | 主站/静态页通用样式与参考组件 | `packages/shared/styles/site.css`、`packages/shared/layouts/BaseLayout.astro` |
 | 标志 SVG 与品牌文字 | `packages/shared/brand.ts`（`CODEPI_SYMBOL_SVG`、`BRAND_WORDMARK`、`PRODUCT_BRAND`） |
@@ -86,7 +95,9 @@
 
 ### 2.4 定稿状态
 
-v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授权都未完成审查。
+资源状态按 v2.0.0 治理规则分四级：concept（概念）→ candidate（候选）→ approved（已批准）→ production（已上线）。
+v1.5 / v2.0.0 矢量母版仍是**候选稿**（candidate），2026-10-20 经用户同意已在全部站点使用，
+但不得宣称定稿或已通过任何平台审核：字形精修、商标近似与字体授权都未完成审查。
 母版定稿后只需替换两处：`brand.ts` 的 `CODEPI_SYMBOL_SVG` 和各站从 `assets/exports/` 复制的图标文件。
 平台发布（Apple Icon Composer `.icon`、Android 启动器遮罩、微信后台上传、应用商店）
 在 `PLATFORM_COMPLIANCE.md` 中标为未验收，使用前必须按平台当期规范重新核实。
@@ -165,6 +176,34 @@ v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授�
 | 深色：正文/背景、动作文字/动作、焦点/背景 | 14.18 / 7.21 / 7.21 | 可用 |
 | 深色：`--color-border` / 表面 | 1.61 | 深色缺少强边界 token，见第 14 节 |
 
+### 3.5 v2.0.0 token 命名与已知缺陷
+
+v2.0.0 把唯一 token 源放在 `brand/codepi-v2.0/packages/tokens/src/tokens.json`，生成的 CSS 改用 `--cp-*` 前缀。
+色值与本文第 3.2–3.3 节完全相同，`textMuted` 统一为 `#706A64`（v1.5 的 `colors.json` 曾写 `#77746F`）。
+在用户决定迁移前（第 17 节），**新代码继续使用本文的语义层名称，不引入 `--cp-*`**。
+
+| 含义 | 本仓库 | v2.0.0 | 旧别名 |
+| --- | --- | --- | --- |
+| 页面背景 / 表面 / 正文 / 次要 | `--color-background` / `-surface` / `-text` / `-text-muted` | `--cp-background` / `-surface` / `-text` / `-text-muted` | `--kdp-canvas` / `-surface` / `-text` / `-muted` |
+| 装饰线 / 控件边界 | `--color-border` / `--color-border-strong` | `--cp-border` / 无 | `--kdp-line` / `-line-strong` |
+| 动作 / 悬停 / 浅底 | `--color-action` / `-action-hover` / `--brand-soft` | `--cp-action` / `-action-hover` / `--cp-brand-soft` | `--kdp-accent` / `-accent-strong` / `-accent-soft` |
+| 4 / 8 / 12 / 16px | `--space-1` / `2` / `3` / `4` | `--cp-space-1` / `2` / `3` / `4` | `--kdp-space-1…4` |
+| 24 / 32 / 48 / 64px | `--space-6` / `8` / `12` / `16` | `--cp-space-5` / `6` / `7` / `8` | `--kdp-space-5…8` |
+| 控件 / 卡片 / 弹窗圆角 | `--radius-control` 10 / `-card` 14 / `-dialog` 18 | `--cp-radius-md` 10 / `-lg` 14 / `-xl` 20，另有 `-sm` 6 | `--kdp-radius-sm` / `-radius` / `-radius-lg` |
+| 动效、字体、字阶 | `--motion-*`、`--font-*`、`--text-*` | 无（字阶只在 `typography.json`） | `--kdp-motion`、`--kdp-font` |
+
+注意两套名称里同号的间距不是同一个值：本仓库 `--space-6` 是 24px，v2.0.0 的 `--cp-space-6` 是 32px。
+
+v2.0.0 原件的以下内容**不采用**，实现时不得照搬：
+
+1. 生成的圆角没有单位（`--cp-radius-md: 10;`），用在 `border-radius` 时是无效值，会渲染成直角；其 React `styles.css` 正是这样用的。
+2. 圆角数值前后矛盾：token 源写弹窗 20px 并新增 6px，`DESIGN_SYSTEM.md` 与 `tokens/spacing.json` 仍写 10 / 14 / 18（待决，见第 17 节）。
+3. 生成的 `tokens.css` 删掉了动效 token 和 reduced-motion 全局规则，没有字体与字阶变量，深色主题没有 `soft` 色。
+4. 没有控件边界色：secondary 按钮和输入框用装饰线 `border`（白底 1.28:1），不满足 3:1。
+5. 禁用按钮用 `opacity: .65`，而不是 `disabled-bg` / `disabled-text`。
+6. 危险按钮文字用 `background` 色，深色主题下对比度会反转变差。
+7. 自带验证只有 8 个结构测试；TypeScript、Storybook、视觉回归、无障碍检查均未执行（见其 `VALIDATION_REPORT_V2.md`）。
+
 ## 4. 字体与字阶
 
 - 字体栈：`--font-sans` = Inter、Noto Sans SC，回退 PingFang SC / Hiragino Sans GB / Microsoft YaHei / system-ui；
@@ -201,7 +240,8 @@ v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授�
 | --- | --- | --- |
 | 按钮、输入框、标签等控件 | `--radius-control` | 10px |
 | 卡片 | `--radius-card` | 14px |
-| 弹窗、主要内容面 | `--radius-dialog` | 18px |
+| 弹窗、主要内容面 | `--radius-dialog` | 18px（v2.0.0 token 源为 20px，待决；决定前保持 18px） |
+| 徽标、状态胶囊等小元素 | 无 | v2.0.0 新增 6px，待决；决定前沿用 `--radius-control` 或胶囊形 |
 
 - 边框统一 1px；装饰边框用 `--color-border`，控件边界用 `--color-border-strong`。
 - 阴影只用 `--kdp-shadow`（`0 8px 32px rgb(45 42 40 / 5%)`）表达内容面层级；
@@ -237,11 +277,68 @@ v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授�
 | Tabs | default / selected / disabled | 方向键切换，tab 与 panel 互相关联 | — |
 | Dialog | confirm / form | 明确标题；焦点困在弹窗内，关闭后焦点返回；Esc 关闭；圆角 18px | — |
 | Toast / Alert | info / success / warning / error | 使用状态色；按紧急程度选 `aria-live` 级别；需要时可关闭 | — |
-| 空状态 / 错误状态 | — | 说明当前状态和下一步；不编造数据、指标或内容 | — |
+| Loading | brand / global / inline / ai | 见第 9.2 节；不显示虚构进度 | `brand/codepi-v2.0/loading/` |
+| 空状态 / 错误状态（Feedback） | empty / error / offline / partial | 见第 9.1 节；说明当前状态和下一步，不编造数据、指标或内容 | — |
 | Skip link | — | 键盘可达，聚焦时出现 | `.kdp-skip` |
 | 焦点 | 全局 | `:focus-visible` 为 2px `--color-focus` 实线，外偏移 2px | `site.css` |
 
 品牌橙不要出现在每张卡片上；状态信息不能只用颜色表达。
+
+Claude 设计系统 artifact「CodePi Design System」实现了 Button、Input、Select、Card、Tabs、Nav、Dialog、Alert，
+v2.0.0 包有 Button、Input、Card、Loading、Feedback 的 React 源码。两者只作视觉参考，
+各应用用自己的技术栈（主站 Astro，私人应用 Svelte 5）实现。
+
+### 9.1 交互状态
+
+状态机：idle → pending → success | error | cancelled；offline 与 partial 是独立状态。
+
+| 状态 | 表现 | 恢复 |
+| --- | --- | --- |
+| Empty | 说明为何为空，给下一步入口 | 新建或导入 |
+| Loading | 300ms 内避免闪烁，超过 2s 显示状态文字 | 超过 10s 提供取消或后台继续 |
+| Error | 说明失败了什么并可重试，不暴露内部堆栈 | 重试或反馈 |
+| Offline | 标出缓存数据和上次同步时间 | 网络恢复后重试 |
+| Partial | 区分已完成和失败的部分 | 只重试失败项 |
+| Success | 非阻塞确认，附结果链接 | 查看结果 |
+| Disabled | 说明原因，不只靠颜色 | 条件满足后恢复 |
+| Cancelled | 停止动画与后台任务，告知结果 | 重新发起 |
+
+- 不可逆操作必须说明影响范围并二次确认；提交按钮必须防重复点击。
+- 示例数字只用于展示，真实业务数据必须来自应用。
+
+### 9.2 加载
+
+| 变体 | 用途 | 视觉 | 默认文案 |
+| --- | --- | --- | --- |
+| brand | 应用启动、首次进入 | CodePi 字标 + 橙色圆环 | 正在加载… |
+| global | 全局数据初始化 | 居中橙色圆环 + 文字 | 正在获取数据… |
+| inline | 按钮内或局部区域 | 16–32px 转圈或骨架屏 | 正在处理… |
+| ai | AI 推理或流式输出前的等待 | 三个脉动的橙色圆点 | AI 正在思考中… |
+
+- 转圈尺寸 16 / 24 / 32 / 48 / 64px，线宽按比例；圆环每圈 1200ms 匀速，圆点脉动 1200ms、依次错开 150ms；只动 `transform` / `opacity`。
+- 进度未知时只用不确定动画，**不得**编造百分比；流式输出一开始就替换转圈；出错时停止动画并给出可操作的错误。
+- 不叠多层全局遮罩，遮罩不得挡住关键错误；阻塞式遮罩要有意识地管理焦点。
+- reduced-motion 下显示静态标记和可见文字，状态本身不移除。
+- 非阻塞更新用 `role="status"` + `aria-live="polite"`；加载区域设 `aria-busy="true"`，结束后复位；圆环、圆点设 `aria-hidden="true"`。
+- 橙色圆环是临时实现，不得称为标志路径动画；以后做路径动画必须基于已批准的矢量母版。
+- 参考实现：`brand/codepi-v2.0/loading/loading.css`、`demo.html`（静态原型，不是生产组件）。
+
+### 9.3 AI 交互组件
+
+以下是设计合同，尚未实现。以后做 MCP 授权、AI 工作台等界面时按此实现。
+
+| 组件 | 必需状态 | 约束 |
+| --- | --- | --- |
+| ChatMessage | streaming / complete / error | 代码可复制、支持 Markdown、引用可追溯 |
+| ModelSelector | ready / unavailable / loading | 说明不可用原因，明确当前模型 |
+| ToolCallCard | queued / running / succeeded / failed / cancelled | 输入输出摘要，敏感数据脱敏 |
+| AgentProgress | planning / executing / waiting / done | 真实任务步骤，可取消，不伪造百分比 |
+| ApprovalDialog | pending / approved / rejected / expired | 执行前说明目标、权限、风险和影响范围 |
+| Attachment | uploading / processing / ready / error | 类型、大小、隐私说明，失败可恢复 |
+| Citation | available / unavailable | 来源、时间，可点击查看原始证据 |
+| Conversation | online / offline / syncing / conflict | 本地缓存与同步冲突提示 |
+
+AI 不得用加载状态暗示未完成的工作已经完成；高风险工具调用必须在实际执行前取得确认。
 
 ## 10. 数据可视化
 
@@ -315,15 +412,17 @@ v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授�
 | P2 | GZH | `styles.css` 有 18 处字面色值（如 `--ok-soft`、`--danger-soft`） | 集中到主题变量区，并验证对比度 |
 | P2 | Health | `styles.css` 24 处、`report.css` 5 处字面色值 | 归入 `theme.css` 的局部变量 |
 | P2 | 全部私人应用 | 新代码直接用 `--kdp-*` 别名；语义层 `--color-*` 尚无应用使用 | 新增样式优先引用语义 token；不强制一次性迁移旧代码 |
+| P2 | 全部应用 | 没有统一的 Loading 与 Feedback（空、错误、离线、部分完成）实现 | 按第 9.1–9.2 节在各应用实现，并覆盖 reduced-motion 与 live region |
 | P2 | 手机字阶 | 共享 token 只有桌面字号 | 需要时以 `clamp()` 实现第 4 节手机值；如要新增共享 token，需用户批准 |
 | P3 | 深色模式 | 深色缺 `--color-border-strong` 和石墨灰（v1.5 原件为 `#E5E0DA`）；暖白 `theme-color`、图标未区分深浅；没有页面启用 | 先补 token（需批准），再逐应用验收后启用 |
 | P3 | PWA / 平台图标 | 未接入 manifest；Apple `.icon`、Android 启动器、微信上传均未验收 | 有需求时按 `PLATFORM_COMPLIANCE.md` 逐平台实测 |
+| P3 | Claude 设计系统 artifact | 缺 Loading、Feedback 组件 | 按第 9.1–9.2 节补齐，供设计稿使用 |
 | P3 | 品牌母版 | 矢量母版仍是候选稿；商标与字体授权未审查 | 用户确认定稿后替换第 2.4 节所列两处 |
 
 ## 15. 实施流程（给各项目 agent）
 
 1. 先读本文、目标应用的 `AGENTS.md`，以及要改的组件和应用主题文件；
-   品牌值有疑问时再查 `brand/codepi-v1.5/` 原件。
+   品牌值有疑问时再查 `brand/codepi-v2.0/`、`brand/codepi-v1.5/` 原件。
 2. 先复用 `site.css` 参考组件、应用里已有的组件和 token，再考虑新增；不新增依赖、远程字体或图标库。
 3. 只在本应用的主题文件中加局部变量；需要改 `tokens.css`、`site.css`、`brand.ts` 时，
    单独开任务并请用户批准，PR 中列出所有消费方
@@ -342,8 +441,24 @@ v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授�
 ## 16. 变更治理
 
 - 品牌标志、品牌色、字体或共享 token 的任何变更，都需要用户批准、changelog 记录和受影响组件复查。
-- `brand/codepi-v1.5/` 是只读原件；新版本应作为新目录（如 `codepi-v1.6/`）放入，
+- `brand/codepi-v1.5/`、`brand/codepi-v2.0/` 是只读原件；新版本作为新目录放入，
   再更新 `tokens.css`、`brand.ts` 和本文。
+- 版本号遵循 SemVer：major 为破坏性的 token 或组件 API 变更，minor 为兼容新增，patch 为文档与修复。
+- 设计变更写明背景、范围、token 影响、迁移计划、截图和回滚方式。
+- 组件废弃时旧 API 至少保留一个 minor 版本并附迁移说明。
+- 不得把未执行的检查（视觉回归、无障碍、平台审核）标记为通过。
 - 本文由共享层的单一写入者维护；应用 agent 发现规范缺口时，在任务记录中提出，
   或单独提 PR 修改本文，不在应用代码里各自约定。
 - 本文第 14 节是带日期的盘点，不是实时状态；更新时注明日期和核对的 commit。
+
+## 17. 待决事项
+
+用户做出决定前，实现保持现状，不自行选择。
+
+1. 弹窗圆角用 18px（现网、v1.5、v2.0.0 文档）还是 20px（v2.0.0 token 源）；是否启用 6px 小圆角。
+2. 是否把 CSS 变量迁到 v2.0.0 的 `--cp-*` 命名；如果迁，间距按下标编号还是按倍数编号。
+3. 深色模式是否跟随系统 `prefers-color-scheme`；深色下控件边界色与石墨灰取值。
+4. 是否自托管 Inter 与 Noto Sans SC（需先核对授权）。
+5. GU 涨跌色方向，以及正常 / 关注 / 异常 / 待核实四种状态色的映射。
+6. Health 暖纸主题是否并回共享色板。
+7. 标志母版何时从 candidate 升为 approved。

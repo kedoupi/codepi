@@ -7,4 +7,4 @@
 - `mcp/` 只定义 MCP 与各领域应用的内部 RPC 契约，不放业务 SQL、transport 或客户端凭证。变动时检查两侧调用方；`desk/` 的摘要契约与 MCP 保持各自用途。
 - 公共产品信息放 `products.ts`，不引入私人业务数据。视觉规则以 `../../docs/architecture/codepi-design-system.md` 为准，主站布局另见 `personal-design-system.md`。
 - 并行任务中共享接口由单一写入者维护。新增消费者或共享路径时更新根 `scripts/agent/check.mjs` 的影响映射与回归测试。
-- `brand/codepi-v1.5/` 是用户提供的 CodePi Design System v1.5 原样副本，作为品牌依据，不在此处改写其中文件；品牌或 token 变更需要用户批准并按其规则记录 changelog。`styles/tokens.css` 由它派生。
+- `brand/codepi-v2.0/` 与 `brand/codepi-v1.5/` 是用户提供的 CodePi Design System 原样副本（v2.0 只收文档、token 源和加载参考，资产在 v1.5），作为品牌依据，不在此处改写其中文件；品牌或 token 变更需要用户批准并按其规则记录 changelog。`styles/tokens.css` 由它派生。
