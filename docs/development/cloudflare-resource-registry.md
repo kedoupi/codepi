@@ -9,6 +9,17 @@
 临时资源和明文已清理。云端巡检 34/34。详见
 [领域扩展任务](tasks/2026-10-20-codepi-mcp-domains.md)。
 
+2026-10-20 MCP 全量 scope 授权已通过 PR #133 合并为
+`3ad248e1c9887e9a652ec85415de0c00a7dc8721`，并从干净、等于实时远程 main 的
+detached 源码持锁发布。MCP 活动 version 由
+`c6b62b1e-bab3-415f-83e4-4da2beeb3643` 更新为
+`29c7f8ed-6b40-41ef-95cd-fa4b5b56d931`，保持 `BUILD_SHA=3ad248e1c988`、
+单一 100% 流量和既有 D1/Auth/domain RPC 绑定。线上 readiness、Auth 凭证配对、
+两种 discovery、匿名拒绝和连接管理登录跳转通过；本地 36 项测试、typecheck、build、
+桌面/390px 浏览器验收及 PR CI 全部通过。既有两个活动连接已是全量 scope，
+本次未轮换 secret 或写入业务数据。详见
+[MCP 领域任务](tasks/2026-10-20-codepi-mcp-domains.md#全量-scope-授权发布)。
+
 2026-10-20 Project GitHub 同步后续验收：`GITHUB_TOKEN` 已按所有者确认的只读
 fine-grained 权限配置为 `secret_text`。Secret 变更生成新 Worker version
 `bb43c090-0370-43c3-b5f6-c3242df79da5`，保持 `BUILD_SHA=58bd615c317d`、两个 Secret、
@@ -404,7 +415,7 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-rsend | production | dns | rsend/send.kdp.cool CNAME *.forge.rmta.net | kedoupi | 邮件发送域 | unknown | 邮件投递 | rsend.kdp.cool, send.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
-| worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC, PROJECT RPC, ME RPC, GU RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-20 version c6b62b1e-bab3-415f-83e4-4da2beeb3643；BUILD_SHA 58bd615c317d；readiness、发现、匿名拒绝和五个领域入口通过 |
+| worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC, PROJECT RPC, ME RPC, GU RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-20 version 29c7f8ed-6b40-41ef-95cd-fa4b5b56d931；BUILD_SHA 3ad248e1c988；readiness、发现、匿名拒绝和连接管理入口通过；全量 scope 授权已发布 |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB、Ops 加密导出 | - | release-time exact-name resolution / migrations | managed | 2026-10-20 v3 隔离恢复 7 表/46 行全量内容与类型一致；历史 token/授权码/会话清理演练通过，2 个客户端注册保留 |
 | worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU/Me named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-20 version 36c81c0b-5c29-4ede-b805-289a1f6ea753；BUILD_SHA 58bd615c317d；8 库/两类原件备份与 34/34 云端巡检通过 |
 | workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572 complete；八库与 GU/Me 原件 R2/GitHub 完整；monitor cf_8a2afa9777e330cb8d0147c661fdc25ecd9fa865d95e4081bcb0879eaf84d256 34/34 |
