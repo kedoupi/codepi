@@ -1,4 +1,4 @@
-import { CredentialStore } from "../config.js";
+import { CredentialStore, type CredentialRecord } from "../config.js";
 import { CliError, EXIT } from "../errors.js";
 import {
   authorizationUrl,
@@ -36,14 +36,14 @@ export async function login(options: LoginOptions, io: Io = process): Promise<vo
     });
   }
 
-  const existing = await store.read();
-  const existingClient = existing?.client?.issuer === metadata.issuer
-    ? existing.client
-    : undefined;
-  const client = existingClient ?? await registerClient(metadata, scopes);
   const recordLock = await acquireLock(store.lockPath);
+  let client: NonNullable<CredentialRecord["client"]>;
   try {
     const current = await store.read();
+    const currentClient = current?.client?.issuer === metadata.issuer
+      ? current.client
+      : undefined;
+    client = currentClient ?? await registerClient(metadata, scopes);
     await store.write({
       ...current,
       version: 1,
@@ -74,10 +74,18 @@ export async function login(options: LoginOptions, io: Io = process): Promise<vo
     const lock = await acquireLock(store.lockPath);
     try {
       const current = await store.read();
+      if (current?.client?.client_id !== client.client_id ||
+          current.client.issuer !== client.issuer) {
+        throw new CliError(
+          "本地凭证在登录期间发生变化，请重新运行 `codepi login`。",
+          EXIT.AUTH,
+          { code: "credentials_changed" },
+        );
+      }
       await store.write({
         version: 1,
         server: store.server,
-        client: current?.client ?? client,
+        client,
         metadata,
         tokens,
       });
