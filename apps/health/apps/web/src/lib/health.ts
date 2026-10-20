@@ -119,13 +119,14 @@ export function stagePoints(record: SleepRecord): SleepStagePoint[] {
   if (typeof value !== "string" || !/^[1234]*$/.test(value)) return [];
   const midnight = seriesMidnightMs(record);
   const points: SleepStagePoint[] = [];
-  for (const match of value.match(/(.)\1*/g) ?? []) {
-    const offset = points.length * 300;
+  for (let index = 0; index < value.length; index++) {
+    const code = value[index];
+    const offset = index * 300;
     points.push({
       at: midnight !== null ? new Date(midnight + offset * 1000).toISOString() : null,
       offset,
-      stage: SLEEP_STAGES[match[0]],
-      code: match[0],
+      stage: SLEEP_STAGES[code],
+      code,
     });
   }
   return points;
