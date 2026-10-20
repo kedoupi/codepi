@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
 import { fixture as authFixture } from '../../../services/auth/test/runtime.mjs';
 const require = createRequire(new URL('../../../services/auth/package.json', import.meta.url));
 const { build } = require('esbuild');
@@ -46,6 +47,8 @@ export async function sourceFixture(t) {
     ],
   };
   for (const [id, statements] of Object.entries(schemas)) await dbs[id].batch(statements.map(sql => dbs[id].prepare(sql)));
+  const onlineGu = await readFile(new URL('../../gu/migrations/0003_online_workspace.sql', import.meta.url), 'utf8');
+  await dbs.gu.batch(onlineGu.split(';').filter(sql => sql.trim()).map(sql => dbs.gu.prepare(sql)));
   const request = async (id, range = 'current', token = sourceTokens[id], method = 'GET') => {
     const worker = await runtime.getWorker(id);
     return worker.fetch(`https://${id}.example/api/internal/desk-summary?range=${range}`, { method, headers: { Authorization: `Bearer ${token}` } });

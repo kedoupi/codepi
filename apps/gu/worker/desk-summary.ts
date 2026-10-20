@@ -1,25 +1,30 @@
 import { authorizeSummary, deskJson, emptySummary, finite, type DeskSummary } from "@kedoupi/shared/desk/contract";
 import type { Dashboard, Env } from "./types";
 import { readWorkspace } from "./workspace";
+import type { WorkspaceView } from "./workspace-types";
+
+export function onlineWorkspaceSummary(workspace: WorkspaceView): DeskSummary {
+  const oldest = workspace.valuation.oldest_date;
+  const summary: DeskSummary = {
+    source: "gu", status: "ok", asOf: oldest, updatedAt: workspace.updated_at,
+    stale: !oldest || Date.now() - Date.parse(oldest) > 36 * 3600_000,
+    metrics: [{ label: "持仓记录", value: String(workspace.data.account.holdings.length) },
+      { label: "待补估值", value: String(workspace.valuation.missing) }],
+    facts: [`线上账户版本 ${workspace.revision}；${workspace.data.reports.length} 份研究报告。`],
+    notes: workspace.valuation.warnings,
+    attention: [{ label: "查看和核对线上账户", href: "https://gu.codepi.app/#workspace" }],
+  };
+  if (workspace.valuation.total_usd !== null)
+    summary.privateMetric = { label: "已录入参考估值 · 美元", value: workspace.valuation.total_usd };
+  return summary;
+}
 
 export async function handleDeskSummary(request: Request, env: Env): Promise<Response> {
   const denied = await authorizeSummary(request, env.DESK_SUMMARY_TOKEN);
   if (denied) return denied;
   const workspace = await readWorkspace(env);
   if (workspace.active) {
-    const oldest = workspace.valuation.oldest_date;
-    const summary: DeskSummary = {
-      source: "gu", status: "ok", asOf: oldest, updatedAt: workspace.updated_at,
-      stale: !oldest || Date.now() - Date.parse(oldest) > 36 * 3600_000,
-      metrics: [{ label: "持仓记录", value: String(workspace.data.account.holdings.length) },
-        { label: "待补估值", value: String(workspace.valuation.missing) }],
-      facts: [`线上账户版本 ${workspace.revision}；${workspace.data.reports.length} 份研究报告。`],
-      notes: workspace.valuation.warnings,
-      attention: [{ label: "查看和核对线上账户", href: "https://gu.codepi.app/#workspace" }],
-    };
-    if (workspace.valuation.total_usd !== null)
-      summary.privateMetric = { label: "已录入参考估值 · 美元", value: workspace.valuation.total_usd };
-    return deskJson(summary);
+    return deskJson(onlineWorkspaceSummary(workspace));
   }
   const row = await env.DB.prepare(`SELECT b.generated_at,b.received_at,b.payload FROM dashboard_batches b
     JOIN dashboard_current c ON c.batch_id=b.id WHERE c.singleton=1`)

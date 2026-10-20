@@ -89,7 +89,7 @@ async function cleanup(env: Env, now: number) {
   ]);
 }
 
-export async function automaticSyncStatus(env: Env, userId: string) {
+export async function automaticSyncStatus(env: Env, userId: string, now = Date.now()) {
   const row = await env.DB.prepare("SELECT * FROM auto_sync_state WHERE user_id=?").bind(userId).first<State>();
   const tasks: Task[] = JSON.parse(row?.payload ?? "[]");
   const unavailable = await deniedHealthCollections(env, userId);
@@ -98,7 +98,6 @@ export async function automaticSyncStatus(env: Env, userId: string) {
   const pending = active.filter(t => t.state === "pending");
   const scores = active.find(t => t.collection === "__scores");
   const details = active.filter(t => t.collection !== "__scores");
-  const now = Date.now();
   const current = pending.find(t => t.after <= now) ?? [...pending].sort((a, b) => a.after - b.after)[0];
   const shanghaiDay = calendarDay(new Date(now));
   let next = Date.parse(`${shanghaiDay}T01:00:00Z`);
@@ -107,6 +106,11 @@ export async function automaticSyncStatus(env: Env, userId: string) {
       ? (Math.floor(now / 120_000) + 1) * 120_000
       : next + DAY;
   }
+  // MCP pages pass their frozen generated_at so repeated pages stay stable;
+  // ordinary status reads use the live clock and never report a past batch.
+  const nextBatchAt = row?.status === "running" && pending.length
+    ? new Date(Math.max(now + 120_000, Math.min(...pending.map(t => t.after)))).toISOString()
+    : null;
   return {
     enabled: env.AUTO_SYNC_ENABLED === "1",
     schedule: "09:00", timezone: "Asia/Shanghai", next_run_at: new Date(next).toISOString(),
@@ -128,8 +132,7 @@ export async function automaticSyncStatus(env: Env, userId: string) {
     current: current ? {
       collection: current.collection, from: current.from, to: current.to,
     } : null,
-    next_batch_at: row?.status === "running" && pending.length
-      ? new Date(Math.max(now + 120_000, Math.min(...pending.map(t => t.after)))).toISOString() : null,
+    next_batch_at: nextBatchAt,
   };
 }
 

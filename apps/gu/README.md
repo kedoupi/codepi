@@ -19,8 +19,32 @@ kedoupi（codepi）旗下的私人投资工作台。Cloudflare Worker `codepi-gu
 - 私人资料支持 PDF、PNG、JPG、TXT、Markdown、CSV、JSON，每份最多 8 MiB；保存在 R2，元数据在 D1。下载必须经过 GU 会话鉴权，不提供公开 bucket 链接。上传仅保存原件，不执行 OCR 或修改账户。
 - 相同内容重传复用资料 ID，缺失的 R2 原件可由重传修复。D1 写入回执失败时保留已上传对象，避免删掉实际已提交的原件；可能留下无索引对象，后续对账不能仅凭某次失败回执删除原件。
 
-本阶段保留单账户所有者、多资产记录能力，不引入模型提供方、定时研究或 GU MCP；
-后续任务将调用线上业务能力，不再依赖外部本机脚本。
+本阶段保留单账户所有者、多资产记录能力。统一 MCP 通过命名入口
+`GuMcp` 只读 `gu_workspace_head` 指向的线上版本，不提供交易、保存或其他写入操作；
+旧看板批次不会作为 MCP 数据来源。
+
+### MCP 只读 RPC
+
+`GuMcp implements GuService`，操作固定为 `portfolio`、`cash`、`trades`、`rules`、
+`reports`，主体只接受 `kdp-owner`。每次请求参数为
+`{ revision?, offset?, limit? }`：`revision` 为正整数，`offset` 为非负整数，
+其他键一律拒绝。`portfolio`、`cash`、`trades`、`reports` 的 `limit` 为 1–100；
+`rules` 的 `limit` 为 1–4000 个 Unicode 码点，默认 4000。后续翻页必须携带首次返回的 `revision`，否则返回
+`revision_required`，版本已变化则返回 `revision_changed`。
+
+- `portfolio`、`cash`、`trades` 按记录分页；`limit` 是记录数。金额、数量保留十进制
+  文本，未知值保持 `null`，不会补成零；`portfolio` 同时返回账户概览和持仓页。
+- `rules` 的 `offset` 是规则正文的 Unicode 码点偏移，`limit` 是本次最多返回的码点数
+  （1–4000，默认 4000）；单页仍受 12 KiB UTF-8 上限约束，按 `page.next_offset`
+  可读取完整正文。
+- `reports` 按报告内容游标分页；`offset` 使用上一页返回的 `next_offset`，`limit`
+  是单页最多报告片段数。每条记录包含正文片段和 `body_complete`，继续翻页可读取
+  完整报告正文。
+- 每个成功响应都带 `revision`、`updated_at`、`as_of`、`page` 和截断元数据；详情页
+  限制为 12 KiB UTF-8。`summary()` 只复用线上账户摘要，不返回 `privateMetric`。
+
+`GuMaterialsBackup` 保持独立，仅供 Ops 通过显式 service binding 读取原件；
+以上 MCP 能力不暴露资料原件或公开 HTTP 路由。
 
 ### API 与存储
 
