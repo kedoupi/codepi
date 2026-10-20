@@ -4,6 +4,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const { Miniflare, Response } = createRequire(require.resolve('wrangler'))('miniflare');
+const { build } = createRequire(new URL('../../auth/package.json', import.meta.url))('esbuild');
 export const ORIGIN = 'https://mcp.example';
 export const REDIRECT = 'http://127.0.0.1:9999/callback';
 const secret = 'synthetic-mcp-sso-' + 'x'.repeat(32);
@@ -15,6 +16,20 @@ function manifest(directory) {
     modules[name] = { type: 'text', contents: readFileSync(dir + name, 'utf8') };
   }
   return { mainModule: 'index.js', modules };
+}
+let domainManifests;
+async function domains() {
+  domainManifests ??= Promise.all(['project', 'me', 'gu'].map(async name => {
+    const result = await build({
+      entryPoints: [fileURLToPath(new URL(`../../../apps/${name}/worker/index.ts`, import.meta.url))],
+      bundle: true, format: 'esm', platform: 'neutral', write: false,
+      external: ['cloudflare:workers'], loader: { '.css': 'text' },
+    });
+    return { name, manifest: { mainModule: 'index.js', modules: {
+      'index.js': { type: 'esm', contents: result.outputFiles[0].text },
+    } } };
+  }));
+  return domainManifests;
 }
 
 export async function fixture(t, options = {}) {
@@ -31,6 +46,9 @@ export async function fixture(t, options = {}) {
         env: {
           DB: { type: 'd1', name: 'mcp-db' },
           HEALTH: { type: 'worker', worker: 'health', exportName: 'HealthMcp' },
+          PROJECT: { type: 'worker', worker: 'project', exportName: 'ProjectMcp' },
+          ME: { type: 'worker', worker: 'me', exportName: 'MeMcp' },
+          GU: { type: 'worker', worker: 'gu', exportName: 'GuMcp' },
           ...values({ MCP_ORIGIN: origin, AUTH_CLIENT_ID: 'mcp', AUTH_CLIENT_SECRET: secret,
             AUTH_ORIGIN: 'https://auth.example', SSO_ENABLED: '1', BUILD_SHA: 'synthetic', ...mcpBindings }),
           AUTH: { type: 'fetcher', async handler(request) {
@@ -71,15 +89,33 @@ export async function fixture(t, options = {}) {
         state.providerCalls++;
         throw new Error('Queries may enqueue but must not contact the provider inline');
       } } },
-    }],
+    }, ...(await domains()).map(({ name, manifest }) => ({
+      config: {
+        name, compatibilityDate: '2026-10-18', compatibilityFlags: ['nodejs_compat'],
+        manifest, exports: { [{ project: 'ProjectMcp', me: 'MeMcp', gu: 'GuMcp' }[name]]: { type: 'worker' } },
+        env: {
+          DB: { type: 'd1', name: `${name}-db` },
+          ...(name === 'me' ? { IMPORTS: { type: 'r2', name: 'synthetic-me-imports' } } : {}),
+          ...values({ SSO_ENABLED: '1', AUTH_CLIENT_ID: name, PROJECT_REPOS: 'synthetic/repo',
+            PROJECT_ORIGIN: 'https://project.example', ME_ORIGIN: 'https://me.example', ENVIRONMENT: 'test' }),
+        },
+      },
+      dev: { outboundService: { type: 'fetcher', handler() { throw Error('Domain RPC must not contact external services'); } } },
+    }))],
   });
   t.after(() => runtime.dispose());
   await runtime.ready;
   const db = await runtime.getD1Database('DB', 'mcp');
   const healthDb = await runtime.getD1Database('DB', 'health');
+  const projectDb = await runtime.getD1Database('DB', 'project');
+  const meDb = await runtime.getD1Database('DB', 'me');
+  const guDb = await runtime.getD1Database('DB', 'gu');
   for (const [target, directory] of [
     [db, new URL('../migrations/', import.meta.url)],
     [healthDb, new URL('../../../apps/health/migrations/', import.meta.url)],
+    [projectDb, new URL('../../../apps/project/migrations/', import.meta.url)],
+    [meDb, new URL('../../../apps/me/migrations/', import.meta.url)],
+    [guDb, new URL('../../../apps/gu/migrations/', import.meta.url)],
   ]) {
     for (const name of (await readdir(directory)).filter(n => n.endsWith('.sql')).sort()) {
       const sql = (await readFile(new URL(name, directory), 'utf8')).replace(/--[^\n]*/g, '');
@@ -102,28 +138,29 @@ export async function fixture(t, options = {}) {
   const post = (path, data, headers = {}) => at(path, { method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(data).toString() });
-  async function grant({ exchange = true } = {}) {
+  async function grant({ exchange = true, scope = 'health.read health.sync', client: existingClient,
+    registeredRedirect = REDIRECT, redirectUri = REDIRECT, consentOnly = false } = {}) {
     const cookie = await login();
-    const registered = await at('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_name: 'Synthetic client', redirect_uris: [REDIRECT] }) });
-    const client = await registered.json();
+    const client = existingClient ?? await (await at('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Synthetic client', redirect_uris: [registeredRedirect] }) })).json();
     const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
     const challenge = await hash(verifier);
-    const params = { client_id: client.client_id, redirect_uri: REDIRECT, response_type: 'code',
-      code_challenge: challenge, code_challenge_method: 'S256', state: 'synthetic-state', resource: origin + '/mcp' };
+    const params = { client_id: client.client_id, redirect_uri: redirectUri, response_type: 'code',
+      code_challenge: challenge, code_challenge_method: 'S256', state: 'synthetic-state', resource: origin + '/mcp', scope };
     const screen = await at('/oauth/authorize?' + new URLSearchParams(params), { headers: { Cookie: cookie } });
     const html = await screen.text();
     if (screen.status !== 200) throw new Error('Consent screen failed: ' + screen.status);
     const approval = {
       consent_id: html.match(/name="consent_id" value="([^"]+)"/)[1],
       csrf_token: html.match(/name="csrf_token" value="([^"]+)"/)[1],
-      client_id: client.client_id, decision: 'approve', state: params.state,
+      client_id: client.client_id, decision: 'approve', state: params.state, scope,
     };
+    if (consentOnly) return { client, cookie, approval, html };
     const approved = await post('/oauth/authorize', approval, { Origin: origin, Cookie: cookie });
     if (approved.status !== 302) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
     const code = new URL(approved.headers.get('Location')).searchParams.get('code');
     const tokenForm = { grant_type: 'authorization_code', code, client_id: client.client_id,
-      redirect_uri: REDIRECT, code_verifier: verifier, resource: origin + '/mcp' };
+      redirect_uri: redirectUri, code_verifier: verifier, resource: origin + '/mcp' };
     if (!exchange) return { client, cookie, approval, tokenForm };
     const exchanged = await post('/oauth/token', tokenForm);
     if (exchanged.status !== 200) throw new Error('Token exchange failed: ' + await exchanged.text());
@@ -152,7 +189,7 @@ export async function fixture(t, options = {}) {
       DO UPDATE SET synced_at=excluded.synced_at,attempted_at=excluded.attempted_at,last_error=excluded.last_error`)
       .bind('health-owner', collection, from, to, synced, new Date().toISOString(), error).run();
   }
-  return { runtime, db, healthDb, health, state, at, post, login, grant, rpc, tool, record, cover,
+  return { runtime, db, healthDb, projectDb, meDb, guDb, health, state, at, post, login, grant, rpc, tool, record, cover,
     fetch: (input, init) => worker.fetch(input, init) };
 }
 
