@@ -8,9 +8,7 @@ html {
 body {
   margin: 0;
   min-width: 0;
-  background:
-    radial-gradient(ellipse at 88% 10%, rgb(220 234 255 / 70%), transparent 36rem),
-    var(--kdp-canvas);
+  background: var(--kdp-canvas);
   color: var(--kdp-ink);
   font-family: var(--kdp-font);
   line-height: 1.7;
@@ -20,7 +18,7 @@ body {
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 svg { flex-shrink: 0; }
-::selection { background: #dceaff; color: var(--kdp-ink); }
+::selection { background: var(--kdp-accent-soft); color: var(--kdp-ink); }
 :focus-visible { outline: 3px solid var(--kdp-focus); outline-offset: 5px; }
 h1, h2, h3, .font-serif, .kdp-display { font-family: var(--kdp-font); }
 a { text-underline-offset: 4px; }
@@ -28,7 +26,7 @@ a { text-underline-offset: 4px; }
 .kdp-container { width: min(calc(100% - 64px), var(--kdp-content-width)); margin-inline: auto; }
 .kdp-header-inner { min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .kdp-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--kdp-ink); text-decoration: none; white-space: nowrap; }
-.kdp-mark { display: inline-grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border: 1px solid rgb(255 255 255 / 20%); border-radius: 10px; background: linear-gradient(145deg, #4c83e5, #285bd0); box-shadow: 0 3px 8px rgb(53 104 199 / 14%), inset 0 0 0 2px rgb(255 255 255 / 12%); color: white; font: 700 29px/1 "Avenir Next", sans-serif; }
+.kdp-mark { display: inline-grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: var(--radius-control); background: var(--brand-graphite); color: white; font: 700 29px/1 var(--kdp-font); }
 .kdp-wordmark { font-size: 21px; font-weight: 650; letter-spacing: -.5px; }
 .kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .kdp-nav { display: flex; align-items: center; gap: 30px; font-size: 14px; font-weight: 500; }

@@ -1,0 +1,16 @@
+{
+  "background": "#FAF8F4",
+  "surface": "#FFFFFF",
+  "text": "#2D2A28",
+  "textMuted": "#706A64",
+  "border": "#E7E3DC",
+  "focus": "#C94F20",
+  "action": "#C94F20",
+  "actionHover": "#A83E18",
+  "actionText": "#FFFFFF",
+  "disabledBg": "#F3EAE4",
+  "disabledText": "#756F6A",
+  "success": "#23744C",
+  "warning": "#965400",
+  "danger": "#B42318"
+}

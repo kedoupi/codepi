@@ -1,0 +1,20 @@
+{
+  "fontFamilies": {
+    "sans": "Inter, Noto Sans SC, system-ui, sans-serif",
+    "mono": "JetBrains Mono, monospace"
+  },
+  "fontSizesPx": {
+    "xs": 12,
+    "sm": 14,
+    "base": 16,
+    "lg": 18,
+    "xl": 20,
+    "h3": 24,
+    "h2": 32,
+    "h1": 48
+  },
+  "lineHeight": {
+    "body": 1.6,
+    "heading": 1.2
+  }
+}

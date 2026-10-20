@@ -1,0 +1,42 @@
+/* CodePi v1.2 - provisional design tokens; not a finalized logo master */
+:root {
+  --brand-graphite: #5E5A56;
+  --brand-orange: #FF713D;
+  --brand-orange-interactive: #C94F20;
+  --brand-orange-hover: #A83E18;
+  --brand-soft: #FFE6D9;
+  --color-background: #FAF8F4;
+  --color-surface: #FFFFFF;
+  --color-text: #2D2A28;
+  --color-text-muted: #706A64;
+  --color-border: #E7E3DC;
+  --color-focus: #C94F20;
+  --color-action: #C94F20;
+  --color-action-hover: #A83E18;
+  --color-action-text: #FFFFFF;
+  --color-disabled-bg: #F3EAE4;
+  --color-disabled-text: #756F6A;
+  --color-success: #23744C;
+  --color-warning: #965400;
+  --color-danger: #B42318;
+  --radius-control: 10px; --radius-card: 14px; --radius-dialog: 18px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px;
+  --motion-fast: 150ms; --motion-normal: 220ms;
+}
+[data-theme="dark"] {
+  --color-background: #242321;
+  --color-surface: #302E2B;
+  --color-text: #F6F3ED;
+  --color-text-muted: #C6BFB5;
+  --color-border: #514D47;
+  --color-focus: #FF936C;
+  --color-action: #FF936C;
+  --color-action-hover: #FFAC8B;
+  --color-action-text: #242321;
+  --color-disabled-bg: #413D38;
+  --color-disabled-text: #B4AEA5;
+  --color-success: #7AD9A5;
+  --color-warning: #FFD080;
+  --color-danger: #FF968F;
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
