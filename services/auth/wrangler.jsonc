@@ -17,7 +17,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "AUTH_ORIGIN": "https://auth.codepi.app",
-    "SSO_EXTRA_REDIRECT_URIS": "{\"gu\":[\"https://gu.kdp.cool/api/auth/callback\",\"https://gu.codepi.app/api/auth/callback\"],\"oura\":[\"https://health.kdp.cool/api/auth/callback\",\"https://health.codepi.app/api/auth/callback\"],\"gzh\":[\"https://gzh.codepi.app/api/auth/callback\"],\"desk\":[\"https://kdp.cool/api/auth/callback\",\"https://codepi.app/api/auth/callback\"]}"
+    "SSO_EXTRA_REDIRECT_URIS": "{\"gu\":[\"https://gu.kdp.cool/api/auth/callback\",\"https://gu.codepi.app/api/auth/callback\"],\"oura\":[\"https://health.kdp.cool/api/auth/callback\",\"https://health.codepi.app/api/auth/callback\"],\"gzh\":[\"https://gzh.codepi.app/api/auth/callback\"],\"desk\":[\"https://kdp.cool/api/auth/callback\",\"https://codepi.app/api/auth/callback\"],\"project\":[\"https://project.codepi.app/api/auth/callback\"],\"me\":[\"https://me.codepi.app/api/auth/callback\"]}"
   },
   "d1_databases": [{
     "binding": "DB",

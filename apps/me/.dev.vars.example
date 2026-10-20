@@ -1,0 +1,5 @@
+SSO_ENABLED=1
+AUTH_CLIENT_ID=me
+AUTH_ORIGIN=https://auth.codepi.app
+AUTH_CLIENT_SECRET=replace-with-the-me-client-secret
+ENVIRONMENT=development

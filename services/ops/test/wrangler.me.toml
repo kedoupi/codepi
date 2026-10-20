@@ -1,0 +1,15 @@
+name = "me-synthetic"
+main = "fixture-me-worker.mjs"
+compatibility_date = "2026-10-19"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "me-synthetic"
+database_id = "00000000-0000-4000-8000-000000000006"
+
+[[r2_buckets]]
+binding = "IMPORTS"
+bucket_name = "me-synthetic-imports"

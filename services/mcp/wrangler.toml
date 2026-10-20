@@ -46,3 +46,18 @@ service = "codepi-auth"
 binding = "HEALTH"
 service = "codepi-health-api"
 entrypoint = "HealthMcp"
+
+[[services]]
+binding = "PROJECT"
+service = "codepi-project"
+entrypoint = "ProjectMcp"
+
+[[services]]
+binding = "ME"
+service = "codepi-me"
+entrypoint = "MeMcp"
+
+[[services]]
+binding = "GU"
+service = "codepi-gu"
+entrypoint = "GuMcp"

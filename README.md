@@ -2,7 +2,7 @@
 
 `codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-当前只保留四个产品：首页、GU（投资理财）、GZH（公众号工作台）和 Health，分别使用 `codepi.app`、`gu.codepi.app`、`gzh.codepi.app`、`health.codepi.app`；统一登录在 `auth.codepi.app`。`services/auth/`、`services/mcp/`、`services/ops/` 与 `packages/shared/` 是支撑层，不新增产品。统一 MCP 首期接入 Health，已完成生产发布；2026-10-19 所有者确认已在 Claude 手机端连接并使用，具体验收范围与剩余项见[任务记录](docs/development/tasks/2026-10-18-unified-mcp.md)。
+产品目录位于 `apps/`，公开入口的唯一清单是 `packages/shared/products.ts`。Auth、MCP、Ops 与 shared 是支撑层。统一 MCP 的 Health 版本已上线；本轮扩展 Project、Me、GU 只读能力，并新增 `codepi` CLI。新增资源仍为 planned，实际实现、检查与上线状态分别记录在[领域扩展任务](docs/development/tasks/2026-10-20-codepi-mcp-domains.md)。
 
 原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
@@ -21,9 +21,12 @@
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
-| `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，服务 GU/Health/GZH/Desk/MCP |
-| `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，Health 首期；独立授权 D1 |
+| `apps/project/` | `project.codepi.app`（planned） | `codepi-project` | 项目卡、任务交接与 GitHub 同步 |
+| `apps/me/` | `me.codepi.app`（planned） | `codepi-me` | 待确认记忆、个人资料与经历 |
+| `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，客户端表见 shared/auth/clients.ts |
+| `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，逐工具授权与领域 RPC；独立授权 D1 |
 | `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[运维说明](docs/development/cloudflare-operations.md) |
+| `packages/cli/` | — | — | 官方 MCP SDK 客户端；本地 CLI |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
 部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。
@@ -107,7 +110,20 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 
 ## Adding or retiring a product
 
-经批准新增应用时同步更新 `packages/shared/products.ts`、首页入口、`auth` 的客户端登记与校验、`scripts/agent/check.mjs` 的影响映射及其回归测试。`SSO_CLIENTS` 登记客户端凭证及 `redirectUris`；`SSO_EXTRA_REDIRECT_URIS` 只为已登记客户端追加精确 callback，不能用它创建新客户端。额外回调与 `redirectUris` 合并生效；删除回调时须检查两处。staging 环境已于 2026-10-18 退役，只保留 local 与 production。
+经批准新增应用时：
+
+1. 新建 `apps/<id>/`、局部 AGENTS/README、自己的 D1 migration 和 SSO schema；沿用 workspace 技术栈。
+2. 更新 `packages/shared/products.ts` 与公开入口；Desk 只展示其已实现的摘要来源，不能因产品登记就自动查询新业务。
+3. 在 `packages/shared/auth/clients.ts` 登记客户端与精确回调，配对 secret 独立授权执行，不轮换其他客户端。
+4. 登记 Worker、D1、域名、私有对象桶为 planned；真实 ID 与上线证据只能在创建、验证后回填。
+5. 更新 affected 检查、migration guard、CI、release scope、版本巡检与 Workers Issues。
+6. 将 D1 和索引原件纳入备份、跨平台副本及隔离恢复；无完整恢复证据不能称已验收。
+7. 接入 MCP 时，应用导出 `<Name>Mcp` named RPC；shared 只放契约，MCP 注册工具、逐工具 scope 和 binding，不绑定业务库。
+8. `get_context` 摘要需独立读权限、大小限制与超时降级；新增客户端真实授权与发布按任务逐项验收。
+
+`SSO_EXTRA_REDIRECT_URIS` 只追加精确 callback，不创建客户端。Project/Me 的默认
+callback 可以先声明，缺少 opt-in secret 时客户端仍关闭，既有登录保持可用。
+仅保留 local 与 production。
 
 退役产品时按顺序执行：先移除代码与入口，再更新 `packages/shared/products.ts` 和文档，然后按资源登记表撤下 Worker 自定义域/路由，最后处理 DNS 与服务资源。平台管理的 DNS 需核实实际归属；数据（D1、对象存储）单独确认后再处理。具体步骤见[集成与退役流程](docs/development/integration-release.md)。
 
@@ -134,3 +150,5 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 | P8 | 私人应用的授权 AI 能力 | 统一 MCP 已上线，Health 已在 Claude 手机端使用；其他模块按产品进度设计 |
 
 私人应用全面换肤在各自迁移阶段执行，须沿用共享设计规范并单独验证业务状态。
+
+P10：CodePi MCP 领域扩展的实现与验收见[当前任务](docs/development/tasks/2026-10-20-codepi-mcp-domains.md)，未发布部分不得按旧 Health 上线记录推定完成。

@@ -1,5 +1,6 @@
 export const WORKERS = {
   auth: 'codepi-auth', web: 'codepi-www', gu: 'codepi-gu', gzh: 'codepi-gzh',
+  project: 'codepi-project', me: 'codepi-me',
   'health-api': 'codepi-health-api', 'health-web': 'codepi-health', mcp: 'codepi-mcp', ops: 'codepi-ops',
 };
 const all = Object.keys(WORKERS);
@@ -10,7 +11,7 @@ export function affectedWorkers(files) {
   const affected = new Set();
   const add = services => services.forEach(service => affected.add(service));
   for (const file of files) {
-    if (/^scripts\/cloudflare\/(?:backup-core|backup-public-key|monitor-core|mcp-checks|worker-api|release-scope|github-api|github-release-drift)\./.test(file)
+    if (/^scripts\/cloudflare\/(?:backup-core|backup-public-key|monitor-core|mcp-checks|worker-api|release-scope|github-api|github-release-drift|originals-restore|deploy-domain|pair-mcp-secret)\./.test(file)
       && !/\.test\.mjs$/.test(file)) {
       add(['ops']);
       continue;
@@ -22,7 +23,7 @@ export function affectedWorkers(files) {
       || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file)
       || /\/scripts\/(?:check[^/]*|verify[^/]*|deploy[^/]*|browser[^/]*|test[^/]*)\.mjs$/.test(file)
       || file === '.gitignore') continue;
-    if (file.startsWith('packages/shared/mcp/')) add(['health-api', 'mcp']);
+    if (file.startsWith('packages/shared/mcp/')) add(['health-api', 'mcp', 'gu', 'project', 'me']);
     else if (file.startsWith('packages/shared/')) add(all);
     else if (file.startsWith('services/auth/')) add(all);
     else if (file.startsWith('services/mcp/')) add(['mcp']);
@@ -30,6 +31,8 @@ export function affectedWorkers(files) {
     else if (file.startsWith('apps/health/apps/web/')) add(['health-web']);
     else if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/migrations/')) add(['health-api', 'mcp']);
     else if (file.startsWith('apps/health/')) add(['health-api', 'health-web', 'mcp']);
+    else if (file.startsWith('apps/project/')) add(['project']);
+    else if (file.startsWith('apps/me/')) add(['me']);
     else if (file.startsWith('apps/web/')) add(['web']);
     else if (file.startsWith('apps/gu/')) add(['gu']);
     else if (file.startsWith('apps/gzh/')) add(['gzh']);

@@ -7,7 +7,21 @@
  */
 import type { Env } from "./env";
 
-export const MCP_SCOPE = "health.read health.sync";
+export const SUPPORTED_SCOPES = [
+  "context.read", "projects.read", "projects.write", "health.read", "health.sync",
+  "me.read", "me.write", "invest.read",
+] as const;
+export type Scope = typeof SUPPORTED_SCOPES[number];
+export const LEGACY_SCOPE = "health.read health.sync";
+export function normalizeScope(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const parts = value.trim().split(/\s+/);
+  if (!parts.length || parts.some(s => !(SUPPORTED_SCOPES as readonly string[]).includes(s))) return null;
+  return SUPPORTED_SCOPES.filter(s => parts.includes(s)).join(" ") || null;
+}
+export const scopeSubset = (requested: string, granted: string) =>
+  requested.split(" ").every(s => granted.split(" ").includes(s));
+export const hasScope = (granted: string, scope: Scope) => granted.split(" ").includes(scope);
 export const resource = (env: Env) => `${env.MCP_ORIGIN}/mcp`;
 export const ACCESS_TTL_SECONDS = 60 * 60;
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -68,9 +82,17 @@ export function clientRedirects(client: OAuthClient): string[] {
   }
 }
 
-/** Exact-match redirect URI validation — never prefix-match, per OAuth 2.1. */
+/** RFC 8252: only an HTTP loopback IP's port may vary; all other bytes match. */
 export function redirectAllowed(client: OAuthClient, redirectUri: string): boolean {
-  return clientRedirects(client).includes(redirectUri);
+  const registered = clientRedirects(client);
+  if (registered.includes(redirectUri)) return true;
+  const loopback = (value: string) => {
+    const match = /^(http:\/\/(?:127\.0\.0\.1|\[::1\]))(?::([0-9]{1,5}))?(\/[^#]*)?$/.exec(value);
+    if (!match || (match[2] && (Number(match[2]) < 1 || Number(match[2]) > 65535))) return null;
+    return match[1] + (match[3] ?? "");
+  };
+  const candidate = loopback(redirectUri);
+  return candidate !== null && registered.some(uri => loopback(uri) === candidate);
 }
 
 export async function createAuthCode(
@@ -186,7 +208,7 @@ export async function exchangeAuthCode(
   const refresh = randomToken(32);
   const codeHash = await sha256Base64Url(code);
   const refreshHash = await sha256Base64Url(refresh);
-  const scope = validated.scope || MCP_SCOPE;
+  const scope = validated.scope;
   const results = await env.DB.batch([
     // Only a still-live, unchanged code can create this request's random
     // successor. That hash gates every remaining write, so a concurrent loser
@@ -225,19 +247,21 @@ export type TokenRow = {
   client_id: string;
   scope: string;
   expires_at: number;
+  client_name: string | null;
 };
 
 export async function findAccessToken(env: Env, token: string): Promise<TokenRow | null> {
   const row = await env.DB.prepare(
-    `SELECT user_id, client_id, scope, expires_at FROM mcp_tokens
-     WHERE token_hash = ? AND kind = 'access' AND revoked_at IS NULL AND expires_at > ? AND resource = ?`,
+    `SELECT t.user_id, t.client_id, t.scope, t.expires_at, c.client_name FROM mcp_tokens t
+     LEFT JOIN oauth_clients c ON c.client_id = t.client_id
+     WHERE t.token_hash = ? AND t.kind = 'access' AND t.revoked_at IS NULL AND t.expires_at > ? AND t.resource = ?`,
   ).bind(await sha256Base64Url(token), Date.now(), resource(env)).first<TokenRow>();
   return row ?? null;
 }
 
 export type RefreshExchange =
   | { ok: true; userId: string; clientId: string; tokens: IssuedTokens }
-  | { ok: false; reason: "invalid" | "replay" };
+  | { ok: false; reason: "invalid" | "replay" | "invalid_scope" };
 
 /**
  * Exchanges a refresh token for a new pair in ONE transaction.
@@ -252,24 +276,32 @@ export type RefreshExchange =
  * family is revoked, per OAuth 2.1 refresh-token reuse detection.
  */
 export async function exchangeRefreshToken(
-  env: Env, refreshToken: string, clientId: string,
+  env: Env, refreshToken: string, clientId: string, requestedScope?: string,
 ): Promise<RefreshExchange> {
   const now = Date.now();
   const access = randomToken(32);
   const refresh = randomToken(32);
   const oldHash = await sha256Base64Url(refreshToken);
   const successorHash = await sha256Base64Url(refresh);
+  const previous = await env.DB.prepare(
+    "SELECT scope FROM mcp_tokens WHERE token_hash=? AND client_id=? AND kind='refresh' AND resource=?",
+  ).bind(oldHash, clientId, resource(env)).first<{ scope: string }>();
+  if (requestedScope !== undefined && (!normalizeScope(requestedScope)
+    || (previous && !scopeSubset(requestedScope, previous.scope)))) {
+    return { ok: false, reason: "invalid_scope" };
+  }
+  const nextScope = requestedScope ?? previous?.scope ?? "";
 
   const results = await env.DB.batch([
     // 1. Insert the successor, inheriting identity, scope and family from the
     //    presented row. This only matches while that row is still live.
     env.DB.prepare(
       `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
-       SELECT ?, user_id, client_id, 'refresh', scope, ?, ${TOKEN_FAMILY_SQL}, resource
+       SELECT ?, user_id, client_id, 'refresh', ?, ?, ${TOKEN_FAMILY_SQL}, resource
        FROM mcp_tokens
        WHERE token_hash = ? AND kind = 'refresh' AND revoked_at IS NULL
-         AND expires_at > ? AND client_id = ? AND resource = ?`,
-    ).bind(successorHash, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId, resource(env)),
+         AND expires_at > ? AND client_id = ? AND resource = ? AND scope = ?`,
+    ).bind(successorHash, nextScope, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId, resource(env), previous?.scope ?? ""),
     // 2. Retire the presented token only if this batch issued its successor.
     //    A failed exchange is checked separately for authenticated replay.
     env.DB.prepare(
@@ -302,7 +334,7 @@ export async function exchangeRefreshToken(
     }
     return { ok: false, reason: "invalid" };
   }
-  const scope = granted.scope || MCP_SCOPE;
+  const scope = granted.scope;
   return {
     ok: true,
     userId: granted.user_id,
@@ -343,17 +375,27 @@ export type ConnectionRow = {
   client_name: string | null;
   created_at: string;
   expires_at: number;
+  scope: string;
 };
 
 /** Active refresh tokens = the connected apps currently holding access. */
 export async function listConnections(env: Env, userId: string): Promise<ConnectionRow[]> {
   const result = await env.DB.prepare(
-    `SELECT t.client_id, c.client_name, t.created_at, MAX(t.expires_at) AS expires_at
+    `SELECT t.client_id, c.client_name, t.created_at, t.expires_at, t.scope
      FROM mcp_tokens t LEFT JOIN oauth_clients c ON c.client_id = t.client_id
      WHERE t.user_id = ? AND t.kind = 'refresh' AND t.revoked_at IS NULL AND t.expires_at > ?
-     GROUP BY t.client_id, c.client_name ORDER BY MAX(t.created_at) DESC`,
+     ORDER BY t.created_at DESC`,
   ).bind(userId, Date.now()).all<ConnectionRow>();
-  return result.results ?? [];
+  const clients = new Map<string, ConnectionRow>();
+  for (const row of result.results ?? []) {
+    const existing = clients.get(row.client_id);
+    if (!existing) clients.set(row.client_id, { ...row });
+    else {
+      existing.scope = normalizeScope(`${existing.scope} ${row.scope}`) ?? "";
+      existing.expires_at = Math.max(existing.expires_at, row.expires_at);
+    }
+  }
+  return [...clients.values()];
 }
 
 export async function revokeClient(env: Env, userId: string, clientId: string): Promise<number> {

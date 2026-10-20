@@ -1,0 +1,48 @@
+name = "codepi-project"
+main = "worker/index.ts"
+compatibility_date = "2026-10-18"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "project.codepi.app", custom_domain = true }
+]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+ENVIRONMENT = "production"
+SSO_ENABLED = "1"
+AUTH_CLIENT_ID = "project"
+AUTH_ORIGIN = "https://auth.codepi.app"
+PROJECT_ORIGIN = "https://project.codepi.app"
+PROJECT_REPOS = "kedoupi/kdp.cool"
+BUILD_SHA = "local"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-project"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.issues]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true

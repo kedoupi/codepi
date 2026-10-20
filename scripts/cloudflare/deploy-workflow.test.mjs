@@ -84,8 +84,9 @@ test('validation maps PR consumers and rejects invalid ranges and events', async
     });
     return Object.fromEntries((await readFile(output, 'utf8')).trim().split('\n').map(line => line.split('=')));
   };
-  const all = { auth: 'yes', web: 'yes', gu: 'yes', gzh: 'yes', health: 'yes', mcp: 'yes' };
-  assert.deepEqual(await run(), { auth: 'no', web: 'no', gu: 'no', gzh: 'no', health: 'yes', mcp: 'yes' });
+  const all = Object.fromEntries(['auth', 'web', 'gu', 'gzh', 'health', 'mcp', 'project', 'me', 'cli'].map(id => [id, 'yes']));
+  const healthOnly = { ...Object.fromEntries(Object.keys(all).map(id => [id, 'no'])), health: 'yes', mcp: 'yes' };
+  assert.deepEqual(await run(), healthOnly);
   assert.deepEqual(await run('push'), all);
   assert.deepEqual(await run('workflow_dispatch'), all);
   await assert.rejects(run('unknown'), /unsupported validation event/);

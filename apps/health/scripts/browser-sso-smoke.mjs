@@ -119,6 +119,9 @@ try {
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.today-scores');
   await page.waitForFunction(() => document.querySelector('.journal-sync-line button')?.disabled === false);
+  await page.waitForSelector('.automatic-sync');
+  await page.waitForFunction(() => [...document.querySelectorAll('.journal-hrv, .journal-sleep')]
+    .every(element => element.getAttribute('aria-busy') === 'false'));
   await page.evaluate(async () => {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
@@ -165,7 +168,16 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: '/tmp/oura-sso-identity-repair-mobile.png' });
   await page.cdp('Emulation.clearDeviceMetricsOverride');
+  await page.waitForFunction(() => innerWidth >= 1200);
+  await page.evaluate(() => new Promise(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.evaluate(async () => { await fetch('/__test/provider-identity', { method: 'POST' }); });
+  // The settings component may be rebuilt after a focus-triggered session refresh.
+  await page.evaluate(() => {
+    const details = document.querySelector('.connection-repair');
+    if (!details) throw new Error('connection repair details are missing');
+    details.open = true;
+  });
   await page.click('loc=css:.connection-repair button[type="submit"]');
   await page.waitForFunction(async () => {
     const me = await (await fetch('/api/me')).json();

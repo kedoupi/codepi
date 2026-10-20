@@ -35,8 +35,8 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`。
-`role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`mcp`、`backups`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`、`project`、`me`。
+`role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`imports`、`mcp`、`backups`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
 
@@ -108,7 +108,7 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 - 每个服务记录实际 source SHA、provider version ID、smoke 结果和时间到
   `deployment-evidence.mjs` JSONL（Git 外），再在资源登记表和任务回填证据。
   无真实 version ID 或 smoke 失败不标成功；登录、提供方授权和数据同步独立验收。
-- 八个 Worker 的活跃版本均须带 `BUILD_SHA`。普通 Worker 通过
+- 登记的 Worker 的活跃版本均须带 `BUILD_SHA`。普通 Worker 通过
   `scripts/cloudflare/deploy-worker.mjs` 注入，Health API/MCP 由专用脚本注入；
   Health 前端允许这一构建元数据，但不恢复业务 vars。MCP deploy 自动执行配对和匿名
   契约 smoke，失败不能进入下一发布阶段。
@@ -119,9 +119,11 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 
 ### 发布依赖顺序
 
-Auth migration/deploy/smoke → Web/GU/GZH migrations/deploy/smoke →
-Health API migration/deploy/contract smoke → MCP migration/deploy/smoke → Health frontend。
-任何 SSO/shared-auth 改动都纳入 Auth、Web、GU、GZH、Health、MCP 的受影响检查与对应
+Auth migration/deploy/smoke → 受影响的 Web/GU/GZH/Project/Me
+migrations/deploy/smoke → Health API migration/deploy/contract smoke →
+MCP migration/deploy/smoke → Health frontend / Ops。Project/Me 首次上传先于各自 secret
+配对；配对与 readiness 成功之前不进入 MCP/Ops 阶段，具体顺序见本地发布操作。
+任何 SSO/shared-auth 改动都按 shared/auth/clients.ts 纳入全部消费者的受影响检查与对应
 环境发布。
 
 ## 7. 迁移与退役
@@ -169,7 +171,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
    Auth SSO callback registry）缺失即违规；
-10. 八个生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
+10. 登记的生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
     进入调用日志。应用日志仍不得自行输出凭证或私人数据。
 11. Ops 必须关闭公网入口，仅声明约定的两个 Cron、独立 R2、Workflow 与
     `GU → codepi-gu#GuMaterialsBackup` 只读原件能力；该 binding 缺失、目标错误、
@@ -177,7 +179,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
 12. GU 资料仅允许 `MATERIALS → codepi-gu-uploads`，不与备份桶共用。
     首发该单一 R2 允许 `planned` 登记，不放宽 GU 的 Worker/D1 校验；
     发布前需创建并核验无公开域名、无公开 r2.dev 入口。静态配置不证明存储已就绪。
-    GU D1 备份包含资料元数据，原件单独加密；六库与原件均成功才有完整回执，
+    GU D1 备份包含资料元数据，原件单独加密；全部已登记 D1 与原件均成功才有完整回执，
     恢复到隔离 D1/R2 后核对鉴权下载，不能以 D1 导出代替原件验收。
 
 该守门只读取仓库文件，绝不访问 Cloudflare 或迁移远程数据库。改动任一 Wrangler
@@ -202,9 +204,9 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 
 ## 9. 日常监控与恢复
 
-- `services/ops` 的私有 Cron/Workflows 每 30 分钟巡检，UTC 18:00 导出六个 D1；
+- `services/ops` 的私有 Cron/Workflows 每 30 分钟巡检，UTC 18:00 导出备份清单中的全部 D1；
   失败步骤最多重试两次，不重新执行已成功的库。旧 Actions 仅保留手动应急入口。
-- 巡检共用本地 HTTP/SSO/MCP/Health 断言，通过 GitHub API 对照八个 Worker 的活跃
+- 巡检共用本地 HTTP/SSO/MCP/Health 断言，通过 GitHub API 对照登记的 Worker 的活跃
   `BUILD_SHA` 和逐提交历史；文档或无关应用更新不报警。历史缺失、分流、凭证缺失
   和备份过期均失败，不降低既有 30 小时门槛。
 - Ops 不绑定业务 D1/Auth，不开放公网 URL；绑定独立私有 R2、自身 Workflow 与
@@ -222,3 +224,23 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
   Workflows/R2 合成执行。依赖更新仍由 Dependabot 提 PR 后正常审核。
 
 操作、凭证初始化和运行边界见[定时运维](cloudflare-operations.md)。
+
+## 2026-10-20 领域扩展配置
+
+本地实现新增 `codepi-project`、`codepi-me` Worker/D1、对应 custom domain，以及
+私有 `codepi-me-imports` R2。仅这些明确的新资源允许 planned 状态与未填 D1 UUID；
+既有 managed 资源校验不放宽。planned 是待创建，不是已上线证据。
+
+MCP 增加 `PROJECT -> codepi-project#ProjectMcp`、`ME -> codepi-me#MeMcp`、
+`GU -> codepi-gu#GuMcp`；Ops 增加 `ME -> codepi-me#MeImportsBackup`，与原
+`GU -> codepi-gu#GuMaterialsBackup` 同为只读原件能力。第 8 节旧的“仅 GU”限制
+由此精确扩展，仍禁止 Ops 直接绑定业务 D1、Auth、业务 R2 或其他任意服务。
+
+备份必需库名见 `backup-core.mjs` 的 `DATABASE_NAMES`，既有 UUID 仍用 `DATABASES`
+校验，新库按精确名称解析，缺失/歧义时失败。原件集合由 `ORIGINAL_COLLECTIONS`
+登记，v3 完成清单必须覆盖全部库、GU 原件和 Me 原文；v2 仅可用于恢复旧副本，
+不能证明新覆盖已完成。不上线新 Ops/MCP 到尚不存在的绑定。
+
+新增产品 SSO 与各自 Auth opt-in secret 用配对脚本一次完成；不手填两侧不同值。
+新增 Worker 的 Issues 自动规则、生产登录、非空原文备份/恢复和真实 MCP 客户端必须
+在获授权发布时单独验收。代码与本地合成测试不等于这些远程步骤完成。

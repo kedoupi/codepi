@@ -302,7 +302,9 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
 const SERIES_FIELDS = new Set(["heart_rate", "hrv", "heart_rate_variability", "motion_count", "met",
   "movement_30_sec", "sleep_phase_30_sec", "sleep_phase_5_min", "app_sleep_phase_5_min", "class_5_min"]);
 
-export async function readHealthRecords(env: Env, userId: string, w: Window, offset = 0, includeSeries = false) {
+export async function readHealthRecords(
+  env: Env, userId: string, w: Window, offset = 0, includeSeries = false, now = Date.now(),
+) {
   if (!Number.isInteger(offset) || offset < 0 || offset > 100_000) throw new ApiError("invalid_offset", 400);
   const query = "FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))";
   const args = [userId, w.spec.name, w.from, w.to];
@@ -333,7 +335,7 @@ export async function readHealthRecords(env: Env, userId: string, w: Window, off
     },
     sync: {
       synced_at: state?.synced_at ?? null, error: state?.last_error ?? null,
-      stale: !state?.synced_at || Boolean(state.last_error) || Date.now() - Date.parse(state.synced_at) >= 600_000,
+      stale: !state?.synced_at || Boolean(state.last_error) || now - Date.parse(state.synced_at) >= 600_000,
       window_verified: Boolean(state?.synced_at),
     },
   };

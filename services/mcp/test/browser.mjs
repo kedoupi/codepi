@@ -69,6 +69,14 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('strong')?.textContent),
     'Browser <client> "& with a long synthetic display name');
   assert.equal(await page.evaluate(() => Boolean(document.querySelector('client'))), false, 'client names are escaped');
+  assert.equal(await page.evaluate(() => document.querySelector('input[value="health.read"]').checked), false);
+  assert.equal(await page.evaluate(() => document.querySelector('input[value="me.read"]').checked), false);
+  assert.equal(await page.evaluate(() => document.querySelector('input[value="invest.read"]').checked), false);
+  await page.evaluate(() => document.querySelectorAll('input[name="scope"]').forEach(input => { input.checked = false; }));
+  await page.click('loc=css:button[value="approve"]');
+  await page.waitForFunction(() => document.body.textContent.includes('至少选择一项'));
+  await page.click('loc=css:input[value="health.read"]');
+  await page.click('loc=css:input[value="health.sync"]');
   await page.screenshot({ path: 'consent-desktop.png' });
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);

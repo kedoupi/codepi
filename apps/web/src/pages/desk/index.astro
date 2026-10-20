@@ -1,8 +1,10 @@
 ---
 import BaseLayout from '@kedoupi/shared/layouts/BaseLayout.astro';
 import { products } from '@kedoupi/shared/products';
+import { deskSources } from '@kedoupi/shared/desk/contract';
 import Icon from '../../components/Icon.astro';
 import '../../styles/desk.css';
+const deskProducts = products.filter(product => (deskSources as readonly string[]).includes(product.id));
 ---
 <BaseLayout title="我的工作台" description="本人的健康、投资与内容工作概览。" pathname="/desk/" schemaType="WebPage" robots="noindex, nofollow">
   <div id="desk">
@@ -32,7 +34,7 @@ import '../../styles/desk.css';
 
     <div id="desk-private" hidden>
       <section class="desk-overview" aria-label="应用概览" aria-busy="true">
-        {products.map(product => (
+        {deskProducts.map(product => (
           <article class="kdp-card desk-source" data-source={product.id}>
             <div class="desk-source-heading">
               <span class="desk-icon"><Icon name={product.icon} /></span>
@@ -62,7 +64,7 @@ import '../../styles/desk.css';
             </fieldset>
             <fieldset class="desk-sources">
               <legend>纳入的应用</legend>
-              {products.map(product => <label><input type="checkbox" name="sources" value={product.id} checked />{product.shortName}</label>)}
+              {deskProducts.map(product => <label><input type="checkbox" name="sources" value={product.id} checked />{product.shortName}</label>)}
             </fieldset>
             <div class="desk-generate-row"><button id="desk-generate" type="submit" class="kdp-button">生成摘要 <span aria-hidden="true">→</span></button><p class="desk-fine">基于已保存的数据整理，不触发同步。</p></div>
           </form>
