@@ -1,13 +1,13 @@
 # CodePi MCP 领域扩展
 
-- 状态：各模块已集成，分支已同步最新 main 并通过最终本地组合验收；PR #121 待新 SHA 的 CI 复核；未合并、未部署。
+- 状态：PR #121 已合并为 `f951f0fd97c784c6c3b5b480ac2ec2a793139828`；2026-10-20 从实时 main `58bd615c317d` 发布十个 Worker，SSO、匿名拒绝、版本漂移、完整备份和 v3 隔离恢复均通过。Project 真实 GitHub 同步仍等待只读 `GITHUB_TOKEN`，Me 尚无正式非空导入原文。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
-- worktree：`/Users/codepi/.worktrees/kdp.cool/codex/codepi-mcp-domains`
+- worktree：实现时为 `/Users/codepi/.worktrees/kdp.cool/codex/codepi-mcp-domains`；最终发布复核使用 `/Users/codepi/.worktrees/kdp.cool/release-58bd615`
 - 分支：`codex/codepi-mcp-domains`
 - 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，先 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`，再合并 `origin/main` 的 `c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6` 与 `f4c0c91dd33b4283605d8ec8b1997dc38e8071eb`。
 - 协调者、公共契约与集成负责人：本聊天 Codex。
-- 授权：本地实现与验证；2026-10-20 用户授权按审查切片提交、推送并创建 PR。未授权合并、生产资源创建、secret 配对、迁移或部署。
+- 授权：本地实现与验证；2026-10-20 用户依次授权按审查切片提交、推送、创建 PR、审查后合并、生产资源创建与 secret 配对、迁移、部署，以及生产备份和隔离恢复验收。不得把本机广权限 `gh` token 转存为长期 secret；未修改生产业务数据。
 - 根工作区 `.workbuddy-ai/` 为用户保留文件，不读取、不修改、不清理。
 
 ## 实施约定
@@ -19,7 +19,7 @@
 5. CLI 复用锁定的官方 MCP SDK；凭证原子写入、跨进程刷新锁、锁内重读。OAuth 仅 HTTP loopback IP 可变端口，其余精确匹配。
 6. Me 全部 AI 写入和导入先 pending，本人看板编辑直接生效；分块 start/chunk/finish、单次 24 KiB、整批 500 条/512 KiB。使用普通表 LIKE，不建 FTS 虚拟表；原文私有 R2，由 Ops 公钥加密备份，MCP 无下载能力。
 7. GU 只读 `gu_workspace_head`，分页固定 revision，返回持仓、现金、流水、规则正文、报告；无自由文本风控引擎。
-8. 资源只登记 planned，不虚构 UUID、部署状态或真实客户端验收。
+8. 实现期资源只登记 planned，不虚构 UUID、部署状态或真实客户端验收；发布后已按控制面事实回填实际版本、D1 UUID、域名、备份和剩余阻塞。
 
 ## 写入分工
 
@@ -182,14 +182,82 @@ PR 标题建议：
 
 `feat(mcp): add scoped Project, Me and GU domains with official CLI`
 
-## 尚未执行的发布与真实验收
+## 发布与真实验收
 
-1. 审查并合入 main；再按本地发布流程固定干净源码与单一发布者。
-2. Auth → Project/Me 首次上传与 secret 配对/readiness → Health API/GU →
-   MCP → Ops/公开入口。新 D1、Me 私有桶、域名、GitHub 只读同步 secret 和
-   新 Worker Issues 规则仍待真实创建与验收；planned 登记不是已存在。
-3. 生产 GitHub 同步、登录、非空 Me 原文备份与隔离恢复、全部分片独立下载校验。
-4. Claude 手机端、Codex、codepi CLI 的真实授权、权限隔离、刷新、撤销与接力；
-   既有 Claude Health 使用确认不能作为本次新领域通过证据。
+### Worker 与数据资源
 
-没有访问真实健康、投资、项目正文或密钥；没有把生产数据加入 fixture。
+发布源码为干净、detached 的 `58bd615c317d10a91643b780811c082482760f33`，
+与实时 `origin/main` 一致；十个 Worker 均为单一活跃版本、100% 流量，
+线上 `BUILD_SHA=58bd615c317d`。实际活动版本如下：
+
+| 服务 | Worker version | 本轮验收 |
+| --- | --- | --- |
+| Auth | `b8838962-fdf5-4a94-ab39-ed827ff3a2b0` | Project/Me 客户端、secret 配对与 readiness 通过 |
+| Web | `b139385f-1a82-4bcd-8cf2-42ffb3701fb7` | 匿名私有接口拒绝、SSO 跳转通过 |
+| GU | `7e2212c0-7c96-43fb-b0c9-e725fec6110f` | 匿名拒绝、SSO 与只读 MCP 契约通过 |
+| GZH | `e0ec9bc8-fb98-494f-8ea6-5a0a79c9c678` | 匿名拒绝与 SSO 跳转通过 |
+| Health API | `513a14c9-a8b8-4603-b363-ca450c78138c` | 18 项线上 API 契约通过 |
+| MCP | `c6b62b1e-bab3-415f-83e4-4da2beeb3643` | 发现、连接入口、匿名拒绝与凭证配对通过 |
+| Health 前端 | `8217fc5d-b3d5-4bf4-8255-1345a2732bd9` | 品牌、页面与 SSO 检查通过 |
+| Ops | `36c81c0b-5c29-4ede-b805-289a1f6ea753` | 8 库/原件 v3 备份、GitHub 分片复制与巡检通过 |
+| Project | `52803b30-31f7-49e6-b56f-b9dfb73ed45b` | SSO、匿名 401 与 readiness 通过；真实 GitHub 同步待 token |
+| Me | `42a25c9c-a14a-4b65-b855-49265bc8baef` | SSO、匿名 401、空原件覆盖通过 |
+
+新增生产 D1：`codepi-project` 为
+`03612540-2ac6-4dd2-9bf6-ed431dda17c9`（2 个 migration），
+`codepi-me` 为 `7236c118-1f92-4b07-8283-e731c2771953`（1 个 migration）。
+`codepi-me-imports` 已创建为私有 R2，无 custom domain，r2.dev 关闭。
+Project/Me 的 `AUTH_CLIENT_SECRET` 与 Auth 侧
+`SSO_CLIENT_SECRET_PROJECT` / `SSO_CLIENT_SECRET_ME` 已配对；两个产品均要求真实 SSO
+ready。Project 运行 secret 只有 `AUTH_CLIENT_SECRET`，尚无 `GITHUB_TOKEN`。
+
+### 备份、巡检与隔离恢复
+
+生产备份 Workflow
+`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
+已 complete。v3 manifest 覆盖 8 个 D1 与 GU/Me 两类原件：
+GU 112 件、Me 0 件；主 Release `418207867` 保存 manifest 与索引，分片 Release
+`418205153` 保存 120 个密文 payload。manifest SHA-256 为
+`2b9796b37bca1084ba269d0d84b78c56cffc398672e5982afcfb168da793fe10`，
+offsite index SHA-256 为
+`dec335c0584f683850b6154d2b6c89c0ff67434529fc7d74f7ccdf037496e6cb`。
+120 个分片已独立下载并在内存中完成大小、SHA-256、GCM、身份和内容校验；
+匿名 Release API 返回 404。
+
+云端 monitor
+`cf_8a2afa9777e330cb8d0147c661fdc25ecd9fa865d95e4081bcb0879eaf84d256`
+为 complete，34/34 通过，覆盖十个 Worker 的 `BUILD_SHA` 与 main 一致、
+Project/Me SSO/匿名拒绝，以及 8 库和两类原件的 R2/离站备份新鲜度。
+Project/Me 另已各建立两条 Workers Issues service 规则：
+Project 首次 `5339dd89-9a21-4343-aa0c-1be76370bb68`、复发
+`ba04e2c2-556b-48e8-b5f4-9ab37583301a`；Me 首次
+`b70f43dc-79e6-4b5b-bdb1-f385220bd976`、复发
+`8267f2a3-1483-4de3-be7f-3b05665df84a`。账户正式规则总数为 20。
+
+v3 隔离恢复从同一 GitHub 副本重新下载，创建 8 个全新空 D1；每库逐表比对了
+schema、字段值、SQLite 类型和完整性，共 98 张表、138,986 行全部一致：
+Auth 6/38、Desk 3/9、GU 11/137、GZH 9/13、Health 22/138,738、MCP 7/46、
+Project 10/3、Me 10/2（表/行）。MCP 临时库清除了历史 token、授权码、同意请求和
+SSO 会话状态，保留 2 个客户端注册。GU 112 份原件逐件恢复并核对字节摘要，
+索引 112、额外原件 0；Me 空集合恢复为 0 件。八个临时 D1、全部密文/明文临时目录
+及日志已按精确 UUID 删除并复核不存在，生产绑定和活跃版本未变化。
+
+发布后回填登记状态时发现 `d1-backup.test.mjs` 仍只断言旧六库；已改为以
+`DATABASE_NAMES` 和登记表全部 managed production D1 为准。七项受影响检查通过：
+Cloudflare 130/130、agent check 27/27、lint、Ops test 25/25、build 和 runtime。
+该修正只涉及测试与文档，没有重发业务 Worker。
+
+### 剩余阻塞
+
+1. Project 的只读 fine-grained `GITHUB_TOKEN` 尚未配置。当前 SSO 和页面可用，
+   但真实 GitHub 同步不能宣称通过；不得把本机广权限 `gh` token 转存为长期 secret。
+2. Me 尚无正式导入原文，因此本轮只证明“空集合也完整覆盖”，没有非空 Me 原件恢复证据。
+3. Claude 手机端、Codex 与 codepi CLI 对新 Project/Me/GU scope 的真实授权、刷新、
+   撤销和接力仍需逐客户端验收；既有 Claude Health 使用确认不能替代。
+4. 恢复私钥已在 iCloud 且所有者可见，但尚未在另一设备实际取回并完成解密，
+   异机恢复演练继续保留 TODO。
+
+验证证据在 Git 外：
+`/Users/codepi/.local/state/kdp.cool/operations/2026-10-20-codepi-mcp-domains/`。
+
+没有把恢复明文写入仓库，没有修改生产业务数据，也没有把任何 secret 写入文档或日志。

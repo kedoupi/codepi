@@ -4,7 +4,10 @@
 巡检和备份由 Cloudflare 执行，不依赖 Actions runner 或个人电脑在线。
 生产部署继续遵循 [本地发布](local-release.md)。
 
-2026-10-20 领域扩展新增 Project/Me 的备份与巡检代码；生产创建、发布及真实验收仍待执行。
+v3 的 Project/Me 备份与巡检已随 `58bd615` 上线并完成真实验收：生产备份实例
+`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
+覆盖八库、GU 112 件与 Me 空集合，私有 GitHub 分片 120/120 独立解密通过；
+8 个隔离 D1 共核对 98 张表、138,986 行，临时资源已清理；新云端巡检 34/34。
 当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
 v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记录是旧覆盖的证据。
 
@@ -53,7 +56,7 @@ Issues 检测、通知策略和自动触发规则是三个独立配置。`observ
 | 首次出现 | `afterOccurrences=1` | 问题首次达到阈值时通知一次，不在每次 occurrence 后重复发送 |
 | 静默后复发 | `afterInactivitySeconds=3600` | 已有问题至少一小时没有新 occurrence 后再次出现时通知；持续报错不作为周期提醒 |
 
-16 条规则均按具体 Worker 限定，引用现有 Workers Issues 邮件策略；资源 UUID 维护在
+20 条规则均按具体 Worker 限定，引用现有 Workers Issues 邮件策略；资源 UUID 维护在
 [登记表](cloudflare-resource-registry.md#2026-10-20-issues-自动规则与临时验收资源)。
 新增或退役 Worker 时同步管理其规则；不要用账户级规则扩大到未知服务。
 首次规则不为已经越过阈值的历史问题补发告警；复发规则也不追溯历史活动。
@@ -176,8 +179,8 @@ pnpm exec wrangler secret put GITHUB_TOKEN
 核对当前必需库与原件 manifest、全部 Release 附件及自动跨平台成功回执，再运行 monitor。
 一次性通过本机授权复制的密文可以作为手动副本，但其回执须另存，
 不得写成自动 Workflow 成功或消除自动凭证缺失告警。
-2026-10-20 已用新生产 Workflow 验收自动复制，六库、112 份原件及 manifest 共
-119 个 GitHub 附件的独立下载、摘要和内存解密通过，云端巡检 26/26。
+2026-10-20 v3 生产 Workflow 验收自动复制，八库、GU 112 份原件、Me 空集合及 manifest
+共 122 个 GitHub 附件已完成独立下载、摘要和内存解密，云端巡检 34/34。
 本轮手动触发 Workflow，没有等待下一次 Cron；旧手动副本与失败报告继续保留。
 详细实例、凭证类型修正和剩余项见[跨平台验收](tasks/2026-10-20-github-offsite.md)。
 
