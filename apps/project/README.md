@@ -1,13 +1,15 @@
 # Project 项目工作台
 
-kedoupi（codepi）的私有项目领域。Worker 名为 `codepi-project`，计划入口为
+kedoupi（codepi）的私有项目领域。Worker 名为 `codepi-project`，生产入口为
 `https://project.codepi.app`，本地开发端口为 `8795`。Project 保存项目卡、按任务追加的
 AI/人工交接、GitHub 活动摘要与任务文档索引，并通过内部 `ProjectMcp` 向统一 MCP
 提供 `projects_list`、`project_get`、`project_handoff_save` 的能力。它不开放公网 MCP
 入口。
 
-Cloudflare D1、域名、Auth client 与 secret 当前仍应登记为 `planned`；源码和本地
-合成测试不代表资源已创建、已部署或已有真实客户端登录。
+Cloudflare Worker、D1、域名、Auth client 与 secrets 已创建并部署。2026-10-20
+`GITHUB_TOKEN` 配置后，Cron 已真实同步五个来源，写入仓库事件和任务文档索引；
+资源与验收事实见[资源登记](../../docs/development/cloudflare-resource-registry.md)和
+[领域任务](../../docs/development/tasks/2026-10-20-codepi-mcp-domains.md)。
 
 ## 数据边界
 
@@ -134,14 +136,16 @@ UTF-8 字节数。下一页使用上一页的 `next_cursor` 作为 `cursor`。�
 
 ## 配置
 
-`wrangler.toml` 只声明按名称解析的 D1 `codepi-project`，没有伪造 database ID。首次授权
-发布时由集成/运维流程解析或创建资源。运行时变量包括：
+`wrangler.toml` 只声明按名称解析的 D1 `codepi-project`，没有伪造 database ID；
+生产发布由集成/运维流程解析并注入实际 UUID。运行时变量包括：
 
 - `SSO_ENABLED=1`、`AUTH_CLIENT_ID=project`、`AUTH_ORIGIN`、`PROJECT_ORIGIN`。
 - `PROJECT_REPOS`：逗号分隔的允许同步仓库。
 - `BUILD_SHA`：构建标识。
-- Secret `AUTH_CLIENT_SECRET` 与 `GITHUB_TOKEN`。GitHub token 必须是只读 fine-grained
-  token，仅授权目标仓库的 Contents、Metadata、Pull requests、Issues；不得硬编码或提交。
+- Secret `AUTH_CLIENT_SECRET` 与 `GITHUB_TOKEN`，生产均为 `secret_text`。GitHub token
+  必须是只读 fine-grained token，仅授权目标仓库的 Contents、Metadata、Pull requests、
+  Issues；不得复用 Ops 的 Contents 读写 token，不得硬编码或提交。按推荐的 90 天有效期，
+  预计在 2027-01-18 到期，轮换前应先配置新 secret 并重跑同步。
 
 `.dev.vars.example` 只含占位符。测试默认使用共享 client 已登记的 `project` ID 和合成
 secret；需要隔离验证旧 allowlist 时可用 `PROJECT_TEST_AUTH_CLIENT_ID` 覆盖。生产必须

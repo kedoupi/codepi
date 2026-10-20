@@ -1,13 +1,13 @@
 # CodePi MCP 领域扩展
 
-- 状态：PR #121 已合并为 `f951f0fd97c784c6c3b5b480ac2ec2a793139828`；2026-10-20 从实时 main `58bd615c317d` 发布十个 Worker，SSO、匿名拒绝、版本漂移、完整备份和 v3 隔离恢复均通过。Project 真实 GitHub 同步仍等待只读 `GITHUB_TOKEN`，Me 尚无正式非空导入原文。
+- 状态：PR #121 已合并为 `f951f0fd97c784c6c3b5b480ac2ec2a793139828`；2026-10-20 从实时 main `58bd615c317d` 发布十个 Worker，SSO、匿名拒绝、版本漂移、完整备份和 v3 隔离恢复均通过。Project 只读 `GITHUB_TOKEN` 已配置，五个来源的真实 Cron 同步通过；Me 尚无正式非空导入原文。
 - 目标：统一 MCP 的逐工具授权与概览，Project 项目卡和任务交接、官方 SDK CLI、Me 确认区和分块导入、GU 线上工作区只读查询；补齐运维登记和本地合成验证。
 - 依据：2026-10-20 用户确认的实施计划；两份 PDF 是需求来源，以下修正优先于 PDF。
 - worktree：实现时为 `<workspace>/.worktrees/kdp.cool/codex/codepi-mcp-domains`；最终发布复核使用 `<workspace>/.worktrees/kdp.cool/release-58bd615`
 - 分支：`codex/codepi-mcp-domains`
 - 基线：实现始于 `abbafdfe2d04966d66dad2f4f0084075f040caaf`，先 rebase 到 `2820de261b4134fff538679e6f886ac62f4d9161`，再合并 `origin/main` 的 `c83cc8ce1f4a2ba8ce9924a358691ce658a41ff6` 与 `f4c0c91dd33b4283605d8ec8b1997dc38e8071eb`。
 - 协调者、公共契约与集成负责人：本聊天 Codex。
-- 授权：本地实现与验证；2026-10-20 用户依次授权按审查切片提交、推送、创建 PR、审查后合并、生产资源创建与 secret 配对、迁移、部署，以及生产备份和隔离恢复验收。不得把本机广权限 `gh` token 转存为长期 secret；未修改生产业务数据。
+- 授权：本地实现与验证；2026-10-20 用户依次授权按审查切片提交、推送、创建 PR、审查后合并、生产资源创建与 secret 配对、迁移、部署、生产备份与隔离恢复验收，以及 Project 只读 GitHub token 配置和真实同步验收。不得把本机广权限 `gh` token 转存为长期 secret；除设计中的 GitHub 投影同步外，未修改生产业务数据。
 - 根工作区 `.workbuddy-ai/` 为用户保留文件，不读取、不修改、不清理。
 
 ## 实施约定
@@ -200,7 +200,7 @@ PR 标题建议：
 | MCP | `c6b62b1e-bab3-415f-83e4-4da2beeb3643` | 发现、连接入口、匿名拒绝与凭证配对通过 |
 | Health 前端 | `8217fc5d-b3d5-4bf4-8255-1345a2732bd9` | 品牌、页面与 SSO 检查通过 |
 | Ops | `36c81c0b-5c29-4ede-b805-289a1f6ea753` | 8 库/原件 v3 备份、GitHub 分片复制与巡检通过 |
-| Project | `52803b30-31f7-49e6-b56f-b9dfb73ed45b` | SSO、匿名 401 与 readiness 通过；真实 GitHub 同步待 token |
+| Project | `bb43c090-0370-43c3-b5f6-c3242df79da5` | SSO、匿名 401 与 readiness 通过；只读 GitHub token 生效，五来源真实 Cron 同步通过 |
 | Me | `42a25c9c-a14a-4b65-b855-49265bc8baef` | SSO、匿名 401、空原件覆盖通过 |
 
 新增生产 D1：`codepi-project` 为
@@ -209,7 +209,22 @@ PR 标题建议：
 `codepi-me-imports` 已创建为私有 R2，无 custom domain，r2.dev 关闭。
 Project/Me 的 `AUTH_CLIENT_SECRET` 与 Auth 侧
 `SSO_CLIENT_SECRET_PROJECT` / `SSO_CLIENT_SECRET_ME` 已配对；两个产品均要求真实 SSO
-ready。Project 运行 secret 只有 `AUTH_CLIENT_SECRET`，尚无 `GITHUB_TOKEN`。
+ready。Project 运行 secret 为 `AUTH_CLIENT_SECRET` 与只读 `GITHUB_TOKEN`，后者仅用于
+仓库 Contents、Metadata、Pull requests 和 Issues 读取，不复用 Ops 的 Contents 读写 token。
+
+### Project GitHub 同步
+
+2026-10-20T10:13:50Z，`GITHUB_TOKEN` 由所有者按推荐权限配置为 `secret_text`。
+Secret 变更生成新 version `bb43c090-0370-43c3-b5f6-c3242df79da5` 并承接 100% 流量；
+核验仍保留 `BUILD_SHA=58bd615c317d`、`AUTH_CLIENT_SECRET`、D1/Auth/Assets 绑定和
+`fetch`/`scheduled` handlers。无需重新构建或发布业务源码。
+
+下一次生产 Cron 于 `2026-10-20T10:15:38Z` 完成真实同步：commits、pull requests、
+issues、AGENTS.md 与任务文档五个来源的 `last_ok_at` 均更新且 `last_error=null`，
+无待续 checkpoint。Project D1 产生 286 条仓库事件（186 commits、100 PR、0 issues）、
+30 条任务文档索引（16 done、1 blocked、13 unknown）和 4 条卡字段；当前活跃同步租约 0。
+这证明只读 token 足以完成五类读取，但不证明 token 页面中的权限配置；后者依据所有者
+确认的最小只读设置记录，不能由 Worker secret 反向审计。
 
 ### 备份、巡检与隔离恢复
 
@@ -249,15 +264,16 @@ Cloudflare 130/130、agent check 27/27、lint、Ops test 25/25、build 和 runti
 
 ### 剩余阻塞
 
-1. Project 的只读 fine-grained `GITHUB_TOKEN` 尚未配置。当前 SSO 和页面可用，
-   但真实 GitHub 同步不能宣称通过；不得把本机广权限 `gh` token 转存为长期 secret。
-2. Me 尚无正式导入原文，因此本轮只证明“空集合也完整覆盖”，没有非空 Me 原件恢复证据。
-3. Claude 手机端、Codex 与 codepi CLI 对新 Project/Me/GU scope 的真实授权、刷新、
+1. Me 尚无正式导入原文，因此本轮只证明“空集合也完整覆盖”，没有非空 Me 原件恢复证据。
+2. Claude 手机端、Codex 与 codepi CLI 对新 Project/Me/GU scope 的真实授权、刷新、
    撤销和接力仍需逐客户端验收；既有 Claude Health 使用确认不能替代。
-4. 恢复私钥已在 iCloud 且所有者可见，但尚未在另一设备实际取回并完成解密，
+3. 恢复私钥已在 iCloud 且所有者可见，但尚未在另一设备实际取回并完成解密，
    异机恢复演练继续保留 TODO。
+4. Project token 按推荐的 90 天有效期预计在 2027-01-18 到期；到期轮换和同步新鲜度
+   告警仍需在生产巡检中补强。
 
 验证证据在 Git 外：
 `<workspace>/.local/state/kdp.cool/operations/2026-10-20-codepi-mcp-domains/`。
 
-没有把恢复明文写入仓库，没有修改生产业务数据，也没有把任何 secret 写入文档或日志。
+没有把恢复明文、token 或其他 secret 写入仓库或日志。恢复验收未修改生产业务数据；
+后续 Project Cron 已按设计写入 GitHub 投影和任务文档索引。
