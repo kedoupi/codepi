@@ -34,6 +34,31 @@
 停滞同时表现为 Cron 调用错误，以便现有 Cloudflare Issues 通知策略捕获。
 通知策略启用与邮件真实送达是不同验收，不能只凭日志宣称邮件已收到。
 
+### Issues 自动触发与送达
+
+Issues 检测、通知策略和自动触发规则是三个独立配置。`observability.issues.enabled=true`
+使 Worker 记录问题；邮件策略提供目的地；自动规则决定何时发送。
+仅有前两项不能作为自动通知就绪的证据。控制面核对须读取
+`GET /accounts/<account_id>/workers/observability/issues/automations`，按
+`scripts/cloudflare/release-scope.mjs` 的八个 Worker 核对 service、enabled、policy ID 与触发条件。
+不为此扩大 Ops 运行时 token 权限，管理操作继续使用已授权的 API 身份。
+
+| 规则 | 每个 Worker 的配置 | 行为 |
+| --- | --- | --- |
+| 首次出现 | `afterOccurrences=1` | 问题首次达到阈值时通知一次，不在每次 occurrence 后重复发送 |
+| 静默后复发 | `afterInactivitySeconds=3600` | 已有问题至少一小时没有新 occurrence 后再次出现时通知；持续报错不作为周期提醒 |
+
+16 条规则均按具体 Worker 限定，引用现有 Workers Issues 邮件策略；资源 UUID 维护在
+[登记表](cloudflare-resource-registry.md#2026-10-20-issues-自动规则与临时验收资源)。
+新增或退役 Worker 时同步管理其规则；不要用账户级规则扩大到未知服务。
+首次规则不为已经越过阈值的历史问题补发告警；复发规则也不追溯历史活动。
+
+2026-10-20 已用无生产 binding 的临时 Worker 实际触发一次异常，确认
+`initiatedBy=automatic`、执行成功、原策略发送历史及 Gmail 实际收件一致，随后清理临时
+Worker/规则并复查生产配置。该次覆盖首次自动触发链路；静默后复发条件为控制面核对。
+重新验收时继续使用隔离合成数据，分别保存 issue/run/history/message ID 与时间，
+不保存邮件正文、地址或退订凭证。详情见[验收记录](tasks/2026-10-20-workers-issues.md)。
+
 ## 六库备份
 
 每库一个持久步骤：D1 polling export → 流式下载 → gzip → AES-256-GCM →
