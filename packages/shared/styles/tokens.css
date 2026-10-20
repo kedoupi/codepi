@@ -1,38 +1,109 @@
-/* Shared visual contract for the personal site and future application migrations. */
+/* Shared visual contract for the personal site and private apps.
+ * Brand authority: CodePi Design System v1.5 (packages/shared/brand/codepi-v1.5/).
+ * The --color-* / --brand-* tokens are copied from its tokens.css; the --kdp-* names
+ * are kept as aliases so existing components switch palette without renaming. */
 :root {
   color-scheme: light;
-  --kdp-canvas: #f4f7fb;
-  --kdp-surface: #ffffff;
-  --kdp-ink: #1e2b3c;
-  --kdp-text: #43536a;
-  --kdp-muted: #657386;
-  --kdp-line: #dce4ee;
-  --kdp-line-strong: #bdcde3;
-  --kdp-accent: #3568c7;
-  --kdp-accent-strong: #2854a8;
-  --kdp-accent-soft: #eaf2ff;
-  --kdp-focus: #3568c7;
-  --kdp-success: #32745e;
-  --kdp-warning: #8c601d;
-  --kdp-danger: #b63d49;
-  --kdp-font: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --kdp-font-mono: "SFMono-Regular", Consolas, monospace;
-  --kdp-space-1: 4px;
-  --kdp-space-2: 8px;
-  --kdp-space-3: 12px;
-  --kdp-space-4: 16px;
-  --kdp-space-5: 24px;
-  --kdp-space-6: 32px;
-  --kdp-space-7: 48px;
-  --kdp-space-8: 64px;
-  --kdp-radius-sm: 8px;
-  --kdp-radius: 14px;
-  --kdp-radius-lg: 20px;
-  --kdp-shadow: 0 8px 32px rgb(49 80 126 / 5%);
+  /* CodePi v1.5 semantic tokens (light). */
+  --brand-graphite: #5E5A56;
+  --brand-orange: #FF713D;
+  --brand-orange-interactive: #C94F20;
+  --brand-orange-hover: #A83E18;
+  --brand-soft: #FFE6D9;
+  --color-background: #FAF8F4;
+  --color-surface: #FFFFFF;
+  --color-text: #2D2A28;
+  --color-text-muted: #706A64;
+  --color-border: #E7E3DC;
+  /* Intentional addition (not in v1.5): control boundaries need >= 3:1 on white. */
+  --color-border-strong: #8C857E;
+  --color-focus: #C94F20;
+  --color-action: #C94F20;
+  --color-action-hover: #A83E18;
+  --color-action-text: #FFFFFF;
+  --color-disabled-bg: #F3EAE4;
+  --color-disabled-text: #756F6A;
+  --color-success: #23744C;
+  --color-warning: #965400;
+  --color-danger: #B42318;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-dialog: 18px;
+  --motion-fast: 150ms;
+  --motion-normal: 220ms;
+  /* v1.5 TYPOGRAPHY.md desktop scale; mobile steps are applied by consumers. */
+  --text-h1: 48px;
+  --text-h2: 32px;
+  --text-h3: 24px;
+  --text-body: 16px;
+  --text-small: 14px;
+  --text-caption: 12px;
+  --leading-body: 1.6;
+  --leading-heading: 1.2;
+  /* Fonts are not loaded remotely; Inter / Noto Sans SC apply where installed. */
+  --font-sans: Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* Legacy aliases consumed by existing components. */
+  --kdp-canvas: var(--color-background);
+  --kdp-surface: var(--color-surface);
+  --kdp-ink: var(--color-text);
+  --kdp-text: var(--color-text);
+  --kdp-muted: var(--color-text-muted);
+  --kdp-line: var(--color-border);
+  --kdp-line-strong: var(--color-border-strong);
+  --kdp-accent: var(--color-action);
+  --kdp-accent-strong: var(--color-action-hover);
+  --kdp-accent-soft: var(--brand-soft);
+  --kdp-focus: var(--color-focus);
+  --kdp-success: var(--color-success);
+  --kdp-warning: var(--color-warning);
+  --kdp-danger: var(--color-danger);
+  --kdp-font: var(--font-sans);
+  --kdp-font-mono: var(--font-mono);
+  --kdp-space-1: var(--space-1);
+  --kdp-space-2: var(--space-2);
+  --kdp-space-3: var(--space-3);
+  --kdp-space-4: var(--space-4);
+  --kdp-space-5: var(--space-6);
+  --kdp-space-6: var(--space-8);
+  --kdp-space-7: var(--space-12);
+  --kdp-space-8: var(--space-16);
+  --kdp-radius-sm: var(--radius-control);
+  --kdp-radius: var(--radius-card);
+  --kdp-radius-lg: var(--radius-dialog);
+  --kdp-shadow: 0 8px 32px rgb(45 42 40 / 5%);
   --kdp-content-width: 1120px;
   --kdp-reading-width: 720px;
-  --kdp-motion: 160ms ease;
+  --kdp-motion: var(--motion-fast) ease;
   /* Existing tool components consume these aliases. */
   --kdp-paper: var(--kdp-canvas);
   --kdp-paper-deep: var(--kdp-accent-soft);
+}
+/* v1.5 dark theme is opt-in; no page sets data-theme yet. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --brand-soft: #49342C;
+  --color-background: #242321;
+  --color-surface: #302E2B;
+  --color-text: #F6F3ED;
+  --color-text-muted: #C6BFB5;
+  --color-border: #514D47;
+  --color-focus: #FF936C;
+  --color-action: #FF936C;
+  --color-action-hover: #FFAC8B;
+  --color-action-text: #242321;
+  --color-disabled-bg: #413D38;
+  --color-disabled-text: #B4AEA5;
+  --color-success: #7AD9A5;
+  --color-warning: #FFD080;
+  --color-danger: #FF968F;
 }

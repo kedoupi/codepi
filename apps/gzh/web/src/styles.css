@@ -47,7 +47,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(ellipse at 88% 10%, rgb(220 234 255 / 70%), transparent 36rem), var(--kdp-canvas);
+  background: var(--kdp-canvas);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 16px;
