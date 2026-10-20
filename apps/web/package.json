@@ -23,6 +23,6 @@
     "@astrojs/tailwind": "^6.0.2",
     "@kedoupi/shared": "workspace:*",
     "tailwindcss": "^3.4.19",
-    "wrangler": "^4.151.0"
+    "wrangler": "^4.151.1"
   }
 }
