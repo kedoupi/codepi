@@ -35,6 +35,9 @@ export async function sourceFixture(t) {
     gu: [
       'CREATE TABLE dashboard_batches(id TEXT PRIMARY KEY,generated_at TEXT,received_at TEXT,payload TEXT)',
       'CREATE TABLE dashboard_current(singleton INTEGER PRIMARY KEY,batch_id TEXT)',
+      'CREATE TABLE gu_workspace_head(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision INTEGER NOT NULL DEFAULT 0)',
+      'INSERT INTO gu_workspace_head VALUES(1,0)',
+      'CREATE TABLE gu_workspace_versions(revision INTEGER PRIMARY KEY,request_id TEXT NOT NULL UNIQUE,digest TEXT NOT NULL,created_at TEXT NOT NULL,payload TEXT NOT NULL)',
     ],
     wechat: [
       'CREATE TABLE accounts(id TEXT PRIMARY KEY,role TEXT,active INTEGER)',
