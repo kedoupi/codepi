@@ -122,3 +122,12 @@ pnpm exec wrangler d1 migrations apply codepi-auth --local
 
 The [original SSO rollout plan](../../docs/superpowers/plans/2026-10-15-kdp-sso-rollout.md)
 is historical context, not the current resource inventory or release procedure.
+
+## Project / Me opt-in clients
+
+Public metadata and allowed client IDs live in `packages/shared/auth/clients.ts`.
+`SSO_CLIENT_SECRET_PROJECT` / `SSO_CLIENT_SECRET_ME` enable their exact production callbacks;
+missing optional secrets leave existing clients unchanged, explicitly empty/short secrets fail closed.
+Pair each with its own Worker `AUTH_CLIENT_SECRET` only during an authorized initialization/rotation.
+New domain resources and real login acceptance remain tracked in
+`docs/development/tasks/2026-10-20-codepi-mcp-domains.md`.

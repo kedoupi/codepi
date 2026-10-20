@@ -2,6 +2,8 @@ packages:
   - apps/web
   - apps/gu
   - apps/gzh
+  - apps/project
+  - apps/me
   - apps/health
   - apps/health/apps/*
   - apps/health/workers/*
@@ -9,3 +11,4 @@ packages:
   - services/mcp
   - services/ops
   - packages/shared
+  - packages/cli

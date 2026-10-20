@@ -1,6 +1,6 @@
 # Shared SSO client
 
-Raw TypeScript source imported by the GU, Health, gzh, personal desk and CodePi MCP bundles. This
+Raw TypeScript source imported by GU, Health, GZH, the personal desk, Project, Me and CodePi MCP. This
 directory is not a package and introduces no runtime dependency. Keep application
 roles, data access and provider OAuth in the individual applications.
 
@@ -13,8 +13,12 @@ Required configuration when `SSO_ENABLED=1`:
 - `DB`: the application's existing database with the SSO migration applied.
 - `AUTH`: service binding to the central auth Worker.
 - `AUTH_ORIGIN`: the central HTTPS origin, without a path or query.
-- `AUTH_CLIENT_ID`: `gu`, `oura` (Health's existing client ID), `gzh`, `desk` or `mcp`.
+- `AUTH_CLIENT_ID`: one of the IDs in `clients.ts`; `oura` remains Health's existing protocol ID.
 - `AUTH_CLIENT_SECRET`: a separate secret per application, also registered centrally.
+
+`clients.ts` owns public client metadata and opt-in callbacks. New Project/Me
+clients stay disabled until their own paired secrets exist. A declared exact
+default callback alone does not activate a client or disable existing logins.
 
 Only the central subject `kdp-owner` is accepted. The application supplies the
 existing local owner ID to `finishLogin`; no user ID comes from a browser input.
@@ -31,6 +35,11 @@ transparent configuration change.
 Call `readSsoSession` for every protected request. `null` means absent, expired or
 revoked authentication; an exception means infrastructure or configuration failure.
 Never turn the latter into a successful logout or a new anonymous session.
+
+`ssoReady` checks the configured client credential against the central session
+endpoint with a nonexistent reference. It creates no login, sends no email and
+does not query application data. Project/Me health endpoints return 503 when the
+pair cannot be verified; a local `SSO_ENABLED=1` flag alone is not readiness.
 
 Run the tests with Node 24 from the repository root after installing the workspace dependencies:
 

@@ -2,6 +2,7 @@ import { Hono, type Handler } from "hono";
 
 import { loginPage } from "./ui";
 import { brandedSender, buildOtpEmail } from "@kedoupi/shared/email/otp";
+import { SSO_CLIENTS, isSsoClientId } from "@kedoupi/shared/auth/clients";
 
 export interface Env {
   DB: D1Database;
@@ -16,6 +17,8 @@ export interface Env {
   SSO_CLIENT_SECRET_GZH?: string;
   SSO_CLIENT_SECRET_DESK?: string;
   SSO_CLIENT_SECRET_MCP?: string;
+  SSO_CLIENT_SECRET_PROJECT?: string;
+  SSO_CLIENT_SECRET_ME?: string;
   SSO_EXTRA_REDIRECT_URIS?: string;
   AUTH_ORIGIN: string;
   ENVIRONMENT: string;
@@ -25,7 +28,8 @@ type Client = { secret: string; name: string; redirectUris: string[] };
  * Login-page product names. The registry `name` is a write-only secret value that
  * cannot be edited in place, so product display names are applied here instead.
  */
-const DISPLAY_NAMES: Record<string, string> = { oura: "健康 Health", gzh: "公众号 GZH", mcp: "CodePi MCP" };
+const DISPLAY_NAMES: Record<string, string> = Object.fromEntries(Object.entries(SSO_CLIENTS)
+  .flatMap(([id, client]) => "displayName" in client ? [[id, client.displayName]] : []));
 type Config = { clients: Record<string, Client>; origin: string; dev: boolean };
 type Tx = { id: string; client_id: string; redirect_uri: string; state: string;
   challenge: string; expires_at: number; otp_hash: string | null; otp_expires_at: number | null; attempts: number };
@@ -63,28 +67,33 @@ function configuration(env: Env): Config {
       || !env.SESSION_SECRET || !env.OTP_PEPPER) throw new Error();
     const clients = JSON.parse(env.SSO_CLIENTS) as Record<string, Client>;
     if (!clients || Array.isArray(clients) || typeof clients !== "object" || !Object.keys(clients).length) throw new Error();
-    // The MCP client is opt-in so deploying support does not break existing SSO.
-    // Its credential can be paired without rewriting the write-only registry.
-    if (env.SSO_CLIENT_SECRET_MCP && !Object.hasOwn(clients, "mcp")) {
-      clients.mcp = { secret: env.SSO_CLIENT_SECRET_MCP, name: "CodePi MCP",
-        redirectUris: ["https://mcp.codepi.app/api/auth/callback"] };
+    // New clients are opt-in; existing registries and per-client overrides retain their behavior.
+    for (const [id, entry] of Object.entries(SSO_CLIENTS)) {
+      const secret = env[entry.secret];
+      if (secret !== undefined && "callback" in entry && !Object.hasOwn(clients, id)) {
+        clients[id] = { secret, name: entry.displayName, redirectUris: [entry.callback] };
+      }
     }
     // Public callback registrations can evolve without rotating client credentials.
     const extra: unknown = JSON.parse(env.SSO_EXTRA_REDIRECT_URIS || "{}");
     if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error();
     for (const [id, uris] of Object.entries(extra)) {
+      if (!Object.hasOwn(clients, id) && isSsoClientId(id)) {
+        const entry = SSO_CLIENTS[id];
+        // Planned clients may declare their one public callback before their
+        // opt-in secret exists, without disabling login for current clients.
+        if ("callback" in entry && env[entry.secret] === undefined &&
+          Array.isArray(uris) && uris.length === 1 && uris[0] === entry.callback) continue;
+      }
       if (!Object.hasOwn(clients, id) || !Array.isArray(clients[id]?.redirectUris)
         || !Array.isArray(uris) || !uris.every(uri => typeof uri === "string")) throw new Error();
       clients[id].redirectUris = [...new Set([...clients[id].redirectUris, ...uris])];
     }
     // Rotate one client's credential without rewriting the write-only registry.
-    const clientSecrets: Record<string, string | undefined> = {
-      gu: env.SSO_CLIENT_SECRET_GU, oura: env.SSO_CLIENT_SECRET_OURA,
-      gzh: env.SSO_CLIENT_SECRET_GZH, desk: env.SSO_CLIENT_SECRET_DESK, mcp: env.SSO_CLIENT_SECRET_MCP,
-    };
     for (const [id, c] of Object.entries(clients)) {
-      const secret = clientSecrets[id] ?? c?.secret;
-      if (!["gu", "oura", "gzh", "desk", "mcp"].includes(id) || typeof secret !== "string" || secret.length < 32
+      if (!isSsoClientId(id)) throw new Error();
+      const secret = env[SSO_CLIENTS[id].secret] ?? c?.secret;
+      if (typeof secret !== "string" || secret.length < 32
         || typeof c.name !== "string" || c.name.length > 80 || !Array.isArray(c.redirectUris) || !c.redirectUris.length) throw new Error();
       c.secret = secret;
       for (const uri of c.redirectUris) {

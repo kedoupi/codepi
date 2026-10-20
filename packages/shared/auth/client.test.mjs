@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { beginLogin, finishLogin, readSsoSession, logoutSso, ssoEnabled } from './client.ts';
+import { beginLogin, finishLogin, readSsoSession, logoutSso, ssoEnabled, ssoReady } from './client.ts';
 
 const require = createRequire(new URL('../../../apps/health/workers/api/package.json', import.meta.url));
 const wranglerRequire = createRequire(require.resolve('wrangler'));
@@ -12,6 +12,34 @@ const request = (path, cookie = '', init = {}) => new Request(origin + path, {
   ...init, headers: { Cookie: cookie, ...init.headers },
 });
 const sessionCookie = response => response.headers.getSetCookie().find(v => v.includes('_session=')).split(';')[0];
+
+test('SSO readiness validates each paired client without touching database or real sessions', async () => {
+  for (const client of ['mcp', 'project', 'me']) {
+    const env = {
+      DB: new Proxy({}, { get() { throw new Error('Readiness must not touch application data'); } }),
+      SSO_ENABLED: '1', AUTH_ORIGIN: 'https://auth.example', AUTH_CLIENT_ID: client,
+      AUTH_CLIENT_SECRET: 'synthetic-paired-secret',
+      AUTH: { async fetch(url, init) {
+        assert.equal(url, 'https://auth.internal/internal/session');
+        assert.equal(init.headers.Authorization, `Basic ${btoa(`${client}:synthetic-paired-secret`)}`);
+        assert.deepEqual(JSON.parse(init.body), { session_ref: '0'.repeat(43) });
+        return Response.json({ active: false });
+      } },
+    };
+    assert.equal(await ssoReady(env), true);
+    assert.equal(await ssoReady({ ...env, SSO_ENABLED: '0' }), false);
+    for (const response of [
+      () => new Response('', { status: 401 }),
+      () => new Response('', { status: 503 }),
+      () => Response.json({ active: true }),
+      () => Response.json({ ok: true }),
+      () => new Response('invalid-json'),
+      () => { throw new Error('Synthetic auth outage'); },
+    ]) {
+      assert.equal(await ssoReady({ ...env, AUTH: { fetch: response } }), false);
+    }
+  }
+});
 
 async function fixture(t) {
   // Miniflare v5（wrangler 4.151+）：workers[].config 形态；只需要一个本地 D1。
