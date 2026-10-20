@@ -1,6 +1,6 @@
 # Health 睡眠 / 7 天解读 / 对比页设计稿还原
 
-- 状态：本地修正与视觉验收已通过；本轮尚未提交、推送、合并或部署。
+- 状态：已修正、验收、合并并发布（2026-10-20）。
 - 触发：用户反馈 PR #117 上线后的页面与此前确认的六张设计稿不同。
   上轮实现与发布事实保留在 [原任务](2026-10-20-health-data-visualization.md)，
   该记录不能作为本轮视觉验收通过的证据。
@@ -50,6 +50,17 @@
 - `git diff --check` 无空白错误。
 - 设计 QA 最终结果：`passed`，详见
   [设计 QA](../../../apps/health/design-qa.md) Iteration 3。
+
+## 合并与发布（2026-10-20）
+
+- 分支 rebase 到 main 后提交为 `828e505`，PR #119 squash 合并为
+  `03985a294a4c98e526b7fcc75dd7622f6517787e`。
+- CI：health-build 首次因既有 SSO 点击覆盖时序抖动失败，重跑通过；合并前全部检查 CLEAN。
+- 发布范围：仅 Health 前端（API 未改动）。本机从干净 main `03985a2` 持锁执行，
+  version `8d090707-d708-45b4-ad2f-90f63f46a755`。
+- 验收：Auth `/api/health` 200 ok；Health API `check:api` 全 PASS（build `a00c2f09457a`，未变）；
+  `check:branding` PASS；线上 asset hash 与本地构建一致，确认已切流。
+- 线上真实个人数据浏览待用户确认；Safari/Firefox 与实机触控未在本地合成验收中覆盖。
 
 ## 交付边界
 
