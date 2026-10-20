@@ -29,6 +29,7 @@ export const HEALTH_COLLECTIONS: Collection[] = [
 
 type RecordData = Record<string, unknown>;
 type WindowState = { synced_at: string | null; attempted_at: string; last_error: string | null };
+type CoverageWindow = WindowState & { window_from: string; window_to: string };
 const DAY = 86_400_000;
 
 export const isCollectionAccessDenied = (code: string | null | undefined) =>
@@ -75,10 +76,36 @@ export function healthWindow(collection: unknown, from?: unknown, to?: unknown) 
 type Window = ReturnType<typeof healthWindow>;
 const snapshot = (spec: Collection) => spec.mode === "snapshot" || spec.mode === "profile";
 
+function recoveredAt(
+  spec: Collection,
+  failure: Pick<CoverageWindow, "window_from" | "window_to" | "attempted_at">,
+  windows: Pick<CoverageWindow, "window_from" | "window_to" | "synced_at">[],
+): string | null {
+  const successes = windows.filter(row => row.synced_at && Date.parse(row.synced_at) >= Date.parse(failure.attempted_at));
+  if (snapshot(spec)) {
+    return successes.map(row => row.synced_at!).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  }
+  let coveredUntil = Date.parse(failure.window_from);
+  let syncedAt: string | null = null;
+  for (const row of successes.sort((a, b) => a.window_from.localeCompare(b.window_from))) {
+    if (Date.parse(row.window_from) > coveredUntil) break;
+    if (Date.parse(row.window_to) < coveredUntil) continue;
+    coveredUntil = Date.parse(row.window_to) + DAY;
+    if (!syncedAt || Date.parse(row.synced_at!) > Date.parse(syncedAt)) syncedAt = row.synced_at;
+    if (coveredUntil > Date.parse(failure.window_to)) return syncedAt;
+  }
+  return null;
+}
+
 async function windowState(env: Env, userId: string, w: Window) {
-  return env.DB.prepare(`SELECT synced_at, attempted_at, last_error FROM health_sync_windows
-    WHERE user_id=? AND collection=? AND window_from=? AND window_to=?`)
-    .bind(userId, w.spec.name, w.from, w.to).first<WindowState>();
+  const sql = `SELECT window_from, window_to, synced_at, attempted_at, last_error FROM health_sync_windows
+    WHERE user_id=? AND collection=?`;
+  const rows = await env.DB.prepare(sql + (snapshot(w.spec) ? "" : " AND window_from<=? AND window_to>=?"))
+    .bind(userId, w.spec.name, ...(snapshot(w.spec) ? [] : [w.to, w.from])).all<CoverageWindow>();
+  const state = rows.results.find(row => row.window_from === w.from && row.window_to === w.to) ?? null;
+  const syncedAt = state?.last_error
+    ? recoveredAt(w.spec, state, rows.results.filter(row => !row.last_error)) : null;
+  return syncedAt ? { ...state!, last_error: null, synced_at: syncedAt } : state;
 }
 
 function recordDay(row: RecordData, spec: Collection): string {
@@ -143,17 +170,12 @@ async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedA
     .all<{ window_from: string; window_to: string; attempted_at: string }>();
   for (const parent of parents.results) {
     // Only successes after this failure can resolve it; older archives do not prove recovery.
-    const children = await env.DB.prepare(`SELECT window_from, window_to FROM health_sync_windows
+    const children = await env.DB.prepare(`SELECT window_from, window_to, synced_at FROM health_sync_windows
       WHERE user_id=? AND collection=? AND last_error IS NULL AND synced_at>=?
         AND window_to>=? AND window_from<=? ORDER BY window_from`)
       .bind(userId, w.spec.name, parent.attempted_at, parent.window_from, parent.window_to)
-      .all<{ window_from: string; window_to: string }>();
-    let coveredUntil = Date.parse(parent.window_from);
-    for (const child of children.results) {
-      if (Date.parse(child.window_from) > coveredUntil) break;
-      coveredUntil = Math.max(coveredUntil, Date.parse(child.window_to) + DAY);
-    }
-    if (coveredUntil <= Date.parse(parent.window_to)) continue;
+      .all<Pick<CoverageWindow, "window_from" | "window_to" | "synced_at">>();
+    if (!recoveredAt(w.spec, parent, children.results)) continue;
     await env.DB.prepare(`UPDATE health_sync_windows SET last_error=NULL, synced_at=?
       WHERE user_id=? AND collection=? AND window_from=? AND window_to=?
         AND attempted_at=? AND last_error='sync_window_too_large'
@@ -323,11 +345,14 @@ export async function healthStatus(env: Env, userId: string) {
     .bind(userId).all<{ collection: string; records: number; earliest_day: string | null; latest_day: string | null }>();
   const windows = await env.DB.prepare(`SELECT collection, window_from, window_to, synced_at, attempted_at, last_error
     FROM health_sync_windows WHERE user_id=? ORDER BY attempted_at DESC`).bind(userId)
-    .all<WindowState & { collection: string; window_from: string; window_to: string }>();
+    .all<CoverageWindow & { collection: string }>();
   const denied = collectionAccess(windows.results);
   return HEALTH_COLLECTIONS.map(spec => {
     const refusal = denied.find(row => row.collection === spec.name);
-    const failures = refusal ? [] : windows.results.filter(row => row.collection === spec.name && row.last_error);
+    const collectionWindows = windows.results.filter(row => row.collection === spec.name);
+    const successes = collectionWindows.filter(row => !row.last_error);
+    // Evaluate stored history too, so already recovered failures disappear on read.
+    const failures = refusal ? [] : collectionWindows.filter(row => row.last_error && !recoveredAt(spec, row, successes));
     return {
       ...spec, records: 0, earliest_day: null, latest_day: null,
       ...rows.results.find(row => row.collection === spec.name),
