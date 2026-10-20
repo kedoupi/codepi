@@ -23,12 +23,14 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 ## 授权与上下文
 
 支持 `context.read`、`projects.read`、`projects.write`、`health.read`、`health.sync`、
-`me.read`、`me.write`、`invest.read`。授权页仅显示本次请求的权限，Health/Me/GU 默认不勾选。
-空选择不消耗同意事务；额外权限被拒绝。已有 `health.read health.sync` token 继续有效，
-不自动获得新领域。refresh 只能保持或缩小，新权限必须重新授权。
+`me.read`、`me.write`、`invest.read`。这是单用户部署，登录并确认连接后一次性授予
+当前全部已支持 scope；授权页完整展示范围，但不提供逐项勾选。即使客户端只请求部分
+scope，服务端也返回全量 scope 并在 token 响应中如实声明。已有部分授权在下一次
+refresh 时升级为全量；refresh 忽略客户端的缩小请求，不能把连接降回部分权限。
+需要收缩能力时撤销整个客户端连接，而不是在同一连接上保留部分 scope。
 
 工具逐一检查权限。仅写权限不能读取领域摘要。Health read-only grant 可读保存数据；
-没有 `health.sync` 时默认不刷新，显式要求 refresh=true 被拒绝。旧 grant 行为不变。
+没有 `health.sync` 时默认不刷新，显式要求 refresh=true 被拒绝。
 连接页合并同一客户端全部活动授权族的 scope，不用 SQL `MAX(scope)` 代替集合并集。
 
 `get_context` 只调用拥有读权限的来源，并发执行、每个来源 2 秒超时；

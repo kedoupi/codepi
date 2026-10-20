@@ -4,13 +4,14 @@ import { HttpError, boundedText, escapeHtml, form, json, sameOrigin } from "./ht
 import { hidden, page } from "./pages.ts";
 import { MODULES } from "./modules.ts";
 import {
-  SUPPORTED_SCOPES, normalizeScope, scopeSubset, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
+  SUPPORTED_SCOPES, normalizeScope, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
   takeConsentRequest, createAuthCode, lookupAuthCode, exchangeAuthCode, exchangeRefreshToken, sha256Base64Url,
   revokeToken, revokeClient, listConnections,
 } from "./oauth-store.ts";
 
 const OWNER = "kdp-owner";
 const scopes = [...SUPPORTED_SCOPES];
+const grantedScope = scopes.join(" ");
 function oauthError(error: string, description: string, status = 400) {
   return json({ error, error_description: description }, status);
 }
@@ -88,16 +89,16 @@ async function owner(request: Request, env: Env) {
   return session;
 }
 
-function consentPage(clientName: string, requested: string, fields: Record<string, string>, uri: string, error?: string) {
-  const check = (scope: string, label: string, sensitive: boolean) => requested.split(" ").includes(scope)
-    ? `<label><input type="checkbox" name="scope" value="${escapeHtml(scope)}"${sensitive ? "" : " checked"}> ${escapeHtml(label)} <code>${scope}</code></label><br>` : "";
-  return page("连接 CodePi MCP", `<p>允许 <strong>${escapeHtml(clientName)}</strong> 访问哪些数据？敏感数据默认不勾选。</p>
-${error ? `<p role="alert">${escapeHtml(error)}</p>` : ""}
+function consentPage(clientName: string, fields: Record<string, string>, uri: string) {
+  const item = (scope: string, label: string, sensitive: boolean) =>
+    `<li>${escapeHtml(label)} <code>${scope}</code>${sensitive ? " · 敏感数据" : ""}</li>`;
+  return page("连接 CodePi MCP", `<p>连接 <strong>${escapeHtml(clientName)}</strong> 将获得 CodePi MCP 当前支持的全部权限。敏感数据只能由已登录的所有者授权访问，不会向客户端提供第三方凭证。</p>
 <form method="POST" action="/oauth/authorize">${hidden(fields)}
-${check("context.read", "读取已授权领域的简短概览", false)}
-${MODULES.map(m => Object.keys(m.consent).some(s => requested.split(" ").includes(s))
-    ? `<fieldset><legend>${escapeHtml(m.title)}${m.sensitive ? "（敏感）" : ""}</legend>${Object.entries(m.consent).map(([s, label]) => check(s, label, m.sensitive)).join("")}</fieldset>` : "").join("")}
-<p>只授予勾选的权限；不会向客户端提供第三方凭证。新增权限需要重新授权。</p>
+<fieldset><legend>授权范围</legend><ul>
+${item("context.read", "读取已授权领域的简短概览", false)}
+${MODULES.map(m => Object.entries(m.consent).map(([s, label]) => item(s, label, m.sensitive)).join("")).join("")}
+</ul></fieldset>
+<p>当前连接的全部权限一次开通；以后新增的已支持领域在 token 刷新后生效。可以在连接管理中随时撤销。</p>
 <div class="actions"><button class="approve" name="decision" value="approve">允许连接</button>
 <button name="decision" value="deny">拒绝</button></div></form>`, new URL(uri).origin);
 }
@@ -126,9 +127,9 @@ export async function authorize(request: Request, env: Env) {
     return new Response(null, { status: 302, headers: { Location: target.href } });
   }
   const tx = await createConsentRequest(env, { clientId: client.client_id, userId: session.userId,
-    redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: requested });
+    redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
   const signed = `${tx.consentId}.${await sign(env, `${tx.consentId}:${state}`)}`;
-  return consentPage(client.client_name ?? client.client_id, requested, { client_id: client.client_id, state,
+  return consentPage(client.client_name ?? client.client_id, { client_id: client.client_id, state,
     consent_id: signed, csrf_token: tx.csrfToken }, uri);
 }
 
@@ -146,27 +147,16 @@ async function consent(request: Request, env: Env) {
     return oauthError("invalid_request", "Consent is invalid, expired or already used", 403);
   }
   // Validate ownership before consumption; a different browser transaction cannot burn it.
-  const bound = await env.DB.prepare(`SELECT client_id,user_id,scope,redirect_uri FROM oauth_consent_requests WHERE consent_id=?`)
-    .bind(id).first<{ client_id: string; user_id: string; scope: string; redirect_uri: string }>();
+  const bound = await env.DB.prepare(`SELECT client_id,user_id,redirect_uri FROM oauth_consent_requests WHERE consent_id=?`)
+    .bind(id).first<{ client_id: string; user_id: string; redirect_uri: string }>();
   if (bound?.client_id !== fields.get("client_id") || bound?.user_id !== session.userId) {
     return oauthError("invalid_request", "Consent owner or client mismatch", 403);
-  }
-  const selected = fields.getAll("scope");
-  const chosen = normalizeScope(selected.join(" "));
-  if (fields.get("decision") === "approve") {
-    if (!selected.length) {
-      const client = await getClient(env, bound.client_id);
-      return consentPage(client?.client_name ?? bound.client_id, bound.scope, {
-        client_id: bound.client_id, state, consent_id: signed, csrf_token: fields.get("csrf_token")!,
-      }, bound.redirect_uri, "至少选择一项权限。");
-    }
-    if (!chosen || !scopeSubset(chosen, bound.scope)) return oauthError("invalid_scope", "Selected scopes exceed the request", 403);
   }
   const tx = await takeConsentRequest(env, id);
   if (!tx) return oauthError("invalid_request", "Consent is expired or used", 403);
   if (fields.get("decision") === "deny") return redirect(tx.redirect_uri, { error: "access_denied", ...(state ? { state } : {}) });
   const code = await createAuthCode(env, { clientId: tx.client_id, userId: tx.user_id, redirectUri: tx.redirect_uri,
-    codeChallenge: tx.code_challenge, scope: chosen! });
+    codeChallenge: tx.code_challenge, scope: grantedScope });
   return redirect(tx.redirect_uri, { code, ...(state ? { state } : {}) });
 }
 
@@ -183,9 +173,6 @@ export async function token(request: Request, env: Env) {
   if (fields.get("grant_type") === "authorization_code") {
     const code = fields.get("code") ?? "", verifier = fields.get("code_verifier") ?? "";
     const tx = await lookupAuthCode(env, code);
-    if (tx && requested !== undefined && requested !== normalizeScope(tx.scope)) {
-      return oauthError("invalid_scope", "Authorization code scope cannot change");
-    }
     if (!tx || tx.user_id !== OWNER || tx.client_id !== clientId || tx.redirect_uri !== fields.get("redirect_uri")
       || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)
       || await sha256Base64Url(verifier) !== tx.code_challenge) return oauthError("invalid_grant", "Invalid authorization code or PKCE");
@@ -193,10 +180,8 @@ export async function token(request: Request, env: Env) {
     return pair ? json(pair) : oauthError("invalid_grant", "Authorization code expired or already used");
   }
   if (fields.get("grant_type") === "refresh_token") {
-    const result = await exchangeRefreshToken(env, fields.get("refresh_token") ?? "", clientId, requested);
-    return result.ok ? json(result.tokens) : result.reason === "invalid_scope"
-      ? oauthError("invalid_scope", "Refresh can only retain or reduce granted scopes")
-      : oauthError("invalid_grant", "Refresh token expired, revoked or reused");
+    const result = await exchangeRefreshToken(env, fields.get("refresh_token") ?? "", clientId);
+    return result.ok ? json(result.tokens) : oauthError("invalid_grant", "Refresh token expired, revoked or reused");
   }
   return oauthError("unsupported_grant_type", "Use authorization_code or refresh_token");
 }

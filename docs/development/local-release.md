@@ -94,7 +94,8 @@ Health API 的现有脚本已包含 dry-run、权限/当前版本预检、D1 mig
 MCP 的 Auth `SSO_CLIENT_SECRET_MCP` 与自身 `AUTH_CLIENT_SECRET` 由下方统一命令配对；
 既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
 必须先就绪，MCP 验收通过后才发布展示新地址的 Health 前端。MCP D1 只保存授权状态，
-不复用 Health 数据库；旧客户端需重新授权。MCP D1 现纳入六库加密日备，恢复时须避免
+不复用 Health 数据库；从旧 Health-hosted MCP 切换时旧客户端需改连并重新授权，
+统一 MCP 的现有连接已升级为全量 scope，不再为新增 write scope 重新授权。MCP D1 现纳入六库加密日备，恢复时须避免
 复活快照后已撤销或已消费的授权，见备份 runbook。2026-10-19 此项取代首发时“不备份授权状态”的决策。
 MCP deploy 现在自动执行精确 build、凭证配对、发现、匿名拒绝和连接管理入口 smoke；
 上传成功但 smoke 失败仍以非零状态退出，后续发布停止。
@@ -225,6 +226,7 @@ Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署
 新桶必须无公开域名、无 r2.dev 公开访问。新增 Worker 要单独建立并验收 Issues 自动规则。
 执行新 Ops 后核对 v3 完整清单、GitHub 跨平台副本、非空 Me 原文隔离恢复；旧 v2 回执不够。
 
-旧统一 MCP Health grants 保留，无须强制全部重连；仅新权限需要再次同意。
+旧统一 MCP Health grants 保留，无须强制全部重连；下一次 refresh 自动升级为
+当前全部已支持 scope，授权页不再逐项选择。
 真实验收包含 Claude 手机端、Codex、codepi CLI，逐项记录权限隔离、刷新、撤销和接力。
 计划、代码、发布和真实客户端状态分别填写[任务记录](tasks/2026-10-20-codepi-mcp-domains.md)。

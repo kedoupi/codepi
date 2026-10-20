@@ -19,8 +19,6 @@ export function normalizeScope(value: string | null | undefined): string | null 
   if (!parts.length || parts.some(s => !(SUPPORTED_SCOPES as readonly string[]).includes(s))) return null;
   return SUPPORTED_SCOPES.filter(s => parts.includes(s)).join(" ") || null;
 }
-export const scopeSubset = (requested: string, granted: string) =>
-  requested.split(" ").every(s => granted.split(" ").includes(s));
 export const hasScope = (granted: string, scope: Scope) => granted.split(" ").includes(scope);
 export const resource = (env: Env) => `${env.MCP_ORIGIN}/mcp`;
 export const ACCESS_TTL_SECONDS = 60 * 60;
@@ -261,7 +259,7 @@ export async function findAccessToken(env: Env, token: string): Promise<TokenRow
 
 export type RefreshExchange =
   | { ok: true; userId: string; clientId: string; tokens: IssuedTokens }
-  | { ok: false; reason: "invalid" | "replay" | "invalid_scope" };
+  | { ok: false; reason: "invalid" | "replay" };
 
 /**
  * Exchanges a refresh token for a new pair in ONE transaction.
@@ -276,7 +274,7 @@ export type RefreshExchange =
  * family is revoked, per OAuth 2.1 refresh-token reuse detection.
  */
 export async function exchangeRefreshToken(
-  env: Env, refreshToken: string, clientId: string, requestedScope?: string,
+  env: Env, refreshToken: string, clientId: string,
 ): Promise<RefreshExchange> {
   const now = Date.now();
   const access = randomToken(32);
@@ -286,11 +284,10 @@ export async function exchangeRefreshToken(
   const previous = await env.DB.prepare(
     "SELECT scope FROM mcp_tokens WHERE token_hash=? AND client_id=? AND kind='refresh' AND resource=?",
   ).bind(oldHash, clientId, resource(env)).first<{ scope: string }>();
-  if (requestedScope !== undefined && (!normalizeScope(requestedScope)
-    || (previous && !scopeSubset(requestedScope, previous.scope)))) {
-    return { ok: false, reason: "invalid_scope" };
-  }
-  const nextScope = requestedScope ?? previous?.scope ?? "";
+  // This is a single-owner deployment: every connection carries the full set
+  // of supported scopes. Refresh upgrades legacy partial grants instead of
+  // letting a client silently narrow the owner's connected capabilities.
+  const nextScope = SUPPORTED_SCOPES.join(" ");
 
   const results = await env.DB.batch([
     // 1. Insert the successor, inheriting identity, scope and family from the

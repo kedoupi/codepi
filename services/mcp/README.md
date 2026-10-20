@@ -16,7 +16,8 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
 - `PROJECT`, `ME` and `GU` bind only to `ProjectMcp`, `MeMcp` and `GuMcp`.
   Project/Me own their new databases; GU reads the existing online workspace revision.
 - Tool modules are registered in `src/modules.ts`; only implemented and granted
-  modules appear. New product scopes require new explicit consent.
+  modules appear. Owner login grants all currently supported scopes in one
+  connection; refresh upgrades legacy partial grants and cannot narrow them.
 - Health queries with `health.sync` may persist refresh jobs. A `health.read`-only
   grant forces cache-only reads, defaults `refresh` to false and rejects explicit
   refresh requests. Saved data returns with coverage and sync state.
@@ -85,8 +86,10 @@ resource registry after the first release; a planned registry row is not readine
 An SDK integration test proves the transport works, not that a real ChatGPT,
 Claude or CLI account has been configured. The user chose a direct cutover:
 the old Health MCP code and grant management API are removed in this release.
-This historical cutover concerned the retired Health-hosted MCP. Existing grants in the unified MCP remain valid; new scopes require fresh consent. Historical Health migrations/tables, saved records and Oura
-credentials remain intact. There is no legacy enable/disable switch.
+This historical cutover concerned the retired Health-hosted MCP. Existing grants
+remain valid and upgrade to the full supported scope set on refresh. Historical
+Health migrations/tables, saved records and Oura credentials remain intact.
+There is no legacy enable/disable switch.
 
 MCP D1 is included in the encrypted database backup list. Never restore historical
 token/revocation state directly into production; invalidate restored credentials and

@@ -36,12 +36,14 @@ MCP 不绑定 Health 数据库，不保存 Oura 凭证，不把客户端 token �
 新增 SSO client `mcp`；Auth 只有配置 `SSO_CLIENT_SECRET_MCP` 后才启用它，
 与 MCP 的 `AUTH_CLIENT_SECRET` 单独配对，既有四个客户端的凭证不变。
 
-AI 客户端通过 OAuth discovery 和动态注册接入；首次版本仅支持 `health.read health.sync`；当前按[领域扩展](mcp-domains.md)选择权限。PKCE 只接受 S256；授权码一次使用，access token 一小时，
+AI 客户端通过 OAuth discovery 和动态注册接入；当前按[领域扩展](mcp-domains.md)
+一次授予全部已支持 scope。PKCE 只接受 S256；授权码一次使用，access token 一小时，
 refresh token 30 天并轮换；已轮换的 refresh token 被重放时撤销对应授权族。
 授权码和 token 在 D1 只保存 hash，并绑定 `https://mcp.codepi.app/mcp` 资源。
 
 `/connections` 展示已授权客户端，撤销需网站 owner 会话、同源 POST 和 CSRF。
-撤销 MCP 不断开 Oura，也不退出网站。未来新增产品权限须重新获得同意。
+撤销 MCP 不断开 Oura，也不退出网站。未来新增的已支持领域随 refresh 纳入现有连接；
+需要收缩能力时撤销整个客户端连接。
 浏览器 MCP 请求只接受规范 origin 或 `MCP_ALLOWED_ORIGINS` 中的精确 origin；
 服务端客户端可以不发送 Origin。
 
