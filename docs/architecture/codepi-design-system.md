@@ -1,0 +1,349 @@
+# CodePi Design System 规范
+
+> 状态：现行规范（2026-10-20 整理）。适用于 kedoupi（codepi）全部产品与支撑页面。
+> 本文把用户提供的 CodePi Design System v1.5 原件、仓库已落地的共享实现和各应用
+> 主题边界整理成一份可执行规范，供各项目 agent 优化和实现时直接引用。
+> 本文是规范，不是实现证据；某页面是否达标，以该页面的代码、测试和桌面/手机验收为准。
+
+文中 **必须** 表示验收条件，**应** 表示默认做法（偏离须在任务中写明理由），
+**可** 表示允许的选项。
+
+## 0. 权威顺序与文件地图
+
+冲突时按以下顺序判定：
+
+1. 用户的明确决定（品牌、标志、配色变更都需要用户批准）。
+2. 本规范。
+3. 品牌原件 `packages/shared/brand/codepi-v1.5/`（用户提供的 v1.5 原样副本，只读，不在此处改写）。
+   原件内部混有 v1.2–v1.5 的历史说明，例如 “`assets/` 仍是旧版 Demo”，这类描述以本文第 3 节的现状为准。
+4. 共享实现：`packages/shared/styles/tokens.css`、`packages/shared/styles/site.css`、`packages/shared/brand.ts`。
+5. 各应用主题文件（只能在第 12 节允许的范围内扩展）。
+
+| 用途 | 文件 |
+| --- | --- |
+| 品牌原件（值、资产、平台规范、QA） | `packages/shared/brand/codepi-v1.5/` |
+| 共享 token（唯一 CSS 来源） | `packages/shared/styles/tokens.css` |
+| 主站/静态页通用样式与参考组件 | `packages/shared/styles/site.css`、`packages/shared/layouts/BaseLayout.astro` |
+| 标志 SVG 与品牌文字 | `packages/shared/brand.ts`（`CODEPI_SYMBOL_SVG`、`BRAND_WORDMARK`、`PRODUCT_BRAND`） |
+| 平台/网站图标导出 | `packages/shared/brand/codepi-v1.5/assets/exports/`、`assets/platform/` |
+| 主站布局、公开页与应用边界 | [个人站设计规范](personal-design-system.md) |
+| 产品注册表 | `packages/shared/products.ts` |
+
+## 1. 品牌定位
+
+- CodePi 是独立开发者与技术创作者的个人品牌，气质：克制、可靠、鲜明、有温度。
+- 默认明亮暖白界面，深灰正文，少量橙色强调。
+- **禁止**：蓝紫 AI 渐变、霓虹/荧光配色、厚重玻璃拟态、发光“AI 大脑”类插画、
+  emoji 代替图标或标志、通篇重阴影。
+- 色彩比例（视觉建议，不做硬性测量）：暖白/白 75–85%，灰与文字 10–20%，橙 5–10%。
+- 品牌名：可见品牌统一用 `PRODUCT_BRAND`（kedoupi（codepi））或字标 `CodePi`；
+  不另造写法。服务名、Cookie、数据库名中的 `kdp` 是技术标识，不属于可见品牌。
+
+## 2. 标志
+
+### 2.1 结构与变体
+
+符号 = 大写 C（石墨灰）+ π（品牌橙）+ 内部 `</>`（石墨灰）。标准组合 = 符号 + `CodePi` 字标，
+其中 “Code” 用石墨灰，“Pi” 用品牌橙。标语 `BUILD · THINK · CREATE` 可选，
+不得放进应用图标或小尺寸标志。
+
+| 变体 | 来源 | 用途 |
+| --- | --- | --- |
+| 符号（彩色） | `brand.ts` 的 `CODEPI_SYMBOL_SVG`（与 `assets/masters/symbol-color.svg` 逐路径一致） | 网页页头、登录页、页脚 |
+| 符号（反白/单色） | `assets/masters/symbol-inverse.svg`、`symbol-monochrome.svg` | 深色背景、单色印刷/主题化图标 |
+| 横向字标 | `assets/exports/wordmark-light.svg`/`-dark.svg`，或 `assets/web-logo-light.svg`/`-dark.svg` | 需要图片字标的场景（邮件、OG、外部平台） |
+| HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 网页内的字标，优先于图片字标 |
+| 应用图标 | `assets/exports/app-icon-*.svg/png` | 应用、PWA、平台资料 |
+| 头像 | `assets/exports/avatar-*`、`assets/platform/{wechat,social}/` | 微信、GitHub、社交平台 |
+
+### 2.2 使用规则
+
+- **必须**使用上述官方文件或 `CODEPI_SYMBOL_SVG`；不得描摹截图重绘、拉伸、旋转、改色、
+  加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。
+- 净空：四周至少 0.5 × 符号高度（暂定，待定稿母版复核）。
+- 禁止 `{@html}` 的应用（Project、Me 的 CSP 与 AGENTS 规则）不能直接注入 `CODEPI_SYMBOL_SVG`，
+  应使用 `<img src="/favicon.svg" alt="">` 或把同一几何写成 Svelte 组件里的 SVG 元素，路径必须与母版一致。
+- 符号为装饰时必须 `aria-hidden="true"`，并与可读文字标签（品牌名或产品名）配对；
+  单独使用符号作为链接时必须提供可访问名称。
+- 16–32px 场景只用符号版 favicon（`favicon.svg`/`favicon-16/32.png`/`favicon.ico`），
+  不缩小完整组合标志。
+- 页头符号尺寸：桌面 36px，页脚 30px（`site.css` 现行值）。
+
+### 2.3 网站图标契约
+
+每个对外站点（首页、GU、GZH、Health、Project、Me，以及有独立页面的 Auth/MCP）**应**在 Web 根目录提供：
+
+| 文件 | 来源 | `<head>` |
+| --- | --- | --- |
+| `/favicon.ico`（含 16/32/48） | `assets/exports/favicon.ico` | `<link rel="icon" href="/favicon.ico" sizes="32x32">` |
+| `/favicon.svg` | `assets/exports/favicon.svg` | `<link rel="icon" href="/favicon.svg" type="image/svg+xml">` |
+| `/apple-touch-icon.png`（180×180） | `assets/exports/apple-touch-icon.png` | `<link rel="apple-touch-icon" href="/apple-touch-icon.png">` |
+| `theme-color` | 当前页面背景色（暖白 `#FAF8F4`，或应用主题背景） | `<meta name="theme-color" content="…">` |
+
+文件必须与 `assets/exports/` 中的原件逐字节一致，不重新导出或压缩。
+需要 PWA 安装时，参照 `assets/platform/web/manifest.example.json` 与 `pwa-*`/`pwa-maskable-*`。
+注意示例里 `theme_color` 用的是品牌橙，接入前要按本站背景复核。
+
+### 2.4 定稿状态
+
+v1.5 矢量母版仍是**候选稿**：字形精修、商标近似与字体授权都未完成审查。
+母版定稿后只需替换两处：`brand.ts` 的 `CODEPI_SYMBOL_SVG` 和各站从 `assets/exports/` 复制的图标文件。
+平台发布（Apple Icon Composer `.icon`、Android 启动器遮罩、微信后台上传、应用商店）
+在 `PLATFORM_COMPLIANCE.md` 中标为未验收，使用前必须按平台当期规范重新核实。
+
+## 3. Token 体系
+
+### 3.1 分层
+
+| 层 | 前缀 | 定义位置 | 谁能用 |
+| --- | --- | --- | --- |
+| 品牌 | `--brand-*` | `tokens.css` | 只用于标志、字标和少量品牌点缀 |
+| 语义 | `--color-*`、`--space-*`、`--radius-*`、`--text-*`、`--leading-*`、`--motion-*`、`--font-*` | `tokens.css` | **新代码默认使用** |
+| 兼容别名 | `--kdp-*` | `tokens.css`，指向语义层 | 既有组件；新代码可用，但不得新增 `--kdp-*` 名称 |
+| 应用局部 | 应用自定前缀（如 `--health-*`、GU 的 `--positive`） | 应用主题文件 | 只在本应用，表达本应用业务语义 |
+
+规则：
+
+- 组件源码**不得**写新的十六进制色值或 `rgb()` 字面量；颜色一律来自 token。
+  图表系列色、应用局部语义色先在应用主题文件里定义成变量，再在组件中引用。
+- 新增或修改共享 token 必须得到用户批准，在 PR 中写明受影响的应用，并保持 `tokens.css` 的单一写入者。
+  `tokens.css` 是所有产品及 Auth/MCP 页面的公共契约。
+- 应用**可以**在自己的主题文件中覆盖 `--kdp-*` 颜色别名来保留应用身份（见第 12 节），
+  **不得**为某个应用去改共享默认值。
+
+### 3.2 颜色（浅色，默认）
+
+| Token | 值 | 用途 |
+| --- | --- | --- |
+| `--brand-graphite` | `#5E5A56` | 标志 C、`</>`、字标 “Code” |
+| `--brand-orange` | `#FF713D` | 标志 π、字标 “Pi”、装饰点缀（下划线、细条、图形） |
+| `--brand-orange-interactive` | `#C94F20` | 与 `--color-action` 相同 |
+| `--brand-orange-hover` | `#A83E18` | 与 `--color-action-hover` 相同 |
+| `--brand-soft` | `#FFE6D9` | 暖橙浅底（选中、次按钮悬停、提示块） |
+| `--color-background` | `#FAF8F4` | 页面背景（暖白） |
+| `--color-surface` | `#FFFFFF` | 卡片、面板、输入框 |
+| `--color-text` | `#2D2A28` | 正文与标题 |
+| `--color-text-muted` | `#706A64` | 次要信息 |
+| `--color-border` | `#E7E3DC` | 装饰分隔线、卡片边框（不承担控件边界） |
+| `--color-border-strong` | `#8C857E` | 输入框、次按钮等控件边界（仓库补充项，不在 v1.5 原件内） |
+| `--color-focus` | `#C94F20` | 焦点环 |
+| `--color-action` | `#C94F20` | 主要按钮背景 |
+| `--color-action-hover` | `#A83E18` | 主按钮悬停；暖白/浅底上的橙色文字与链接 |
+| `--color-action-text` | `#FFFFFF` | 主按钮文字 |
+| `--color-disabled-bg` / `--color-disabled-text` | `#F3EAE4` / `#756F6A` | 禁用控件 |
+| `--color-success` / `--color-warning` / `--color-danger` | `#23744C` / `#965400` / `#B42318` | 状态语义；不能用品牌橙代替 |
+
+### 3.3 颜色（深色，可选）
+
+`[data-theme="dark"]` 已在 `tokens.css` 定义（背景 `#242321`、表面 `#302E2B`、正文 `#F6F3ED`、
+次要 `#C6BFB5`、边框 `#514D47`、动作/焦点 `#FF936C`、动作文字 `#242321`、成功 `#7AD9A5`、
+警告 `#FFD080`、危险 `#FF968F`），但**目前没有页面启用**。深色模式是补充，不是品牌主展示。
+启用前必须先补齐第 14 节列出的深色缺口。
+
+### 3.4 已验证的对比度配对
+
+下列数值由 WCAG 2.x 公式计算（2026-10-20），只覆盖纯色配对；实际渲染（透明度、叠加、
+图片背景）仍须实测。
+
+| 前景 / 背景 | 比值 | 结论 |
+| --- | --- | --- |
+| `--color-text` / 背景、表面 | 13.44 / 14.25 | 正文可用 |
+| `--color-text-muted` / 背景、表面 | 5.03 / 5.34 | 次要正文可用 |
+| 白字 / `--color-action` `#C94F20` | 4.54 | 主按钮可用（刚过 4.5，不能再变浅） |
+| 白字 / `--color-action-hover` `#A83E18` | 6.24 | 可用 |
+| `#C94F20` 文字 / 暖白背景 | **4.28** | **小字不达标**：暖白或浅底上的橙色文字、链接用 `--color-action-hover` |
+| `#C94F20` 文字 / 白色表面 | 4.54 | 白卡片上可用，但统一用 `--color-action-hover` 更稳 |
+| `--color-action-hover` / 暖白、`--brand-soft` | 5.88 / 5.22 | 橙色文字的标准选择 |
+| 白字 / 品牌橙 `#FF713D` | **2.73** | **禁止**白字放在品牌橙上 |
+| 正文色 / 品牌橙 | 5.21 | 品牌橙块上只能放深色字 |
+| 品牌橙 / 暖白 | **2.58** | 品牌橙不能用作文字或有意义的图标颜色，只能做装饰 |
+| `--color-border-strong` / 表面、背景 | 3.64 / 3.43 | 控件边界达标（≥3:1） |
+| `--color-border` / 表面 | 1.28 | 只能做装饰线，不能是控件的唯一边界 |
+| 焦点 `#C94F20` / 表面、背景 | 4.54 / 4.28 | 焦点指示达标（≥3:1） |
+| 成功 / 警告 / 危险 文字 / 表面 | 5.72 / 5.89 / 6.57 | 可用作状态文字 |
+| 禁用文字 / 禁用底 | 4.18 | 禁用控件可免于对比度要求，但不能只靠颜色表达禁用 |
+| 深色：正文/背景、动作文字/动作、焦点/背景 | 14.18 / 7.21 / 7.21 | 可用 |
+| 深色：`--color-border` / 表面 | 1.61 | 深色缺少强边界 token，见第 14 节 |
+
+## 4. 字体与字阶
+
+- 字体栈：`--font-sans` = Inter、Noto Sans SC，回退 PingFang SC / Hiragino Sans GB / Microsoft YaHei / system-ui；
+  代码用 `--font-mono` = JetBrains Mono。目前**不加载远程字体**，要加载必须先确认许可证和性能，并取得用户批准。
+- 字重：标题 600–700，正文 400–500。避免使用衬线体或展示字体另立风格。
+
+| 角色 | Token | 桌面 | 手机 | 字重 | 行高 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| H1 | `--text-h1` | 48px | 36px | 700 | 1.15 |
+| H2 | `--text-h2` | 32px | 28px | 650 | 1.2 |
+| H3 | `--text-h3` | 24px | 22px | 600 | 1.3 |
+| 正文 | `--text-body` | 16px | 16px | 400 | 1.6（`--leading-body`） |
+| 小字 | `--text-small` | 14px | 14px | 400 | 1.5 |
+| 说明 | `--text-caption` | 12px | 12px | 400 | 1.4 |
+
+- 最小字号 12px；正文不小于 14px，阅读型正文用 16px。
+- 手机字阶由各页面用 `clamp()` 或媒体查询实现（参考 `.personal-article h1`）；共享 token 只提供桌面值。
+- 必须支持浏览器 200% 文字缩放不丢失功能；不把文字烘焙进位图。
+
+## 5. 间距、布局与响应式
+
+- 4px 基准，只用 `--space-1/2/3/4/6/8/12/16` = 4/8/12/16/24/32/48/64px。
+- 容器：内容最大 `--kdp-content-width` 1120px；连续阅读最大 `--kdp-reading-width` 720px（约 72ch）。
+- 外边距：手机 16–20px（`site.css` 用 `calc(100% - 40px)`），平板 24px，桌面 32px。
+- 断点起点：768 / 1024 / 1440px，现行 `site.css` 另有 720px、400px 两档窄屏规则。
+- 必须在 320、375、768、1024、1440px 宽度下无横向滚动、无内容被截断。
+- 主站提供舒展的阅读节奏；工作应用（GU、GZH、Health）保留适合的信息密度，
+  但仍使用同一套间距刻度。
+- 主要可点击目标至少 44×44px（`site.css` 的导航、页脚链接已按此实现）。
+
+## 6. 圆角、边框、阴影
+
+| 元素 | Token | 值 |
+| --- | --- | --- |
+| 按钮、输入框、标签等控件 | `--radius-control` | 10px |
+| 卡片 | `--radius-card` | 14px |
+| 弹窗、主要内容面 | `--radius-dialog` | 18px |
+
+- 边框统一 1px；装饰边框用 `--color-border`，控件边界用 `--color-border-strong`。
+- 阴影只用 `--kdp-shadow`（`0 8px 32px rgb(45 42 40 / 5%)`）表达内容面层级；
+  不叠加多层阴影，不用阴影代替边框。
+- 页面背景默认纯色，不用渐变。
+
+## 7. 图标
+
+- Lucide 风格线性图标，16/20/24px，线宽 1.75px，圆形端点，颜色继承 `currentColor`。
+- 同一界面不混用 emoji、填充图标和其他图标族。
+- 纯图标按钮必须有可访问名称；装饰图标对辅助技术隐藏。
+- 引入图标库属于新增依赖，必须先得到用户批准；在批准前使用内联 SVG。
+
+## 8. 动效
+
+- `--motion-fast` 150ms（悬停、颜色变化），`--motion-normal` 220ms（展开、出现）。
+- 优先过渡 `opacity` / `transform`；不能让理解状态依赖动画。
+- 必须尊重 `prefers-reduced-motion`（`site.css` 已全局处理；独立应用需自带同等规则）。
+- 不使用视差、大面积自动播放、闪烁的加载动画。
+
+## 9. 组件契约
+
+每个交互组件都必须定义：结构、变体、尺寸、键盘交互、可访问名称、校验方式，
+以及适用的状态：default / hover / focus-visible / active / disabled / loading / error。
+
+| 组件 | 变体 | token 映射与要求 | 参考实现 |
+| --- | --- | --- | --- |
+| Button | primary / secondary / ghost / destructive | primary：背景 `--color-action`，文字 `--color-action-text`，悬停 `--color-action-hover`；secondary：表面底 + `--color-border-strong` 边框，悬停 `--brand-soft`；destructive 用 `--color-danger`；高度 ≥44px（主站 48px）；loading 要宣告且防重复提交 | `.kdp-button`、`.kdp-button--secondary` |
+| Link | 正文链接 / 强调链接 | 颜色 `--color-action-hover`，下划线偏移 4px；不使用 `#C94F20` 或品牌橙作为链接色 | `.kdp-link`、`.personal-article a` |
+| Input / Textarea / Select | normal / error / disabled | 常驻 label；helper 与 error 通过 `aria-describedby` 关联；边界用 `--color-border-strong`；错误同时提供图标或文字，不只靠颜色 | — |
+| Card | static / actionable | 表面底 + `--color-border` + `--kdp-shadow`，圆角 14px；只有可点击卡片才有悬停/焦点反馈 | `.kdp-card` |
+| Navigation | 页头 / 侧栏 / 底栏 | 当前项：正文色 + 600 字重 + 品牌橙 2px 下划线，并设置 `aria-current="page"`；悬停用 `--color-action-hover`；不整片铺高饱和橙 | `.kdp-nav` |
+| Tabs | default / selected / disabled | 方向键切换，tab 与 panel 互相关联 | — |
+| Dialog | confirm / form | 明确标题；焦点困在弹窗内，关闭后焦点返回；Esc 关闭；圆角 18px | — |
+| Toast / Alert | info / success / warning / error | 使用状态色；按紧急程度选 `aria-live` 级别；需要时可关闭 | — |
+| 空状态 / 错误状态 | — | 说明当前状态和下一步；不编造数据、指标或内容 | — |
+| Skip link | — | 键盘可达，聚焦时出现 | `.kdp-skip` |
+| 焦点 | 全局 | `:focus-visible` 为 2px `--color-focus` 实线，外偏移 2px | `site.css` |
+
+品牌橙不要出现在每张卡片上；状态信息不能只用颜色表达。
+
+## 10. 数据可视化
+
+- 盈亏、警告、数据系列色各自定义清楚的语义变量，与品牌强调色分开。
+- 图表必须提供图例或数据表等文字说明；悬停提示不能是获取数值的唯一途径。
+- 缺失数据显示为缺失，不能画成 0；坐标网格用低对比度的应用局部变量。
+- Health 现有系列色（睡眠灰蓝、准备度绿、活动/HRV 暖橙，以及深睡、REM、浅睡、清醒）保留，
+  其中的灰蓝只是数据系列色，不代表品牌。
+
+## 11. 内容与语气
+
+- 以真实内容组织页面；没有内容时省略模块或说明当前状态，不放假按钮、假文章、假指标。
+- 公开页面不嵌入私人数据（见[个人站设计规范](personal-design-system.md)）。
+- 外链在新标签页打开时要有明确提示。
+- 不放广告位、广告脚本或占位符。
+
+## 12. 应用主题边界
+
+共享部分（所有应用都必须遵守）：字体栈、字阶、间距刻度、圆角、焦点样式、动效时长、
+状态色语义、组件状态契约、标志用法、可访问性标准。
+
+应用可自定的部分：本应用的语义色（业务状态、数据系列）、信息密度与布局、
+是否覆盖 `--kdp-*` 颜色别名来保留应用身份。
+
+| 范围 | 主题入口 | 当前身份与允许的定制 |
+| --- | --- | --- |
+| 主站 `apps/web` | `BaseLayout.astro` + `site.css` | 完全采用 v1.5 默认色板；页头为符号 + HTML 字标 |
+| Desk（主站私有区） | `apps/web/src/styles/desk.css` | 只用 `--kdp-*`，无字面色值；保持现状 |
+| GU `apps/gu` | `apps/gu/web/src/style.css` | 导入共享 tokens，把应用变量映射到 `--kdp-*`；可保留投资业务语义色（盈亏、预警），页头和登录页用 `CODEPI_SYMBOL_SVG` |
+| GZH `apps/gzh` | `apps/gzh/web/src/styles.css` | 导入共享 tokens，移动优先的工作台密度；`-soft` 系列浅色背景可作为应用局部语义色 |
+| Health `apps/health` | `apps/health/apps/web/src/theme.css`（在共享 tokens 之后加载） | 保留暖纸主题：背景 `#fbf8f3`、表面 `#fffdf9`、陶橙 `#a3421c`/`#813719`、浅暖 `#f4e9df`；字体、间距、圆角沿用共享；图表系列色见第 10 节 |
+| Project `apps/project` | `apps/project/web/src/style.css`（导入共享 tokens，另有 `--project-*` 变量） | 可保留看板信息密度和项目状态语义色；品牌面（标志、favicon、`theme-color`、主色）必须回到 CodePi 暖白 + 橙，不另立蓝色品牌 |
+| Me `apps/me` | `apps/me/web/src/style.css`（导入共享 tokens） | 同 Project；页头已用 `PRODUCT_BRAND` 文字 |
+| Auth 登录页、MCP 授权页 | `services/auth/src/ui.ts`、`services/mcp/src/pages.ts`（内嵌 `tokens.css`） | 使用共享 token；品牌展示用 `PRODUCT_BRAND` |
+
+覆盖 `--kdp-*` 的应用主题同样必须满足第 3.4 节和第 13 节的对比度要求：
+正文、次要文字、链接、按钮文字 ≥ 4.5:1，焦点和控件边界 ≥ 3:1，并在该应用的 PR 中给出计算或实测结果。
+
+## 13. 可访问性验收（WCAG 2.2 AA）
+
+- 正文 ≥ 4.5:1，大字（≥24px，或 ≥18.66px 粗体）≥ 3:1，有意义的 UI 边界与图标 ≥ 3:1。
+- 全部功能可用键盘完成，焦点始终可见，Tab 顺序合理。
+- 语义化标题层级、地标区域，表单有 label；错误有文字描述并与字段关联。
+- 200% 缩放、320px 宽度下功能完整。
+- 状态不只靠颜色表达（禁用、错误、选中、盈亏）。
+- 尊重 `prefers-reduced-motion`。
+- 触控目标 ≥ 44×44px；确有例外时在任务中写明。
+
+## 14. 现状与待实施清单（2026-10-20 核对 main）
+
+以下是规范与当前代码之间的差距，供各项目 agent 认领。认领时请在任务记录中写明范围，
+完成后更新本节。行号与计数以核对当时为准，动手前请重新核实。
+
+### 已落地
+
+- `tokens.css` 已复制 v1.5 语义 token，`--kdp-*` 别名全部指向语义层（#118）。
+- 首页、GU、GZH、Health 的 favicon，以及首页、GU 的 `apple-touch-icon`，都已换成 v1.5 导出文件，
+  并于 2026-10-20 发布到生产，线上文件与仓库逐字节一致（#123）。
+- 主站页头/页脚、GU 页头与登录页已使用 `CODEPI_SYMBOL_SVG` + 字标。
+- Auth、MCP 页面内嵌共享 `tokens.css`。
+
+### 待实施
+
+| 优先 | 范围 | 差距 | 期望结果 |
+| --- | --- | --- | --- |
+| P1 | GZH | 页头是纯文字品牌（`App.svelte` 中的 `brand-kicker` / `brand`），没有标志；缺少 `apple-touch-icon` | 按第 2 节接入符号与字标，补齐第 2.3 节图标契约 |
+| P1 | Health | `ProductBrand.svelte` 用 `/icon.svg` 图片作标志；`apple-touch-icon` 指向 512px 的 `icon.png`，不是 180px 文件 | 评估改用 `CODEPI_SYMBOL_SVG`；补 180px `apple-touch-icon.png` 并同步 `check:branding` |
+| P1 | Project、Me | favicon 是蓝底（`#3568c7`）自绘字母图标，`theme-color` 为冷灰 `#f4f7fb`；Project 的 `--project-*` 主题以海军蓝/蓝色为主（`style.css` 41 处字面色值），与“禁止蓝紫、默认暖白 + 橙”冲突；页头没有标志 | 换成 v1.5 图标文件并补齐第 2.3 节契约；`theme-color` 与背景改为共享暖白；主色映射到 `--color-action`，仅保留必要的业务状态色；页头按第 2.2 节无 `{@html}` 方式接入符号 |
+| P1 | Auth 登录页、MCP 授权页 | 只有文字品牌，没有标志；没有 favicon | 加上符号 + 文字品牌，并按第 2.3 节提供图标 |
+| P2 | GU | `style.css` 有 24 处十六进制字面色值 | 改为应用主题变量或共享 token；业务语义色集中定义 |
+| P2 | GZH | `styles.css` 有 18 处字面色值（如 `--ok-soft`、`--danger-soft`） | 集中到主题变量区，并验证对比度 |
+| P2 | Health | `styles.css` 24 处、`report.css` 5 处字面色值 | 归入 `theme.css` 的局部变量 |
+| P2 | 全部私人应用 | 新代码直接用 `--kdp-*` 别名；语义层 `--color-*` 尚无应用使用 | 新增样式优先引用语义 token；不强制一次性迁移旧代码 |
+| P2 | 手机字阶 | 共享 token 只有桌面字号 | 需要时以 `clamp()` 实现第 4 节手机值；如要新增共享 token，需用户批准 |
+| P3 | 深色模式 | 深色缺 `--color-border-strong` 和石墨灰（v1.5 原件为 `#E5E0DA`）；暖白 `theme-color`、图标未区分深浅；没有页面启用 | 先补 token（需批准），再逐应用验收后启用 |
+| P3 | PWA / 平台图标 | 未接入 manifest；Apple `.icon`、Android 启动器、微信上传均未验收 | 有需求时按 `PLATFORM_COMPLIANCE.md` 逐平台实测 |
+| P3 | 品牌母版 | 矢量母版仍是候选稿；商标与字体授权未审查 | 用户确认定稿后替换第 2.4 节所列两处 |
+
+## 15. 实施流程（给各项目 agent）
+
+1. 先读本文、目标应用的 `AGENTS.md`，以及要改的组件和应用主题文件；
+   品牌值有疑问时再查 `brand/codepi-v1.5/` 原件。
+2. 先复用 `site.css` 参考组件、应用里已有的组件和 token，再考虑新增；不新增依赖、远程字体或图标库。
+3. 只在本应用的主题文件中加局部变量；需要改 `tokens.css`、`site.css`、`brand.ts` 时，
+   单独开任务并请用户批准，PR 中列出所有消费方
+   （主站、GU、GZH、Health、Project、Me、Auth、MCP，见 `packages/shared/AGENTS.md`）。
+4. 完成前自查：
+   - 新增代码没有十六进制或 `rgb()` 字面色（可用 `rg -n '#[0-9a-fA-F]{3,8}\b' <改动文件>` 检查）；
+   - 新增的颜色配对给出对比度；
+   - 状态覆盖 default / hover / focus-visible / disabled / loading / error / empty；
+   - 320 / 375 / 768 / 1024 / 1440px 宽度和 200% 缩放下正常；
+   - 键盘可完成全部操作，焦点始终可见；开启 reduced-motion 后动画关闭；
+   - 登录、空数据、错误、图表等私人应用场景逐一检查。
+5. 运行 `node scripts/agent/check.mjs --base <起点SHA> --run`；改动 Health 品牌资源时同时更新 `check:branding`。
+6. 交付说明写明：遵守了哪些规则、跑了哪些检查、桌面和手机截图证据、哪些仍是暂定或未验证。
+   不能凭“已导入 token”宣称视觉已统一。
+
+## 16. 变更治理
+
+- 品牌标志、品牌色、字体或共享 token 的任何变更，都需要用户批准、changelog 记录和受影响组件复查。
+- `brand/codepi-v1.5/` 是只读原件；新版本应作为新目录（如 `codepi-v1.6/`）放入，
+  再更新 `tokens.css`、`brand.ts` 和本文。
+- 本文由共享层的单一写入者维护；应用 agent 发现规范缺口时，在任务记录中提出，
+  或单独提 PR 修改本文，不在应用代码里各自约定。
+- 本文第 14 节是带日期的盘点，不是实时状态；更新时注明日期和核对的 commit。

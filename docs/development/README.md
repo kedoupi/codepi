@@ -31,7 +31,7 @@
 | 统一登录、shared auth | [Auth 规则](../../services/auth/AGENTS.md)、[SSO 客户端说明](../../packages/shared/auth/README.md) | 客户端以 shared/auth/clients.ts 为准；网站 SSO 与提供方/MCP 授权分开 |
 | MCP transport、授权或工具 | [MCP 规则](../../services/mcp/AGENTS.md)、[MCP README](../../services/mcp/README.md)、[架构](../architecture/unified-mcp.md) | MCP 授权 D1 与业务库分开；通过 named RPC 调用 Health/Project/Me/GU，各工具单独校验 scope |
 | 巡检、备份、运维调度 | [Ops 规则](../../services/ops/AGENTS.md)、[运维流程](cloudflare-operations.md)、[恢复手册](cloudflare-backup-restore.md) | `services/ops/` 与 `scripts/cloudflare/` 共用实现；R2 完整成功与跨平台成功分别记录 |
-| 共享样式、品牌、产品和接口 | [shared 规则](../../packages/shared/AGENTS.md)、[设计规范](../architecture/personal-design-system.md) | 先查 imports 和文件系统读取；公共契约由一个写入者维护 |
+| 共享样式、品牌、产品和接口 | [shared 规则](../../packages/shared/AGENTS.md)、[CodePi Design System 规范](../architecture/codepi-design-system.md) | 先查 imports 和文件系统读取；公共契约由一个写入者维护 |
 | 发布脚本、CI、资源与域名 | [集成发布](integration-release.md)、[本地发布](local-release.md)、[CF 治理](cloudflare-governance.md) | 检查范围不等于发布范围；多服务发布由一个协调者持锁执行 |
 
 具体命令以目标包的 `package.json` 和 `scripts/agent/check.mjs` 为准。
