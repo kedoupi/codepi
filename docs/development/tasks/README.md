@@ -8,6 +8,7 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
+| CodePi MCP 领域扩展 | 本地实施中：公共授权基础、Project + CLI、Me、GU；新资源未创建 | [当前任务](2026-10-20-codepi-mcp-domains.md)：保留现有 Health grants，逐批集成验证；未提交或上线 |
 | Workers Issues 自动告警 | 八个生产 Worker 的 16 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
 | Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
 | GitHub 跨平台备份 | 自动复制六库、112 份资料及 manifest 共 119 个附件并通过独立验收；六库各有真实隔离恢复证据，平台事件与 Workers Issues 邮件均已确认收件 | [跨平台验收](2026-10-20-github-offsite.md)、[恢复验收](2026-10-20-recovery-acceptance.md)、[自动告警](2026-10-20-workers-issues.md)：恢复私钥异机保管继续保留 TODO |
@@ -31,7 +32,7 @@
 | Desk 最初实现 | [P6](p6-personal-desk.md)是历史实现记录；后续发布与配置看上表，不执行其中旧 Pages 命令 |
 
 待产品讨论的方向（如公开内容 MCP、GU/GZH 的 MCP 模块）不是自动开工清单。
-沿用当前决定：统一 CodePi 入口先提供 Health，其他模块在产品能力和需求明确后设计。
+2026-10-20 已确认 Project、Me、GU 只读扩展；执行范围与部署状态以领域扩展任务为准，GZH/Web MCP 仍未纳入。
 
 ## 更新约定
 

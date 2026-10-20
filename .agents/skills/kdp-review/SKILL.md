@@ -10,9 +10,9 @@ description: 审查 kdp.cool 的任务改动或 PR 时使用，检查跨应用�
 - 可由与实现者不同的工具或模型执行。审查对象绑定提交 SHA；未提交时确认实现者已停止写入并提供基线及文件清单。代码变化后重新评估旧结论，不一边审查一边假定另一个 agent 的工作区保持不变。
 - 有基线时用 `git merge-base <基线> HEAD` 找分叉点；检查分叉点以来的提交、暂存与未暂存改动，以及相关未跟踪文件。没有基线先从任务记录和分支关系调查，仍无法判断则注明审查范围。
 - 对每项怀疑读取完整实现与调用方，形成具体触发条件和影响。区分真实缺陷、已有问题、可选重构；不为凑条目报告风格偏好。
-- `packages/shared/` 查实际的应用和服务消费者；`services/auth/` / `packages/shared/auth/` 查 GU、Health、GZH、Desk、MCP 五个客户端的兼容、回调校验、会话、退出及失败分支。数据迁移检查旧数据兼容与部署先后，不能用直接改旧 migration 代替新增版本。
+- `packages/shared/` 查实际的应用和服务消费者；`services/auth/` / `packages/shared/auth/` 按 shared/auth/clients.ts 查所有客户端的兼容、回调校验、会话、退出及失败分支。数据迁移检查旧数据兼容与部署先后，不能用直接改旧 migration 代替新增版本。
 - Health 区分网站 SSO、Oura 提供方与 MCP 客户端授权；公共页不能带出私人响应。GU 的金额、来源和时间语义不能因展示调整改变；公众号不能因界面操作意外发布。
-- `services/mcp/` / `packages/shared/mcp/` 查 Health named RPC、字段/统计/覆盖语义和独立 grants；`services/ops/` 查六库完整性、恢复格式、密文边界及跨平台回执，不能把 R2 成功当成完整运维成功。
+- `services/mcp/` / `packages/shared/mcp/` 查各领域 named RPC、字段/统计/覆盖语义和逐工具 grants；`services/ops/` 按备份登记查全部库和原件集合完整性、恢复格式、密文边界及跨平台回执，不能把 R2 成功当成完整运维成功。
 - 用 `node scripts/agent/check.mjs --base <基线>` 核对检查范围。按需运行本地验证，但不触发远程验收、邮件发送或迁移。缺少验证证据如实说明；CI 绿色不等于真实业务与浏览器验收。
 - 多个任务合并后另查组合结果与接口兼容；独立分支的审查通过不能代替集成验证。没有已集成版本时明确依赖和未覆盖项，不为了审查而擅自 merge、rebase 或 cherry-pick。
 - 涉及 CF、CI 或迁移时读 [治理规范](../../../docs/development/cloudflare-governance.md) 与 [集成发布流程](../../../docs/development/integration-release.md) 对应阶段；检查跨 job 依赖、完整发布范围、同环境认证预检和恢复边界。不把配置存在或静态检查通过当作控制面与业务验收通过。
