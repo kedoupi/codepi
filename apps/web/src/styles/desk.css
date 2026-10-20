@@ -7,7 +7,7 @@
 .desk-fine { font-size: 12px; line-height: 1.7; color: var(--kdp-muted); margin: 0; }
 .desk-status { min-height: 24px; font-size: 13px; color: var(--kdp-muted); margin: 0 0 16px; }
 .desk-text-button { border: 0; background: transparent; color: var(--kdp-text); cursor: pointer; padding: 8px; min-height: 44px; font-size: 13px; }
-.desk-text-button:hover { color: var(--kdp-accent); }
+.desk-text-button:hover { color: var(--kdp-accent-strong); }
 #desk button:disabled { opacity: .6; cursor: wait; }
 .desk-login { border-radius: var(--kdp-radius-lg); padding: 48px 32px; max-width: 680px; margin: 32px auto 64px; text-align: center; }
 .desk-login .desk-icon { margin: 0 auto 24px; }
@@ -39,7 +39,7 @@
 .desk-range, .desk-sources { display: flex; gap: 8px 16px; flex-wrap: wrap; }
 .desk-range label, .desk-sources label { min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; font-size: 14px; gap: 8px; }
 .desk-range label { padding: 8px 16px; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-sm); }
-.desk-range label:has(input:checked) { border-color: var(--kdp-accent); background: var(--kdp-accent-soft); color: var(--kdp-accent); }
+.desk-range label:has(input:checked) { border-color: var(--kdp-accent); background: var(--kdp-accent-soft); color: var(--kdp-accent-strong); }
 #desk input { accent-color: var(--kdp-accent); width: 16px; height: 16px; }
 .desk-generate-row { margin-top: 8px; flex-wrap: wrap; }
 .desk-generate-row .kdp-button { flex-shrink: 0; }
@@ -59,7 +59,7 @@
 #desk-attention-list { list-style: none; padding: 0; margin: 20px 0 0; }
 #desk-attention-list li + li { border-top: 1px solid var(--kdp-line); }
 #desk-attention-list a { display: block; padding: 16px 0; min-height: 44px; font-size: 13px; color: var(--kdp-text); text-decoration: none; overflow-wrap: anywhere; }
-#desk-attention-list a:hover { color: var(--kdp-accent); }
+#desk-attention-list a:hover { color: var(--kdp-accent-strong); }
 #desk-attention-list small { display: block; color: var(--kdp-muted); font-size: 11px; margin-bottom: 4px; }
 .desk-attention-footnote { padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--kdp-line); font-size: 12px; color: var(--kdp-muted); }
 .desk-bottom-note { font-size: 12px; color: var(--kdp-muted); margin: 24px 0 0; text-align: center; }

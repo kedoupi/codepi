@@ -163,7 +163,7 @@ small {
   flex-direction: column;
   justify-content: space-between;
   background:
-    radial-gradient(ellipse at 0 80%, #e7eef8, transparent 65%), var(--paper);
+    var(--paper);
 }
 .login-heading {
   padding: 80px 0;
@@ -429,7 +429,7 @@ small {
   color: var(--muted);
 }
 .account-strip strong {
-  font-family: "Avenir Next", "PingFang SC", sans-serif;
+  font-family: var(--kdp-font);
   display: block;
   font-size: 34px;
   font-weight: 500;
