@@ -6,6 +6,10 @@ kedoupi（codepi）的个人健康空间，主入口为 `health.codepi.app`。�
 
 未登录展示个人健康应用介绍；通过统一账号登录后查看概览、睡眠、解读、对比与设置。视觉来源为 `../../packages/shared/styles/tokens.css`，迁移说明见 [Health 域名迁移](../../docs/architecture/health-domain-migration.md)。
 
+同步告警只统计尚未恢复的失败批次：日期范围可以由失败之后的多个成功批次连续补齐，
+个人资料和戒指信息则由更新的成功快照替代。状态读取会自动识别已恢复的历史批次；
+原始失败记录保留用于诊断，不能直接将数据库中 `last_error` 非空的数量当作当前告警数。
+
 ## 登录与授权（统一 MCP 版本）
 
 - 网页登录：`/api/auth/login` → `auth.codepi.app` → 当前域名 `/api/auth/callback`。
