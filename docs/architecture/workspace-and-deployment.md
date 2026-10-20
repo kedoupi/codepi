@@ -1,13 +1,14 @@
 # 工程架构与部署模型
 
 本文档记录 kedoupi（codepi）个人数字空间的工程架构和部署决策。
-2026-10-16 起生效，替代此前的多环境双分支方案；2026-10-19 按当前源码补齐 MCP/Ops
-与已完成迁移。本文是现行架构入口，旧 `architecture-baseline.md` 是历史记录。
+2026-10-16 起生效，替代此前的多环境双分支方案；2026-10-20 按当前源码补齐 MCP 领域扩展、
+Project/Me 与 CLI。新增能力的本地实现与生产发布分别记录，本文不表示已上线。
+本文是现行架构入口，旧 `architecture-baseline.md` 是历史记录。
 运行时状态与剩余验收见[任务索引](../development/tasks/README.md)，不是由本文推定。
 
 ## 工程结构
 
-单一仓库，统一 pnpm workspace。四个产品、独立支撑服务和共享层：
+单一仓库，统一 pnpm workspace。产品目录、独立支撑服务和共享层：
 
 ```
 kdp.cool/
@@ -15,12 +16,15 @@ kdp.cool/
 │   ├── web/      → 首页 + Desk（Astro）
 │   ├── gu/       → 投资工作台（Svelte + Vite + Hono）
 │   ├── gzh/      → 公众号工作台（Svelte + Vite + Hono）
+│   ├── project/  → 项目卡与任务交接（Svelte + Vite + Hono）
+│   ├── me/       → 记忆确认区、背景与经历（Svelte + Vite + Hono）
 │   └── health/   → Health（Svelte + Vite，前端 Worker + Hono API）
 ├── services/
 │   ├── auth/     → 统一登录 Worker
-│   ├── mcp/      → CodePi 统一 MCP（Health 首期）
+│   ├── mcp/      → CodePi 统一 MCP（逐工具授权、领域 RPC）
 │   └── ops/      → 私有 Cron/Workflows 巡检与加密备份
 ├── packages/
+│   ├── cli/      → 官方 MCP SDK 客户端、跨 Agent 项目交接
 │   └── shared/   → 共享契约、样式、认证客户端、邮件模板
 ├── scripts/      → Agent 检查与 Cloudflare 治理
 └── docs/         → 架构与流程文档
@@ -63,15 +67,16 @@ kdp.cool/
 | 单元 | 拥有的数据 / 职责 | 跨服务调用 |
 | --- | --- | --- |
 | Web / Desk | 公开静态内容；独立 Desk D1 只存网站登录状态 | AUTH Service Binding；三应用摘要通过固定 HTTP 地址和独立摘要凭证读取 |
-| GU / GZH | 各自业务 D1、网站登录状态和业务逻辑 | AUTH Service Binding；只暴露受保护的 Desk 摘要契约 |
+| GU / GZH | 各自业务 D1、网站登录状态和业务逻辑 | AUTH Service Binding；受保护的 Desk 摘要；GU 另有只读 `GuMcp` 与 `GuMaterialsBackup` |
 | Health 前端 Worker | 静态资产和 `/api/*` 代理，无业务 D1 / AUTH / Oura 凭证 | WORKER Service Binding → Health API |
 | Health API | Health D1、Oura 授权、同步、查询和统计 | AUTH Service Binding；`HealthMcp` named RPC 供 MCP 调用 |
-| Auth | 中央身份、OTP 和网站会话 D1 | 服务 GU、Health、GZH、Desk、MCP 五个 SSO 客户端 |
-| MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；HEALTH named RPC；不直接绑定 Health D1 |
-| Ops | 无业务 D1、无公网入口；R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出六库；经 GU named RPC 只读原件；GitHub API 读取版本历史并复制密文 |
+| Auth | 中央身份、OTP 和网站会话 D1 | 客户端以 shared/auth/clients.ts 为准 |
+| Project / Me | 各自业务 D1；Me 的导入原文存独立私有 R2 | AUTH Service Binding；仅向 MCP/Ops 提供明确的 named RPC |
+| MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；Health/Project/Me/GU named RPC；不直接绑定业务库或原件 |
+| Ops | 无业务 D1、无公网入口；R2 保存密文和运维元数据 | 扩展后经受限 Cloudflare API 导出完整八库；经 GU/Me named RPC 只读原件；GitHub API 读取版本历史并复制密文 |
 
-四个产品对应五个部署单元（Health 前后端分开），加 Auth/MCP/Ops 共八个 Worker。
-六个 D1 分别属于 Auth、Desk、GU、GZH、Health、MCP；统一 workspace 不等于合库。
+Health 前后端独立部署；各应用各自拥有 D1，统一 workspace 不等于合库。
+Project/Me 和 CLI 的新增边界见[领域扩展](mcp-domains.md)，资源登记区分 planned 与 managed。
 网站 SSO、Oura 授权和 AI 客户端授权保持各自生命周期，不能相互替代或透传 token。
 具体域名、资源 ID 与部署证据由根 README 和资源登记表维护，不在本表复制。
 
@@ -80,8 +85,9 @@ GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、�
 业务逻辑仍归 GU，不抽到 MCP 或共享层。私有 R2 与 GU → Ops 原件备份 binding 已核验，
 真实投资资料现已迁入 revision 1，外部本机目录保留为迁移来源；
 2026-10-20 已通过真实 GU D1 与 112 份非空资料的隔离恢复和鉴权下载验收。
-跨平台副本仍待 Ops GitHub 凭证，不能把同账户 R2 成功视为跨平台保障。
-实现与验收证据见 [GU 线上工作台任务](../development/tasks/2026-10-19-gu-online.md)。
+原有六库与 GU 原件的 GitHub 跨平台复制已于 2026-10-20 验收；新增 Project/Me 的八库与
+Me 原件范围仍需发布后实际验收。证据见 [GU 线上工作台任务](../development/tasks/2026-10-19-gu-online.md)
+与[跨平台备份任务](../development/tasks/2026-10-20-github-offsite.md)。
 
 ## 部署模型
 
@@ -155,7 +161,7 @@ GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、�
 
 ## 技术栈方向
 
-当前源码状态（2026-10-19）：
+当前源码状态（2026-10-20；Project/Me/CLI 尚未发布）：
 
 | 应用 | 前端 | 服务端 | 包管理 |
 |---|---|---|---|
@@ -163,13 +169,15 @@ GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、�
 | gu | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | gzh | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | health | Svelte 5 + Vite | 前端资产/代理 Worker + Hono API Worker | pnpm workspace |
+| project / me | Svelte 5 + Vite | Hono Worker（Workers Static Assets）+ 独立 D1；Me 使用私有 R2 | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
 | mcp | 授权与连接管理页 | TypeScript Worker + 官方 MCP SDK + 独立 D1 | pnpm workspace |
 | ops | 无 | JavaScript ESM Worker + Cron/Workflows + R2；复用 Node 运维模块 | pnpm workspace |
+| cli | 终端命令 | Node.js + 官方 MCP SDK，OAuth 凭证仅在本机 | pnpm workspace |
 
 维护方向：
 
-- 三个私有应用已统一 Svelte + Vite，业务 HTTP API 与 Auth 使用 TypeScript + Hono
+- 私有应用统一使用 Svelte + Vite，业务 HTTP API 与 Auth 使用 TypeScript + Hono
 - Web 的 Desk handler、MCP SDK transport、Ops Workflows 保持各自必要的运行模型，
   不为形式统一额外包一层 Hono 或重写已复用的 JavaScript 运维模块
 - 已有 SSO 和 Health MCP 使用 Service Binding；Desk 摘要仍用固定 HTTP 接口，
@@ -182,7 +190,8 @@ GU 服务端路由和 Svelte 前端已分批迁移；业务接口在路由迁移
 
 统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，Health 查询和统计仍由
 Health API 持有。通过 `HealthMcp` named RPC 调用，不直接绑定 Health D1；
-后续产品按独立模块与新增授权范围接入，见[统一 MCP 架构](unified-mcp.md)。
+Project、Me、GU 按同一边界接入。AI 写入 Me 只进入待确认区，GU 只读线上工作区。
+见[统一 MCP 架构](unified-mcp.md)与[领域扩展契约](mcp-domains.md)。
 
 Ops 的调度、凭证、流式备份与恢复边界见[定时运维](../development/cloudflare-operations.md)。
 实现可用不等于所有远程依赖已配置，当前待办以任务证据为准。

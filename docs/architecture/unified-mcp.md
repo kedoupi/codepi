@@ -1,6 +1,10 @@
 # CodePi 统一 MCP
 
-本次实现对应“一个 CodePi 入口，先做 Health，其他产品完成后接入”的决策。
+本文的 Health 数据语义继续有效；逐领域授权、Project、Me、GU 与 CLI 的现行契约见
+[领域扩展](mcp-domains.md)。下文首次上线与旧入口切换描述 2026-10-18/19 的历史基线，
+不代表新领域已经部署。
+
+首次实现对应“一个 CodePi 入口，先做 Health，其他产品完成后接入”的决策。
 实现与验证状态见[任务记录](../development/tasks/2026-10-18-unified-mcp.md)；
 统一入口已于 2026-10-19（北京时间）发布到生产；同日所有者确认已在 Claude 手机端
 连接并使用。此为用户使用确认，逐工具统计、授权刷新和撤销等专项验收范围见任务记录。
@@ -18,7 +22,7 @@ AI client
                             └─ existing durable sync queue → Oura
 ```
 
-`services/mcp/` 是支撑服务，四个产品不变。它处理协议、客户端授权与工具目录；
+`services/mcp/` 是支撑服务，产品登记见 `packages/shared/products.ts`。它处理协议、客户端授权与工具目录；
 Health API 负责健康日期、字段、数据查询、统计、缺失与后台同步。
 `packages/shared/mcp/contract.ts` 只定义内部 RPC 类型，不承载业务 SQL。
 
@@ -32,8 +36,7 @@ MCP 不绑定 Health 数据库，不保存 Oura 凭证，不把客户端 token �
 新增 SSO client `mcp`；Auth 只有配置 `SSO_CLIENT_SECRET_MCP` 后才启用它，
 与 MCP 的 `AUTH_CLIENT_SECRET` 单独配对，既有四个客户端的凭证不变。
 
-AI 客户端通过 OAuth discovery 和动态注册接入；每次授权要求明确同意
-`health.read health.sync`。PKCE 只接受 S256；授权码一次使用，access token 一小时，
+AI 客户端通过 OAuth discovery 和动态注册接入；首次版本仅支持 `health.read health.sync`；当前按[领域扩展](mcp-domains.md)选择权限。PKCE 只接受 S256；授权码一次使用，access token 一小时，
 refresh token 30 天并轮换；已轮换的 refresh token 被重放时撤销对应授权族。
 授权码和 token 在 D1 只保存 hash，并绑定 `https://mcp.codepi.app/mcp` 资源。
 
@@ -87,7 +90,7 @@ Oura 断连、集合拒绝、限流和写入配额等待；重复提问不能清
 新增模块时先实现所属应用的内部数据能力，再注册工具、Service Binding 和授权范围。
 模块登记保存工具定义与调用函数，Health 的 operation 类型只约束 Health 适配器。
 新产品无需变更 MCP HTTP transport，也不能直接查询另一个产品的数据库。
-本期不注册 GU/GZH/Web 空工具，不创建尚不存在的数据承诺。
+GU、Project、Me 按领域扩展任务接入；GZH/Web 不注册空工具，不创建尚不存在的数据承诺。
 
 ## 发布和旧入口切换
 
