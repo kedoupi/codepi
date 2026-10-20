@@ -1,0 +1,25 @@
+{
+  "name": "@kedoupi/codepi",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodePi MCP command-line client",
+  "type": "module",
+  "bin": {
+    "codepi": "./dist/codepi.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/test.mjs",
+    "typecheck": "node scripts/build.mjs --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
