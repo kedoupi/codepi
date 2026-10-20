@@ -9,7 +9,7 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 ## 2026-10-20 新覆盖
 
-Project/Me D1 与 Me 导入原文已纳入本轮代码设计，尚无生产备份或恢复证据。
+Project/Me D1 与 Me 导入原文已纳入 v3 生产备份并完成隔离恢复验收。
 必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`；旧库 UUID 固定，新库必须精确名称解析。
 原件集合来自 `ORIGINAL_COLLECTIONS`：GU `gu_materials` 和 Me `imports`，分别通过
 `GuMaterialsBackup` / `MeImportsBackup` 读取，Ops 不直接绑定业务桶。
@@ -18,6 +18,14 @@ Project/Me D1 与 Me 导入原文已纳入本轮代码设计，尚无生产备�
 v2 仍支持历史恢复，不能用它证明 Me 原文已备份。恢复必须固定同一次 manifest，先恢复
 隔离 D1，按对应索引、大小、SHA-256 校验和恢复隔离 R2，然后用该领域的鉴权流程验收。
 不把恢复的 SSO/MCP 授权状态直接送回生产，私钥继续仅由所有者保管。
+
+2026-10-20 生产 v3 实例
+`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
+已从 GitHub 分片副本恢复 Auth、Desk、GU、GZH、Health、MCP、Project、Me 八个全新 D1：
+98 张表、138,986 行逐字段值和类型比对一致，`quick_check` 与外键检查通过。GU 112 份
+原件逐件摘要通过，索引 112、额外原件 0；Me 正式集合为 0 件，空集合记录被明确覆盖。
+MCP 临时库清除历史 token、授权码、同意请求和 SSO 会话，保留客户端注册。全部临时
+D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入原文的恢复证据。
 
 ## 备份架构
 
@@ -45,8 +53,8 @@ v2 仍支持历史恢复，不能用它证明 Me 原文已备份。恢复必须�
 | `codepi-gzh` | `apps/gzh/wrangler.toml` |
 | `codepi-health` | `apps/health/workers/api/wrangler.toml` |
 | `codepi-mcp` | `services/mcp/wrangler.toml` 精确名称解析；UUID 由资源登记表核对 |
-| `codepi-project` | `apps/project/wrangler.toml`；本轮 planned，发布时精确名称解析 |
-| `codepi-me` | `apps/me/wrangler.toml`；本轮 planned，发布时精确名称解析 |
+| `codepi-project` | `apps/project/wrangler.toml`；生产 UUID `03612540-2ac6-4dd2-9bf6-ed431dda17c9` |
+| `codepi-me` | `apps/me/wrangler.toml`；生产 UUID `7236c118-1f92-4b07-8283-e731c2771953` |
 
 库 UUID 固定在 `scripts/cloudflare/backup-core.mjs`，测试校验其与实际 binding
 一致，并校验所有 managed production D1 均在清单中。原五个生产库已验证可取得
