@@ -21,6 +21,8 @@ function reportHarness(component, request) {
   const context = vm.createContext({
     exports: {},
     $state: value => value,
+    $derived: Object.assign(value => value, { by: fn => fn() }),
+    $effect: () => {},
     $props: () => ({
       me, locale: 'en', onLogout: () => {},
       onUnauthorized: () => { unauthorizedCalls++; },
@@ -31,6 +33,19 @@ function reportHarness(component, request) {
       if (name === '../lib/i18n') return { t: (_locale, key) => key };
       if (name === '../lib/router.svelte') return { goto: () => {} };
       if (name === '../lib/calendar') return { watchCalendarDay: () => () => {} };
+      if (name === '../lib/health') return {
+        duration: () => '—', finite: value => typeof value === 'number' && Number.isFinite(value),
+        readSleep: async () => ({ records: [], next_offset: null, sync: {} }),
+        readSpo2: async () => [], readStress: async () => [], readTags: async () => [],
+        sleepForDay: () => [],
+      };
+      if (name === '../lib/insights-model') return {
+        compareSeries: () => null, daysOf: () => [], mainSleepSeries: () => [], nightlySeries: () => [],
+        peakDates: () => [], rollingRanges: () => ({ current: { from: '2026-10-14', to: '2026-10-20' }, previous: { from: '2026-10-07', to: '2026-10-13' } }),
+        seriesOf: () => ({ mean: null, count: 0 }), spo2Series: () => [], stepSeries: () => [],
+        stressSeries: () => [], tagsForDay: () => [], tagLabel: () => '', weekday: () => '',
+      };
+      if (name === './MiniBars.svelte' || name === './MiniLine.svelte') return { default: {} };
       throw new Error(`Unexpected component import: ${name}`);
     },
   });

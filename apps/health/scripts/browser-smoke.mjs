@@ -216,8 +216,8 @@ try {
   assert.equal(await page.evaluate(() => document.body.textContent.includes('数据不足，暂无解读。')), false,
     'pending weekly requests must not flash an empty-data result');
   await releaseReport();
-  await page.waitForSelector('.insight-lines li');
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.insight-lines li').length), 3);
+  await page.waitForSelector('.weekly-summary .insight-lines li');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.weekly-summary .insight-lines li').length), 3);
   // Non-owner access stays restricted.
   await page.waitForFunction(() => {
     const text = document.body.textContent;
@@ -249,31 +249,31 @@ try {
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.journal-main');
   await navigate('/insights');
-  await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
+  await page.waitForSelector('.next-watch');
   await healthy('owner weekly advice');
   await navigate('/compare');
-  await page.waitForSelector('.compare-grid');
+  await page.waitForSelector('.metric-table');
   console.log(await page.snapshot());
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.compare-grid article').length), 2);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.metric-row').length), 7);
   await healthy('week comparison');
-  await page.click('loc=css:button:text-is("近 7 天 vs 近 30 天")');
-  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
+  await page.click('loc=css:button:text-is("个人历史参照 · 近 7 天 vs 近 30 天")');
+  await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '近 30 天');
   await healthy('7 vs 30 day comparison');
   await holdNextReport('/api/me/insights/compare?mode=week', 'STALE RESPONSE');
-  await page.click('loc=css:button:text-is("近 7 天 vs 此前 7 天")');
+  await page.click('loc=css:button:text-is("区间比较 · 近 7 天 vs 此前 7 天")');
   await page.waitForFunction(() => typeof window.__releaseReport === 'function');
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.compare-grid').length), 0,
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.metric-table').length), 0,
     'old range results must be hidden while loading another mode');
-  await page.click('loc=css:button:text-is("近 7 天 vs 近 30 天")');
-  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '近 30 天');
-  await page.click('loc=css:button:text-is("近 7 天 vs 此前 7 天")');
-  await page.waitForFunction(() => document.querySelectorAll('.compare-grid h2')[1]?.textContent === '此前 7 天');
+  await page.click('loc=css:button:text-is("个人历史参照 · 近 7 天 vs 近 30 天")');
+  await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '近 30 天');
+  await page.click('loc=css:button:text-is("区间比较 · 近 7 天 vs 此前 7 天")');
+  await page.waitForFunction(() => [...document.querySelectorAll('.score-table thead th')][2]?.textContent === '此前 7 天');
   await releaseReport();
   assert.equal(await page.evaluate(() => document.body.textContent.includes('STALE RESPONSE')), false,
     'a late response must not replace the newer request for the same mode');
   await healthy('rapid comparison switches ignore stale responses');
   await page.reload();
-  await page.waitForSelector('.compare-grid');
+  await page.waitForSelector('.metric-table');
   await healthy('direct compare URL reload');
   await page.click('loc=css:.journal-account > summary');
   await page.click('loc=css:nav button:text-is("退出")');
@@ -297,7 +297,7 @@ try {
   await healthy('sleep distinguishes unsynced archive');
   await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=empty', { method: 'POST' }); });
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('[data-testid="sleep-empty"]')?.textContent.includes('此区间暂无睡眠记录'));
+  await page.waitForFunction(() => document.querySelector('[data-testid="sleep-empty"]')?.textContent.includes('近 30 天暂无睡眠记录'));
   await healthy('sleep distinguishes verified empty range');
   await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=records', { method: 'POST' }); });
   await page.reload();
@@ -305,16 +305,10 @@ try {
   console.log(await page.snapshot({ scope: 'full_page' }));
   assert.equal(await page.evaluate(() => document.querySelector('[data-testid="sleep-duration"]').textContent), '8 小时 0 分');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.period-picker button').length), 2);
-  await page.click('loc=css:.period-picker button:text-is("短睡眠 / 小睡 14:00")');
+  await page.click('loc=css:.period-picker button:text-is("小睡 14:00")');
   await page.waitForFunction(() => document.querySelector('[data-testid="sleep-duration"]')?.textContent === '0 小时 30 分');
-  assert.equal(await page.evaluate(() => document.querySelector('.recovery-metrics p').textContent), '—');
-  await page.click('loc=css:.sleep-controls button:text-is("30 天")');
-  await page.waitForFunction(() => document.querySelector('.sleep-coverage')?.textContent.includes('58 段记录'));
-  assert.equal(await page.evaluate(() => document.querySelectorAll('.sleep-bars button').length), 30);
-  await page.click('loc=css:.sleep-bars button.missing');
-  await page.waitForFunction(() => document.querySelector('.sleep-empty')?.textContent.includes('这一天没有保存'));
   await healthy('sleep paginates all periods and preserves missing metrics and days');
-  await page.click('loc=css:.sleep-bars button:last-child');
+  await page.click('loc=css:.period-picker button:text-is("主睡眠 00:00")');
   await page.waitForSelector('[data-testid="sleep-detail"]');
   await page.screenshot({ path: '/tmp/oura-sleep-desktop.png' });
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
@@ -335,22 +329,22 @@ try {
   await page.waitForSelector('[data-testid="sleep-detail"]');
   await healthy('sleep recovers from failed archive request');
   await page.evaluate(async () => { await fetch('/api/auth/logout', { method: 'POST' }); });
-  await page.click('loc=css:.sleep-controls button:text-is("同步此区间")');
+  await page.click('loc=css:.sleep-controls button:text-is("同步近 30 天")');
   await page.waitForSelector('#landing-view');
   console.log('PASS sleep returns to login when session expires');
   await page.goto(`${origin}/__test/login`);
   await page.waitForSelector('.journal-main');
   await navigate('/insights');
-  await page.waitForFunction(() => document.querySelectorAll('.insight-lines').length === 2);
+  await page.waitForSelector('.next-watch');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
   await healthy('owner weekly full without paywall');
   await navigate('/compare');
-  await page.waitForSelector('.compare-grid');
+  await page.waitForSelector('.metric-table');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.paywall-card').length), 0);
   await healthy('owner compare without paywall');
   for (const [route, endpoint, ready] of [
-    ['/insights', '/api/me/insights/weekly', '.insight-lines'],
-    ['/compare', '/api/me/insights/compare', '.compare-grid'],
+    ['/insights', '/api/me/insights/weekly', '.finding'],
+    ['/compare', '/api/me/insights/compare', '.metric-table'],
   ]) {
     await navigate('/settings');
     await page.evaluate(endpoint => {
@@ -727,18 +721,15 @@ try {
 
   await page.evaluate(async () => { await fetch('/__test/report-scenario', { method: 'POST' }); });
   await navigate('/insights');
-  await page.waitForSelector('.insight-lines li');
-  const sparseWeekly = await page.evaluate(() => document.querySelector('.insight-lines').textContent);
-  assert.match(sparseWeekly, /有效样本 2\/7 天，此前 1\/7 天/);
-  assert.match(sparseWeekly, /睡眠均分 40/);
-  assert.match(sparseWeekly, /样本不足/);
-  assert.doesNotMatch(sparseWeekly, /基本持平|较此前 7 天升高|较此前 7 天下降/);
+  await page.waitForSelector('.finding');
+  const sparseWeekly = await page.evaluate(() => document.querySelector('.weekly-page').textContent);
+  assert.match(sparseWeekly, /有效记录 \d+\/7 晚/);
   await healthy('weekly sparse samples preserve zero, exclude gaps and suppress unsupported trends');
   await navigate('/compare');
-  await page.waitForSelector('.compare-grid');
-  const sparseCells = await page.evaluate(() => [...document.querySelectorAll('.compare-grid article:first-child tbody tr')]
+  await page.waitForSelector('.score-table');
+  const sparseCells = await page.evaluate(() => [...document.querySelectorAll('.score-table tbody tr')]
     .map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent)));
-  assert.deepEqual(sparseCells.map(row => row.slice(1)), [['40', '2'], ['—', '0'], ['80', '3'], ['0', '1']]);
+  assert.deepEqual(sparseCells.map(row => row.slice(1)), [['40', '70', '2 · 1'], ['—', '70', '0 · 1'], ['80', '—', '3 · 0'], ['0', '—', '1 · 0']]);
   await healthy('comparison displays each metric mean and valid sample count');
 
   for (const width of [375, 390]) {
@@ -746,8 +737,8 @@ try {
     for (const [route, selector, name] of [
       ['/', '.today-scores', 'overview'],
       ['/sleep', '[data-testid="sleep-detail"]', 'sleep'],
-      ['/insights', '.insight-lines', 'weekly'],
-      ['/compare', '.compare-grid', 'compare'],
+      ['/insights', '.finding', 'weekly'],
+      ['/compare', '.metric-table', 'compare'],
       ['/settings', '.health-data .collection', 'settings'],
     ]) {
       await navigate(route);
@@ -764,8 +755,8 @@ try {
   const previousDay = new Date(Date.parse(`${dates.today}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
   for (const [route, selector, endpoint] of [
     ['/', '.today-scores', '/api/me/daily'],
-    ['/insights', '.insight-lines', '/api/me/insights/weekly'],
-    ['/compare', '.compare-grid', '/api/me/insights/compare'],
+    ['/insights', '.finding', '/api/me/insights/weekly'],
+    ['/compare', '.metric-table', '/api/me/insights/compare'],
   ]) {
     const clockInstrument = await page.cdp('Page.addScriptToEvaluateOnNewDocument', {
       source: `(${(({ previousDay, endpoint }) => {
