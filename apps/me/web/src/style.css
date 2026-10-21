@@ -23,7 +23,7 @@ p { color: var(--kdp-text); }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 20; padding: 12px; background: var(--kdp-surface); }
 .skip-link:focus { top: 12px; }
 .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; color: var(--kdp-ink); text-decoration: none; }
-.brand-mark { width: 44px; height: 48px; display: grid; place-items: center; background: var(--kdp-accent); color: white; border-radius: 14px 14px 4px 14px; }
+.brand-mark { display: block; width: 44px; height: auto; aspect-ratio: 348 / 316; flex-shrink: 0; object-fit: contain; }
 .brand small { display: block; font-size: 11px; color: var(--kdp-muted); font-weight: 400; }
 .sidebar { width: 224px; position: fixed; inset: 0 auto 0 0; background: var(--kdp-surface); border-right: 1px solid var(--kdp-line); padding: 32px 24px; display: flex; flex-direction: column; }
 .sidebar nav { display: grid; gap: 8px; margin-top: 48px; }

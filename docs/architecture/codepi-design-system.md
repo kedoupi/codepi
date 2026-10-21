@@ -33,7 +33,7 @@
 | 品牌原件 v1.5（值、资产、平台规范、QA） | `packages/shared/brand/codepi-v1.5/` |
 | 共享 token（唯一 CSS 来源） | `packages/shared/styles/tokens.css` |
 | 主站/静态页通用样式与参考组件 | `packages/shared/styles/site.css`、`packages/shared/layouts/BaseLayout.astro` |
-| 标志 SVG 与品牌文字 | `packages/shared/brand.ts`（`CODEPI_SYMBOL_SVG`、`BRAND_WORDMARK`、`PRODUCT_BRAND`） |
+| 标志图片与品牌文字 | `packages/shared/brand.ts`（`CODEPI_LOGO_PNG`、`CODEPI_SYMBOL_PNG`、`BRAND_WORDMARK`、`PRODUCT_BRAND`） |
 | 平台/网站图标导出 | `packages/shared/brand/codepi-v1.5/assets/exports/`、`assets/platform/` |
 | 主站布局、公开页与应用边界 | [个人站设计规范](personal-design-system.md) |
 | 产品注册表 | `packages/shared/products.ts` |
@@ -58,26 +58,28 @@
 
 | 变体 | 来源 | 用途 |
 | --- | --- | --- |
-| 符号（彩色） | `brand.ts` 的 `CODEPI_SYMBOL_SVG`（与 `assets/masters/symbol-color.svg` 逐路径一致） | 网页页头、登录页、页脚 |
-| 符号（反白/单色） | `assets/masters/symbol-inverse.svg`、`symbol-monochrome.svg` | 深色背景、单色印刷/主题化图标 |
-| 横向字标（官方原件） | `assets/exports/wordmark-light.svg`/`-dark.svg`、PNG 导出 | 邮件、OG、外部平台等需要图片字标的场景 |
-| 主站图片字标 | `apps/web/public/brand/codepi-logo.png`、`codepi-logo-dark.png` 及 450/900px 响应式副本 | 主站与 Three.js 原型页头、页脚；源自官方 wordmark 导出的透明 RGBA，禁止使用含字体回退的旧 `codepi-logo.svg` |
-| HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 私人应用或无法访问主站静态图片的页面 |
+| 符号（彩色） | `apps/web/public/brand/codepi-symbol.png` / `.webp`，由官方 PNG 字标裁切 | 网页页头、登录页、页脚 |
+| 符号（深色背景） | `codepi-symbol-dark.png` | 深色背景、主题化图标 |
+| 横向字标（官方图片） | `wordmark-light.png` / `wordmark-dark.png` 及其透明 RGBA 派生文件 | 邮件、OG、外部平台等需要完整图片字标的场景 |
+| 主站图片字标 | `apps/web/public/brand/codepi-logo.png`、`codepi-logo-dark.png` 及 450/900px 响应式副本 | 主站与 Three.js 原型页头、页脚；源自官方 PNG，不使用字体回退或候选 SVG |
+| HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 文字与图片符号组合的页面；符号本身仍使用 PNG |
 | 应用图标 | `assets/exports/app-icon-*.svg/png` | 应用、PWA、平台资料 |
 | 头像 | `assets/exports/avatar-*`、`assets/platform/{wechat,social}/` | 微信、GitHub、社交平台 |
 
 ### 2.2 使用规则
 
-- **必须**使用上述官方文件或 `CODEPI_SYMBOL_SVG`；不得描摹截图重绘、拉伸、旋转、改色、
+- **必须**使用上述官方图片文件或 `CODEPI_LOGO_PNG` / `CODEPI_SYMBOL_PNG`；不得描摹截图重绘、拉伸、旋转、改色、
   加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。主站完整字标使用透明 PNG；不得继续引用旧 `codepi-logo.svg`，因为其中的字体回退会造成字形和间距失真。
 - 净空：四周至少 0.5 × 符号高度（暂定，待定稿母版复核）。
-- 禁止 `{@html}` 的应用（Project、Me 的 CSP 与 AGENTS 规则）不能直接注入 `CODEPI_SYMBOL_SVG`，
-  应使用 `<img src="/favicon.svg" alt="">` 或把同一几何写成 Svelte 组件里的 SVG 元素，路径必须与母版一致。
+- 页面统一通过 `<img>` / `<picture>` 引用 PNG 或 WebP，不把标志几何内联成 SVG；这样也
+  避免字体回退、CSP 白名单和不同应用的 SVG 渲染差异。
 - 符号为装饰时必须 `aria-hidden="true"`，并与可读文字标签（品牌名或产品名）配对；
   单独使用符号作为链接时必须提供可访问名称。
-- 16–32px 场景只用符号版 favicon（`favicon.svg`/`favicon-16/32.png`/`favicon.ico`），
+- 16–32px 场景只用符号版 favicon（`favicon-16/32.png`/`favicon.ico`），
   不缩小完整组合标志。
-- 主站完整字标按官方母版比例 `1800 / 500`（3.6:1）使用 `object-fit: contain`；桌面页头约 124px 宽、页脚约 114px 宽，手机页头约 104px 宽、页脚约 100px 宽。
+- 主站完整字标按裁掉右侧死区后的官方图片比例 `1288 / 316`（约 4.076:1）使用
+  `object-fit: contain`；桌面页头约 124px 宽、页脚约 114px 宽，手机页头约 104px 宽、
+  页脚约 100px 宽。`srcset` 的 1288w 描述必须与图片实际宽度一致。
 - 私人应用继续使用符号尺寸：桌面页头 36px，页脚 30px；不能把完整横向字标压缩到 16–32px。
 
 ### 2.3 网站图标契约
@@ -86,9 +88,9 @@
 
 | 文件 | 来源 | `<head>` |
 | --- | --- | --- |
-| `/favicon.ico`（含 16/32/48） | `assets/exports/favicon.ico` | `<link rel="icon" href="/favicon.ico" sizes="32x32">` |
-| `/favicon.svg` | `assets/exports/favicon.svg` | `<link rel="icon" href="/favicon.svg" type="image/svg+xml">` |
-| `/apple-touch-icon.png`（180×180） | `assets/exports/apple-touch-icon.png` | `<link rel="apple-touch-icon" href="/apple-touch-icon.png">` |
+| `/favicon.ico`（含 16/32/48） | `assets/exports/favicon.ico` | `<link rel="icon" href="/favicon.ico" sizes="any">` |
+| `/favicon-16.png`、`/favicon-32.png` | `assets/exports/favicon-16.png`、`favicon-32.png` | `<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">` |
+| `/apple-touch-icon.png`（180×180） | `assets/exports/apple-touch-icon.png` | `<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">` |
 | `theme-color` | 当前页面背景色（暖白 `#FAF8F4`，或应用主题背景） | `<meta name="theme-color" content="…">` |
 
 文件必须与 `assets/exports/` 中的原件逐字节一致，不重新导出或压缩。
@@ -100,7 +102,8 @@
 资源状态按 v2.0.0 治理规则分四级：concept（概念）→ candidate（候选）→ approved（已批准）→ production（已上线）。
 v1.5 / v2.0.0 矢量母版仍是**候选稿**（candidate）。2026-10-20 经用户同意，主站已采用从官方导出解混生成的透明 PNG 字标；该图片资产用于解决网页字体回退导致的失真，不改变品牌图形母版的定稿状态。
 不得宣称定稿或已通过任何平台审核：字形精修、商标近似与字体授权都未完成审查。
-母版定稿后需同步 `brand.ts` 的 `CODEPI_SYMBOL_SVG`、`CODEPI_LOGO_*` 常量，以及主站 `public/brand/` 下的图片字标。
+母版定稿后需同步 `brand.ts` 的 `CODEPI_SYMBOL_PNG`、`CODEPI_LOGO_*` 常量，以及各应用
+`public/brand/` 下的图片资产。
 平台发布（Apple Icon Composer `.icon`、Android 启动器遮罩、微信后台上传、应用商店）
 在 `PLATFORM_COMPLIANCE.md` 中标为未验收，使用前必须按平台当期规范重新核实。
 
@@ -370,7 +373,7 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 | --- | --- | --- |
 | 主站 `apps/web` | `BaseLayout.astro` + `site.css` | 完全采用 v1.5 默认色板；页头为符号 + HTML 字标 |
 | Desk（主站私有区） | `apps/web/src/styles/desk.css` | 只用 `--kdp-*`，无字面色值；保持现状 |
-| GU `apps/gu` | `apps/gu/web/src/style.css` | 导入共享 tokens，把应用变量映射到 `--kdp-*`；可保留投资业务语义色（盈亏、预警），页头和登录页用 `CODEPI_SYMBOL_SVG` |
+| GU `apps/gu` | `apps/gu/web/src/style.css` | 导入共享 tokens，把应用变量映射到 `--kdp-*`；可保留投资业务语义色（盈亏、预警），页头和登录页用 `CODEPI_SYMBOL_PNG` |
 | GZH `apps/gzh` | `apps/gzh/web/src/styles.css` | 导入共享 tokens，移动优先的工作台密度；`-soft` 系列浅色背景可作为应用局部语义色 |
 | Health `apps/health` | `apps/health/apps/web/src/theme.css`（在共享 tokens 之后加载） | 保留暖纸主题：背景 `#fbf8f3`、表面 `#fffdf9`、陶橙 `#a3421c`/`#813719`、浅暖 `#f4e9df`；字体、间距、圆角沿用共享；图表系列色见第 10 节 |
 | Project `apps/project` | `apps/project/web/src/style.css`（导入共享 tokens，另有 `--project-*` 变量） | 可保留看板信息密度和项目状态语义色；品牌面（标志、favicon、`theme-color`、主色）必须回到 CodePi 暖白 + 橙，不另立蓝色品牌 |
@@ -400,7 +403,10 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 - `tokens.css` 已复制 v1.5 语义 token，`--kdp-*` 别名全部指向语义层（#118）。
 - 首页、GU、GZH、Health 的 favicon，以及首页、GU 的 `apple-touch-icon`，都已换成 v1.5 导出文件，
   并于 2026-10-20 发布到生产，线上文件与仓库逐字节一致（#123）。
-- 主站页头/页脚与 Three.js 原型已使用透明 PNG 字标；GU 页头与登录页继续使用 `CODEPI_SYMBOL_SVG` + 字标。
+- 主站页头/页脚与 Three.js 原型已使用透明 PNG 字标；GU 页头与登录页使用 `CODEPI_SYMBOL_PNG` + 文字字标。
+- Health 页头已改用透明 `CODEPI_SYMBOL_PNG`，并为网站图标补齐 16/32/180px PNG 与 ICO。
+- Project、Me、GZH 的页头与登录入口已改用 `CODEPI_SYMBOL_PNG`，并补齐 16/32/180px PNG、
+  ICO 与 Apple Touch Icon；不再引用候选 SVG 标志。
 - 主站共享层已接入 v2.0.0 Loading 变体；Desk 的概览、摘要状态使用共享圆环和 reduced-motion 规则。
 - Auth、MCP 页面内嵌共享 `tokens.css`。
 
@@ -408,9 +414,7 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 
 | 优先 | 范围 | 差距 | 期望结果 |
 | --- | --- | --- | --- |
-| P1 | GZH | 页头是纯文字品牌（`App.svelte` 中的 `brand-kicker` / `brand`），没有标志；缺少 `apple-touch-icon` | 按第 2 节接入符号与字标，补齐第 2.3 节图标契约 |
-| P1 | Health | `ProductBrand.svelte` 用 `/icon.svg` 图片作标志；`apple-touch-icon` 指向 512px 的 `icon.png`，不是 180px 文件 | 评估改用 `CODEPI_SYMBOL_SVG`；补 180px `apple-touch-icon.png` 并同步 `check:branding` |
-| P1 | Project、Me | favicon 是蓝底（`#3568c7`）自绘字母图标，`theme-color` 为冷灰 `#f4f7fb`；Project 的 `--project-*` 主题以海军蓝/蓝色为主（`style.css` 41 处字面色值），与“禁止蓝紫、默认暖白 + 橙”冲突；页头没有标志 | 换成 v1.5 图标文件并补齐第 2.3 节契约；`theme-color` 与背景改为共享暖白；主色映射到 `--color-action`，仅保留必要的业务状态色；页头按第 2.2 节无 `{@html}` 方式接入符号 |
+| P1 | Project、Me | `theme-color` 仍为冷灰 `#f4f7fb`；Project 的 `--project-*` 主题以海军蓝/蓝色为主（`style.css` 41 处字面色值），与“禁止蓝紫、默认暖白 + 橙”冲突；标志与网站图标已完成 PNG 迁移 | `theme-color` 与背景改为共享暖白；主色映射到 `--color-action`，仅保留必要的业务状态色 |
 | P1 | Auth 登录页、MCP 授权页 | 只有文字品牌，没有标志；没有 favicon | 加上符号 + 文字品牌，并按第 2.3 节提供图标 |
 | P2 | GU | `style.css` 有 24 处十六进制字面色值 | 改为应用主题变量或共享 token；业务语义色集中定义 |
 | P2 | GZH | `styles.css` 有 18 处字面色值（如 `--ok-soft`、`--danger-soft`） | 集中到主题变量区，并验证对比度 |

@@ -22,9 +22,10 @@ await Promise.all([
     assert.equal(png.readUInt32BE(20), 512, 'icon.png: expected height 512');
   })(),
   (async () => {
-    const svg = await asset('/icon.svg', /^image\/svg\+xml\b/);
-    assert.match(svg.toString(), /<svg\b/);
-    assert.doesNotMatch(svg.toString(), /<script\b/i);
+    const png = await asset('/brand/codepi-symbol.png', /^image\/png\b/);
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', 'codepi-symbol.png: invalid PNG');
+    assert.equal(png.readUInt32BE(16), 348, 'codepi-symbol.png: expected width 348');
+    assert.equal(png.readUInt32BE(20), 316, 'codepi-symbol.png: expected height 316');
   })(),
   (async () => {
     const ico = await asset('/favicon.ico', /^image\/(?:x-icon|vnd\.microsoft\.icon)\b/);
@@ -32,9 +33,21 @@ await Promise.all([
     assert.ok(ico.readUInt16LE(4) >= 1, 'favicon.ico: no images');
   })(),
   (async () => {
+    const png = await asset('/favicon-32.png', /^image\/png\b/);
+    assert.equal(png.readUInt32BE(16), 32, 'favicon-32.png: expected width 32');
+    assert.equal(png.readUInt32BE(20), 32, 'favicon-32.png: expected height 32');
+  })(),
+  (async () => {
+    const png = await asset('/apple-touch-icon.png', /^image\/png\b/);
+    assert.equal(png.readUInt32BE(16), 180, 'apple-touch-icon.png: expected width 180');
+    assert.equal(png.readUInt32BE(20), 180, 'apple-touch-icon.png: expected height 180');
+  })(),
+  (async () => {
     const html = (await asset('/', /^text\/html\b/)).toString();
-    assert.match(html, /rel="icon"[^>]+href="\/icon\.svg"/);
+    assert.match(html, /rel="icon"[^>]+href="\/favicon-32\.png"/);
+    assert.match(html, /rel="icon"[^>]+href="\/favicon-16\.png"/);
     assert.match(html, /rel="icon"[^>]+href="\/favicon\.ico"/);
+    assert.match(html, /rel="apple-touch-icon"[^>]+href="\/apple-touch-icon\.png"/);
   })(),
 ]);
-console.log(`PASS ${origin}: public PNG (512x512), SVG, ICO and page icon links`);
+console.log(`PASS ${origin}: public PNG icons, symbol PNG, ICO and page icon links`);

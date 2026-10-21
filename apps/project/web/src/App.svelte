@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+  import { CODEPI_SYMBOL_PNG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { api, ApiError, currentReturn } from "./lib/api";
   import type {
     Handoff,
@@ -254,7 +254,7 @@
 {:else}
   <header class="app-bar">
     <button class="app-brand" onclick={() => goHome()}>
-      <span class="brand-mark">k</span>
+      <img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" />
       <span>kedoupi<small>codepi · 项目</small></span>
     </button>
     <nav aria-label="主导航">

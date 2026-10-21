@@ -9,6 +9,6 @@
 </script>
 
 <a class={className} href="/">
-  <img class="{className}-mark" src="/icon.svg" alt="" width="36" height="36" />
+  <img class="{className}-mark" src="/brand/codepi-symbol.png" alt="" width="348" height="316" decoding="async" />
   <span class="{className}-name">{name}</span>
 </a>
