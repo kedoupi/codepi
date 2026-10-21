@@ -52,31 +52,30 @@
 
 ### 2.1 结构与变体
 
-符号 = 大写 C（石墨灰）+ π（品牌橙）+ 内部 `</>`（石墨灰）。标准组合 = 符号 + `CodePi` 字标，
+符号 = 开放的 C（深色）+ 中央 `</>` 细节 + 与开口相接的品牌橙 π。三者是用户批准图片中的同一构图，不得拆成悬浮零件或重新描摹。标准组合 = 符号 + `CodePi` 字标，
 其中 “Code” 用石墨灰，“Pi” 用品牌橙。标语 `BUILD · THINK · CREATE` 可选，
 不得放进应用图标或小尺寸标志。
 
 | 变体 | 来源 | 用途 |
 | --- | --- | --- |
-| 符号（彩色） | `apps/web/public/brand/codepi-symbol.png` / `.webp`，由官方 PNG 字标裁切 | 网页页头、登录页、页脚 |
+| 符号（彩色） | `apps/web/public/brand/codepi-symbol.png` / `.webp`，由 production 母版导出 | 网页页头、登录页、页脚 |
 | 符号（深色背景） | `codepi-symbol-dark.png` | 深色背景、主题化图标 |
 | 横向字标（官方图片） | `wordmark-light.png` / `wordmark-dark.png` 及其透明 RGBA 派生文件 | 邮件、OG、外部平台等需要完整图片字标的场景 |
-| 主站图片字标 | `apps/web/public/brand/codepi-logo.png`、`codepi-logo-dark.png` 及 450/900px 响应式副本 | 主站与 Three.js 原型页头、页脚；源自官方 PNG，不使用字体回退或候选 SVG |
+| 主站图片字标 | `apps/web/public/brand/codepi-logo.png`、`codepi-logo-dark.png` 及 450/900px 响应式副本 | 主站与 Three.js 原型页头、页脚；源自 production 母版导出 |
 | HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 文字与图片符号组合的页面；符号本身仍使用 PNG |
 | 应用图标 | `assets/exports/app-icon-*.svg/png` | 应用、PWA、平台资料 |
 | 头像 | `assets/exports/avatar-*`、`assets/platform/{wechat,social}/` | 微信、GitHub、社交平台 |
 
 ### 2.2 使用规则
 
-- **必须**使用上述官方图片文件或 `CODEPI_LOGO_PNG` / `CODEPI_SYMBOL_PNG`；不得描摹截图重绘、拉伸、旋转、改色、
-  加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。主站完整字标使用透明 PNG；不得继续引用旧 `codepi-logo.svg`，因为其中的字体回退会造成字形和间距失真。
+- **必须**使用上述导出图片文件或 `CODEPI_LOGO_PNG` / `CODEPI_SYMBOL_PNG`；唯一视觉母版是 `packages/shared/brand/codepi-production/source-reference.png`，不得描摹截图重绘、拉伸、旋转、改色、
+加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。主站完整字标使用透明 PNG；生产母版位于 `packages/shared/brand/codepi-production/`，不得直接作为页面运行时资源引用。
 - 净空：四周至少 0.5 × 符号高度（暂定，待定稿母版复核）。
 - 页面统一通过 `<img>` / `<picture>` 引用 PNG 或 WebP，不把标志几何内联成 SVG；这样也
   避免字体回退、CSP 白名单和不同应用的 SVG 渲染差异。
 - 符号为装饰时必须 `aria-hidden="true"`，并与可读文字标签（品牌名或产品名）配对；
   单独使用符号作为链接时必须提供可访问名称。
-- 16–32px 场景只用符号版 favicon（`favicon-16/32.png`/`favicon.ico`），
-  不缩小完整组合标志。
+- 16–32px 场景使用符号版 favicon（`favicon-16/32.png`/`favicon.ico`），不得缩小完整组合标志；当前批准资产保持原符号等比缩放，不另行简化或重画细节。
 - 主站完整字标按裁掉右侧死区后的官方图片比例 `1288 / 316`（约 4.076:1）使用
   `object-fit: contain`；桌面页头约 124px 宽、页脚约 114px 宽，手机页头约 104px 宽、
   页脚约 100px 宽。`srcset` 的 1288w 描述必须与图片实际宽度一致。
@@ -100,10 +99,8 @@
 ### 2.4 定稿状态
 
 资源状态按 v2.0.0 治理规则分四级：concept（概念）→ candidate（候选）→ approved（已批准）→ production（已上线）。
-v1.5 / v2.0.0 矢量母版仍是**候选稿**（candidate）。2026-10-20 经用户同意，主站已采用从官方导出解混生成的透明 PNG 字标；该图片资产用于解决网页字体回退导致的失真，不改变品牌图形母版的定稿状态。
-不得宣称定稿或已通过任何平台审核：字形精修、商标近似与字体授权都未完成审查。
-母版定稿后需同步 `brand.ts` 的 `CODEPI_SYMBOL_PNG`、`CODEPI_LOGO_*` 常量，以及各应用
-`public/brand/` 下的图片资产。
+v1.5 / v2.0.0 的矢量素材仍是**历史候选稿**（candidate）。2026-10-22 用户批准其提供的图片作为唯一视觉基准：开放 C、中央 `</>` 与橙色 π 构成符号，配套 `CodePi` 字标及可选标语。生产图片母版保存在 `packages/shared/brand/codepi-production/`，公共运行时资源是从该母版导出的透明 PNG/WebP；不得用 SVG 重建替代。
+新母版尚未完成商标近似、字体授权与所有外部平台审核；不得把本地资产替换等同于平台审核通过。每次母版更新必须同步 `brand.ts`、全应用 `public/brand/` 符号、favicon 和导航/页脚图片资产。
 平台发布（Apple Icon Composer `.icon`、Android 启动器遮罩、微信后台上传、应用商店）
 在 `PLATFORM_COMPLIANCE.md` 中标为未验收，使用前必须按平台当期规范重新核实。
 
