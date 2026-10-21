@@ -1,86 +1,645 @@
 #desk [hidden] { display: none !important; }
-.desk-heading, .desk-actions, .desk-section-heading, .desk-source-heading, .desk-generate-row { display: flex; align-items: center; gap: 16px; }
-.desk-heading { justify-content: space-between; margin: 0 0 24px; }
-.desk-heading .kdp-section-label { margin: 0 0 8px; }
-.desk-heading h1 { margin: 0; font-size: clamp(30px, 4vw, 42px); line-height: 1.4; font-weight: 650; letter-spacing: -.03em; }
-.desk-muted { color: var(--kdp-muted); font-size: 14px; margin: 8px 0 0; }
-.desk-fine { font-size: 12px; line-height: 1.7; color: var(--kdp-muted); margin: 0; }
-.desk-status { min-height: 24px; font-size: 13px; color: var(--kdp-muted); margin: 0 0 16px; }
-.desk-text-button { border: 0; background: transparent; color: var(--kdp-text); cursor: pointer; padding: 8px; min-height: 44px; font-size: 13px; }
-.desk-text-button:hover { color: var(--kdp-accent-strong); }
-#desk button:disabled { opacity: .6; cursor: wait; }
-.desk-login { border-radius: var(--kdp-radius-lg); padding: 48px 32px; max-width: 680px; margin: 32px auto 64px; text-align: center; }
-.desk-login .desk-icon { margin: 0 auto 24px; }
-.desk-login h2 { font-size: 24px; margin: 0 0 12px; }
-.desk-login p { color: var(--kdp-muted); margin: 0 0 24px; }
-.desk-login .desk-fine { margin-top: 24px; margin-bottom: 0; }
-.desk-icon { width: 44px; height: 44px; border-radius: var(--kdp-radius); background: var(--kdp-accent-soft); color: var(--kdp-accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.desk-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.desk-source { padding: 24px; border-radius: var(--kdp-radius-lg); display: flex; flex-direction: column; min-width: 0; }
-.desk-eyebrow { margin: 0 0 4px; color: var(--kdp-muted); font-size: 10px; letter-spacing: .09em; font-weight: 600; }
-.desk-source h2 { font-size: 17px; line-height: 1.5; margin: 0; font-weight: 600; }
-.desk-badge { align-self: flex-start; font-size: 11px; color: var(--kdp-muted); margin-top: 20px; }
-.desk-badge[data-tone="warning"] { color: var(--kdp-warning); }
-.desk-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 12px 0 20px; }
-.desk-metrics dt { font-size: 11px; color: var(--kdp-muted); margin-bottom: 8px; }
-.desk-metrics dd { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.desk-card-footer { margin-top: auto; padding-top: 20px; }
-.desk-card-footer .kdp-link { display: inline-flex; min-height: 44px; align-items: center; font-size: 13px; gap: 8px; }
-.desk-source details { margin-top: 12px; font-size: 13px; color: var(--kdp-text); }
-.desk-source summary { cursor: pointer; min-height: 44px; padding-block: 10px; }
-.desk-workspace { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; gap: 24px; margin-top: 32px; }
-.desk-digest, .desk-attention { padding: 32px; border-radius: var(--kdp-radius-lg); min-width: 0; }
-.desk-section-heading { justify-content: space-between; }
-.desk-section-heading h2 { font-size: 23px; font-weight: 600; margin: 0; }
-.desk-small-tag { border: 1px solid var(--kdp-line); color: var(--kdp-muted); font-size: 11px; padding: 3px 10px; border-radius: var(--kdp-radius-sm); }
-#desk-summary-form { margin-top: 28px; }
-#desk-summary-form fieldset { padding: 0; margin: 0 0 20px; border: 0; }
-#desk-summary-form legend { font-size: 12px; color: var(--kdp-muted); margin-bottom: 8px; }
-.desk-range, .desk-sources { display: flex; gap: 8px 16px; flex-wrap: wrap; }
-.desk-range label, .desk-sources label { min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; font-size: 14px; gap: 8px; }
-.desk-range label { padding: 8px 16px; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-sm); }
-.desk-range label:has(input:checked) { border-color: var(--kdp-accent); background: var(--kdp-accent-soft); color: var(--kdp-accent-strong); }
-#desk input { accent-color: var(--kdp-accent); width: 16px; height: 16px; }
-.desk-generate-row { margin-top: 8px; flex-wrap: wrap; }
-.desk-generate-row .kdp-button { flex-shrink: 0; }
-#desk-digest-status { margin-top: 16px; }
-.desk-summary-output { border-top: 1px solid var(--kdp-line); margin-top: 20px; }
-.desk-summary-empty { text-align: center; padding: 40px 8px 24px; color: var(--kdp-muted); }
-.desk-summary-empty svg { margin-inline: auto; opacity: .8; }
-.desk-summary-empty h3 { font-size: 16px; font-weight: 500; margin: 16px 0 8px; color: var(--kdp-text); }
-.desk-summary-empty p { font-size: 13px; margin: 0 0 8px; }
-.desk-summary-section { padding: 24px 0; }
-.desk-summary-section + .desk-summary-section { border-top: 1px solid var(--kdp-line); }
-.desk-summary-section:last-child { padding-bottom: 0; }
-.desk-summary-section h3 { font-size: 17px; margin: 0 0 8px; }
-.desk-summary-section ul { list-style: disc; margin: 12px 0; padding-left: 20px; font-size: 14px; color: var(--kdp-text); }
-.desk-summary-section li { margin-bottom: 8px; overflow-wrap: anywhere; }
-.desk-summary-section .kdp-link { min-height: 44px; display: inline-flex; align-items: center; font-size: 13px; }
-#desk-attention-list { list-style: none; padding: 0; margin: 20px 0 0; }
-#desk-attention-list li + li { border-top: 1px solid var(--kdp-line); }
-#desk-attention-list a { display: block; padding: 16px 0; min-height: 44px; font-size: 13px; color: var(--kdp-text); text-decoration: none; overflow-wrap: anywhere; }
-#desk-attention-list a:hover { color: var(--kdp-accent-strong); }
-#desk-attention-list small { display: block; color: var(--kdp-muted); font-size: 11px; margin-bottom: 4px; }
-.desk-attention-footnote { padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--kdp-line); font-size: 12px; color: var(--kdp-muted); }
-.desk-bottom-note { font-size: 12px; color: var(--kdp-muted); margin: 24px 0 0; text-align: center; }
-@media (max-width: 960px) {
-  .desk-overview { gap: 16px; }
-  .desk-source { padding: 20px; }
-  .desk-source-heading { gap: 8px; }
-  .desk-source h2 { font-size: 15px; }
-  .desk-metrics { gap: 8px; }
-  .desk-metrics dd { font-size: 16px; }
-  .desk-digest, .desk-attention { padding: 24px; }
+
+/* 头部布局与 Typography */
+.desk-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0 0 28px;
 }
+.desk-heading .kdp-section-label {
+  margin: 0 0 8px;
+  color: var(--brand-orange-interactive);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.desk-heading h1 {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+.desk-muted {
+  color: var(--color-text-muted);
+  font-size: 15px;
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+.desk-fine {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.desk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.desk-text-button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 8px 14px;
+  min-height: 44px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 999px;
+  transition: color var(--motion-normal) ease, background var(--motion-normal) ease;
+}
+.desk-text-button:hover {
+  color: var(--brand-orange-interactive);
+  background: rgba(45, 42, 40, 0.04);
+}
+#desk button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* 状态栏与 Spinner */
+.desk-status {
+  min-height: 24px;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.desk-status[data-loading="true"]::before,
+#desk-digest-status[data-loading="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--brand-soft, #FFE6D9);
+  border-top-color: var(--brand-orange, #FF713D);
+  border-right-color: var(--brand-orange, #FF713D);
+  animation: kdp-spin 1.2s linear infinite;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-status[data-loading="true"]::before,
+  #desk-digest-status[data-loading="true"]::before {
+    animation: none;
+  }
+}
+
+/* 登录保险箱卡片 (Desk Login Vault) */
+.desk-login {
+  border-radius: 24px;
+  padding: 48px 36px 40px;
+  max-width: 640px;
+  margin: 36px auto 64px;
+  text-align: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 4px 16px rgba(45, 42, 40, 0.02), 0 24px 48px rgba(45, 42, 40, 0.04);
+}
+.desk-login .desk-icon {
+  margin: 0 auto 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+}
+.desk-login h2 {
+  font-size: clamp(24px, 3vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: 0 0 12px;
+}
+.desk-login p#desk-login-note {
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 480px;
+  margin: 0 auto 28px;
+}
+.desk-login-btn-row {
+  margin-bottom: 12px;
+}
+.desk-login-btn-row .kdp-button {
+  padding: 12px 32px;
+  font-size: 15px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(201, 79, 32, 0.2);
+}
+.desk-login-sub-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.desk-login .desk-fine {
+  margin-top: 16px;
+}
+.desk-login-trust {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 16px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+}
+.trust-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.trust-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-orange);
+}
+
+.desk-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--brand-soft);
+  color: var(--brand-orange-interactive);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 概览卡片网格 (Desk Overview) */
+.desk-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.desk-source {
+  padding: 28px 26px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(45, 42, 40, 0.02), 0 12px 32px rgba(45, 42, 40, 0.03);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow var(--motion-normal) ease,
+              border-color var(--motion-normal) ease;
+}
+.desk-source:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 113, 61, 0.35);
+  box-shadow: 0 4px 16px rgba(45, 42, 40, 0.04), 0 20px 40px rgba(255, 113, 61, 0.07);
+}
+.desk-source:hover .desk-icon {
+  transform: translateY(-1px) scale(1.05);
+}
+.desk-source-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.desk-eyebrow {
+  margin: 0 0 3px;
+  color: var(--brand-orange-interactive);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+.desk-source h2 {
+  font-size: 18px;
+  line-height: 1.35;
+  margin: 0;
+  font-weight: 650;
+  color: var(--color-text);
+  letter-spacing: -0.015em;
+}
+.desk-badge {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: rgba(45, 42, 40, 0.04);
+  border: 1px solid rgba(45, 42, 40, 0.06);
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin: 18px 0 14px;
+}
+.desk-badge[data-tone="warning"] {
+  color: var(--color-warning, #965400);
+  background: #FFF4E5;
+  border-color: #FFE0B2;
+}
+
+/* 指标卡片 (Metrics Tiles) */
+.desk-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.desk-metrics div {
+  background: rgba(45, 42, 40, 0.025);
+  border: 1px solid rgba(45, 42, 40, 0.04);
+  border-radius: 12px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.desk-metrics dt {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+.desk-metrics dd {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.desk-source [data-note] {
+  margin-bottom: 10px;
+}
+
+/* 资产披露 (Private Metric Slot) */
+.desk-source details {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--color-text);
+  background: rgba(45, 42, 40, 0.02);
+  border-radius: 10px;
+  padding: 4px 12px;
+  border: 1px solid rgba(45, 42, 40, 0.04);
+}
+.desk-source summary {
+  cursor: pointer;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--brand-orange-interactive);
+}
+.desk-source details p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.desk-card-footer {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.desk-card-footer .kdp-link {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-orange-interactive);
+  text-decoration: none;
+  gap: 4px;
+}
+.desk-card-footer .kdp-link:hover {
+  color: var(--brand-orange-hover);
+  text-decoration: underline;
+}
+
+/* 工作区 (Digest + Attention) */
+.desk-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 24px;
+  margin-top: 32px;
+}
+.desk-digest, .desk-attention {
+  padding: 34px 32px 30px;
+  border-radius: 22px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(45, 42, 40, 0.02), 0 12px 32px rgba(45, 42, 40, 0.03);
+  min-width: 0;
+}
+.desk-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.desk-section-heading h2 {
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin: 0;
+  color: var(--color-text);
+}
+.desk-small-tag {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  background: rgba(45, 42, 40, 0.03);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* 表单与选择器 */
+#desk-summary-form {
+  margin-top: 24px;
+}
+#desk-summary-form fieldset {
+  padding: 0;
+  margin: 0 0 22px;
+  border: 0;
+}
+#desk-summary-form legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+.desk-range, .desk-sources {
+  display: flex;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+}
+.desk-range label, .desk-sources label {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  transition: all var(--motion-normal) ease;
+}
+.desk-range label:has(input:checked) {
+  border-color: var(--brand-orange-interactive);
+  background: var(--brand-soft);
+  color: var(--brand-orange-interactive);
+  font-weight: 600;
+}
+.desk-sources label:has(input:checked) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(45, 42, 40, 0.04);
+}
+#desk input {
+  accent-color: var(--brand-orange-interactive);
+  width: 16px;
+  height: 16px;
+}
+.desk-generate-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.desk-generate-row .kdp-button {
+  flex-shrink: 0;
+  padding: 10px 24px;
+  border-radius: 999px;
+}
+#desk-digest-status {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+/* 摘要输出 */
+.desk-summary-output {
+  border-top: 1px solid var(--color-border);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.desk-summary-empty {
+  text-align: center;
+  padding: 36px 16px 20px;
+  color: var(--color-text-muted);
+}
+.desk-empty-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 0 auto 16px;
+  display: grid;
+  place-items: center;
+  background: var(--brand-soft);
+  color: var(--brand-orange-interactive);
+}
+.desk-summary-empty h3 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0 0 8px;
+  color: var(--color-text);
+}
+.desk-summary-empty p {
+  font-size: 14px;
+  margin: 0 0 8px;
+  line-height: 1.6;
+}
+.desk-summary-section {
+  padding: 22px 20px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+}
+.desk-summary-section:last-child {
+  margin-bottom: 0;
+}
+.desk-summary-section h3 {
+  font-size: 17px;
+  font-weight: 650;
+  margin: 0 0 6px;
+  color: var(--color-text);
+}
+.desk-summary-section .desk-fine {
+  margin-bottom: 12px;
+}
+.desk-summary-section ul {
+  list-style: disc;
+  margin: 0 0 16px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+.desk-summary-section li {
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+.desk-summary-section .kdp-link {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-orange-interactive);
+  text-decoration: none;
+}
+.desk-summary-section .kdp-link:hover {
+  text-decoration: underline;
+}
+
+/* 待处理事项 (Attention Sidebar) */
+#desk-attention-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#desk-attention-list a {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  text-decoration: none;
+  transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1),
+              border-color var(--motion-normal) ease,
+              background var(--motion-normal) ease;
+}
+#desk-attention-list a:hover {
+  transform: translateX(2px);
+  border-color: rgba(255, 113, 61, 0.4);
+  background: var(--color-surface);
+}
+#desk-attention-list small {
+  display: block;
+  color: var(--brand-orange-interactive);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+#desk-attention-list span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+#desk-attention-empty {
+  font-size: 14px;
+  padding: 16px 0;
+}
+.desk-attention-footnote {
+  padding-top: 22px;
+  margin-top: 22px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--color-text-muted);
+}
+
+.desk-bottom-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin: 36px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .desk-overview {
+    gap: 16px;
+  }
+  .desk-source {
+    padding: 22px 20px;
+  }
+  .desk-source-heading {
+    gap: 10px;
+  }
+  .desk-source h2 {
+    font-size: 16px;
+  }
+  .desk-metrics {
+    gap: 8px;
+  }
+  .desk-metrics dd {
+    font-size: 17px;
+  }
+  .desk-digest, .desk-attention {
+    padding: 26px 22px;
+  }
+}
+
 @media (max-width: 720px) {
-  .desk-heading { align-items: flex-start; flex-direction: column; gap: 16px; margin-bottom: 8px; }
-  .desk-overview, .desk-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .desk-source { padding: 24px; }
-  .desk-source h2 { font-size: 17px; }
-  .desk-metrics dd { font-size: 21px; }
-  .desk-card-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-  .desk-attention { grid-row: 1; }
-  .desk-workspace { margin-top: 24px; }
-  .desk-login { padding: 32px 24px; }
-  .desk-bottom-note { text-align: left; }
+  .desk-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .desk-overview, .desk-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .desk-source {
+    padding: 24px 20px;
+  }
+  .desk-source h2 {
+    font-size: 18px;
+  }
+  .desk-metrics dd {
+    font-size: 20px;
+  }
+  .desk-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .desk-attention {
+    grid-row: auto;
+  }
+  .desk-workspace {
+    margin-top: 24px;
+  }
+  .desk-login {
+    padding: 32px 20px;
+    border-radius: 20px;
+  }
+  .desk-bottom-note {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desk-source, .desk-icon, #desk-attention-list a {
+    transition: none;
+  }
 }

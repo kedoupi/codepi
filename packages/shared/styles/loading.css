@@ -1,0 +1,218 @@
+/* CodePi Loading System
+ * Specification: CodePi Design System v2.0.0 (LOADING_SYSTEM.md)
+ * 4 variants: brand, global, inline, ai + skeleton shimmer
+ */
+
+:root {
+  --kdp-loading-accent: var(--brand-orange, #FF713D);
+  --kdp-loading-track: var(--brand-soft, #FFE6D9);
+  --kdp-loading-text: var(--color-text, #2D2A28);
+  --kdp-loading-muted: var(--color-text-muted, #706A64);
+  --cp-loading-accent: var(--kdp-loading-accent);
+  --cp-loading-track: var(--kdp-loading-track);
+  --cp-loading-text: var(--kdp-loading-text);
+}
+
+[data-theme="dark"] {
+  --kdp-loading-track: #594238;
+  --kdp-loading-text: var(--color-text, #F6F3ED);
+  --kdp-loading-muted: var(--color-text-muted, #C6BFB5);
+}
+
+/* Base loading container */
+.kdp-loading,
+.cp-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--kdp-loading-text);
+  font: 500 14px / 1.5 var(--font-sans, Inter, system-ui, sans-serif);
+}
+
+/* Spinner Ring (proportional stroke) */
+.kdp-loading__ring,
+.cp-loading__ring,
+.cp-spinner {
+  --_size: var(--loading-size, var(--cp-loading-size, 20px));
+  width: var(--_size);
+  height: var(--_size);
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: max(2px, calc(var(--_size) * 0.095)) solid var(--kdp-loading-track);
+  border-top-color: var(--kdp-loading-accent);
+  border-right-color: var(--kdp-loading-accent);
+  animation: kdp-spin 1.2s linear infinite;
+}
+
+/* AI Dots */
+.kdp-loading__dots,
+.cp-loading__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.kdp-loading__dots i,
+.cp-loading__dots i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kdp-loading-accent);
+  animation: kdp-pulse 1.2s ease-in-out infinite;
+}
+.kdp-loading__dots i:nth-child(2),
+.cp-loading__dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.kdp-loading__dots i:nth-child(3),
+.cp-loading__dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Wordmark/Logo */
+.kdp-loading__logo {
+  display: block;
+  width: 140px;
+  height: auto;
+  aspect-ratio: 1800 / 500;
+  object-fit: contain;
+}
+.cp-loading__wordmark {
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  color: var(--brand-graphite, #5E5A56);
+}
+.cp-loading__wordmark span {
+  color: var(--kdp-loading-accent);
+}
+
+/* Variant 1: Brand (App Launch / Splash) */
+.kdp-loading--brand,
+.cp-loading--brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 32px 24px;
+  text-align: center;
+}
+.kdp-loading--brand .kdp-loading__ring,
+.cp-loading--brand .cp-loading__ring,
+.cp-loading--brand .cp-spinner {
+  --loading-size: 56px;
+  --cp-loading-size: 56px;
+}
+.kdp-loading--brand span:last-child {
+  font-size: 15px;
+  color: var(--kdp-loading-muted);
+}
+
+/* Variant 2: Global (Data Initialization) */
+.kdp-loading--global,
+.cp-loading--global {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.kdp-loading--global .kdp-loading__ring,
+.cp-loading--global .cp-loading__ring,
+.cp-loading--global .cp-spinner {
+  --loading-size: 40px;
+  --cp-loading-size: 40px;
+}
+.kdp-loading--global span:last-child {
+  font-size: 14px;
+  color: var(--kdp-loading-muted);
+}
+
+/* Variant 3: Inline (Button or Compact Card) */
+.kdp-loading--inline,
+.cp-loading--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.kdp-loading--inline .kdp-loading__ring,
+.cp-loading--inline .cp-loading__ring,
+.cp-loading--inline .cp-spinner {
+  --loading-size: 18px;
+  --cp-loading-size: 18px;
+}
+
+/* Variant 4: AI Reasoning / Streaming Wait */
+.kdp-loading--ai,
+.cp-loading--ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--kdp-loading-text);
+  font-size: 14px;
+}
+
+/* Skeleton Placeholder */
+.kdp-skeleton,
+.cp-skeleton {
+  display: block;
+  background: linear-gradient(90deg, #F3EFE9 25%, #FAF8F4 50%, #F3EFE9 75%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-control, 10px);
+  animation: kdp-shimmer 1.8s ease-in-out infinite;
+}
+[data-theme="dark"] .kdp-skeleton,
+[data-theme="dark"] .cp-skeleton {
+  background: linear-gradient(90deg, #302E2B 25%, #3A3733 50%, #302E2B 75%);
+}
+
+/* Keyframes */
+@keyframes kdp-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes cp-loading-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes kdp-pulse {
+  0%, 70%, 100% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes cp-loading-pulse {
+  0%, 70%, 100% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes kdp-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Reduced Motion: honor user preference */
+@media (prefers-reduced-motion: reduce) {
+  .kdp-loading__ring,
+  .cp-loading__ring,
+  .cp-spinner,
+  .kdp-loading__dots i,
+  .cp-loading__dots i,
+  .kdp-skeleton,
+  .cp-skeleton {
+    animation: none;
+  }
+}

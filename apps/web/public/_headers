@@ -8,3 +8,6 @@
   Cache-Control: no-store
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
+
+/prototype/*
+  X-Robots-Tag: noindex, nofollow
