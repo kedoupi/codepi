@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+  import { CODEPI_SYMBOL_PNG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { loginHref } from "../lib/api";
 
   let {
@@ -11,7 +11,7 @@
 <main class="login-shell">
   <section class="login-copy">
     <div class="brand-lockup">
-      <span class="brand-mark">k</span>
+      <img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" />
       <span>kedoupi<small>codepi · 项目工作台</small></span>
     </div>
     <div class="login-statement">

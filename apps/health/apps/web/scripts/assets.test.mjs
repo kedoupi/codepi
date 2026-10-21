@@ -56,10 +56,18 @@ test('real Worker assets serve the SPA, forward APIs and reject retired connecto
     assert.equal(await response.text(), index, `${path}: SPA must serve index.html`);
   }
   // Real static assets served directly.
-  const icon = await get('/icon.svg');
-  assert.equal(icon.status, 200);
-  assert.match(icon.headers.get('content-type') || '', /image\/svg/);
-  await icon.body?.cancel();
+  const symbol = await get('/brand/codepi-symbol.png');
+  assert.equal(symbol.status, 200);
+  assert.match(symbol.headers.get('content-type') || '', /^image\/png/);
+  await symbol.body?.cancel();
+  const favicon32 = await get('/favicon-32.png');
+  assert.equal(favicon32.status, 200);
+  assert.match(favicon32.headers.get('content-type') || '', /^image\/png/);
+  await favicon32.body?.cancel();
+  assert.match(index, /rel="icon"[^>]+href="\/favicon-32\.png"/);
+  assert.match(index, /rel="icon"[^>]+href="\/favicon-16\.png"/);
+  assert.match(index, /rel="icon"[^>]+href="\/favicon\.ico"/);
+  assert.match(index, /rel="apple-touch-icon"[^>]+href="\/apple-touch-icon\.png"/);
   // Server artifacts must never reach the API Worker (they are not API paths).
   // .assetsignore excludes them from the uploaded asset manifest, which local
   // Miniflare does not apply, so this only asserts routing, not upload filtering.

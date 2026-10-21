@@ -35,4 +35,26 @@ describe("private asset path aliases", () => {
     expect(response.status).toBe(200);
     expect(assets).toHaveBeenCalledOnce();
   });
+
+  it("serves public PNG brand assets without a private session", async () => {
+    const assets = vi.fn(async () => new Response("png", {
+      headers: { "Content-Type": "image/png" },
+    }));
+    const bindings = { ...env, ASSETS: { fetch: assets } as unknown as Fetcher };
+    for (const path of [
+      "/favicon-16.png",
+      "/favicon-32.png",
+      "/apple-touch-icon.png",
+      "/brand/codepi-symbol.png",
+    ]) {
+      const response = await worker.fetch(
+        new Request("https://gzh.codepi.app" + path),
+        bindings,
+        createExecutionContext(),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toBe("image/png");
+    }
+    expect(assets).toHaveBeenCalledTimes(4);
+  });
 });
