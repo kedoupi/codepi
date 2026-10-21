@@ -1,14 +1,11 @@
 export const PRODUCT_BRAND = "kedoupi（codepi）";
 
 /**
- * CodePi official wordmark images (v2.0.0 export master).
+ * CodePi production wordmark images.
  *
- * The source export is a 1800 x 500 raster with 453px of empty space on the
- * right. The web assets below crop that dead space and un-matte the warm-white
- * or dark export background, leaving 32-bit RGBA images at 1288 x 316.
- *
- * Keep the dimensions and the `srcset` descriptors in sync with the files in
- * apps/web/public/brand/. Do not use the candidate wordmark SVGs in the UI.
+ * Image masters live in `brand/codepi-production/`; public sites load only
+ * the derived transparent PNG and WebP assets at 1288 x 316. Keep these
+ * dimensions and the `srcset` descriptors in sync with apps/web/public/brand/.
  */
 export const CODEPI_LOGO_PNG = "/brand/codepi-logo.png";
 export const CODEPI_LOGO_WEBP = "/brand/codepi-logo.webp";
@@ -26,9 +23,8 @@ export const CODEPI_LOGO_ASPECT_RATIO = "1288 / 316";
 export const BRAND_WORDMARK = "CodePi";
 
 /**
- * CodePi symbol (C + π + `</>`), rasterized from the same official PNG export
- * as the wordmark. Use it when the full lockup would be too small or when the
- * page already renders the CodePi text separately.
+ * CodePi symbol: the approved C, central code detail, and orange pi composition.
+ * Use it when the full lockup would be too small or the page renders text nearby.
  */
 export const CODEPI_SYMBOL_PNG = "/brand/codepi-symbol.png";
 export const CODEPI_SYMBOL_WEBP = "/brand/codepi-symbol.webp";
