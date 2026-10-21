@@ -1,5 +1,13 @@
 # Cloudflare 资源登记表
 
+2026-10-21 首页 Three.js 动画完成跨设备与移动端/平板响应式适配，通过 PR #137 合并为
+`0403de24247617d9c1161ee08871ac7c57b4b308`，并从干净、等于实时远程 main 的
+detached 源码持锁发布。`worker-www`（`codepi-www`）活动 version 由
+`05ae01e5-abcf-4ea4-85bf-07e1b6a16e5d` 更新为
+`038d245b-e07e-4750-81cd-41d8b73bc94f`，保持 `BUILD_SHA=0403de242476`、
+100% 流量和既有 D1/Auth/Assets 绑定。线上匿名私有接口拒绝、SSO 重定向与页面 smoke 均通过；
+生产证据归档至 `/tmp/codepi-deployment-evidence.jsonl`。
+
 2026-10-21 首页、应用、博客、关于与工作台完成基于 CodePi Design System v2.0 与 Apple 质感视觉重塑，通过 PR #135 合并为
 `e208c4aab8162066eb037c8f73df0db8882b5a70`，并从干净、等于实时远程 main 的
 detached 源码持锁发布。`worker-www`（`codepi-www`）活动 version 由
@@ -378,7 +386,7 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-me | production | worker | codepi-me | kedoupi | Me 确认区、资料与经历 | private-user-data | 终端用户、worker-mcp MeMcp、worker-ops MeImportsBackup | me.codepi.app | apps/me/wrangler.toml | managed | 2026-10-20 version 42a25c9c-a14a-4b65-b855-49265bc8baef；BUILD_SHA 58bd615c317d；100% 流量，SSO/匿名 401 通过 |
 | d1-me | production | d1 | codepi-me (7236c118-1f92-4b07-8283-e731c2771953) | kedoupi | Me 数据、导入索引与 SSO 会话 | private-user-data | worker-me DB、Ops 加密导出 | - | apps/me/migrations | managed | 2026-10-20 1 个 migration；v3 隔离恢复 10 表/2 行全量内容与类型一致 |
 | r2-me-imports | production | r2 | codepi-me-imports | kedoupi | Me 私有导入原文 | private-user-data | worker-me IMPORTS；Ops 仅通过 MeImportsBackup RPC | 无公开入口 | apps/me/wrangler.toml | managed | 2026-10-20 已创建并验收：无 custom domain、r2.dev 关闭；空集合 0 件被 v3 manifest 明确覆盖 |
-| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-21 version 05ae01e5-abcf-4ea4-85bf-07e1b6a16e5d；BUILD_SHA e208c4aab816；100% 流量；匿名私有接口拒绝、SSO、全站 Three.js/Apple 质感重塑与页面 smoke 通过 |
+| worker-www | production | worker | codepi-www | kedoupi | 首页与 Desk 摘要（100% 流量） | private-user-data(desk) | 终端用户 | codepi.app, www.codepi.app | apps/web/wrangler.toml | managed | 2026-10-21 version 038d245b-e07e-4750-81cd-41d8b73bc94f；BUILD_SHA 0403de242476；100% 流量；匿名私有接口拒绝、SSO、全站 Three.js 跨端响应式适配与页面 smoke 通过 |
 | pages-www-legacy | production | pages | codepi-www | kedoupi | 旧首页 Pages（项目已删除） | private-user-data(desk) | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
 | worker-gu | production | worker | codepi-gu | kedoupi | 投资线上工作台 GU | private-user-data | 终端用户、worker-www、worker-ops named RPC | gu.codepi.app (custom domain), codepi-gu.kedoupi.workers.dev | apps/gu/wrangler.toml、Cloudflare custom domain API | managed | 2026-10-20 version 7e2212c0-7c96-43fb-b0c9-e725fec6110f；BUILD_SHA 58bd615c317d；100% 流量，匿名拒绝、SSO 与只读 MCP 契约通过 |
 | pages-gu-legacy | production | pages | codepi-gu | kedoupi | GU 旧 Pages 项目（项目已删除） | private-user-data | 无 | - | 历史 Pages 配置 | retired | 2026-10-18 项目与 staging 域名已删除 |
