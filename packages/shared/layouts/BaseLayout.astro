@@ -1,7 +1,20 @@
 ---
 import * as siteConfig from '@site/site.config.js';
 import { defaultLocale, getLocale } from '@kedoupi/shared/i18n/config.js';
-import { CODEPI_SYMBOL_SVG, PRODUCT_BRAND } from '@kedoupi/shared/brand';
+import {
+  CODEPI_LOGO_450W_PNG,
+  CODEPI_LOGO_450W_WEBP,
+  CODEPI_LOGO_900W_PNG,
+  CODEPI_LOGO_900W_WEBP,
+  CODEPI_LOGO_HEIGHT,
+  CODEPI_LOGO_PNG,
+  CODEPI_LOGO_WEBP,
+  CODEPI_LOGO_WIDTH,
+  CODEPI_SYMBOL_HEIGHT,
+  CODEPI_SYMBOL_PNG,
+  CODEPI_SYMBOL_WIDTH,
+  PRODUCT_BRAND,
+} from '@kedoupi/shared/brand';
 import '@kedoupi/shared/styles/site.css';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
@@ -24,6 +37,8 @@ const localeInfo = getLocale(locale);
 const canonicalURL = canonical || new URL(pathname, SITE).toString();
 const fullTitle = title === siteName ? title : `${title} | ${siteName}`;
 const home = personalSite && pathname === '/';
+const logoPngSrcset = `${CODEPI_LOGO_450W_PNG} 450w, ${CODEPI_LOGO_900W_PNG} 900w, ${CODEPI_LOGO_PNG} ${CODEPI_LOGO_WIDTH}w`;
+const logoWebpSrcset = `${CODEPI_LOGO_450W_WEBP} 450w, ${CODEPI_LOGO_900W_WEBP} 900w, ${CODEPI_LOGO_WEBP} ${CODEPI_LOGO_WIDTH}w`;
 const footerLinks = personalSite
   ? [{ href: '/about/', label: '关于' }, { href: '/blog/', label: '博客' }, { href: '/privacy/', label: '隐私' }, { href: '/contact/', label: '联系' }]
   : [...extraFooterLinks, { href: '/privacy/', label: 'Privacy' }, { href: '/terms/', label: 'Terms' }, { href: '/about/', label: 'About' }, { href: '/contact/', label: 'Contact' }];
@@ -46,9 +61,11 @@ const jsonLd = {
   <meta name="description" content={description} />
   <meta name="robots" content={robots} />
   <link rel="canonical" href={canonicalURL} />
-  <link rel="icon" href="/favicon.ico" sizes="32x32" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <meta name="theme-color" content="#FAF8F4" />
   <meta property="og:title" content={title} />
   <meta property="og:description" content={description} />
   <meta property="og:url" content={canonicalURL} />
@@ -66,17 +83,21 @@ const jsonLd = {
     <div class="kdp-container kdp-header-inner">
       <a href="/" class="kdp-brand" aria-label={personalSite ? `${PRODUCT_BRAND} 首页` : siteName}>
         {personalSite
-          ? <img
-              class="kdp-logo"
-              src="/brand/codepi-logo.png"
-              srcset="/brand/codepi-logo-450w.png 450w, /brand/codepi-logo-900w.png 900w, /brand/codepi-logo.png 1800w"
-              alt="CodePi"
-              width="1800"
-              height="500"
-              sizes="(max-width: 720px) 104px, 124px"
-              decoding="async"
-            />
-          : <><span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} /><span class="kdp-wordmark">{siteName}</span></>}
+          ? <picture class="kdp-logo-frame">
+              <source type="image/webp" srcset={logoWebpSrcset} sizes="(max-width: 720px) 104px, 124px" />
+              <img
+                class="kdp-logo"
+                src={CODEPI_LOGO_PNG}
+                srcset={logoPngSrcset}
+                alt="CodePi"
+                width={CODEPI_LOGO_WIDTH}
+                height={CODEPI_LOGO_HEIGHT}
+                sizes="(max-width: 720px) 104px, 124px"
+                decoding="async"
+                fetchpriority="high"
+              />
+            </picture>
+          : <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" /><span class="kdp-wordmark">{siteName}</span></>}
       </a>
       <nav class="kdp-nav" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
         {navLinks.map((link) => (
@@ -94,18 +115,21 @@ const jsonLd = {
       <div>
         <a href="/" class="kdp-brand" aria-label={personalSite ? PRODUCT_BRAND : siteName}>
           {personalSite
-            ? <img
-                class="kdp-logo"
-              src="/brand/codepi-logo.png"
-              srcset="/brand/codepi-logo-450w.png 450w, /brand/codepi-logo-900w.png 900w, /brand/codepi-logo.png 1800w"
-                alt="CodePi"
-                width="1800"
-                height="500"
-                sizes="(max-width: 720px) 100px, 114px"
-                decoding="async"
-                loading="lazy"
-              />
-            : <><span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} /><span class="kdp-wordmark">{siteName}</span></>}
+            ? <picture class="kdp-logo-frame">
+                <source type="image/webp" srcset={logoWebpSrcset} sizes="(max-width: 720px) 100px, 114px" />
+                <img
+                  class="kdp-logo"
+                  src={CODEPI_LOGO_PNG}
+                  srcset={logoPngSrcset}
+                  alt="CodePi"
+                  width={CODEPI_LOGO_WIDTH}
+                  height={CODEPI_LOGO_HEIGHT}
+                  sizes="(max-width: 720px) 100px, 114px"
+                  decoding="async"
+                  loading="lazy"
+                />
+              </picture>
+            : <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" loading="lazy" /><span class="kdp-wordmark">{siteName}</span></>}
         </a>
         <p class="kdp-footer-note">{personalSite ? footerNote : tagline}</p>
       </div>

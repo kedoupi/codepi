@@ -90,9 +90,22 @@ body {
 
 .brand-block {
   min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: center;
+}
+
+.brand-mark {
+  grid-row: 1 / span 3;
+  width: 36px;
+  height: auto;
+  aspect-ratio: 348 / 316;
+  object-fit: contain;
 }
 
 .brand-kicker {
+  grid-column: 2;
   margin: 0 0 2px;
   font-size: 0.6875rem;
   font-weight: 700;
@@ -103,6 +116,7 @@ body {
 
 .brand,
 .wb-head h1 {
+  grid-column: 2;
   margin: 0 0 2px;
   font-family: var(--kdp-font);
   font-size: 1.25rem;
@@ -121,6 +135,10 @@ body {
   color: var(--muted);
   font-size: 0.8125rem;
   line-height: 1.45;
+}
+
+.brand-block .sub {
+  grid-column: 2;
 }
 
 .eyebrow {

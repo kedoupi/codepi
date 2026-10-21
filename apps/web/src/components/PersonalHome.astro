@@ -3,174 +3,175 @@ import { products } from '@kedoupi/shared/products';
 ---
 <script is:inline>document.documentElement.classList.add('home-motion-ready');</script>
 <div class="personal-home" data-home>
-<!-- 3D 滚动 Hero -->
-    <section class="hero" data-hero aria-labelledby="hero-title">
-      <div id="chapter-01" style="position:absolute;top:0;height:1px;pointer-events:none;"></div>
-      <div id="chapter-02" style="position:absolute;top:28%;height:1px;pointer-events:none;"></div>
-      <div id="chapter-03" style="position:absolute;top:58%;height:1px;pointer-events:none;"></div>
-      <div id="chapter-04" style="position:absolute;top:86%;height:1px;pointer-events:none;"></div>
-      <div class="hero-stage">
-        <div class="fallback-thread" aria-hidden="true"></div>
-        <canvas class="stage-canvas" data-stage-canvas aria-hidden="true"></canvas>
+  <!-- 3D 滚动 Hero -->
+  <section class="hero" data-hero aria-labelledby="hero-title">
+    <div id="chapter-01" style="position:absolute;top:0;height:1px;pointer-events:none;"></div>
+    <div id="chapter-02" style="position:absolute;top:22%;height:1px;pointer-events:none;"></div>
+    <div id="chapter-03" style="position:absolute;top:48%;height:1px;pointer-events:none;"></div>
+    <div id="chapter-04" style="position:absolute;top:74%;height:1px;pointer-events:none;"></div>
+    <div class="hero-stage">
+      <div class="fallback-thread" aria-hidden="true"></div>
+      <canvas class="stage-canvas" data-stage-canvas aria-hidden="true"></canvas>
 
-        <div class="hero-copy" data-hero-copy>
-          <span class="eyebrow">把自己的数据，交给自己的 AI</span>
-          <h1 id="hero-title">
-            <span>AI，</span>
-            <span class="nowrap">先从<em>你</em>开始。</span>
-          </h1>
-          <p>它不替你生活。它只从你已经拥有的生活里，慢慢学会靠近。</p>
-          <span class="scroll-note">向下，看光线如何凝聚</span>
-        </div>
-
-        <div class="scenes" aria-hidden="true">
-          <article class="scene active" data-scene></article>
-          <article class="scene" data-scene>
-            <div class="scene-copy">
-              <span class="scene-badge">02 / 汇聚</span>
-              <strong>凝聚你的生活上下文。</strong>
-              <p>晨起的节律、白天的专注、夜晚的记录。每一个真实的片段，都在这里汇聚成专属你的理解。</p>
-            </div>
-          </article>
-          <article class="scene" data-scene>
-            <div class="scene-copy">
-              <span class="scene-badge">03 / 授权</span>
-              <strong>你决定，它能听见什么。</strong>
-              <p>每一次靠近都经过你的允许。没有默认的窥探，只有你授予的边界与信任。</p>
-            </div>
-          </article>
-          <article class="scene last" data-scene>
-            <div class="scene-copy">
-              <span class="scene-badge">04 / 释放</span>
-              <strong>然后，把注意力还给生活。</strong>
-              <p>最强大的智能，是在你需要时及时出现，在日常中安静守候。</p>
-            </div>
-          </article>
-        </div>
-
-        <div class="count" aria-hidden="true">
-          <strong data-scene-current>01</strong>
-          <span>/ 04</span>
-        </div>
+      <div class="hero-copy" data-hero-copy>
+        <span class="eyebrow">把自己的数据，交给自己的 AI</span>
+        <h1 id="hero-title">
+          <span>AI，</span>
+          <span class="nowrap">先从<em>你</em>开始。</span>
+        </h1>
+        <p>它不替你生活。它只从你已经拥有的生活里，慢慢学会靠近。</p>
+        <span class="scroll-note">向下，看光线如何凝聚</span>
       </div>
-    </section>
 
-    <!-- 暗调哲学过渡 -->
-    <section class="dark" aria-labelledby="statement-title">
-      <div class="dark-inner" data-reveal>
-        <span class="label">安全与主权</span>
-        <h2 id="statement-title">不拥有你，<br /><em>才有资格</em>理解你。</h2>
-        <p>你的数据不是训练材料，也不是等待被算法切片的燃料。它只是你愿意交出来、并且随时可以收回的真实生活。</p>
-      </div>
-    </section>
-
-    <!-- 你的一天 Timeline -->
-    <section class="day" id="day" aria-labelledby="day-title">
-      <div class="width">
-        <div class="day-head">
-          <div data-reveal>
-            <span class="label">连续的生活</span>
-            <h2 id="day-title">生活，<br />本就是连续的。</h2>
+      <div class="scenes" aria-hidden="true">
+        <article class="scene active" data-scene></article>
+        <article class="scene" data-scene>
+          <div class="scene-copy">
+            <span class="scene-badge">02 / 汇聚</span>
+            <strong>凝聚你的生活上下文。</strong>
+            <p>晨起的节律、白天的专注、夜晚的记录。每一个真实的片段，都在这里汇聚成专属你的理解。</p>
           </div>
-          <p data-reveal style="--delay:100ms">
-            醒来、专注、沉淀。每一个片段都属于同一个你，也是明天可以继续的线索。
-          </p>
-        </div>
+        </article>
+        <article class="scene" data-scene>
+          <div class="scene-copy">
+            <span class="scene-badge">03 / 授权</span>
+            <strong>你决定，它能听见什么。</strong>
+            <p>每一次靠近都经过你的允许。没有默认的窥探，只有你授予的边界与信任。</p>
+          </div>
+        </article>
+        <article class="scene last" data-scene>
+          <div class="scene-copy">
+            <span class="scene-badge">04 / 释放</span>
+            <strong>然后，把注意力还给生活。</strong>
+            <p>最强大的智能，是在你需要时及时出现，在日常中安静守候。</p>
+          </div>
+        </article>
+      </div>
 
-        <div class="timeline" data-reveal style="--delay:160ms">
-          <article class="moment">
-            <span class="moment-time">07:00</span>
-            <strong>晨起</strong>
-            <p>从身体的节律开始，知道今天的自己在哪里。</p>
-          </article>
-          <article class="moment">
-            <span class="moment-time">14:00</span>
-            <strong>专注</strong>
-            <p>把手头正在推进的事，放回更长期的思考里。</p>
-          </article>
-          <article class="moment">
-            <span class="moment-time">23:00</span>
-            <strong>沉淀</strong>
-            <p>让今天的记录与想法，成为明天可以轻松接续的起点。</p>
-          </article>
-        </div>
+      <div class="count" aria-hidden="true">
+        <strong data-scene-current>01</strong>
+        <span>/ 04</span>
+      </div>
+    </div>
+  </section>
 
-        <p class="quote" data-reveal style="--delay:220ms">
-          不是把生活交给 AI，<br />
-          <em>是让 AI 学会回到生活。</em>
+  <!-- 暗调哲学过渡 -->
+  <section class="dark" aria-labelledby="statement-title">
+    <div class="dark-inner" data-reveal>
+      <span class="label">安全与主权</span>
+      <h2 id="statement-title">不拥有你，<br /><em>才有资格</em>理解你。</h2>
+      <p>你的数据不是训练材料，也不是等待被算法切片的燃料。它只是你愿意交出来、并且随时可以收回的真实生活。</p>
+    </div>
+  </section>
+
+  <!-- 你的一天 Timeline -->
+  <section class="day" id="day" aria-labelledby="day-title">
+    <div class="width">
+      <div class="day-head">
+        <div data-reveal>
+          <span class="label">连续的生活</span>
+          <h2 id="day-title">生活，<br />本就是连续的。</h2>
+        </div>
+        <p data-reveal style="--delay:100ms">
+          醒来、专注、沉淀。每一个片段都属于同一个你，也是明天可以继续的线索。
         </p>
       </div>
-    </section>
 
-    <!-- 空间列表（当前起点，向未知生长） -->
-    <section class="spaces" id="spaces" aria-labelledby="spaces-title">
-      <div class="width">
-        <div class="spaces-head">
-          <div data-reveal>
-            <span class="label">现在的起点</span>
-            <h2 id="spaces-title">从现在开始，<br />向未知生长。</h2>
-          </div>
-          <p data-reveal style="--delay:100ms">
-            健康、投资、思考、创作——当前的空间只是一个起点。未来你可以加入更多生活维度，它不会预设上限。
-          </p>
-        </div>
-
-        <div class="space-list" data-reveal style="--delay:160ms">
-          {products.map((product, index) => (
-            <a href={`/apps/#${product.id}`}>
-              <span class="index">{String(index + 1).padStart(2, '0')}</span>
-              <strong class="space-name">{product.shortName}</strong>
-              <span class="space-description">{product.description}</span>
-              <span class="arrow" aria-hidden="true">↗</span>
-            </a>
-          ))}
-        </div>
+      <div class="timeline" data-reveal style="--delay:160ms">
+        <article class="moment">
+          <span class="moment-time">07:00</span>
+          <strong>晨起</strong>
+          <p>从身体的节律开始，知道今天的自己在哪里。</p>
+        </article>
+        <article class="moment">
+          <span class="moment-time">14:00</span>
+          <strong>专注</strong>
+          <p>把手头正在推进的事，放回更长期的思考里。</p>
+        </article>
+        <article class="moment">
+          <span class="moment-time">23:00</span>
+          <strong>沉淀</strong>
+          <p>让今天的记录与想法，成为明天可以轻松接续的起点。</p>
+        </article>
       </div>
-    </section>
 
-    <!-- 交互权限控制区 -->
-    <section class="orange" aria-labelledby="permission-title">
-      <div class="orange-inner" data-reveal>
-        <span class="label">主权归你</span>
-        <h2 id="permission-title">靠近，<br />由你决定。</h2>
-        <p>点击中央圆环，模拟一次授权与收回。AI 可以离你很近，但决定权必须始终握在你手里。</p>
-        <button class="permission-control" type="button" data-permission-toggle aria-pressed="true" aria-label="收回或允许 AI 靠近">
-          <span class="permission-core" aria-hidden="true"></span>
-        </button>
-        <p class="status" role="status" aria-live="polite">
-          <span data-permission-status>正在允许 AI 靠近</span>
+      <p class="quote" data-reveal style="--delay:220ms">
+        不是把生活交给 AI，<br />
+        <em>是让 AI 学会回到生活。</em>
+      </p>
+    </div>
+  </section>
+
+  <!-- 空间列表（当前起点，向未知生长） -->
+  <section class="spaces" id="spaces" aria-labelledby="spaces-title">
+    <div class="width">
+      <div class="spaces-head">
+        <div data-reveal>
+          <span class="label">现在的起点</span>
+          <h2 id="spaces-title">从现在开始，<br />向未知生长。</h2>
+        </div>
+        <p data-reveal style="--delay:100ms">
+          健康、投资、思考、创作——当前的空间只是一个起点。未来你可以加入更多生活维度，它不会预设上限。
         </p>
       </div>
-    </section>
 
-    <!-- 结尾 Epilogue -->
-    <section class="future" aria-labelledby="future-title">
-      <div class="width">
-        <div class="future-head">
-          <div data-reveal>
-            <span class="label">属于你的私域智能</span>
-            <h2 id="future-title">把自己的数据，<br />交给<em>自己的 AI</em>。</h2>
-          </div>
-          <p data-reveal style="--delay:100ms">
-            让它越来越懂你，也始终把你放在中心。开启属于你的数字化个人世界。
-          </p>
-        </div>
-
-        <div class="future-rule" data-reveal style="--delay:160ms">
-          你的世界越完整，<em>AI 越应该保持克制。</em>
-        </div>
-
-        <p class="future-note" data-reveal style="--delay:220ms">
-          把自己的数据交给自己的 AI，让它更懂你，但不拥有你。
-        </p>
-
-        <div class="actions" data-reveal style="--delay:280ms">
-          <a class="primary" href="/apps/">看看现在的空间</a>
-          <a class="secondary" href="/about/">了解空间理念</a>
-        </div>
+      <div class="space-list" data-reveal style="--delay:160ms">
+        {products.map((product, index) => (
+          <a href={`/apps/#${product.id}`}>
+            <span class="index">{String(index + 1).padStart(2, '0')}</span>
+            <strong class="space-name">{product.shortName}</strong>
+            <span class="space-description">{product.description}</span>
+            <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        ))}
       </div>
-    </section>
-<script>
+    </div>
+  </section>
+
+  <!-- 交互权限控制区 -->
+  <section class="orange" aria-labelledby="permission-title">
+    <div class="orange-inner" data-reveal>
+      <span class="label">主权归你</span>
+      <h2 id="permission-title">靠近，<br />由你决定。</h2>
+      <p>点击中央圆环，模拟一次授权与收回。AI 可以离你很近，但决定权必须始终握在你手里。</p>
+      <button class="permission-control" type="button" data-permission-toggle aria-pressed="true" aria-label="收回或允许 AI 靠近">
+        <span class="permission-core" aria-hidden="true"></span>
+      </button>
+      <p class="status" role="status" aria-live="polite">
+        <span data-permission-status>正在允许 AI 靠近</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- 结尾 Epilogue -->
+  <section class="future" aria-labelledby="future-title">
+    <div class="width">
+      <div class="future-head">
+        <div data-reveal>
+          <span class="label">属于你的私域智能</span>
+          <h2 id="future-title">把自己的数据，<br />交给<em>自己的 AI</em>。</h2>
+        </div>
+        <p data-reveal style="--delay:100ms">
+          让它越来越懂你，也始终把你放在中心。开启属于你的数字化个人世界。
+        </p>
+      </div>
+
+      <div class="future-rule" data-reveal style="--delay:160ms">
+        你的世界越完整，<em>AI 越应该保持克制。</em>
+      </div>
+
+      <p class="future-note" data-reveal style="--delay:220ms">
+        把自己的数据交给自己的 AI，让它更懂你，但不拥有你。
+      </p>
+
+      <div class="actions" data-reveal style="--delay:280ms">
+        <a class="primary" href="/apps/">看看现在的空间</a>
+        <a class="secondary" href="/about/">了解空间理念</a>
+      </div>
+    </div>
+  </section>
+
+  <script>
     const root = document.documentElement;
     const hero = document.querySelector('[data-hero]');
     const heroCopy = document.querySelector('[data-hero-copy]');
@@ -195,21 +196,29 @@ import { products } from '@kedoupi/shared/products';
         const rect = hero.getBoundingClientRect();
         progress = scrollable > 0 ? clamp(-rect.top / scrollable, 0, 1) : 0;
 
-        // 章节激活
-        const active = Math.min(scenes.length - 1, Math.floor(progress * scenes.length));
-        scenes.forEach((s, i) => s.classList.toggle('active', i === active));
-        if (sceneCurrent) sceneCurrent.textContent = String(active + 1).padStart(2, '0');
+        // 章节精准激活，消除重叠 ghosting
+        let activeIndex = 0;
+        if (progress < 0.20) activeIndex = 0;
+        else if (progress < 0.46) activeIndex = 1;
+        else if (progress < 0.72) activeIndex = 2;
+        else activeIndex = 3;
+
+        scenes.forEach((s, i) => s.classList.toggle('active', i === activeIndex));
+        if (sceneCurrent) sceneCurrent.textContent = String(activeIndex + 1).padStart(2, '0');
 
         // 顶栏背景模糊
         header?.classList.toggle('is-scrolled', rect.top < -20);
 
-        // 首屏文字淡出
+        // 首屏文字淡出（顺滑无残留）
         if (heroCopy instanceof HTMLElement) {
-          const heroFade = clamp(1 - progress * 4.2, 0, 1);
+          const heroFade = clamp(1 - (progress - 0.02) / 0.18, 0, 1);
           heroCopy.style.opacity = String(heroFade);
-          const heroOffset = innerWidth <= 767 ? '0px' : '-50%';
-          heroCopy.style.transform = `translateY(${heroOffset}) translateY(-${(1 - heroFade) * 36}px)`;
-          heroCopy.style.pointerEvents = heroFade < 0.1 ? 'none' : 'auto';
+          const isStackedLayout = (innerWidth < 960 || window.innerHeight > window.innerWidth)
+            && !(window.innerHeight < 520 && window.innerWidth > window.innerHeight);
+          const heroOffset = isStackedLayout ? '0px' : '-50%';
+          heroCopy.style.transform = `translateY(${heroOffset}) translateY(-${(1 - heroFade) * 28}px)`;
+          heroCopy.style.pointerEvents = heroFade < 0.05 ? 'none' : 'auto';
+          heroCopy.style.visibility = heroFade <= 0.01 ? 'hidden' : 'visible';
         }
       }
       frame = 0;
@@ -249,7 +258,7 @@ import { products } from '@kedoupi/shared/products';
       }
     });
 
-    // Three.js 动态光线核心
+    // Three.js 动态光线核心（多设备智能自适应架构）
     const startThree = async () => {
       const canvas = document.querySelector('[data-stage-canvas]');
       if (!(canvas instanceof HTMLCanvasElement) || reduceMotion.matches) return;
@@ -258,22 +267,29 @@ import { products } from '@kedoupi/shared/products';
         const THREE = await import('three');
         const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
 
-        const mobile = matchMedia('(max-width:767px)').matches;
+        let width = canvas.clientWidth || innerWidth;
+        let height = canvas.clientHeight || innerHeight;
+        let aspect = width / Math.max(height, 1);
+        let isCompactLandscape = height < 520 && width > height;
+        let isStacked = (width < 960 || height > width) && !isCompactLandscape;
+        const TAN17 = Math.tan(17 * Math.PI / 180);
+
         const renderer = new THREE.WebGLRenderer({
           canvas,
           alpha: true,
-          antialias: !mobile,
+          antialias: true,
           powerPreference: 'high-performance'
         });
         renderer.setClearAlpha(0);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, mobile ? 1.2 : 1.55));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isStacked ? 1.6 : 2.0));
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.15;
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 40);
-        camera.position.z = 7.5;
+        const baseCamZ = isStacked ? (aspect < 0.65 ? 7.2 : 7.6) : (aspect < 1.3 ? 7.8 : 7.5);
+        const camera = new THREE.PerspectiveCamera(34, aspect, 0.1, 40);
+        camera.position.z = baseCamZ;
 
         const pmrem = new THREE.PMREMGenerator(renderer);
         scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -290,7 +306,7 @@ import { products } from '@kedoupi/shared/products';
         const world = new THREE.Group();
         scene.add(world);
 
-        // 柔和光晕
+        // 柔和光晕（随布局智能重置在主体 3D 之后）
         const glow = new THREE.Mesh(
           new THREE.PlaneGeometry(8.8, 8.8),
           new THREE.ShaderMaterial({
@@ -328,56 +344,94 @@ import { products } from '@kedoupi/shared/products';
             `
           })
         );
-        glow.position.set(0.35, 0.08, -1.8);
+        glow.position.set(isStacked ? 0.0 : (isCompactLandscape ? -0.72 : -0.45), isStacked ? 0.38 : 0.10, -1.8);
         world.add(glow);
 
-        // 4 个戏剧性关键帧形态 (Keyframe Control Points)
-        // Stage 0: 舒展流动波浪
-        // Stage 1: 强烈向中心聚拢成环形扭结 (Helical Coalesce)
-        // Stage 2: 空间三维景深绽放 (Spatial 3D Bloom)
-        // Stage 3: 平缓地退向远方地平线 (Calm Horizon Release)
-        const KEYFRAMES = [
-          // Stage 0: 流动波浪
+        // 桌面与平板横屏形态 (双列布局：左侧 3D 光线，右侧文字，各阶段精确安全净空)
+        // u in [-1.65, 1.65] (0 = 屏幕中心, -1.0 = 屏幕左边缘, +1.0 = 屏幕右边缘)
+        // v in [-1.0, 1.0] (0 = center, +1.0 = top, -1.0 = bottom)
+        const DESKTOP_UVZ = [
+          // Stage 0: 舒展流动波浪（在左侧低空掠过避开标题与向下提示，右侧昂扬绽放）
           [
-            [[-5.2,0.4,0.2],[-3.2,-0.2,0.1],[-1.2,0.45,0.3],[0.3,-0.38,0.0],[1.8,0.3,-0.2],[3.4,-0.2,0.1],[5.2,0.45,0.3]],
-            [[-5.0,0.0,-0.1],[-3.0,-0.35,-0.1],[-1.0,0.1,0.0],[0.5,-0.5,-0.1],[2.0,0.0,-0.3],[3.6,-0.35,-0.1],[5.0,0.2,0.0]],
-            [[-5.0,-0.3,-0.3],[-2.8,0.2,-0.2],[-0.8,-0.25,-0.2],[0.8,0.3,-0.3],[2.4,-0.15,-0.4],[3.8,0.15,-0.3],[5.0,-0.2,-0.2]]
+            [[-1.65, -0.72, 0.0], [-1.15, -0.73, 0.1], [-0.65, -0.71, 0.2], [-0.15, -0.62, 0.3], [0.35, -0.14, 0.2], [0.80, 0.26, 0.0], [1.25, 0.34, -0.2], [1.65, 0.20, -0.3]],
+            [[-1.65, -0.78, -0.2], [-1.12, -0.79, -0.1], [-0.62, -0.77, 0.0], [-0.12, -0.68, 0.1], [0.38, -0.22, -0.1], [0.82, 0.16, -0.3], [1.26, 0.22, -0.4], [1.65, 0.08, -0.5]],
+            [[-1.65, -0.84, -0.4], [-1.10, -0.85, -0.2], [-0.60, -0.83, -0.1], [-0.10, -0.74, -0.1], [0.40, -0.30, -0.3], [0.85, 0.04, -0.5], [1.28, 0.08, -0.6], [1.65, -0.04, -0.6]]
           ],
-          // Stage 1: 扭结聚拢
+          // Stage 1: 02 / 汇聚（扭结紧密收敛于左半球 u <= -0.15，右侧尾线直接下潜至底端 v <= -0.82 出屏）
           [
-            [[-3.2,1.2,-0.5],[-1.6,-0.8,0.4],[-0.4,1.1,1.5],[0.6,-0.9,1.3],[1.5,0.8,0.2],[2.6,-1.0,-0.4],[3.6,0.9,-0.8]],
-            [[-3.0,-1.0,-0.4],[-1.5,0.9,0.1],[-0.2,-0.8,0.8],[0.7,0.9,0.7],[1.6,-0.7,0.0],[2.8,0.8,-0.5],[3.5,-0.7,-0.7]],
-            [[-3.4,0.0,0.2],[-2.0,-1.4,0.0],[0.0,-1.6,0.5],[2.0,-1.2,0.0],[3.2,0.2,-0.3],[1.8,1.5,-0.1],[-1.8,1.4,0.1]]
+            [[-1.65, -0.42, -0.4], [-0.95, 0.48, 0.2], [-0.55, -0.38, 0.9], [-0.22, 0.42, 0.6], [-0.48, -0.35, 0.1], [-0.78, 0.25, -0.5], [0.15, -0.82, -1.0], [1.65, -0.85, -1.4]],
+            [[-1.65, -0.48, -0.5], [-0.90, -0.42, 0.1], [-0.50, 0.44, 0.6], [-0.18, -0.38, 0.5], [-0.42, 0.30, 0.0], [-0.75, -0.32, -0.6], [0.18, -0.85, -1.1], [1.65, -0.88, -1.5]],
+            [[-1.65, -0.54, -0.6], [-0.98, 0.05, 0.0], [-0.60, -0.46, 0.4], [-0.25, -0.12, 0.3], [-0.40, 0.42, -0.1], [-0.80, 0.06, -0.7], [0.22, -0.88, -1.2], [1.65, -0.92, -1.6]]
           ],
-          // Stage 2: 空间纵深绽放
+          // Stage 2: 03 / 授权（在左半球空间景深绽放，深度 z 到达 1.2，右侧尾线下潜底端完全不遮挡文字）
           [
-            [[-4.8,0.2,-1.0],[-2.6,1.5,0.2],[-0.6,1.8,0.9],[1.2,1.3,0.6],[2.8,0.4,-0.2],[4.0,-0.8,-1.0],[5.0,-1.4,-1.8]],
-            [[-4.5,-0.4,-0.5],[-2.4,-1.4,-1.2],[-0.5,-1.7,-2.0],[1.4,-1.2,-2.2],[3.0,-0.2,-1.6],[4.2,0.8,-1.0],[5.0,1.2,-0.6]],
-            [[-5.2,-0.1,-0.6],[-3.0,0.15,-0.4],[-1.0,-0.1,-0.3],[1.0,0.12,-0.3],[2.8,-0.08,-0.4],[4.2,0.1,-0.5],[5.2,-0.05,-0.6]]
+            [[-1.65, -0.28, -0.6], [-0.95, 0.54, 0.5], [-0.58, 0.62, 1.2], [-0.22, 0.36, 0.7], [-0.45, -0.25, -0.3], [-0.12, -0.72, -0.9], [0.35, -0.84, -1.3], [1.65, -0.88, -1.6]],
+            [[-1.65, -0.38, -0.5], [-0.88, -0.48, -0.7], [-0.52, -0.56, -1.4], [-0.18, -0.42, -1.5], [-0.40, 0.20, -1.0], [-0.10, -0.76, -1.1], [0.38, -0.88, -1.5], [1.65, -0.92, -1.7]],
+            [[-1.65, -0.32, -0.6], [-0.92, 0.05, -0.3], [-0.55, 0.08, -0.2], [-0.20, 0.04, -0.3], [-0.38, -0.10, -0.4], [-0.08, -0.80, -1.0], [0.40, -0.90, -1.4], [1.65, -0.94, -1.8]]
           ],
-          // Stage 3: 静谧地平线
+          // Stage 3: 04 / 释放（静谧地平线，退向远方深处，在视野低空平缓伸展）
           [
-            [[-5.5,-0.4,-2.2],[-3.2,-0.48,-2.3],[-1.0,-0.42,-2.4],[1.0,-0.46,-2.4],[3.0,-0.43,-2.3],[4.5,-0.47,-2.2],[5.5,-0.44,-2.2]],
-            [[-5.2,-0.6,-2.6],[-3.0,-0.65,-2.7],[-0.8,-0.58,-2.8],[1.2,-0.62,-2.8],[3.2,-0.59,-2.7],[4.6,-0.63,-2.6],[5.2,-0.6,-2.6]],
-            [[-5.0,-0.75,-2.9],[-2.8,-0.78,-3.0],[-0.5,-0.72,-3.1],[1.5,-0.76,-3.1],[3.5,-0.73,-3.0],[4.8,-0.77,-2.9],[5.0,-0.75,-2.9]]
+            [[-1.65, -0.68, -2.2], [-1.05, -0.69, -2.3], [-0.45, -0.67, -2.4], [0.15, -0.70, -2.4], [0.75, -0.68, -2.3], [1.20, -0.69, -2.2], [1.65, -0.68, -2.2], [1.85, -0.68, -2.2]],
+            [[-1.65, -0.74, -2.5], [-1.02, -0.76, -2.6], [-0.42, -0.73, -2.7], [0.18, -0.76, -2.7], [0.78, -0.74, -2.6], [1.22, -0.75, -2.5], [1.65, -0.74, -2.5], [1.85, -0.74, -2.5]],
+            [[-1.65, -0.80, -2.8], [-1.00, -0.82, -2.9], [-0.40, -0.79, -3.0], [0.20, -0.82, -3.0], [0.80, -0.80, -2.9], [1.25, -0.81, -2.8], [1.65, -0.80, -2.8], [1.85, -0.80, -2.8]]
           ]
         ];
 
-        function getInterpolatedPoints(ribbonIdx, progressVal) {
+        // 移动端与平板竖屏单列布局形态 (上半部 3D 艺术形态，下半部卡片绝对净空)
+        const MOBILE_UVZ = [
+          // Stage 0: 纵向流动波浪（斜穿手机中下部 v in [-0.60, -0.30]，托起顶部大标题）
+          [
+            [[-1.60, -0.58, 0.0], [-1.10, -0.48, 0.1], [-0.60, -0.38, 0.2], [-0.15, -0.32, 0.3], [0.25, -0.38, 0.2], [0.70, -0.46, 0.0], [1.15, -0.36, -0.2], [1.60, -0.30, -0.3]],
+            [[-1.60, -0.65, -0.2], [-1.08, -0.55, -0.1], [-0.58, -0.45, 0.0], [-0.12, -0.40, 0.1], [0.28, -0.46, -0.1], [0.72, -0.54, -0.2], [1.18, -0.44, -0.3], [1.60, -0.38, -0.4]],
+            [[-1.60, -0.72, -0.4], [-1.05, -0.62, -0.2], [-0.55, -0.52, -0.1], [-0.10, -0.48, -0.1], [0.30, -0.54, -0.2], [0.75, -0.62, -0.4], [1.20, -0.52, -0.5], [1.60, -0.46, -0.5]]
+          ],
+          // Stage 1: 紧凑光环扭结在屏幕上半部（v in [0.20, 0.70]，下半部为卡片留足绝对净空）
+          [
+            [[-1.60, 0.24, -0.4], [-0.95, 0.44, 0.0], [-0.55, 0.66, 0.3], [-0.15, 0.34, 0.9], [0.18, 0.68, 0.7], [0.55, 0.38, 0.1], [0.95, 0.50, -0.3], [1.60, 0.26, -0.6]],
+            [[-1.60, 0.18, -0.5], [-0.90, 0.38, -0.1], [-0.50, 0.60, 0.2], [-0.12, 0.28, 0.6], [0.22, 0.60, 0.5], [0.52, 0.30, 0.0], [0.92, 0.42, -0.4], [1.60, 0.20, -0.7]],
+            [[-1.60, 0.12, -0.6], [-0.85, 0.32, -0.2], [-0.45, 0.54, 0.1], [-0.10, 0.22, 0.4], [0.25, 0.52, 0.3], [0.50, 0.24, -0.1], [0.90, 0.36, -0.5], [1.60, 0.14, -0.8]]
+          ],
+          // Stage 2: 空间纵深绽放（在屏幕上半部景深内绽放，v in [0.18, 0.74]）
+          [
+            [[-1.60, 0.24, -0.6], [-0.95, 0.50, 0.0], [-0.50, 0.70, 0.5], [-0.10, 0.74, 1.2], [0.25, 0.60, 0.8], [0.60, 0.34, -0.2], [0.95, 0.48, -0.7], [1.60, 0.22, -1.2]],
+            [[-1.60, 0.18, -0.5], [-0.90, 0.44, -0.2], [-0.45, 0.62, 0.3], [-0.08, 0.66, 0.9], [0.28, 0.52, 0.5], [0.58, 0.27, -0.4], [0.92, 0.40, -0.8], [1.60, 0.16, -1.3]],
+            [[-1.60, 0.12, -0.6], [-0.85, 0.38, -0.3], [-0.40, 0.54, 0.1], [-0.05, 0.58, 0.6], [0.30, 0.44, 0.3], [0.55, 0.20, -0.5], [0.90, 0.32, -0.9], [1.60, 0.10, -1.4]]
+          ],
+          // Stage 3: 平缓地平线（悬停在底部卡片上方，v in [0.10, 0.23]）
+          [
+            [[-1.60, 0.20, -2.2], [-1.10, 0.22, -2.3], [-0.60, 0.21, -2.4], [-0.15, 0.23, -2.4], [0.25, 0.20, -2.3], [0.70, 0.22, -2.3], [1.15, 0.21, -2.2], [1.60, 0.20, -2.2]],
+            [[-1.60, 0.15, -2.5], [-1.10, 0.17, -2.6], [-0.60, 0.16, -2.7], [-0.15, 0.18, -2.7], [0.25, 0.15, -2.6], [0.70, 0.17, -2.6], [1.15, 0.16, -2.5], [1.60, 0.15, -2.5]],
+            [[-1.60, 0.10, -2.8], [-1.10, 0.12, -2.9], [-0.60, 0.11, -3.0], [-0.15, 0.13, -3.0], [0.25, 0.10, -2.9], [0.70, 0.12, -2.9], [1.15, 0.11, -2.8], [1.60, 0.10, -2.8]]
+          ]
+        ];
+
+        function getInterpolatedPoints(ribbonIdx, progressVal, isStackedMode) {
           const p = clamp(progressVal, 0, 1);
-          const segment = p * (KEYFRAMES.length - 1);
-          const idx = Math.min(Math.floor(segment), KEYFRAMES.length - 2);
+          const numStages = 4;
+          const segment = p * (numStages - 1);
+          const idx = Math.min(Math.floor(segment), numStages - 2);
           const rawT = segment - idx;
           const t = rawT * rawT * (3 - 2 * rawT);
-          const from = KEYFRAMES[idx][ribbonIdx];
-          const to = KEYFRAMES[idx + 1][ribbonIdx];
+
+          const keyframes = isStackedMode ? MOBILE_UVZ : DESKTOP_UVZ;
+          const from = keyframes[idx][ribbonIdx];
+          const to = keyframes[idx + 1][ribbonIdx];
+
+          const camZ = isStackedMode ? (aspect < 0.65 ? 7.2 : 7.6) : (aspect < 1.3 ? 7.8 : 7.5);
+
           return from.map((ptA, i) => {
             const ptB = to[i];
-            return new THREE.Vector3(
-              ptA[0] + (ptB[0] - ptA[0]) * t,
-              ptA[1] + (ptB[1] - ptA[1]) * t,
-              ptA[2] + (ptB[2] - ptA[2]) * t
-            );
+
+            const uScale = !isStackedMode && isCompactLandscape ? 0.65 : 1;
+            const u = (ptA[0] + (ptB[0] - ptA[0]) * t) * uScale;
+            const v = ptA[1] + (ptB[1] - ptA[1]) * t;
+            const z = ptA[2] + (ptB[2] - ptA[2]) * t;
+
+            // 动态视锥映射：两端无论超宽屏还是窄屏设备，都无损贯穿画面边缘
+            const dist = camZ - z;
+            const halfH = dist * TAN17;
+            const halfW = halfH * aspect;
+            return new THREE.Vector3(u * halfW, v * halfH, z);
           });
         }
 
@@ -391,10 +445,11 @@ import { products } from '@kedoupi/shared/products';
         const pulses = [];
 
         specs.forEach((spec, index) => {
-          const initialPoints = getInterpolatedPoints(index, 0);
+          const initialPoints = getInterpolatedPoints(index, 0, isStacked);
           const curve = new THREE.CatmullRomCurve3(initialPoints, false, 'centripetal', 0.5);
-          const segments = mobile ? 72 : 120;
-          const tubeGeometry = new THREE.TubeGeometry(curve, segments, spec.r, 10, false);
+          const segments = isStacked ? 80 : 128;
+          const dynamicR = spec.r * (isStacked ? 0.88 : 1.0);
+          const tubeGeometry = new THREE.TubeGeometry(curve, segments, dynamicR, 10, false);
 
           const material = new THREE.MeshPhysicalMaterial({
             color: spec.c,
@@ -417,34 +472,29 @@ import { products } from '@kedoupi/shared/products';
           // 白色高光核心细丝
           const highlightMaterial = new THREE.MeshPhysicalMaterial({
             color: colors.paper,
-            roughness: 0.08,
-            metalness: 0.05,
-            clearcoat: 0.9,
-            clearcoatRoughness: 0.04,
+            roughness: 0.05,
+            metalness: 0.1,
+            clearcoat: 1.0,
             emissive: colors.paper,
-            emissiveIntensity: 0.6,
+            emissiveIntensity: 0.85,
             transparent: true,
             opacity: spec.highlight,
             depthWrite: false
           });
-          const highlightGeometry = new THREE.TubeGeometry(curve, segments, spec.r * 0.36, 8, false);
+          const highlightGeometry = new THREE.TubeGeometry(curve, segments, dynamicR * 0.36, 8, false);
           const highlight = new THREE.Mesh(highlightGeometry, highlightMaterial);
 
           world.add(mesh, highlight);
           ribbons.push({ mesh, highlight, curve, material, highlightMaterial, spec, segments, index });
 
-          // 移动脉冲光点
+          // 移动脉冲光点（Apple 级灵动光子，AdditiveBlending 无硬质乒乓球感）
           const pulse = new THREE.Mesh(
-            new THREE.SphereGeometry(index ? 0.05 : 0.095, 16, 12),
-            new THREE.MeshPhysicalMaterial({
-              color: colors.paper,
-              roughness: 0.1,
-              metalness: 0.1,
-              clearcoat: 1,
-              emissive: colors.orange,
-              emissiveIntensity: index ? 0.6 : 1.3,
+            new THREE.SphereGeometry(index === 0 ? 0.042 : 0.026, 16, 12),
+            new THREE.MeshBasicMaterial({
+              color: index === 0 ? colors.orange : colors.ink,
               transparent: true,
-              opacity: 0.95
+              opacity: index === 0 ? 0.95 : 0.35,
+              depthWrite: false
             })
           );
           world.add(pulse);
@@ -452,12 +502,12 @@ import { products } from '@kedoupi/shared/products';
         });
 
         // 粒子尘埃
-        const dustCount = mobile ? 90 : 200;
+        const dustCount = isStacked ? 100 : 220;
         const positions = new Float32Array(dustCount * 3);
         for (let i = 0; i < dustCount; i++) {
-          positions[i * 3] = Math.sin(i * 2.41) * 5.2;
-          positions[i * 3 + 1] = Math.cos(i * 1.73) * 2.8;
-          positions[i * 3 + 2] = Math.sin(i * 0.91) * 2.0 - 0.7;
+          positions[i * 3] = Math.sin(i * 2.41) * (isStacked ? 2.6 : 5.2);
+          positions[i * 3 + 1] = Math.cos(i * 1.73) * (isStacked ? 3.4 : 2.8);
+          positions[i * 3 + 2] = Math.sin(i * 0.91) * 2.2 - 0.7;
         }
         const dustGeometry = new THREE.BufferGeometry();
         dustGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -465,34 +515,29 @@ import { products } from '@kedoupi/shared/products';
           dustGeometry,
           new THREE.PointsMaterial({
             color: colors.orange,
-            size: mobile ? 0.012 : 0.016,
+            size: isStacked ? 0.015 : 0.016,
             transparent: true,
             opacity: 0.24,
             depthWrite: false,
-            sizeAttenuation: true,
             blending: THREE.AdditiveBlending
           })
         );
-        scene.add(dust);
+        world.add(dust);
 
-        // 电影级多光源设置
-        const key = new THREE.DirectionalLight(colors.paper, 4.8);
-        key.position.set(3.8, 4.8, 6.2);
+        // 柔和主灯
+        const key = new THREE.DirectionalLight(0xffffff, 2.8);
+        key.position.set(4, 5, 6);
         scene.add(key);
 
-        const rim = new THREE.DirectionalLight(colors.orange, 2.6);
-        rim.position.set(-4.2, 1.2, -2.2);
-        scene.add(rim);
-
-        const warm = new THREE.PointLight(colors.orange, 5.8, 14, 2);
-        warm.position.set(0, 0.5, 2.4);
-        scene.add(warm);
-
-        const fill = new THREE.PointLight(colors.paper, 2.6, 12, 2);
-        fill.position.set(-2, 2, 1);
+        const fill = new THREE.DirectionalLight(colors.orange, 1.6);
+        fill.position.set(-4, -2, -2);
         scene.add(fill);
 
-        // 指针互动
+        const rim = new THREE.DirectionalLight(0xffffff, 2.2);
+        rim.position.set(0, -5, 3);
+        scene.add(rim);
+
+        // 视差跟踪
         const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
         const onPointerMove = e => {
           pointer.tx = e.clientX / innerWidth - 0.5;
@@ -500,23 +545,43 @@ import { products } from '@kedoupi/shared/products';
         };
         addEventListener('pointermove', onPointerMove, { passive: true });
 
-        const resize = () => {
-          const w = canvas.clientWidth;
-          const h = canvas.clientHeight;
-          renderer.setSize(w, h, false);
-          camera.aspect = w / Math.max(h, 1);
-          camera.updateProjectionMatrix();
-        };
-        const resizeObserver = new ResizeObserver(resize);
-        resizeObserver.observe(canvas);
-        resize();
-
         let previous = performance.now();
         let started = previous;
         let animation = 0;
         let smoothProgress = 0;
         let smoothPermission = 1;
         let lastBuiltProgress = -1;
+        let lastBuiltStacked = isStacked;
+
+        const resize = () => {
+          width = canvas.clientWidth || innerWidth;
+          height = canvas.clientHeight || innerHeight;
+          if (!width || !height) return;
+
+          aspect = width / height;
+          isCompactLandscape = height < 520 && width > height;
+          const newIsStacked = (width < 960 || height > width) && !isCompactLandscape;
+          const layoutChanged = newIsStacked !== isStacked;
+          isStacked = newIsStacked;
+
+          renderer.setSize(width, height, false);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isStacked ? 1.6 : 2.0));
+
+          camera.aspect = aspect;
+          const baseZ = isStacked ? (aspect < 0.65 ? 7.2 : 7.6) : (aspect < 1.3 ? 7.8 : 7.5);
+          camera.position.z = baseZ;
+          camera.updateProjectionMatrix();
+
+          glow.position.set(isStacked ? 0.0 : (isCompactLandscape ? -0.72 : -0.45), isStacked ? 0.38 : 0.10, -1.8);
+
+          if (layoutChanged) {
+            lastBuiltProgress = -1;
+          }
+        };
+        const resizeObserver = new ResizeObserver(resize);
+        resizeObserver.observe(canvas);
+        window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+        resize();
 
         const render = now => {
           animation = requestAnimationFrame(render);
@@ -533,39 +598,46 @@ import { products } from '@kedoupi/shared/products';
           pointer.x += (pointer.tx - pointer.x) * (1 - Math.pow(0.002, delta));
           pointer.y += (pointer.ty - pointer.y) * (1 - Math.pow(0.002, delta));
 
-          // 核心形态动态重构 (Morphing Geometry Update)
-          if (Math.abs(smoothProgress - lastBuiltProgress) > 0.0035) {
+          // 智能微动视差（触屏设备与无指针交互时保持呼吸生机感）
+          const ambientDriftX = Math.sin(elapsed * 0.42) * 0.08;
+          const ambientDriftY = Math.cos(elapsed * 0.35) * 0.05;
+          const interactiveX = pointer.x + ambientDriftX;
+          const interactiveY = pointer.y + ambientDriftY;
+
+          // 核心形态动态重构 (当滚动进度变化或布局模式切换时)
+          if (Math.abs(smoothProgress - lastBuiltProgress) > 0.003 || lastBuiltStacked !== isStacked) {
             ribbons.forEach(({ mesh, highlight, curve, spec, segments, index }) => {
-              const updatedPoints = getInterpolatedPoints(index, smoothProgress);
+              const updatedPoints = getInterpolatedPoints(index, smoothProgress, isStacked);
               curve.points = updatedPoints;
 
+              const dynamicR = spec.r * (isStacked ? 0.88 : 1.0);
               mesh.geometry.dispose();
-              mesh.geometry = new THREE.TubeGeometry(curve, segments, spec.r, 10, false);
+              mesh.geometry = new THREE.TubeGeometry(curve, segments, dynamicR, 10, false);
 
               highlight.geometry.dispose();
-              highlight.geometry = new THREE.TubeGeometry(curve, segments, spec.r * 0.36, 8, false);
+              highlight.geometry = new THREE.TubeGeometry(curve, segments, dynamicR * 0.36, 8, false);
             });
             lastBuiltProgress = smoothProgress;
+            lastBuiltStacked = isStacked;
           }
 
           const phase = ease(smoothProgress);
           const stage2 = ease(clamp((phase - 0.16) / 0.32, 0, 1));
           const stage3 = ease(clamp((phase - 0.46) / 0.26, 0, 1));
           const stage4 = ease(clamp((phase - 0.72) / 0.28, 0, 1));
-          const breath = Math.sin(elapsed * 0.7) * 0.02;
 
-          // 整体群组视差与位移
+          // 整体群组视差与位移（温和克制微动，不破坏坐标系安全净空区）
           world.position.set(
-            pointer.x * 0.28 + Math.sin(phase * Math.PI * 3) * 0.18 + stage3 * 0.22,
-            pointer.y * -0.18 + Math.sin(elapsed * 0.42) * 0.035 - stage4 * 0.45,
-            -0.36 - stage2 * 0.15 + stage4 * 0.85
+            interactiveX * 0.12,
+            interactiveY * -0.08,
+            -0.25 - stage2 * 0.12 + stage4 * 0.45
           );
           world.rotation.set(
-            pointer.y * -0.1 + Math.sin(elapsed * 0.16) * 0.018 + stage3 * 0.14,
-            pointer.x * 0.18 + Math.sin(elapsed * 0.13) * 0.028 - stage2 * 0.36 + stage4 * 0.2,
-            -0.08 - stage2 * 0.38 + stage4 * 0.22
+            interactiveY * -0.04 + Math.sin(elapsed * 0.15) * 0.012,
+            interactiveX * 0.06 + Math.sin(elapsed * 0.13) * 0.018,
+            -0.03 + Math.sin(elapsed * 0.10) * 0.008
           );
-          world.scale.setScalar((mobile ? 0.72 : 0.86) * (1 + stage2 * 0.18 + stage4 * 0.08));
+          world.scale.setScalar(1.0);
 
           // 光晕响应
           glow.material.uniforms.uOpacity.value = (0.045 + stage2 * 0.13 + smoothPermission * 0.06) * (1 - stage4 * 0.68);
@@ -573,11 +645,12 @@ import { products } from '@kedoupi/shared/products';
           glow.material.uniforms.uScale.value = 1 + stage2 * 0.8;
           glow.scale.setScalar(1 + stage2 * 0.42 + stage4 * 0.32);
 
-          warm.intensity = 4.0 + stage2 * 4.2 + smoothPermission * 1.8;
-          rim.intensity = 1.4 + stage3 * 3.0;
+          key.intensity = 2.8 + stage2 * 0.6;
+          fill.intensity = 1.6 + stage2 * 1.2 + smoothPermission * 0.8;
+          rim.intensity = 1.4 + stage3 * 1.8;
 
           // 材质透明度与发光过渡
-          ribbons.forEach(({ material, highlightMaterial, spec }, i) => {
+          ribbons.forEach(({ material, highlightMaterial, spec }) => {
             material.opacity = spec.o * (0.7 + smoothPermission * 0.3) * (1 - stage4 * 0.42);
             material.emissiveIntensity = spec.emissive + stage2 * 0.28 + smoothPermission * 0.18;
             highlightMaterial.opacity = spec.highlight * (0.55 + smoothPermission * 0.45) * (1 - stage4 * 0.5);
@@ -588,8 +661,8 @@ import { products } from '@kedoupi/shared/products';
             const rawT = (elapsed * (0.052 + i * 0.011) + offset + stage2 * 0.22 + stage3 * 0.24) % 1;
             if (!Number.isFinite(rawT)) return;
             pulse.position.copy(curve.getPoint(clamp(rawT, 0, 0.999999)));
-            pulse.scale.setScalar((i ? 0.82 : 1) * (1 + stage2 * 0.55 + Math.sin(elapsed * 2.4 + i) * 0.14) * (1 - stage4 * 0.35));
-            pulse.material.opacity = (0.34 + smoothPermission * 0.62) * (1 - stage4 * 0.55);
+            pulse.scale.setScalar((i ? 0.85 : 1) * (1 + Math.sin(elapsed * 3.2 + i * 1.5) * 0.16) * (1 - stage4 * 0.35));
+            pulse.material.opacity = (0.55 + smoothPermission * 0.40) * (1 - stage4 * 0.5);
           });
 
           // 粒子旋转
@@ -597,12 +670,13 @@ import { products } from '@kedoupi/shared/products';
           dust.rotation.x = Math.sin(elapsed * 0.11) * 0.06 + stage3 * 0.18;
 
           // 相机推进与拉开 (Cinematic Camera Push & Pull)
+          const currentCamZ = isStacked ? (aspect < 0.65 ? 7.2 : 7.6) : (aspect < 1.3 ? 7.8 : 7.5);
           camera.position.set(
-            pointer.x * 0.14,
-            pointer.y * -0.09,
-            7.5 - stage2 * 1.25 + stage4 * 1.75
+            interactiveX * 0.12,
+            interactiveY * -0.08,
+            currentCamZ - stage2 * 1.25 + stage4 * 1.75
           );
-          camera.lookAt(world.position.x * 0.08, world.position.y + stage3 * 0.08, 0);
+          camera.lookAt(world.position.x * 0.06, world.position.y + stage3 * 0.08, 0);
 
           renderer.render(scene, camera);
         };
@@ -642,569 +716,657 @@ import { products } from '@kedoupi/shared/products';
 
 <style is:global>
 :root{
-      color-scheme:light;
-      --paper:var(--color-background);
-      --surface:var(--color-surface);
-      --ink:var(--color-text);
-      --muted:var(--color-text-muted);
-      --orange:var(--brand-orange);
-      --action:var(--color-action-hover);
-      --line:color-mix(in srgb,var(--ink) 12%,transparent);
-      --soft:color-mix(in srgb,var(--ink) 5%,transparent);
-      --gutter:clamp(20px,5.2vw,96px);
-      --max:1400px;
-    }
-    *,*:before,*:after{box-sizing:border-box}
-    html{scroll-behavior:smooth;background:var(--paper)}
-    body{
-      margin:0;
-      min-width:0;
-      overflow-x:hidden;
-      background:var(--paper);
-      color:var(--ink);
-      font-family:var(--font-sans);
-      font-feature-settings:"kern" 1,"palt" 1;
-      font-synthesis:none;
-      -webkit-font-smoothing:antialiased;
-      text-rendering:optimizeLegibility;
-    }
-    ::selection{background:var(--brand-soft);color:var(--ink)}
-    a{color:inherit}
-    button{font:inherit;color:inherit}
-    button,a{-webkit-tap-highlight-color:transparent}
-    :focus-visible{outline:2px solid var(--color-focus);outline-offset:5px}
-    .width{width:min(calc(100% - var(--gutter)*2),var(--max));margin-inline:auto}
-    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  color-scheme:light;
+  --paper:var(--color-background);
+  --surface:var(--color-surface);
+  --ink:var(--color-text);
+  --muted:var(--color-text-muted);
+  --orange:var(--brand-orange);
+  --action:var(--color-action-hover);
+  --line:color-mix(in srgb,var(--ink) 12%,transparent);
+  --soft:color-mix(in srgb,var(--ink) 5%,transparent);
+  --gutter:clamp(20px,5.2vw,96px);
+  --max:1400px;
+}
+*,*:before,*:after{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--paper)}
+body{
+  margin:0;
+  min-width:0;
+  overflow-x:hidden;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-feature-settings:"kern" 1,"palt" 1;
+  font-synthesis:none;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+::selection{background:var(--brand-soft);color:var(--ink)}
+a{color:inherit}
+button{font:inherit;color:inherit}
+button,a{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--color-focus);outline-offset:5px}
+.width{width:min(calc(100% - var(--gutter)*2),var(--max));margin-inline:auto}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-    /* Hero & 3D Stage */
-    .hero{
-      position:relative;
-      height:560svh;
-      min-height:3600px;
-      background:var(--paper);
-    }
-    .hero-stage{
-      position:sticky;
-      top:0;
-      height:100svh;
-      min-height:680px;
-      overflow:hidden;
-      isolation:isolate;
-    }
-    .hero-stage:before{
-      content:"";
-      position:absolute;
-      inset:0;
-      z-index:-2;
-      background:radial-gradient(circle at 60% 48%,color-mix(in srgb,var(--brand-soft) 42%,transparent),transparent 28%),linear-gradient(90deg,transparent 0 74%,color-mix(in srgb,var(--ink) 3%,transparent) 74.05% 74.12%,transparent 74.18%);
-    }
-    .hero-stage:after{
-      content:"";
-      position:absolute;
-      inset:auto 0 0;
-      z-index:4;
-      height:18%;
-      background:linear-gradient(transparent,var(--paper));
-      pointer-events:none;
-    }
-    .stage-canvas{
-      position:absolute;
-      inset:0;
-      z-index:1;
-      width:100%;
-      height:100%;
-      pointer-events:none;
-    }
-    .fallback-thread{
-      position:absolute;
-      top:48%;
-      left:50%;
-      z-index:0;
-      width:min(62vw,900px);
-      height:2px;
-      background:linear-gradient(90deg,transparent,var(--orange) 35%,var(--ink) 65%,transparent);
-      transform:translate(-50%,-50%) rotate(-12deg);
-      opacity:.25;
-    }
+/* Hero & 3D Stage */
+.hero{
+  position:relative;
+  height:480vh;
+  height:480dvh;
+  background:var(--paper);
+}
+.hero-stage{
+  position:sticky;
+  top:0;
+  height:100vh;
+  height:100dvh;
+  overflow:hidden;
+  isolation:isolate;
+}
+.hero-stage:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background:radial-gradient(circle at 60% 48%,color-mix(in srgb,var(--brand-soft) 42%,transparent),transparent 36%);
+}
+.hero-stage:after{
+  content:"";
+  position:absolute;
+  inset:auto 0 0;
+  z-index:4;
+  height:18%;
+  background:linear-gradient(transparent,var(--paper));
+  pointer-events:none;
+}
+.stage-canvas{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+}
+.has-webgl .fallback-thread{display:none!important}
+.fallback-thread{
+  position:absolute;
+  top:48%;
+  left:50%;
+  z-index:0;
+  width:min(62vw,900px);
+  height:2px;
+  background:linear-gradient(90deg,transparent,var(--orange) 35%,var(--ink) 65%,transparent);
+  transform:translate(-50%,-50%) rotate(-12deg);
+  opacity:.25;
+}
 
-    /* 首屏主标题 Hero Copy */
-    .hero-copy{
-      position:absolute;
-      top:50%;
-      left:var(--gutter);
-      z-index:6;
-      width:min(680px,72vw);
-      transform:translateY(-50%);
-      transition:opacity .4s ease,transform .4s ease;
-      will-change:opacity,transform;
-    }
-    .eyebrow,.label{
-      display:block;
-      margin-bottom:24px;
-      color:var(--muted);
-      font-size:14px;
-      font-weight:500;
-      letter-spacing:.04em;
-    }
-    .hero-copy h1{
-      margin:0;
-      font-size:clamp(62px,10vw,156px);
-      font-weight:600;
-      line-height:.96;
-      letter-spacing:-.035em;
-    }
-    .hero-copy h1 span{display:block}
-    .hero-copy h1 span.nowrap{white-space:nowrap}
-    .hero-copy h1 em,.future h2 em,.dark h2 em,.quote em{
-      color:var(--action);
-      font-style:normal;
-    }
-    .hero-copy p{
-      max-width:440px;
-      margin:40px 0 0;
-      color:var(--muted);
-      font-size:clamp(16px,1.35vw,19px);
-      line-height:1.8;
-    }
-    .scroll-note{
-      display:flex;
-      align-items:center;
-      gap:14px;
-      margin-top:36px;
-      color:var(--muted);
-      font-size:14px;
-    }
-    .scroll-note:before{
-      content:"";
-      width:38px;
-      height:1px;
-      background:var(--orange);
-    }
+/* 首屏主标题 Hero Copy */
+.hero-copy{
+  position:absolute;
+  top:50%;
+  left:var(--gutter);
+  z-index:6;
+  width:min(680px,72vw);
+  transform:translateY(-50%);
+  will-change:opacity,transform;
+}
+.eyebrow,.label{
+  display:block;
+  margin-bottom:24px;
+  color:var(--muted);
+  font-size:14px;
+  font-weight:500;
+  letter-spacing:.04em;
+}
+.hero-copy h1{
+  margin:0;
+  font-size:clamp(62px,10vw,156px);
+  font-weight:600;
+  line-height:.96;
+  letter-spacing:-.035em;
+}
+.hero-copy h1 span{display:block}
+.hero-copy h1 span.nowrap{white-space:nowrap}
+.hero-copy h1 em,.future h2 em,.dark h2 em,.quote em{
+  color:var(--action);
+  font-style:normal;
+}
+.hero-copy p{
+  max-width:440px;
+  margin:40px 0 0;
+  color:var(--muted);
+  font-size:clamp(16px,1.35vw,19px);
+  line-height:1.8;
+}
+.scroll-note{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-top:36px;
+  color:var(--muted);
+  font-size:14px;
+}
+.scroll-note:before{
+  content:"";
+  width:38px;
+  height:1px;
+  background:var(--orange);
+}
 
-    /* 滚动章节 Overlays */
-    .scenes{
-      position:absolute;
-      inset:0;
-      z-index:6;
-      pointer-events:none;
-    }
-    .scene{
-      position:absolute;
-      inset:0;
-      display:grid;
-      align-items:center;
-      width:min(calc(100% - var(--gutter)*2),var(--max));
-      margin:auto;
-      opacity:0;
-      transform:translateY(36px);
-      transition:opacity .55s ease,transform .85s cubic-bezier(.22,1,.36,1);
-    }
-    .scene.active{
-      opacity:1;
-      transform:none;
-    }
-    .scene-copy{
-      grid-column:2;
-      justify-self:end;
-      width:min(440px,36vw);
-      margin-top:30vh;
-    }
-    .scene-badge{
-      display:inline-block;
-      margin-bottom:14px;
-      color:var(--action);
-      font-family:var(--font-mono);
-      font-size:14px;
-      font-weight:600;
-      letter-spacing:.06em;
-    }
-    .scene-copy strong{
-      display:block;
-      margin-bottom:14px;
-      font-size:clamp(24px,2.4vw,36px);
-      font-weight:600;
-      letter-spacing:-.02em;
-      line-height:1.25;
-    }
-    .scene-copy p{
-      margin:0;
-      color:var(--muted);
-      font-size:clamp(15px,1.25vw,17px);
-      line-height:1.75;
-    }
-    .scene.last .scene-copy{
-      margin-top:-32vh;
-    }
+/* 滚动章节 Overlays */
+.scenes{
+  position:absolute;
+  inset:0;
+  z-index:6;
+  pointer-events:none;
+}
+.scene{
+  position:absolute;
+  inset:0;
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(320px,460px);
+  align-items:center;
+  width:min(calc(100% - var(--gutter)*2),var(--max));
+  margin:auto;
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(24px);
+  transition:opacity .38s ease,transform .5s cubic-bezier(.22,1,.36,1),visibility 0s .38s;
+  pointer-events:none;
+}
+.scene.active{
+  opacity:1;
+  visibility:visible;
+  transform:none;
+  transition:opacity .42s ease,transform .5s cubic-bezier(.22,1,.36,1),visibility 0s 0s;
+  pointer-events:auto;
+}
+.scene-copy{
+  grid-column:2;
+  justify-self:end;
+  width:100%;
+  max-width:440px;
+}
+.scene-badge{
+  display:inline-block;
+  margin-bottom:14px;
+  color:var(--action);
+  font-family:var(--font-mono);
+  font-size:14px;
+  font-weight:600;
+  letter-spacing:.06em;
+}
+.scene-copy strong{
+  display:block;
+  margin-bottom:14px;
+  font-size:clamp(24px,2.4vw,36px);
+  font-weight:600;
+  letter-spacing:-.02em;
+  line-height:1.25;
+}
+.scene-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:clamp(15px,1.25vw,17px);
+  line-height:1.75;
+}
 
-    /* 章节计数器 */
-    .count{
-      position:absolute;
-      right:var(--gutter);
-      bottom:32px;
-      z-index:7;
-      display:flex;
-      align-items:center;
-      gap:12px;
-      color:var(--muted);
-      font-family:var(--font-mono);
-      font-size:13px;
-    }
-    .count:before{
-      content:"";
-      width:36px;
-      height:1px;
-      background:var(--orange);
-    }
-    .count strong{
-      color:var(--ink);
-      font-size:16px;
-      font-weight:600;
-    }
+/* 章节计数器 */
+.count{
+  position:absolute;
+  right:var(--gutter);
+  bottom:32px;
+  z-index:7;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-size:13px;
+}
+.count:before{
+  content:"";
+  width:36px;
+  height:1px;
+  background:var(--orange);
+}
+.count strong{
+  color:var(--ink);
+  font-size:16px;
+  font-weight:600;
+}
 
-    /* 暗调沉浸章节 */
-    .dark{
-      display:grid;
-      place-items:center;
-      min-height:92svh;
-      padding:150px var(--gutter);
-      text-align:center;
-      background:var(--ink);
-      color:var(--paper);
-    }
-    .dark-inner{
-      position:relative;
-      z-index:1;
-      width:min(100%,940px);
-    }
-    .dark .label{color:color-mix(in srgb,var(--paper) 56%,transparent)}
-    .dark h2,.day h2,.spaces h2,.orange h2,.future h2{
-      margin:0;
-      font-size:clamp(46px,6.5vw,98px);
-      font-weight:600;
-      line-height:1.08;
-      letter-spacing:-.03em;
-      text-wrap:balance;
-    }
-    .dark h2{color:var(--paper)}
-    .dark p,.orange p{
-      max-width:38rem;
-      margin:40px auto 0;
-      color:color-mix(in srgb,currentColor 64%,transparent);
-      font-size:clamp(16px,1.2vw,18px);
-      line-height:1.85;
-    }
+/* 暗调沉浸章节 */
+.dark{
+  display:grid;
+  place-items:center;
+  min-height:92svh;
+  padding:150px var(--gutter);
+  text-align:center;
+  background:var(--ink);
+  color:var(--paper);
+}
+.dark-inner{
+  position:relative;
+  z-index:1;
+  width:min(100%,940px);
+}
+.dark .label{color:color-mix(in srgb,var(--paper) 56%,transparent)}
+.dark h2,.day h2,.spaces h2,.orange h2,.future h2{
+  margin:0;
+  font-size:clamp(46px,6.5vw,98px);
+  font-weight:600;
+  line-height:1.08;
+  letter-spacing:-.03em;
+  text-wrap:balance;
+}
+.dark h2{color:var(--paper)}
+.dark p,.orange p{
+  max-width:38rem;
+  margin:40px auto 0;
+  color:color-mix(in srgb,currentColor 64%,transparent);
+  font-size:clamp(16px,1.2vw,18px);
+  line-height:1.85;
+}
 
-    /* 你的一天 & 空间列表 & 结尾通用间距 */
-    section[id]{
-      scroll-margin-top:96px;
-    }
-    .day,.spaces,.future{
-      padding:clamp(140px,17vw,260px) 0;
-    }
-    .day{background:var(--paper)}
-    .spaces{background:var(--surface)}
-    .future{background:var(--paper)}
+/* 你的一天 & 空间列表 & 结尾通用间距 */
+section[id]{
+  scroll-margin-top:96px;
+}
+.day,.spaces,.future{
+  padding:clamp(140px,17vw,260px) 0;
+}
+.day{background:var(--paper)}
+.spaces{background:var(--surface)}
+.future{background:var(--paper)}
 
-    .day-head,.spaces-head,.future-head{
-      display:grid;
-      grid-template-columns:minmax(0,.82fr) minmax(260px,.5fr);
-      gap:clamp(44px,12vw,180px);
-      align-items:end;
-    }
-    .day h2,.spaces h2,.future h2{max-width:min(100%, 720px)}
-    .day-head p,.spaces-head p,.future-head p{
-      max-width:32rem;
-      margin:0 0 8px;
-      color:var(--muted);
-      font-size:clamp(16px,1.2vw,18px);
-      line-height:1.8;
-    }
+.day-head,.spaces-head,.future-head{
+  display:grid;
+  grid-template-columns:minmax(0,.82fr) minmax(260px,.5fr);
+  gap:clamp(44px,12vw,180px);
+  align-items:end;
+}
+.day h2,.spaces h2,.future h2{max-width:min(100%, 720px)}
+.day-head p,.spaces-head p,.future-head p{
+  max-width:32rem;
+  margin:0 0 8px;
+  color:var(--muted);
+  font-size:clamp(16px,1.2vw,18px);
+  line-height:1.8;
+}
 
-    /* 时间轴 Timeline */
-    .timeline{
-      display:grid;
-      grid-template-columns:repeat(3,1fr);
-      gap:clamp(28px,4.5vw,72px);
-      margin-top:clamp(96px,14vw,180px);
-      padding-top:42px;
-      border-top:1px solid var(--line);
-    }
-    .moment{position:relative;padding-top:28px}
-    .moment:before{
-      content:"";
-      position:absolute;
-      top:-1px;
-      left:0;
-      width:36px;
-      height:2px;
-      background:var(--orange);
-    }
-    .moment .moment-time{
-      display:block;
-      margin-bottom:8px;
-      color:var(--action);
-      font-family:var(--font-mono);
-      font-size:14px;
-      font-weight:600;
-      letter-spacing:.06em;
-    }
-    .moment strong{
-      display:block;
-      margin-bottom:12px;
-      font-size:clamp(22px,2.4vw,34px);
-      font-weight:600;
-      letter-spacing:-.025em;
-    }
-    .moment p{
-      margin:0;
-      color:var(--muted);
-      font-size:16px;
-      line-height:1.75;
-    }
-    .quote{
-      margin:clamp(80px,12vw,160px) 0 0;
-      font-size:clamp(30px,4.4vw,66px);
-      font-weight:600;
-      line-height:1.06;
-      letter-spacing:-.035em;
-    }
+/* 时间轴 Timeline */
+.timeline{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:clamp(28px,4.5vw,72px);
+  margin-top:clamp(96px,14vw,180px);
+  padding-top:42px;
+  border-top:1px solid var(--line);
+}
+.moment{position:relative;padding-top:28px}
+.moment:before{
+  content:"";
+  position:absolute;
+  top:-1px;
+  left:0;
+  width:36px;
+  height:2px;
+  background:var(--orange);
+}
+.moment .moment-time{
+  display:block;
+  margin-bottom:8px;
+  color:var(--action);
+  font-family:var(--font-mono);
+  font-size:14px;
+  font-weight:600;
+  letter-spacing:.06em;
+}
+.moment strong{
+  display:block;
+  margin-bottom:12px;
+  font-size:clamp(22px,2.4vw,34px);
+  font-weight:600;
+  letter-spacing:-.025em;
+}
+.moment p{
+  margin:0;
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.75;
+}
+.quote{
+  margin:clamp(80px,12vw,160px) 0 0;
+  font-size:clamp(30px,4.4vw,66px);
+  font-weight:600;
+  line-height:1.06;
+  letter-spacing:-.035em;
+}
 
-    /* 空间列表 Space List */
-    .space-list{
-      margin-top:clamp(80px,12vw,170px);
-      border-top:1px solid var(--line);
-    }
-    .space-list a{
-      display:grid;
-      grid-template-columns:58px minmax(150px,.6fr) minmax(0,1fr) 24px;
-      align-items:center;
-      gap:20px;
-      min-height:106px;
-      border-bottom:1px solid var(--line);
-      text-decoration:none;
-      transition:padding .36s cubic-bezier(.22,1,.36,1),background-color .22s;
-    }
-    .space-list a:hover{
-      padding-inline:20px;
-      background:var(--brand-soft);
-    }
-    .index{
-      color:var(--muted);
-      font-family:var(--font-mono);
-      font-size:14px;
-      font-weight:500;
-    }
-    .space-name{
-      font-size:clamp(22px,2.6vw,38px);
-      font-weight:600;
-      letter-spacing:-.03em;
-    }
-    .space-description{
-      color:var(--muted);
-      font-size:16px;
-      line-height:1.65;
-    }
-    .arrow{
-      color:var(--action);
-      font-size:19px;
-      transition:transform .3s;
-    }
-    .space-list a:hover .arrow{
-      transform:translate(4px,-4px);
-    }
+/* 空间列表 Space List */
+.space-list{
+  margin-top:clamp(80px,12vw,170px);
+  border-top:1px solid var(--line);
+}
+.space-list a{
+  display:grid;
+  grid-template-columns:58px minmax(150px,.6fr) minmax(0,1fr) 24px;
+  align-items:center;
+  gap:20px;
+  min-height:106px;
+  border-bottom:1px solid var(--line);
+  text-decoration:none;
+  transition:padding .36s cubic-bezier(.22,1,.36,1),background-color .22s;
+}
+.space-list a:hover{
+  padding-inline:20px;
+  background:var(--brand-soft);
+}
+.index{
+  color:var(--muted);
+  font-family:var(--font-mono);
+  font-size:14px;
+  font-weight:500;
+}
+.space-name{
+  font-size:clamp(22px,2.6vw,38px);
+  font-weight:600;
+  letter-spacing:-.03em;
+}
+.space-description{
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.65;
+}
+.arrow{
+  color:var(--action);
+  font-size:19px;
+  transition:transform .3s;
+}
+.space-list a:hover .arrow{
+  transform:translate(4px,-4px);
+}
 
-    /* 权限控制橙色模块 */
-    .orange{
-      position:relative;
-      display:grid;
-      place-items:center;
-      min-height:94svh;
-      padding:150px var(--gutter);
-      overflow:hidden;
-      background:var(--orange);
-      color:var(--ink);
-      text-align:center;
-    }
-    .orange:before{
-      content:"";
-      position:absolute;
-      top:50%;
-      left:50%;
-      width:min(72vw,920px);
-      aspect-ratio:1;
-      border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);
-      border-radius:50%;
-      transform:translate(-50%,-50%) rotateX(68deg);
-      pointer-events:none;
-    }
-    .orange-inner{
-      position:relative;
-      z-index:1;
-      width:min(100%,940px);
-    }
-    .orange h2{color:var(--ink)}
-    .permission-control{
-      position:relative;
-      display:grid;
-      place-items:center;
-      width:126px;
-      height:126px;
-      margin:52px auto 0;
-      border:1px solid color-mix(in srgb,var(--ink) 45%,transparent);
-      border-radius:50%;
-      background:transparent;
-      cursor:pointer;
-      transition:transform .5s cubic-bezier(.22,1,.36,1);
-    }
-    .permission-control:hover{transform:scale(1.05)}
-    .permission-control:before,.permission-control:after{
-      content:"";
-      position:absolute;
-      border:1px solid color-mix(in srgb,var(--ink) 26%,transparent);
-      border-radius:50%;
-      transition:.6s cubic-bezier(.22,1,.36,1);
-    }
-    .permission-control:before{inset:-17px}
-    .permission-control:after{inset:-37px;opacity:.46}
-    .permission-control[aria-pressed="false"]:before{transform:scale(.7);opacity:.2}
-    .permission-control[aria-pressed="false"]:after{transform:scale(.45);opacity:.08}
-    .permission-core{
-      width:34px;
-      height:34px;
-      border-radius:50%;
-      background:var(--ink);
-      box-shadow:0 0 58px color-mix(in srgb,var(--ink) 45%,transparent);
-      transition:.5s;
-    }
-    .permission-control[aria-pressed="false"] .permission-core{
-      transform:scale(.55);
-      background:color-mix(in srgb,var(--ink) 36%,transparent);
-      box-shadow:none;
-    }
-    .status{
-      margin:32px 0 0;
-      font-size:15px;
-      font-weight:600;
-    }
+/* 权限控制橙色模块 */
+.orange{
+  position:relative;
+  display:grid;
+  place-items:center;
+  min-height:94svh;
+  padding:150px var(--gutter);
+  overflow:hidden;
+  background:var(--orange);
+  color:var(--ink);
+  text-align:center;
+}
+.orange:before{
+  content:"";
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:min(72vw,920px);
+  aspect-ratio:1;
+  border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);
+  border-radius:50%;
+  transform:translate(-50%,-50%) rotateX(68deg);
+  pointer-events:none;
+}
+.orange-inner{
+  position:relative;
+  z-index:1;
+  width:min(100%,940px);
+}
+.orange h2{color:var(--ink)}
+.permission-control{
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:126px;
+  height:126px;
+  margin:52px auto 0;
+  border:1px solid color-mix(in srgb,var(--ink) 45%,transparent);
+  border-radius:50%;
+  background:transparent;
+  cursor:pointer;
+  transition:transform .5s cubic-bezier(.22,1,.36,1);
+}
+.permission-control:hover{transform:scale(1.05)}
+.permission-control:before,.permission-control:after{
+  content:"";
+  position:absolute;
+  border:1px solid color-mix(in srgb,var(--ink) 26%,transparent);
+  border-radius:50%;
+  transition:.6s cubic-bezier(.22,1,.36,1);
+}
+.permission-control:before{inset:-17px}
+.permission-control:after{inset:-37px;opacity:.46}
+.permission-control[aria-pressed="false"]:before{transform:scale(.7);opacity:.2}
+.permission-control[aria-pressed="false"]:after{transform:scale(.45);opacity:.08}
+.permission-core{
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  background:var(--ink);
+  box-shadow:0 0 58px color-mix(in srgb,var(--ink) 45%,transparent);
+  transition:.5s;
+}
+.permission-control[aria-pressed="false"] .permission-core{
+  transform:scale(.55);
+  background:color-mix(in srgb,var(--ink) 36%,transparent);
+  box-shadow:none;
+}
+.status{
+  margin:32px 0 0;
+  font-size:15px;
+  font-weight:600;
+}
 
-    /* 尾声 Epilogue */
-    .future-rule{
-      margin-top:clamp(86px,12vw,170px);
-      padding:28px 0;
-      border-top:1px solid var(--line);
-      border-bottom:1px solid var(--line);
-      font-size:clamp(26px,4vw,62px);
-      font-weight:600;
-      line-height:1.08;
-      letter-spacing:-.035em;
-    }
-    .future-note{
-      max-width:36rem;
-      margin:32px 0 0;
-      color:var(--muted);
-      font-size:16px;
-      line-height:1.8;
-    }
-    .actions{
-      display:flex;
-      flex-wrap:wrap;
-      gap:18px 26px;
-      margin-top:40px;
-    }
-    .primary,.secondary{
-      display:inline-flex;
-      align-items:center;
-      min-height:48px;
-      font-size:15px;
-      font-weight:600;
-      text-decoration:none;
-    }
-    .primary{
-      padding:0 26px;
-      border-radius:999px;
-      background:var(--ink);
-      color:var(--paper);
-      transition:.22s;
-    }
-    .primary:hover{
-      background:var(--action);
-      transform:translateY(-2px);
-    }
-    .secondary{
-      text-decoration:underline;
-      text-underline-offset:6px;
-      transition:color .2s;
-    }
-    .secondary:hover{color:var(--action)}
+/* 尾声 Epilogue */
+.future-rule{
+  margin-top:clamp(86px,12vw,170px);
+  padding:28px 0;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  font-size:clamp(26px,4vw,62px);
+  font-weight:600;
+  line-height:1.08;
+  letter-spacing:-.035em;
+}
+.future-note{
+  max-width:36rem;
+  margin:32px 0 0;
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.8;
+}
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:18px 26px;
+  margin-top:40px;
+}
+.primary,.secondary{
+  display:inline-flex;
+  align-items:center;
+  min-height:48px;
+  font-size:15px;
+  font-weight:600;
+  text-decoration:none;
+}
+.primary{
+  padding:0 26px;
+  border-radius:999px;
+  background:var(--ink);
+  color:var(--paper);
+  transition:.22s;
+}
+.primary:hover{
+  background:var(--action);
+  transform:translateY(-2px);
+}
+.secondary{
+  text-decoration:underline;
+  text-underline-offset:6px;
+  transition:color .2s;
+}
+.secondary:hover{color:var(--action)}
 
-    /* 滚动进入动画 Reveal */
-    [data-reveal]{opacity:1;transform:none}
-    .home-motion-ready [data-reveal]{
-      opacity:0;
-      transform:translateY(26px);
-      transition:opacity .82s cubic-bezier(.22,1,.36,1) var(--delay,0ms),transform .92s cubic-bezier(.22,1,.36,1) var(--delay,0ms);
-    }
-    .home-motion-ready [data-reveal].visible{
-      opacity:1;
-      transform:none;
-    }
+/* 滚动进入动画 Reveal */
+[data-reveal]{opacity:1;transform:none}
+.home-motion-ready [data-reveal]{
+  opacity:0;
+  transform:translateY(26px);
+  transition:opacity .82s cubic-bezier(.22,1,.36,1) var(--delay,0ms),transform .92s cubic-bezier(.22,1,.36,1) var(--delay,0ms);
+}
+.home-motion-ready [data-reveal].visible{
+  opacity:1;
+  transform:none;
+}
 
-    /* 响应式断点 */
-    @media(max-width:900px){
-      .hero-copy h1{font-size:clamp(56px,10vw,96px)}
-      .day-head,.spaces-head,.future-head{grid-template-columns:1fr;gap:34px}
-      .day-head p,.spaces-head p,.future-head p{max-width:35rem}
-    }
-    @media(max-width:767px){
-      :root{--gutter:16px}
-      .header,.header-inner{min-height:62px}
-      .header-inner{width:calc(100% - 24px)}
-      .brand img{width:94px}
-      .nav{gap:0}
-      .nav a:not(:last-child){display:none}
-      .nav a:last-child{min-height:38px;padding:0 13px}
-      .hero{height:500svh;min-height:3000px}
-      .hero-stage{min-height:620px}
-      .hero-copy{top:20%;left:16px;width:calc(100% - 32px);transform:none}
-      .eyebrow{margin-bottom:18px;font-size:14px}
-      .hero-copy h1{font-size:clamp(48px,12.5vw,72px);line-height:.98}
-      .hero-copy p{max-width:300px;margin-top:24px;font-size:15px;line-height:1.75}
-      .scroll-note{margin-top:24px;font-size:13px}
-      .scene{display:block;width:calc(100% - 32px);padding-top:60vh}
-      .scene-copy,.scene.last .scene-copy{width:min(340px,88vw);margin:0 0 0 auto}
-      .scene-badge{font-size:13px;margin-bottom:10px}
-      .scene-copy strong{font-size:22px;line-height:1.3;margin-bottom:12px}
-      .scene-copy p{font-size:15px;line-height:1.7}
-      .count{right:16px;bottom:24px;font-size:13px}
-      .count strong{font-size:16px}
-      .dark,.orange{min-height:72svh;padding-block:108px}
-      .dark h2,.day h2,.spaces h2,.orange h2,.future h2{font-size:clamp(44px,12vw,68px);line-height:.96}
-      .dark p,.day-head p,.spaces-head p,.future-head p,.orange p{font-size:15px;line-height:1.75}
-      .day,.spaces,.future{padding-block:104px}
-      .timeline{grid-template-columns:1fr;gap:36px;margin-top:64px}
-      .moment{padding-top:20px}
-      .moment .moment-time{font-size:13px}
-      .moment strong{margin-bottom:8px;font-size:22px}
-      .moment p{font-size:15px;line-height:1.7}
-      .quote{margin-top:64px;font-size:28px;line-height:1.14}
-      .space-list{margin-top:60px}
-      .space-list a{grid-template-columns:34px minmax(110px,.7fr) 24px;gap:10px;min-height:88px}
-      .space-list a:hover{padding-inline:0}
-      .index{font-size:13px}
-      .space-name{font-size:20px}
-      .space-description{display:none}
-      .permission-control{width:110px;height:110px;margin-top:40px}
-      .future-rule{margin-top:60px;font-size:26px}
-      .future-note{margin-top:22px;font-size:15px;line-height:1.75}
-      .actions{align-items:stretch;flex-direction:column;max-width:240px;margin-top:28px}
-      .primary,.secondary{font-size:15px}
-      .footer-inner{align-items:flex-start;flex-direction:column;gap:10px}
-    }
-    @media(prefers-reduced-motion:reduce){
-      html{scroll-behavior:auto}
-      .stage-canvas{display:none}
-      .hero-stage{position:relative;inset:auto;min-height:70svh}
-      .home-motion-ready [data-reveal]{opacity:1;transform:none;transition:none}
-      *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
-    }
+/* 响应式断点：双列模式（默认 desktop）、单列堆叠模式（移动端与平板竖屏） */
+@media (max-width: 959px), (orientation: portrait) {
+  :root{--gutter:clamp(20px, 4.5vw, 40px)}
+  .header,.header-inner{min-height:62px}
+  .header-inner{width:calc(100% - 24px)}
+  .brand img{width:104px}
+  .nav{gap:0}
+  .nav a:not(:last-child){display:none}
+  .nav a:last-child{min-height:38px;padding:0 14px}
+  .hero{height:460vh;height:460dvh}
+  .hero-stage{height:100vh;height:100dvh}
+  .hero-copy{
+    top:clamp(12%, 14vh, 18%);
+    left:var(--gutter);
+    right:var(--gutter);
+    width:min(620px, calc(100% - var(--gutter) * 2));
+    margin-inline:auto;
+    transform:none;
+  }
+  .eyebrow{margin-bottom:16px;font-size:14px}
+  .hero-copy h1{font-size:clamp(44px, 10vw, 72px);line-height:1.02}
+  .hero-copy p{max-width:400px;margin-top:20px;font-size:clamp(15px, 2vw, 17px);line-height:1.75}
+  .scroll-note{margin-top:22px;font-size:14px}
+
+  /* 章节卡片：底部停靠，毛玻璃极简质感，绝对避开顶部 3D 动画 */
+  .scene{
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-end;
+    align-items:center;
+    width:min(calc(100% - var(--gutter) * 2), 580px);
+    padding-bottom:clamp(42px, 8.5vh, 84px);
+    margin-inline:auto;
+  }
+  .scene-copy,.scene.last .scene-copy{
+    grid-column:auto;
+    justify-self:auto;
+    width:100%;
+    max-width:560px;
+    margin:0 auto;
+    padding:clamp(22px, 3vh, 32px) clamp(22px, 4vw, 36px);
+    border-radius:24px;
+    background:color-mix(in srgb, var(--paper) 86%, transparent);
+    backdrop-filter:blur(28px);
+    -webkit-backdrop-filter:blur(28px);
+    border:1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+    box-shadow:0 16px 48px color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+  .scene-badge{font-size:14px;margin-bottom:10px}
+  .scene-copy strong{font-size:clamp(22px, 3.2vw, 32px);line-height:1.3;margin-bottom:12px}
+  .scene-copy p{font-size:clamp(15px, 1.8vw, 17px);line-height:1.75}
+
+  .count{right:var(--gutter);bottom:24px;font-size:14px}
+  .count strong{font-size:17px}
+
+  .day-head,.spaces-head,.future-head{grid-template-columns:1fr;gap:34px}
+  .day-head p,.spaces-head p,.future-head p{max-width:35rem}
+
+  .dark,.orange{min-height:72svh;padding-block:108px}
+  .dark h2,.day h2,.spaces h2,.orange h2,.future h2{font-size:clamp(42px, 9vw, 68px);line-height:.98}
+  .dark p,.day-head p,.spaces-head p,.future-head p,.orange p{font-size:16px;line-height:1.75}
+  .day,.spaces,.future{padding-block:104px}
+  .timeline{grid-template-columns:1fr;gap:36px;margin-top:64px}
+  .moment{padding-top:20px}
+  .moment .moment-time{font-size:14px}
+  .moment strong{margin-bottom:8px;font-size:24px}
+  .moment p{font-size:16px;line-height:1.75}
+  .quote{margin-top:64px;font-size:clamp(26px, 5vw, 36px);line-height:1.2}
+  .space-list{margin-top:60px}
+  .space-list a{grid-template-columns:34px minmax(110px,.7fr) 24px;gap:10px;min-height:88px}
+  .space-list a:hover{padding-inline:0}
+  .index{font-size:14px}
+  .space-name{font-size:22px}
+  .space-description{display:none}
+  .permission-control{width:110px;height:110px;margin-top:40px}
+  .future-rule{margin-top:60px;font-size:28px}
+  .future-note{margin-top:22px;font-size:16px;line-height:1.75}
+  .actions{align-items:stretch;flex-direction:column;max-width:260px;margin-top:28px}
+  .primary,.secondary{font-size:16px}
+  .footer-inner{align-items:flex-start;flex-direction:column;gap:12px}
+}
+
+/* 超矮横屏（手机横置）：回到双列布局，避免文字与光线互相穿插 */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root{--gutter:clamp(16px, 3vw, 28px)}
+  .header,.header-inner{min-height:52px}
+  .header-inner{width:calc(100% - 24px)}
+  .brand img{width:96px}
+  .nav{gap:0}
+  .nav a:not(:last-child){display:none}
+  .nav a:last-child{min-height:34px;padding:0 12px}
+
+  .hero{height:420vh;height:420dvh}
+  .hero-stage{height:100vh;height:100dvh;min-height:0}
+  .hero-copy{
+    top:50%;
+    left:var(--gutter);
+    right:auto;
+    width:min(46%, 300px);
+    margin:0;
+    transform:translateY(-50%);
+  }
+  .eyebrow{margin-bottom:8px;font-size:12px}
+  .hero-copy h1{font-size:clamp(34px, 10vh, 48px);line-height:.98}
+  .hero-copy p{display:none}
+  .scroll-note{display:none}
+
+  .scene{
+    display:grid;
+    grid-template-columns:minmax(0, 1fr) minmax(160px, 42%);
+    align-items:center;
+    width:min(calc(100% - var(--gutter) * 2), var(--max));
+    padding:0;
+    margin-inline:auto;
+  }
+  .scene-copy,.scene.last .scene-copy{
+    grid-column:2;
+    justify-self:end;
+    width:100%;
+    max-width:280px;
+    margin:0;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:none;
+    box-shadow:none;
+    backdrop-filter:none;
+    -webkit-backdrop-filter:none;
+  }
+  .scene-badge{margin-bottom:6px;font-size:12px}
+  .scene-copy strong{margin-bottom:8px;font-size:clamp(18px, 5.5vh, 24px);line-height:1.2}
+  .scene-copy p{font-size:13px;line-height:1.55}
+  .count{right:var(--gutter);bottom:12px;font-size:12px}
+  .count strong{font-size:14px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .stage-canvas{display:none}
+  .hero-stage{position:relative;inset:auto;min-height:70svh}
+  .home-motion-ready [data-reveal]{opacity:1;transform:none;transition:none}
+  *,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 </style>

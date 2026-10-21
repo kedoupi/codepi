@@ -8,7 +8,14 @@ export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login" || pathname === "/login/") return true;
   if (pathname === "/api/health") return true;
   if (pathname === "/api/auth/request-otp" || pathname === "/api/auth/verify-otp") return true;
-  if (pathname === "/favicon.ico") return true;
+  if ([
+    "/favicon.ico",
+    "/favicon-16.png",
+    "/favicon-32.png",
+    "/apple-touch-icon.png",
+    "/brand/codepi-symbol.png",
+    "/brand/codepi-symbol.webp",
+  ].includes(pathname)) return true;
   if (
     pathname.startsWith("/assets/") ||
     pathname.endsWith(".css") ||

@@ -190,8 +190,18 @@ app.on(["GET", "HEAD"], ["/", "/profile", "/timeline", "/imports", "/login"], as
   return c.env.ASSETS?.fetch(new Request(`${origin}/`, { method: c.req.method }))
     ?? new Response("Assets unavailable", { status: 503 });
 });
+const PUBLIC_BRAND_ASSETS = new Set([
+  "/favicon.ico",
+  "/favicon-16.png",
+  "/favicon-32.png",
+  "/apple-touch-icon.png",
+  "/brand/codepi-symbol.png",
+  "/brand/codepi-symbol.webp",
+]);
+
 app.get("*", c => {
-  if (/^\/assets\/[a-zA-Z0-9_.-]+\.(?:js|css|svg|woff2)$/.test(c.req.path) || c.req.path === "/favicon.svg") {
+  if (/^\/assets\/[a-zA-Z0-9_.-]+\.(?:js|css|svg|png|webp|woff2)$/.test(c.req.path) ||
+    PUBLIC_BRAND_ASSETS.has(c.req.path)) {
     return c.env.ASSETS?.fetch(c.req.raw) ?? c.notFound();
   }
   return c.notFound();
