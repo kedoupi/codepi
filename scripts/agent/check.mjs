@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
@@ -8,6 +9,35 @@ export const privateApps = ['auth', 'gu', 'gzh', 'health', 'project', 'me', 'mcp
 const allApps = [...staticApps, ...privateApps];
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
+export const allowedTopLevelDirs = ['.agents', '.claude', '.cursor', '.github', 'apps', 'docs', 'packages', 'scripts', 'services'];
+
+export function unexpectedTopLevelDirs(cwd) {
+  const listed = git(cwd, ['ls-files', '-co', '--exclude-standard', '-z']);
+  const roots = new Set();
+  for (const entry of listed.split('\0')) {
+    if (!entry) continue;
+    const slash = entry.indexOf('/');
+    if (slash > 0) roots.add(entry.slice(0, slash));
+  }
+  // git ls-files cannot see an empty directory, but an unignored root is still unexpected.
+  const unseen = readdirSync(cwd, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && entry.name !== '.git' && !allowedTopLevelDirs.includes(entry.name) && !roots.has(entry.name))
+    .map(entry => entry.name);
+  for (const name of unignoredPaths(cwd, unseen)) roots.add(name);
+  return [...roots].filter(name => !allowedTopLevelDirs.includes(name)).sort();
+}
+
+function unignoredPaths(cwd, names) {
+  if (!names.length) return [];
+  const result = spawnSync('git', ['check-ignore', '-z', '--no-index', '--stdin'], {
+    cwd, input: `${names.join('\0')}\0`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  if (result.error || (result.status !== 0 && result.status !== 1)) {
+    throw new Error(result.stderr?.trim() || result.error?.message || 'git check-ignore failed');
+  }
+  const ignored = new Set(result.stdout.split('\0').filter(Boolean));
+  return names.filter(name => !ignored.has(name));
+}
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -165,14 +195,20 @@ export function main(args = process.argv.slice(2), cwd = root) {
 
   const { mergeBase, files } = changedFiles(cwd, base);
   const plan = makePlan(files);
+  const unexpected = unexpectedTopLevelDirs(cwd);
   console.log(`Review base: ${mergeBase}`);
   console.log(`Changed files: ${files.length}; apps: ${plan.apps.join(', ') || '(none)'}`);
   for (const { cwd: directory, argv } of plan.checks) console.log(`[${directory}] ${argv.join(' ')}`);
   for (const file of plan.manual) console.log(`MANUAL: ${JSON.stringify(file)} has no check mapping.`);
+  if (unexpected.length) console.error(`Unexpected top-level paths: ${unexpected.join(', ')}`);
   console.log('UI acceptance, live services and CI semantics require separate review when affected.');
   if (!run) {
     console.log('Preview only; no checks executed.');
-    return 0;
+    return unexpected.length ? 1 : 0;
+  }
+  if (unexpected.length) {
+    console.error('Unexpected top-level paths need review; no checks executed.');
+    return 1;
   }
   if (plan.manual.length) {
     console.error('Unmapped paths need an explicit check strategy; no checks executed.');
