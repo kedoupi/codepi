@@ -123,6 +123,8 @@ node --test scripts/agent/check.test.mjs
 
 `--base` 使用指定提交与当前 HEAD 的 merge-base；开工时记录的 SHA 最稳定。只传默认 `HEAD` 会漏掉已经提交的任务改动，不能用于整个 PR 的验收。
 
+默认预览和 `--run` 都会检查 Git 工作树中已跟踪或未忽略的根目录。允许的根目录是 `.agents`、`.claude`、`.cursor`、`.github`、`apps`、`docs`、`packages`、`scripts`、`services`。空目录也算；`node_modules/`、`dist/`、`.astro/`、`.wrangler/`、`.env*` 及其他 `.gitignore` 已忽略的生成物不算。发现未知根目录时输出 `Unexpected top-level paths: ...`，返回非零，并且 `--run` 不执行后续检查。
+
 脚本不安装依赖、不提交代码、不部署。依赖缺失时明确失败。统一从仓库根目录用 `pnpm install --frozen-lockfile` 安装所有 workspace 依赖；不要在子目录单独安装。新依赖仍需事先确认。
 
 | 改动范围 | 自动检查 |
