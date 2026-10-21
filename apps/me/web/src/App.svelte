@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { PRODUCT_BRAND } from "@kedoupi/shared/brand";
+  import { CODEPI_SYMBOL_PNG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { api, clearRequests } from "./lib/api";
   import type { Overview } from "../../worker/models";
   import Memories from "./components/Memories.svelte";
@@ -59,7 +59,7 @@
 {#if auth === "anonymous"}
   <main class="login">
     <section class="login-story">
-      <a class="brand" href="https://codepi.app">{PRODUCT_BRAND}</a>
+      <a class="brand" href="https://codepi.app"><img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" /><span>{PRODUCT_BRAND}</span></a>
       <div><p class="eyebrow">ME / 个人记录</p><h1>把关于自己的事，<br>留在自己手里。</h1>
         <p>记忆、背景与经历，收在同一个地方。<br>由你确认，再让 AI 读到。</p></div>
       <p class="muted">仅本人访问 · 私人空间</p>
@@ -76,7 +76,7 @@
   <a class="skip-link" href="#content">跳到内容</a>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="/"><span class="brand-mark">me</span><span>kedoupi<small>codepi · 个人记录</small></span></a>
+      <a class="brand" href="/"><img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" /><span>kedoupi<small>codepi · 个人记录</small></span></a>
       <nav aria-label="主导航">{#each nav as [href, label]}<a {href} aria-current={page === href ? "page" : undefined}>{label}</a>{/each}</nav>
       <div class="sidebar-foot"><p>由你确认，才成为记忆。</p><a href="https://codepi.app">返回个人空间 ↗</a></div>
     </aside>

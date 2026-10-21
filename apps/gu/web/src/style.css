@@ -137,12 +137,9 @@ small {
   display: block;
   flex-shrink: 0;
   width: 40px;
-  height: 40px;
-}
-.brand-mark svg {
-  display: block;
-  width: 100%;
-  height: 100%;
+  height: auto;
+  aspect-ratio: 348 / 316;
+  object-fit: contain;
 }
 .brand-code {
   color: var(--brand-graphite);

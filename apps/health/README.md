@@ -290,7 +290,9 @@ Health 设置页提供新连接地址和 `https://mcp.codepi.app/connections` �
 本地协议与浏览器测试不能代替真实 ChatGPT、Claude 或 CLI 授权验收；当前进度见
 [任务记录](../../docs/development/tasks/2026-10-18-unified-mcp.md)。
 
-Health 看板图标仍由 `/icon.png`、`/icon.svg` 和 `/favicon.ico` 提供；
+Health 看板图标由 `/icon.png`（应用图标）和 `/brand/codepi-symbol.png`（页头标志）提供，
+浏览器图标使用 `/favicon.ico`、`/favicon-16.png`、`/favicon-32.png` 和
+`/apple-touch-icon.png`；
 `pnpm check:branding` 验证公开图片状态、MIME、PNG 尺寸和首页图标链接，
 避免缺失图片被 SPA HTML 回退掩盖。
 

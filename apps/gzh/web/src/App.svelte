@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { CODEPI_SYMBOL_PNG } from "@kedoupi/shared/brand";
   import { onMount } from "svelte";
   import { me } from "./api";
   import { onSessionExpired, SessionExpiredError } from "./session";
@@ -84,6 +85,7 @@
 {:else if bootError}
   <header class="masthead wb-head">
     <div class="brand-block">
+      <img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" />
       <p class="brand-kicker">珂抖屁</p>
       <h1 class="brand">珂抖屁公众号</h1>
       <p class="sub">稿件、预览与审核 · 过稿后人工进箱</p>

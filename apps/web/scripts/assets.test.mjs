@@ -11,11 +11,30 @@ const { build } = require('esbuild');
 const { Miniflare, convertV4MiniflareOptions } = createRequire(require.resolve('wrangler'))('miniflare');
 
 test('real Worker assets preserve the public site and cannot shadow Desk APIs', { timeout: 60000 }, async t => {
-  const branding = ['brand/codepi-logo.png', 'brand/codepi-logo-450w.png', 'brand/codepi-logo-900w.png', 'brand/codepi-logo-dark.png', 'brand/wordmark-light.png', 'brand/wordmark-dark.png'];
+  const branding = [
+    'brand/codepi-logo.png',
+    'brand/codepi-logo-450w.png',
+    'brand/codepi-logo-900w.png',
+    'brand/codepi-logo-dark.png',
+    'brand/codepi-symbol.png',
+    'brand/codepi-symbol-dark.png',
+    'brand/codepi-symbol-512.png',
+    'favicon.ico',
+    'favicon-16.png',
+    'favicon-32.png',
+    'apple-touch-icon.png',
+  ];
   for (const asset of branding) {
     const body = await readFile(new URL(`../dist/${asset}`, import.meta.url));
     assert.ok(body.byteLength > 0, asset);
   }
+  const logo = await readFile(new URL('../dist/brand/codepi-logo.png', import.meta.url));
+  assert.equal(logo.subarray(1, 4).toString(), 'PNG');
+  assert.equal(logo.readUInt32BE(16), 1288);
+  assert.equal(logo.readUInt32BE(20), 316);
+  const symbol = await readFile(new URL('../dist/brand/codepi-symbol.png', import.meta.url));
+  assert.equal(symbol.readUInt32BE(16), 348);
+  assert.equal(symbol.readUInt32BE(20), 316);
   const dir = await mkdtemp(join(tmpdir(), 'codepi-web-assets-'));
   let runtime;
   t.after(async () => {
@@ -59,6 +78,12 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
       assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
       assert.ok(response.headers.get('Referrer-Policy').includes('no-referrer'));
     }
+  }
+  for (const path of ['/', '/about/']) {
+    const html = await readFile(join(assets, path, 'index.html'), 'utf8');
+    assert.match(html, /\/brand\/codepi-logo\.png 1288w/);
+    assert.match(html, /\/favicon-32\.png/);
+    assert.doesNotMatch(html, /1800w|\/favicon\.svg|wordmark-dark\.png/);
   }
   for (const path of ['/desk', '/about']) {
     const response = await get(path);

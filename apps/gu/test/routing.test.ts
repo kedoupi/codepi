@@ -184,7 +184,7 @@ describe("page and asset gates", () => {
 
   it("serves only the existing public asset allowlist", async () => {
     const { fetch, bindings } = assets();
-    for (const path of ["/assets/app.js", "/assets/app.css", "/assets/icon.svg", "/assets/font.woff2", "/favicon.svg", "/favicon.ico", "/apple-touch-icon.png"]) {
+    for (const path of ["/assets/app.js", "/assets/app.css", "/assets/icon.svg", "/assets/font.woff2", "/favicon-16.png", "/favicon-32.png", "/favicon.ico", "/apple-touch-icon.png", "/brand/codepi-symbol.png", "/brand/codepi-symbol.webp"]) {
       const response = await worker.fetch(request(path), bindings);
       expect(response.status).toBe(200);
       expectSecure(response);

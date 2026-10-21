@@ -74,7 +74,7 @@
   .journal-header { background: var(--canvas); }
   .journal-header .chrome-inner { height: 76px; gap: 24px; }
   .journal-header :global(.brand-name) { font-weight: 650; font-size: 19px; letter-spacing: -.03em; }
-  .journal-header :global(.brand-mark) { width: 32px; height: 32px; }
+  .journal-header :global(.brand-mark) { width: 32px; height: auto; }
   .journal-header .nav { gap: 24px; flex-wrap: nowrap; }
   .journal-header .nav a { font-size: 14px; font-weight: 500; min-height: 56px; border-bottom: 2px solid transparent; }
   .journal-header .nav a.active { color: var(--primary); border-bottom-color: var(--primary); }
