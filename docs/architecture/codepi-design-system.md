@@ -60,15 +60,16 @@
 | --- | --- | --- |
 | 符号（彩色） | `brand.ts` 的 `CODEPI_SYMBOL_SVG`（与 `assets/masters/symbol-color.svg` 逐路径一致） | 网页页头、登录页、页脚 |
 | 符号（反白/单色） | `assets/masters/symbol-inverse.svg`、`symbol-monochrome.svg` | 深色背景、单色印刷/主题化图标 |
-| 横向字标 | `assets/exports/wordmark-light.svg`/`-dark.svg`，或 `assets/web-logo-light.svg`/`-dark.svg` | 需要图片字标的场景（邮件、OG、外部平台） |
-| HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 网页内的字标，优先于图片字标 |
+| 横向字标（官方原件） | `assets/exports/wordmark-light.svg`/`-dark.svg`、PNG 导出 | 邮件、OG、外部平台等需要图片字标的场景 |
+| 主站图片字标 | `apps/web/public/brand/codepi-logo.png`、`codepi-logo-dark.png` 及 450/900px 响应式副本 | 主站与 Three.js 原型页头、页脚；源自官方 wordmark 导出的透明 RGBA，禁止使用含字体回退的旧 `codepi-logo.svg` |
+| HTML 字标 | `.kdp-brand` + `.kdp-mark` + `.kdp-wordmark` / `.kdp-wordmark-pi`（`site.css`） | 私人应用或无法访问主站静态图片的页面 |
 | 应用图标 | `assets/exports/app-icon-*.svg/png` | 应用、PWA、平台资料 |
 | 头像 | `assets/exports/avatar-*`、`assets/platform/{wechat,social}/` | 微信、GitHub、社交平台 |
 
 ### 2.2 使用规则
 
 - **必须**使用上述官方文件或 `CODEPI_SYMBOL_SVG`；不得描摹截图重绘、拉伸、旋转、改色、
-  加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。
+  加描边/阴影/渐变，也不得用文字或 emoji 拼凑标志。主站完整字标使用透明 PNG；不得继续引用旧 `codepi-logo.svg`，因为其中的字体回退会造成字形和间距失真。
 - 净空：四周至少 0.5 × 符号高度（暂定，待定稿母版复核）。
 - 禁止 `{@html}` 的应用（Project、Me 的 CSP 与 AGENTS 规则）不能直接注入 `CODEPI_SYMBOL_SVG`，
   应使用 `<img src="/favicon.svg" alt="">` 或把同一几何写成 Svelte 组件里的 SVG 元素，路径必须与母版一致。
@@ -76,7 +77,8 @@
   单独使用符号作为链接时必须提供可访问名称。
 - 16–32px 场景只用符号版 favicon（`favicon.svg`/`favicon-16/32.png`/`favicon.ico`），
   不缩小完整组合标志。
-- 页头符号尺寸：桌面 36px，页脚 30px（`site.css` 现行值）。
+- 主站完整字标按官方母版比例 `1800 / 500`（3.6:1）使用 `object-fit: contain`；桌面页头约 124px 宽、页脚约 114px 宽，手机页头约 104px 宽、页脚约 100px 宽。
+- 私人应用继续使用符号尺寸：桌面页头 36px，页脚 30px；不能把完整横向字标压缩到 16–32px。
 
 ### 2.3 网站图标契约
 
@@ -96,9 +98,9 @@
 ### 2.4 定稿状态
 
 资源状态按 v2.0.0 治理规则分四级：concept（概念）→ candidate（候选）→ approved（已批准）→ production（已上线）。
-v1.5 / v2.0.0 矢量母版仍是**候选稿**（candidate），2026-10-20 经用户同意已在全部站点使用，
-但不得宣称定稿或已通过任何平台审核：字形精修、商标近似与字体授权都未完成审查。
-母版定稿后只需替换两处：`brand.ts` 的 `CODEPI_SYMBOL_SVG` 和各站从 `assets/exports/` 复制的图标文件。
+v1.5 / v2.0.0 矢量母版仍是**候选稿**（candidate）。2026-10-20 经用户同意，主站已采用从官方导出解混生成的透明 PNG 字标；该图片资产用于解决网页字体回退导致的失真，不改变品牌图形母版的定稿状态。
+不得宣称定稿或已通过任何平台审核：字形精修、商标近似与字体授权都未完成审查。
+母版定稿后需同步 `brand.ts` 的 `CODEPI_SYMBOL_SVG`、`CODEPI_LOGO_*` 常量，以及主站 `public/brand/` 下的图片字标。
 平台发布（Apple Icon Composer `.icon`、Android 启动器遮罩、微信后台上传、应用商店）
 在 `PLATFORM_COMPLIANCE.md` 中标为未验收，使用前必须按平台当期规范重新核实。
 
@@ -322,6 +324,7 @@ v2.0.0 包有 Button、Input、Card、Loading、Feedback 的 React 源码。两�
 - 非阻塞更新用 `role="status"` + `aria-live="polite"`；加载区域设 `aria-busy="true"`，结束后复位；圆环、圆点设 `aria-hidden="true"`。
 - 橙色圆环是临时实现，不得称为标志路径动画；以后做路径动画必须基于已批准的矢量母版。
 - 参考实现：`brand/codepi-v2.0/loading/loading.css`、`demo.html`（静态原型，不是生产组件）。
+- 仓库共享实现：`packages/shared/styles/loading.css` 已提供 `.kdp-loading` / `.cp-loading` 的 brand、global、inline、ai 四种变体，以及 `.kdp-skeleton` / `.cp-skeleton`；通过 `site.css` 供主站和 Desk 复用。状态更新必须设置 `role="status"`、`aria-live="polite"`，加载区域使用 `aria-busy`，并在完成、错误或取消后停止动画。
 
 ### 9.3 AI 交互组件
 
@@ -397,7 +400,8 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 - `tokens.css` 已复制 v1.5 语义 token，`--kdp-*` 别名全部指向语义层（#118）。
 - 首页、GU、GZH、Health 的 favicon，以及首页、GU 的 `apple-touch-icon`，都已换成 v1.5 导出文件，
   并于 2026-10-20 发布到生产，线上文件与仓库逐字节一致（#123）。
-- 主站页头/页脚、GU 页头与登录页已使用 `CODEPI_SYMBOL_SVG` + 字标。
+- 主站页头/页脚与 Three.js 原型已使用透明 PNG 字标；GU 页头与登录页继续使用 `CODEPI_SYMBOL_SVG` + 字标。
+- 主站共享层已接入 v2.0.0 Loading 变体；Desk 的概览、摘要状态使用共享圆环和 reduced-motion 规则。
 - Auth、MCP 页面内嵌共享 `tokens.css`。
 
 ### 待实施
