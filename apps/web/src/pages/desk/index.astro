@@ -10,7 +10,7 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
   <div id="desk">
     <header class="desk-heading">
       <div>
-        <p class="kdp-section-label">生活、工作与思考</p>
+        <p class="kdp-section-label">私域控制中心 · 统一工作空间</p>
         <h1>我的工作台</h1>
         <p id="desk-date" class="desk-muted">健康、投资与内容工作，在这里回顾。</p>
       </div>
@@ -20,15 +20,24 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
       </div>
     </header>
 
-    <p id="desk-status" class="desk-status" role="status" aria-live="polite">正在确认登录状态…</p>
+    <p id="desk-status" class="desk-status" data-loading="true" role="status" aria-live="polite">正在确认登录状态…</p>
     <section id="desk-login" class="kdp-card desk-login" hidden aria-labelledby="desk-login-title">
       <span class="desk-icon"><Icon name="network" size={28} /></span>
       <h2 id="desk-login-title">留给自己的工作空间</h2>
       <p id="desk-login-note">登录后，查看三个应用的近况，整理一份此刻需要的摘要。</p>
-      <a class="kdp-button" href="/api/auth/login">本人登录 <span aria-hidden="true">→</span></a>
-      <button id="desk-retry" class="desk-text-button" type="button">重新检查连接</button>
-      <button id="desk-logout-retry" class="desk-text-button" type="button" hidden>重试退出登录</button>
+      <div class="desk-login-btn-row">
+        <a class="kdp-button" href="/api/auth/login">本人登录 <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="desk-login-sub-actions">
+        <button id="desk-retry" class="desk-text-button" type="button">重新检查连接</button>
+        <button id="desk-logout-retry" class="desk-text-button" type="button" hidden>重试退出登录</button>
+      </div>
       <p class="desk-fine">与 Health、GU、珂抖屁公众号共用统一登录。</p>
+      <div class="desk-login-trust">
+        <span class="trust-item"><span class="trust-dot"></span>SSO 统一鉴权</span>
+        <span class="trust-item"><span class="trust-dot"></span>私域数据隔离</span>
+        <span class="trust-item"><span class="trust-dot"></span>随时撤回会话</span>
+      </div>
     </section>
     <noscript><p class="kdp-card desk-login">工作台需要启用 JavaScript 才能安全读取登录后的概览。公开首页和博客仍可正常阅读。</p></noscript>
 
@@ -37,8 +46,11 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
         {deskProducts.map(product => (
           <article class="kdp-card desk-source" data-source={product.id}>
             <div class="desk-source-heading">
-              <span class="desk-icon"><Icon name={product.icon} /></span>
-              <div><p class="desk-eyebrow">{product.id === 'health' ? '生活 / HEALTH' : product.id === 'gu' ? '投资 / GU' : '表达 / WECHAT'}</p><h2>{product.name}</h2></div>
+              <span class="desk-icon"><Icon name={product.icon} size={24} /></span>
+              <div>
+                <p class="desk-eyebrow">{product.id === 'health' ? '生活 / HEALTH' : product.id === 'gu' ? '投资 / GU' : '表达 / WECHAT'}</p>
+                <h2>{product.name}</h2>
+              </div>
             </div>
             <span class="desk-badge" data-state>正在读取</span>
             <dl class="desk-metrics" data-metrics></dl>
@@ -54,7 +66,13 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
 
       <div class="desk-workspace">
         <section class="kdp-card desk-digest" aria-labelledby="digest-title">
-          <div class="desk-section-heading"><div><p class="desk-eyebrow">回顾 / DIGEST</p><h2 id="digest-title">按需摘要</h2></div><span class="desk-small-tag">由你发起</span></div>
+          <div class="desk-section-heading">
+            <div>
+              <p class="desk-eyebrow">回顾 / DIGEST</p>
+              <h2 id="digest-title">按需摘要</h2>
+            </div>
+            <span class="desk-small-tag">由你发起</span>
+          </div>
           <p class="desk-muted">选好范围，把此刻关心的事整理在一起。</p>
           <form id="desk-summary-form">
             <fieldset class="desk-range">
@@ -64,18 +82,31 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
             </fieldset>
             <fieldset class="desk-sources">
               <legend>纳入的应用</legend>
-              {deskProducts.map(product => <label><input type="checkbox" name="sources" value={product.id} checked />{product.shortName}</label>)}
+              {deskProducts.map(product => <label><input type="checkbox" name="sources" value={product.id} checked /><span>{product.shortName}</span></label>)}
             </fieldset>
-            <div class="desk-generate-row"><button id="desk-generate" type="submit" class="kdp-button">生成摘要 <span aria-hidden="true">→</span></button><p class="desk-fine">基于已保存的数据整理，不触发同步。</p></div>
+            <div class="desk-generate-row">
+              <button id="desk-generate" type="submit" class="kdp-button">生成摘要 <span aria-hidden="true">→</span></button>
+              <p class="desk-fine">基于已保存的数据整理，不触发同步。</p>
+            </div>
           </form>
           <div id="desk-digest-status" class="desk-fine" role="status" aria-live="polite"></div>
           <div id="desk-summary-output" class="desk-summary-output" aria-busy="false">
-            <div class="desk-summary-empty"><Icon name="writing" size={30} /><h3>为一次回顾，留一点空间</h3><p>生成后，摘要会按应用呈现，并附上数据日期与查看入口。</p><p class="desk-fine">摘要只保留在当前页面。</p></div>
+            <div class="desk-summary-empty">
+              <div class="desk-empty-icon" aria-hidden="true"><Icon name="writing" size={28} /></div>
+              <h3>为一次回顾，留一点空间</h3>
+              <p>生成后，摘要会按应用呈现，并附上数据日期与查看入口。</p>
+              <p class="desk-fine">摘要只保留在当前页面。</p>
+            </div>
           </div>
         </section>
 
         <aside class="kdp-card desk-attention" aria-labelledby="attention-title">
-          <div class="desk-section-heading"><div><p class="desk-eyebrow">接下来 / NEXT</p><h2 id="attention-title">需要处理</h2></div></div>
+          <div class="desk-section-heading">
+            <div>
+              <p class="desk-eyebrow">接下来 / NEXT</p>
+              <h2 id="attention-title">需要处理</h2>
+            </div>
+          </div>
           <p class="desk-muted">从真实状态出发。</p>
           <ul id="desk-attention-list"></ul>
           <p id="desk-attention-empty" class="desk-fine">正在读取应用状态…</p>
