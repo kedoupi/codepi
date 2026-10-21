@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, renameSync, readFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { changedFiles, makePlan, staticApps, privateApps } from './check.mjs';
+import { changedFiles, makePlan, staticApps, privateApps, allowedTopLevelDirs, unexpectedTopLevelDirs, main } from './check.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const script = fileURLToPath(new URL('./check.mjs', import.meta.url));
@@ -18,6 +18,11 @@ function fixture(t) {
     const target = path.join(cwd, name);
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, data);
+  };
+  const ignore = rule => {
+    const target = path.join(cwd, '.gitignore');
+    const current = existsSync(target) ? readFileSync(target, 'utf8') : '';
+    if (!current.split('\n').includes(rule)) writeFileSync(target, `${current}${rule}\n`);
   };
   git('init', '-q');
   git('config', 'user.name', 'Workflow test');
@@ -32,7 +37,7 @@ function fixture(t) {
   write('README.md');
   write('.gitignore', '.test-bin/\n');
   const base = commit();
-  return { cwd, git, write, commit, base };
+  return { cwd, git, write, ignore, commit, base };
 }
 
 test('single static app stays isolated; retired paths validate remaining consumers', () => {
@@ -249,6 +254,7 @@ test('CLI rejects invalid arguments and can show help without running checks', (
 });
 
 function runFixture(f, args, status = 0) {
+  f.ignore('.test-bin/');
   const bin = path.join(f.cwd, '.test-bin');
   const marker = path.join(bin, 'invocations.txt');
   f.write('.test-bin/npm', `#!/usr/bin/env node
@@ -287,9 +293,11 @@ test('unmapped changes block execution instead of claiming a pass', t => {
   const f = fixture(t);
   f.write('new-app/file.js');
   const result = runFixture(f, ['--base', f.base, '--run']);
-  assert.equal(result.status, 2, result.stderr);
+  assert.equal(result.status, 1, result.stderr);
   assert.equal(existsSync(result.marker), false);
   assert.match(result.stdout, /MANUAL: "new-app\/file.js"/);
+  assert.match(result.stderr, /Unexpected top-level paths: new-app/);
+  assert.match(result.stderr, /no checks executed/);
 });
 
 test('MCP protocol and Health backend changes select the connector integration tests', () => {
@@ -312,4 +320,61 @@ test('new domain contracts, storage and CLI select their consumers', () => {
     assert.ok(plan.checks.some(c => c.argv.includes('scripts/agent/check-migrations.mjs')));
     assert.ok(plan.checks.some(c => c.argv.includes('scripts/cloudflare/validate-governance.mjs')));
   }
+});
+
+test('tracked root directories stay inside the repository allowlist', t => {
+  const f = fixture(t);
+  for (const dir of allowedTopLevelDirs) f.write(`${dir}/kept.txt`);
+  f.write('README-extra.md');
+  f.commit();
+  assert.deepEqual(unexpectedTopLevelDirs(f.cwd), []);
+});
+
+test('one unignored unknown root directory fails the directory check', t => {
+  const f = fixture(t);
+  f.write('prototype-lab/notes.txt');
+  assert.deepEqual(unexpectedTopLevelDirs(f.cwd), ['prototype-lab']);
+  const result = runFixture(f, []);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /Unexpected top-level paths: prototype-lab/);
+  assert.match(result.stdout, /Preview only/);
+  assert.equal(existsSync(result.marker), false);
+});
+
+test('multiple unknown root directories are reported in dictionary order', t => {
+  const f = fixture(t);
+  f.write('zeta/file.txt');
+  f.write('alpha/file.txt');
+  f.write('middle/file.txt');
+  assert.deepEqual(unexpectedTopLevelDirs(f.cwd), ['alpha', 'middle', 'zeta']);
+  assert.equal(main([], f.cwd), 1);
+});
+
+test('ignored generated directories do not fail the directory check', t => {
+  const f = fixture(t);
+  for (const rule of ['dist/', 'node_modules/', '.astro/', '.wrangler/', '.env*']) f.ignore(rule);
+  f.commit();
+  f.write('dist/index.html');
+  f.write('node_modules/pkg/index.js');
+  f.write('.astro/types.d.ts');
+  f.write('.wrangler/cache/cf.json');
+  f.write('.env.local', 'TOKEN=not-printed\n');
+  assert.deepEqual(unexpectedTopLevelDirs(f.cwd), []);
+  const result = runFixture(f, ['--run']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Unexpected top-level paths|TOKEN/);
+});
+
+test('an empty unignored root directory fails while ignored dist stays silent', t => {
+  const f = fixture(t);
+  f.ignore('dist/');
+  f.commit();
+  mkdirSync(path.join(f.cwd, 'empty-audit-root'));
+  f.write('dist/generated.html');
+  assert.deepEqual(unexpectedTopLevelDirs(f.cwd), ['empty-audit-root']);
+  const result = runFixture(f, []);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /Unexpected top-level paths: empty-audit-root$/m);
+  assert.doesNotMatch(result.stderr, /\bdist\b/);
+  assert.equal(existsSync(result.marker), false);
 });
