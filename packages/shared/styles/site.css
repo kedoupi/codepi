@@ -1,4 +1,5 @@
 @import "./tokens.css";
+@import "./loading.css";
 
 html {
   scroll-behavior: smooth;
@@ -12,8 +13,11 @@ body {
   color: var(--kdp-ink);
   font-family: var(--kdp-font);
   line-height: var(--leading-body);
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+:lang(zh-CN) body { font-feature-settings: "kern" 1, "palt" 1; }
 *, *::before, *::after { box-sizing: border-box; }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
@@ -26,33 +30,75 @@ a { text-underline-offset: 4px; }
 .kdp-container { width: min(calc(100% - 64px), var(--kdp-content-width)); margin-inline: auto; }
 .kdp-header-inner { min-height: 100px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .kdp-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--kdp-ink); text-decoration: none; white-space: nowrap; }
+.kdp-logo { display: block; width: 124px; height: auto; aspect-ratio: 1800 / 500; object-fit: contain; }
+[data-theme="dark"] .kdp-logo { content: url('/brand/wordmark-dark.png'); }
 /* v1.5 symbol + wordmark: the symbol keeps its master colours; "Code" graphite, "Pi" brand orange. */
-.kdp-mark { display: inline-block; width: 36px; height: 36px; flex-shrink: 0; }
+.kdp-mark { display: inline-block; width: 36px; height: 36px; flex-shrink: 0; transition: transform var(--motion-normal) cubic-bezier(.22, 1, .36, 1); }
+.kdp-brand:hover .kdp-mark { transform: rotate(-3deg) scale(1.04); }
 .kdp-mark svg { display: block; width: 100%; height: 100%; }
 .kdp-wordmark { color: var(--brand-graphite); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
 .kdp-wordmark-pi { color: var(--brand-orange); }
 .kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .kdp-nav { display: flex; align-items: center; gap: 30px; font-size: 14px; font-weight: 500; }
-.kdp-nav a { min-height: 44px; display: inline-flex; align-items: center; color: var(--kdp-text); text-decoration: none; }
+.kdp-nav a { position: relative; min-height: 44px; display: inline-flex; align-items: center; color: var(--kdp-text); text-decoration: none; }
+.kdp-nav a::after { content: ""; position: absolute; inset: auto 0 7px; height: 2px; background: var(--brand-orange); transform: scaleX(0); transform-origin: left center; transition: transform var(--motion-normal) cubic-bezier(.22, 1, .36, 1); }
+.kdp-nav a:hover::after, .kdp-nav a[aria-current="page"]::after { transform: scaleX(1); }
 /* Small orange text misses 4.5:1 on the warm canvas: hover darkens, the current page keeps ink with an orange rule. */
 .kdp-nav a:hover { color: var(--color-action-hover); }
-.kdp-nav a[aria-current="page"] { color: var(--kdp-ink); font-weight: 600; text-decoration: underline var(--brand-orange); text-underline-offset: 11px; text-decoration-thickness: 2px; }
+.kdp-nav a[aria-current="page"] { color: var(--kdp-ink); font-weight: 600; }
 .kdp-nav .kdp-nav-entry { min-height: 40px; padding: 4px 20px; border: 1px solid var(--kdp-line-strong); border-radius: var(--kdp-radius-sm); color: var(--color-action-hover); background: var(--kdp-surface); }
 .kdp-nav .kdp-nav-entry:hover { border-color: var(--kdp-accent); background: var(--kdp-surface); }
+.kdp-nav .kdp-nav-entry::after { display: none; }
 .kdp-main { padding-block: 48px 64px; min-height: 55vh; }
-.kdp-main--home { padding-block: 0 40px; }
+.kdp-main--home { width: 100%; max-width: none; min-height: 0; margin: 0; padding: 0; }
 .kdp-footer { border-top: 1px solid var(--kdp-line); background: var(--kdp-surface); }
-.kdp-footer-inner { display: flex; justify-content: space-between; gap: 24px; padding-block: 26px; }
+.kdp-footer-inner { display: flex; justify-content: space-between; gap: 24px; padding-block: var(--space-8); }
 .kdp-footer .kdp-mark { width: 30px; height: 30px; }
 .kdp-footer .kdp-wordmark { font-size: 16px; }
 .kdp-footer .kdp-wordmark small { font-size: 12px; }
-.kdp-footer-note { margin: 9px 0 0 42px; font-size: var(--text-caption); color: var(--kdp-muted); }
-.kdp-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 24px; font-size: 12px; }
-.kdp-footer-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--kdp-muted); text-decoration: none; padding-block: 5px; }
+.kdp-footer-note { margin: var(--space-2) 0 0 42px; font-size: 14px; color: var(--kdp-muted); }
+.kdp-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 28px; font-size: 14px; }
+.kdp-footer-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--kdp-muted); text-decoration: none; padding-block: 5px; font-size: 14px; }
 .kdp-footer-links a:hover { color: var(--color-action-hover); }
-.kdp-copyright { margin: 10px 0 0; text-align: right; color: var(--kdp-muted); font-size: var(--text-caption); }
-.kdp-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 10px 24px; border: 1px solid var(--kdp-accent); border-radius: var(--radius-control); background: var(--kdp-accent); color: var(--color-action-text); text-decoration: none; font-size: 15px; font-weight: 600; transition: background var(--kdp-motion), border-color var(--kdp-motion); }
-.kdp-button:hover { background: var(--kdp-accent-strong); border-color: var(--kdp-accent-strong); }
+.kdp-copyright { margin: 10px 0 0; text-align: right; color: var(--kdp-muted); font-size: 13px; }
+
+/* The homepage uses the same public chrome as the rest of the site, but keeps
+ * the fixed, wide stage and quiet footer from the Three.js design. */
+.kdp-header--home {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 30;
+  border-bottom: 1px solid transparent;
+  background: color-mix(in srgb, var(--color-background) 82%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.25);
+  transition: border-color var(--motion-normal) ease, background-color var(--motion-normal) ease;
+}
+.kdp-header--home.is-scrolled {
+  border-color: color-mix(in srgb, var(--color-text) 10%, transparent);
+  background: color-mix(in srgb, var(--color-background) 94%, transparent);
+}
+.kdp-header--home .kdp-header-inner {
+  width: min(calc(100% - 2 * clamp(20px, 5.2vw, 96px)), 1400px);
+  min-height: 76px;
+}
+.kdp-header--home .kdp-brand { flex: 0 0 auto; }
+.kdp-header--home .kdp-logo { width: 124px; }
+.kdp-header--home .kdp-nav { gap: clamp(20px, 3.2vw, 42px); font-size: 15px; font-weight: 500; }
+.kdp-header--home .kdp-nav .kdp-nav-entry { padding: 6px 20px; border-radius: 999px; font-size: 15px; font-weight: 500; }
+.kdp-footer--home { background: var(--color-background); }
+.kdp-footer--home .kdp-footer-inner {
+  width: min(calc(100% - 2 * clamp(20px, 5.2vw, 96px)), 1400px);
+  align-items: center;
+  padding-block: 40px;
+}
+.kdp-footer--home .kdp-logo { width: 114px; }
+.kdp-footer--home .kdp-footer-note { margin-left: 0; font-size: 14px; }
+.kdp-footer--home .kdp-footer-links { font-size: 14px; }
+.kdp-footer--home .kdp-copyright { font-size: 13px; }
+.kdp-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 10px 24px; border: 1px solid var(--kdp-accent); border-radius: var(--radius-control); background: var(--kdp-accent); color: var(--color-action-text); text-decoration: none; font-size: 15px; font-weight: 600; transition: background var(--kdp-motion), border-color var(--kdp-motion), transform var(--motion-normal) cubic-bezier(.22, 1, .36, 1); }
+.kdp-button:hover { background: var(--kdp-accent-strong); border-color: var(--kdp-accent-strong); transform: translateY(-1px); }
+.kdp-button:active { transform: translateY(0) scale(.99); }
 .kdp-button[aria-disabled="true"], .kdp-button:disabled { border-color: transparent; background: var(--color-disabled-bg); color: var(--color-disabled-text); cursor: not-allowed; }
 .kdp-button--secondary { background: var(--kdp-surface); color: var(--kdp-text); border-color: var(--kdp-line-strong); }
 .kdp-button--secondary:hover { background: var(--brand-soft); border-color: var(--kdp-accent); }
@@ -77,17 +123,33 @@ a { text-underline-offset: 4px; }
 @media (max-width: 720px) {
   .kdp-container { width: calc(100% - 40px); }
   .kdp-header-inner { min-height: 84px; flex-wrap: wrap; gap: 8px 16px; padding-block: 18px; }
+  .kdp-logo { width: 104px; }
   .kdp-wordmark { font-size: 19px; }
   .kdp-wordmark small { font-size: 12px; }
-  .kdp-nav { gap: 18px; font-size: 13px; }
+  .kdp-nav { gap: 18px; font-size: 14px; }
   .kdp-nav .kdp-nav-entry { display: none; }
   .kdp-nav .kdp-desk-entry { display: inline-flex; min-height: 44px; padding: 4px 10px; }
   .kdp-nav:has(.kdp-desk-entry) { flex-wrap: wrap; gap: 8px 18px; }
-  .kdp-footer-inner { flex-direction: column; gap: 24px; }
-  .kdp-footer-links { justify-content: flex-start; }
-  .kdp-copyright { text-align: left; }
+  .kdp-footer-inner { flex-direction: column; gap: 20px; }
+  .kdp-footer-links { justify-content: flex-start; gap: 8px 24px; font-size: 14px; }
+  .kdp-footer-links a { font-size: 14px; }
+  .kdp-footer-note { font-size: 14px; margin: 8px 0 0; }
+  .kdp-copyright { text-align: left; font-size: 13px; }
   .kdp-main { padding-block: 32px 48px; }
   .kdp-main--home { padding-top: 0; }
+  .kdp-header--home .kdp-header-inner {
+    width: calc(100% - 32px);
+    min-height: 62px;
+    flex-wrap: nowrap;
+    gap: 12px;
+    padding-block: 0;
+  }
+  .kdp-header--home .kdp-logo { width: 104px; }
+  .kdp-header--home .kdp-nav { flex-wrap: nowrap; width: auto; margin-left: auto; gap: 0; font-size: 14px; }
+  .kdp-header--home .kdp-nav a:not(.kdp-desk-entry) { display: none; }
+  .kdp-header--home .kdp-nav .kdp-desk-entry { display: inline-flex; min-height: 40px; padding: 5px 16px; font-size: 14px; font-weight: 500; }
+  .kdp-footer--home .kdp-footer-inner { width: calc(100% - 32px); align-items: flex-start; gap: 20px; padding-block: 32px; }
+  .kdp-footer--home .kdp-logo { width: 100px; }
 }
 @media (max-width: 400px) {
   .kdp-header-inner { align-items: flex-start; }

@@ -22,6 +22,7 @@ function time(value: string | null) {
   return new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
 }
 function resetSummary() {
+  el("desk-digest-status").dataset.loading = "false";
   el("desk-summary-output").replaceChildren(...Array.from(emptyOutput.cloneNode(true).childNodes));
   el("desk-digest-status").textContent = "";
   el("desk-summary-output").setAttribute("aria-busy", "false");
@@ -102,6 +103,7 @@ function renderOverview(payload: Payload) {
   el("desk-attention-empty").hidden = list.childElementCount > 0;
   el("desk-attention-empty").textContent = payload.sources.every(source => source.status === "empty")
     ? "还没有可用于判断待处理事项的数据。" : "已读取的状态中，暂无待处理事项。";
+  el("desk-status").dataset.loading = "false";
   el("desk-status").textContent = `${payload.partial ? "部分来源暂不可用" : "概览已读取"} · ${time(payload.generatedAt)}（北京时间）`;
   document.querySelector(".desk-overview")!.setAttribute("aria-busy", "false");
 }
@@ -114,6 +116,7 @@ async function refresh() {
   el<HTMLButtonElement>("desk-refresh").disabled = true;
   el<HTMLButtonElement>("desk-generate").disabled = true;
   document.querySelector(".desk-overview")!.setAttribute("aria-busy", "true");
+  el("desk-status").dataset.loading = "true";
   el("desk-status").textContent = "正在读取各应用已有记录…";
   try {
     const result = await api("/api/desk/overview") as Payload;
@@ -122,6 +125,7 @@ async function refresh() {
     if (current === generation && !(error instanceof SessionExpired)) {
       // Do not leave an old private snapshot labelled as current after a failed refresh.
       showLogin("暂时无法验证或读取工作台，数据已隐藏。请重新检查连接。");
+      el("desk-status").dataset.loading = "false";
       el("desk-status").textContent = "工作台连接暂不可用。";
     }
   } finally {
@@ -136,6 +140,7 @@ async function initialize() {
   clearPrivate();
   const current = generation;
   el("desk-login").hidden = true;
+  el("desk-status").dataset.loading = "true";
   el("desk-status").textContent = "正在确认登录状态…";
   try {
     await api("/api/desk/me");
@@ -148,6 +153,7 @@ async function initialize() {
     if (current === generation && !(error instanceof SessionExpired)) {
       showLogin("工作台连接暂不可用。若首次部署尚未完成，请稍后重新检查连接。");
     }
+    el("desk-status").dataset.loading = "false";
     el("desk-status").textContent = "";
   }
 }
@@ -161,6 +167,7 @@ el<HTMLFormElement>("desk-summary-form").addEventListener("submit", async event 
   const version = ++summaryVersion;
   el<HTMLButtonElement>("desk-generate").disabled = true;
   el("desk-summary-output").setAttribute("aria-busy", "true");
+  el("desk-digest-status").dataset.loading = "true";
   el("desk-digest-status").textContent = "正在整理所选应用的记录…";
   el("desk-summary-output").replaceChildren();
   try {
@@ -182,9 +189,11 @@ el<HTMLFormElement>("desk-summary-form").addEventListener("submit", async event 
       section.append(link);
       el("desk-summary-output").append(section);
     }
+    el("desk-digest-status").dataset.loading = "false";
     el("desk-digest-status").textContent = `${result.partial ? "部分完成" : "摘要已生成"} · ${result.range === "week" ? "最近 7 天（快照来源单独标注）" : "当前概览"} · ${time(result.generatedAt)}`;
   } catch (error) {
     if (current === generation && version === summaryVersion && !(error instanceof SessionExpired)) {
+      el("desk-digest-status").dataset.loading = "false";
       el("desk-digest-status").textContent = "摘要暂时无法生成，请重试。";
     }
   } finally {
@@ -198,6 +207,7 @@ el("desk-summary-form").addEventListener("change", () => {
   summaryVersion++;
   resetSummary();
   el<HTMLButtonElement>("desk-generate").disabled = false;
+  el("desk-digest-status").dataset.loading = "false";
   el("desk-digest-status").textContent = "范围已更改，请生成新的摘要。";
 });
 async function logout() {
@@ -209,6 +219,7 @@ async function logout() {
     await api("/api/auth/logout", { method: "POST" });
     el("desk-login-note").textContent = "已退出此浏览器的统一登录，工作台数据已清除。";
     el("desk-logout-retry").hidden = true;
+    el("desk-status").dataset.loading = "false";
     el("desk-status").textContent = "";
   } catch {
     el("desk-login-note").textContent = "页面数据已隐藏，但退出尚未完成。请重试退出登录。";

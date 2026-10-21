@@ -48,8 +48,8 @@
   --text-caption: 12px;
   --leading-body: 1.6;
   --leading-heading: 1.2;
-  /* Fonts are not loaded remotely; Inter / Noto Sans SC apply where installed. */
-  --font-sans: Inter, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  /* Fonts are not loaded remotely. Prefer the native Apple CJK faces before Noto. */
+  --font-sans: Inter, "MiSans", "SF Pro Text", "SF Pro Display", "SF Pro SC", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
   /* Legacy aliases consumed by existing components. */

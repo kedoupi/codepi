@@ -57,15 +57,26 @@ const jsonLd = {
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content={title} />
   <meta name="twitter:description" content={description} />
+  <link rel="stylesheet" href="/fonts/misans/misans.css" />
   <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
 </head>
 <body>
   <a href="#main-content" class="kdp-skip">{personalSite ? '跳到正文' : 'Skip to main content'}</a>
-  <header>
+  <header class:list={['kdp-header', { 'kdp-header--home': home }]}>
     <div class="kdp-container kdp-header-inner">
       <a href="/" class="kdp-brand" aria-label={personalSite ? `${PRODUCT_BRAND} 首页` : siteName}>
-        <span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} />
-        <span class="kdp-wordmark">{personalSite ? <>Code<span class="kdp-wordmark-pi">Pi</span></> : siteName}</span>
+        {personalSite
+          ? <img
+              class="kdp-logo"
+              src="/brand/codepi-logo.png"
+              srcset="/brand/codepi-logo-450w.png 450w, /brand/codepi-logo-900w.png 900w, /brand/codepi-logo.png 1800w"
+              alt="CodePi"
+              width="1800"
+              height="500"
+              sizes="(max-width: 720px) 104px, 124px"
+              decoding="async"
+            />
+          : <><span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} /><span class="kdp-wordmark">{siteName}</span></>}
       </a>
       <nav class="kdp-nav" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
         {navLinks.map((link) => (
@@ -78,12 +89,23 @@ const jsonLd = {
   <main id="main-content" class:list={['kdp-container kdp-main', { 'kdp-main--home': home }]} tabindex="-1">
     <slot />
   </main>
-  <footer class="kdp-footer">
+  <footer class:list={['kdp-footer', { 'kdp-footer--home': home }]}>
     <div class="kdp-container kdp-footer-inner">
       <div>
         <a href="/" class="kdp-brand" aria-label={personalSite ? PRODUCT_BRAND : siteName}>
-          <span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} />
-          <span class="kdp-wordmark">{personalSite ? <>Code<span class="kdp-wordmark-pi">Pi</span></> : siteName}</span>
+          {personalSite
+            ? <img
+                class="kdp-logo"
+              src="/brand/codepi-logo.png"
+              srcset="/brand/codepi-logo-450w.png 450w, /brand/codepi-logo-900w.png 900w, /brand/codepi-logo.png 1800w"
+                alt="CodePi"
+                width="1800"
+                height="500"
+                sizes="(max-width: 720px) 100px, 114px"
+                decoding="async"
+                loading="lazy"
+              />
+            : <><span class="kdp-mark" aria-hidden="true" set:html={CODEPI_SYMBOL_SVG} /><span class="kdp-wordmark">{siteName}</span></>}
         </a>
         <p class="kdp-footer-note">{personalSite ? footerNote : tagline}</p>
       </div>

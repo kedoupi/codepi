@@ -18,6 +18,7 @@
     "./layouts/BaseLayout.astro": "./layouts/BaseLayout.astro",
     "./privacy-redirects.js": "./privacy-redirects.js",
     "./sitemap-filter.js": "./sitemap-filter.js",
-    "./mcp/contract": "./mcp/contract.ts"
+    "./mcp/contract": "./mcp/contract.ts",
+    "./styles/loading.css": "./styles/loading.css"
   }
 }

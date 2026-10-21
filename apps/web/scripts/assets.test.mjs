@@ -11,6 +11,11 @@ const { build } = require('esbuild');
 const { Miniflare, convertV4MiniflareOptions } = createRequire(require.resolve('wrangler'))('miniflare');
 
 test('real Worker assets preserve the public site and cannot shadow Desk APIs', { timeout: 60000 }, async t => {
+  const branding = ['brand/codepi-logo.png', 'brand/codepi-logo-450w.png', 'brand/codepi-logo-900w.png', 'brand/codepi-logo-dark.png', 'brand/wordmark-light.png', 'brand/wordmark-dark.png'];
+  for (const asset of branding) {
+    const body = await readFile(new URL(`../dist/${asset}`, import.meta.url));
+    assert.ok(body.byteLength > 0, asset);
+  }
   const dir = await mkdtemp(join(tmpdir(), 'codepi-web-assets-'));
   let runtime;
   t.after(async () => {

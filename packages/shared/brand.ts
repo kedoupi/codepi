@@ -1,5 +1,17 @@
 export const PRODUCT_BRAND = "kedoupi（codepi）";
 
+/**
+ * CodePi official wordmark images (v2.0.0 export master).
+ * Pixel-perfect 32-bit RGBA with transparent alpha channel.
+ * Aspect ratio: 1334 x 355 (~3.7577 : 1).
+ */
+export const CODEPI_LOGO_PNG = "/brand/wordmark-light.png";
+export const CODEPI_LOGO_LIGHT_PNG = "/brand/wordmark-light.png";
+export const CODEPI_LOGO_DARK_PNG = "/brand/wordmark-dark.png";
+export const CODEPI_LOGO_WIDTH = 1800;
+export const CODEPI_LOGO_HEIGHT = 500;
+export const CODEPI_LOGO_ASPECT_RATIO = "1800 / 500";
+
 /** Visible wordmark text; set as "Code" in graphite and "Pi" in brand orange, as in the v1.5 wordmark. */
 export const BRAND_WORDMARK = "CodePi";
 

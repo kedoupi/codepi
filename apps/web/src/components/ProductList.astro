@@ -10,40 +10,221 @@ const Heading = detailed ? 'h2' : 'h3';
 ---
 <div class:list={['product-list', { 'product-list--detailed': detailed }]}>
   {products.map((product) => (
-    <article id={detailed ? product.id : undefined} class="product-row">
-      <span class="product-icon"><Icon name={product.icon} size={28} /></span>
-      <div class="product-copy">
-        <Heading class="product-title"><a href={product.href} target="_blank" rel="noopener noreferrer">{product.name}<span class="sr-only">（在新标签页打开）</span></a></Heading>
-        <p>{detailed ? product.detail : product.description}</p>
-        {detailed && <p class="product-note">{product.note}</p>}
+    <article id={detailed ? product.id : undefined} class="product-card">
+      <div class="product-card-top">
+        <div class="product-icon" aria-hidden="true">
+          <Icon name={product.icon} size={26} />
+        </div>
+        <span class="product-badge">
+          <span class="badge-dot" aria-hidden="true"></span>
+          {product.access}
+        </span>
       </div>
-      <a class="product-open" href={product.href} target="_blank" rel="noopener noreferrer" aria-label={`打开${product.name}，需要登录，在新标签页打开`}>
-        <span>{product.access}</span><Icon name="external" size={18} />
-      </a>
+
+      <div class="product-content">
+        <Heading class="product-title">
+          <a href={product.href} target="_blank" rel="noopener noreferrer">
+            {product.name}
+            <span class="sr-only">（在新标签页打开）</span>
+          </a>
+        </Heading>
+        <p class="product-desc">{product.description}</p>
+        {detailed && <p class="product-detail">{product.detail}</p>}
+      </div>
+
+      <div class="product-card-bottom">
+        <div class="product-security">
+          <span class="security-dot" aria-hidden="true"></span>
+          <span>{product.note}</span>
+        </div>
+        <a
+          class="product-action"
+          href={product.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`打开${product.name}，需要登录，在新标签页打开`}
+        >
+          <span>进入应用</span>
+          <Icon name="external" size={16} />
+        </a>
+      </div>
     </article>
   ))}
 </div>
 <style>
-  .product-list { padding: 4px 28px; border: 1px solid rgb(255 255 255 / 80%); border-radius: var(--kdp-radius-lg); background: var(--kdp-surface); box-shadow: var(--kdp-shadow); }
-  .product-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 28px; min-height: 110px; padding-block: 20px; }
-  .product-row + .product-row { border-top: 1px solid var(--kdp-line); }
-  .product-icon { width: 56px; height: 56px; display: grid; place-items: center; border-radius: var(--kdp-radius); color: var(--kdp-accent); background: var(--kdp-accent-soft); }
-  .product-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; line-height: 1.5; }
-  .product-title a { color: var(--kdp-ink); text-decoration: none; }
-  .product-title a:hover { color: var(--kdp-accent-strong); }
-  p { margin: 0; color: var(--kdp-muted); font-size: 14px; line-height: 1.8; }
-  .product-open { min-height: 44px; padding: 10px 0 10px 16px; display: inline-flex; align-items: center; gap: 16px; color: var(--kdp-muted); font-size: 13px; text-decoration: none; white-space: nowrap; }
-  .product-open:hover { color: var(--kdp-accent-strong); }
-  .product-note { margin-top: 12px; font-size: 12px; }
-  .product-list--detailed .product-row { min-height: 168px; }
+  .product-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .product-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 32px 26px;
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    background: var(--color-surface);
+    box-shadow: 0 2px 8px rgba(45, 42, 40, 0.02), 0 12px 32px rgba(45, 42, 40, 0.03);
+    transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow var(--motion-normal) ease,
+                border-color var(--motion-normal) ease;
+  }
+  .product-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 113, 61, 0.4);
+    box-shadow: 0 4px 16px rgba(45, 42, 40, 0.04), 0 20px 48px rgba(255, 113, 61, 0.08);
+  }
+  .product-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .product-icon {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    color: var(--brand-orange-interactive);
+    background: var(--brand-soft);
+    transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .product-card:hover .product-icon {
+    transform: translateY(-2px) scale(1.05);
+  }
+  .product-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    background: rgba(45, 42, 40, 0.04);
+    border: 1px solid rgba(45, 42, 40, 0.06);
+  }
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-orange);
+  }
+  .product-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .product-title {
+    margin: 0 0 10px;
+    font-size: 20px;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: -0.015em;
+  }
+  .product-title a {
+    color: var(--color-text);
+    text-decoration: none;
+    transition: color var(--motion-normal) ease;
+  }
+  .product-title a:hover {
+    color: var(--brand-orange-interactive);
+  }
+  .product-desc {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text);
+    line-height: 1.6;
+  }
+  .product-detail {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--color-text-muted);
+    line-height: 1.7;
+  }
+  .product-card-bottom {
+    margin-top: auto;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .product-security {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+  .security-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-border-strong);
+  }
+  .product-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand-orange-interactive);
+    background: var(--brand-soft);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background var(--motion-normal) ease,
+                color var(--motion-normal) ease,
+                transform var(--motion-normal) ease;
+  }
+  .product-action:hover {
+    background: var(--brand-orange);
+    color: #FFFFFF;
+    transform: translateX(2px);
+  }
+  .product-action svg {
+    transition: transform var(--motion-normal) cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .product-action:hover svg {
+    transform: translate(2px, -2px);
+  }
+  @media (max-width: 860px) {
+    .product-list {
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+    .product-card {
+      padding: 24px 22px 20px;
+    }
+    .product-card-bottom {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .product-action {
+      align-self: flex-end;
+    }
+  }
   @media (max-width: 720px) {
-    .product-list { padding: 0 20px; }
-    .product-row { grid-template-columns: 44px minmax(0, 1fr) 32px; gap: 12px; padding-block: 24px; }
-    .product-icon { width: 44px; height: 48px; border-radius: 12px; }
-    .product-title { font-size: 16px; }
-    p { font-size: 13px; }
-    .product-open { justify-content: flex-end; padding: 0; margin-left: -12px; min-width: 44px; }
-    .product-open span { display: none; }
-    .product-list--detailed .product-row { min-height: 180px; }
+    .product-card {
+      padding: 22px 18px 18px;
+    }
+    .product-title {
+      font-size: 18px;
+    }
+    .product-desc {
+      font-size: 14px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .product-card, .product-icon, .product-action, .product-action svg {
+      transition: none;
+    }
   }
 </style>
