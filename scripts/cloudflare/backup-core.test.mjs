@@ -34,12 +34,11 @@ function inventoryRequest(mutate = rows => rows) {
   return { request, calls };
 }
 
-test('the required inventory is dynamic and keeps all six managed IDs while resolving the three new names', async () => {
+test('the required inventory keeps pinned IDs while resolving the new names', async () => {
   assert.equal(DATABASE_NAMES.length, 9);
-  assert.equal(Object.keys(DATABASES).length, 6);
+  assert.equal(Object.keys(DATABASES).length, 7);
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-project'));
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-me'));
-  assert.ok(!Object.hasOwn(DATABASES, 'codepi-blog'));
   const staged = inventoryRequest(rows => rows.reverse());
   const result = await resolveProductionDatabases({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,

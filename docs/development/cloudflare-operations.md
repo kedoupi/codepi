@@ -17,20 +17,20 @@ v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记
 | --- | --- |
 | `codepi-ops` Worker | 两个 Cron，无公网 routes、workers.dev 或 preview URL |
 | `codepi-ops` Workflow | 以确定的 instance ID 去重，每个步骤最多重试两次，指数退避 |
-| `codepi-ops-backups` 私有 R2 | 当前全库与 GU/Me 原件密文、完成清单和运维报告，按前缀保留 14 天 |
+| `codepi-ops-backups` 私有 R2 | 全库与 GU/Me 原件密文、完成清单、运维报告，以及 `reports/traffic/samples.json`；流量基线按最近 7 天逐小时滚动 |
 | GitHub API | 私有仓库 main/逐提交历史读取；凭证就绪后把密文复制到私有 Release |
 
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
 这些是平台定时任务，不保证精确到分钟。只能从实际 Workflow 实例和 R2 对象确认
 执行结果，配置存在不代表已经执行。
 
-## 巡检与失败
+云端巡检还查询 `codepi.app` zone 的 hourly Analytics，追加 `zone traffic threats exceed threshold`
+与 `zone traffic requests surge` 两个结果。流量检查采用 fail-closed：网络、权限、GraphQL、
+Zone Analytics 或 R2 基线损坏/写入失败均产生失败结果，不转换为 skip。最近完整 UTC 小时
+缺失时也失败；冷启动前 24 个历史小时只使用绝对阈值，之后按同一 UTC 时段的七天均值判定。
 
-复用 `scripts/cloudflare/monitor-core.mjs` 的 Auth、已登记产品登录契约、MCP、
-旧泄漏入口与 Health 整轮同步新鲜度断言。原来的本地 `production-monitor.mjs`
-命令继续可用。Project/Me 还要求真实 SSO 配对就绪。云端检查 R2/跨平台备份在
-30 小时内完成，并按 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 核对全部库名与原件来源。
-旧回执缺少新增数据库、原件集合或身份信息时失败，不继续当作新覆盖的完整备份。
+Ops token 最小权限为 `D1 Write + Workers Scripts Read + Zone Analytics Read`；
+后者仅用于 `codepi.app` zone 的 GraphQL Analytics 查询。
 
 云端版本巡检使用 GitHub REST API，将登记 Worker 的活跃 `BUILD_SHA` 与固定 main
 快照比较。与本地 Git 实现共用发布范围表；逐提交读取文件列表，不使用 compare API

@@ -5,12 +5,8 @@ import assert from 'node:assert/strict';
 // shape of the critical assertions (SSO redirect targets, leak-route closure)
 // by exercising the module against stubbed fetch implementations.
 import { runMonitor as runPlatformMonitor } from './production-monitor.mjs';
-// Git/control-plane version scenarios are covered with real repositories in release-drift.test.mjs.
 const runMonitor = options => runPlatformMonitor({ ...options, versionCheck: async () => [] });
-const MCP_SCOPES = [
-  'context.read', 'projects.read', 'projects.write', 'health.read', 'health.sync',
-  'me.read', 'me.write', 'invest.read',
-];
+import { MCP_SCOPES } from './mcp-checks.mjs';
 
 const jsonResponse = (body, init = {}) =>
   new Response(JSON.stringify(body), {

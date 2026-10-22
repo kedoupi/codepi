@@ -96,16 +96,15 @@ test('manual backup defaults to the full dynamic D1 inventory instead of silentl
   assert.equal(manifest.databases.length, 9);
 });
 
-test('every production D1 is covered, including planned Blog and release-resolved Project, Me and MCP bindings', async () => {
+test('every production D1 is covered, including planned Project, Me and MCP bindings', async () => {
   const configs = { 'codepi-auth': 'services/auth/wrangler.jsonc', 'codepi-desk': 'apps/web/wrangler.toml',
     'codepi-blog': 'apps/web/wrangler.toml', 'codepi-gu': 'apps/gu/wrangler.toml', 'codepi-gzh': 'apps/gzh/wrangler.toml',
     'codepi-health': 'apps/health/workers/api/wrangler.toml', 'codepi-mcp': 'services/mcp/wrangler.toml',
     'codepi-project': 'apps/project/wrangler.toml', 'codepi-me': 'apps/me/wrangler.toml' };
   assert.deepEqual([...DATABASE_NAMES].sort(), Object.keys(configs).sort());
   const registry = parseRegistry(await readFile(new URL('../../docs/development/cloudflare-resource-registry.md', import.meta.url), 'utf8'));
-  const managed = registry.filter(row => row.environment === 'production' && row.resource_type === 'd1'
-    && (row.status === 'managed' || row.physical_name === 'codepi-blog'));
-  const runtimeResolved = new Set(['codepi-blog', 'codepi-mcp', 'codepi-project', 'codepi-me']);
+  const managed = registry.filter(row => row.environment === 'production' && row.resource_type === 'd1' && row.status === 'managed');
+  const runtimeResolved = new Set(['codepi-mcp', 'codepi-project', 'codepi-me']);
   for (const [name, file] of Object.entries(configs)) {
     const config = await readFile(new URL('../../' + file, import.meta.url), 'utf8');
     assert.match(config, new RegExp(`database_name["']?\\s*[:=]\\s*"${name}"`), `${name} binding must be present`);
