@@ -257,6 +257,17 @@ export async function findAccessToken(env: Env, token: string): Promise<TokenRow
   return row ?? null;
 }
 
+/**
+ * True while the client holds a live refresh grant, i.e. the owner already
+ * approved this connection and never revoked it. Re-authorization for the
+ * fixed full-scope set may then skip the consent screen.
+ */
+export async function hasLiveGrant(env: Env, clientId: string): Promise<boolean> {
+  return !!(await env.DB.prepare(
+    "SELECT 1 FROM mcp_tokens WHERE client_id=? AND kind='refresh' AND revoked_at IS NULL AND expires_at > ? AND resource=? LIMIT 1",
+  ).bind(clientId, Date.now(), resource(env)).first());
+}
+
 export type RefreshExchange =
   | { ok: true; userId: string; clientId: string; tokens: IssuedTokens }
   | { ok: false; reason: "invalid" | "replay" };

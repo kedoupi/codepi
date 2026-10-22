@@ -166,17 +166,24 @@ export async function fixture(t, options = {}) {
     const params = { client_id: client.client_id, redirect_uri: redirectUri, response_type: 'code',
       code_challenge: challenge, code_challenge_method: 'S256', state: 'synthetic-state', resource: origin + '/mcp', scope };
     const screen = await at('/oauth/authorize?' + new URLSearchParams(params), { headers: { Cookie: cookie } });
-    const html = await screen.text();
-    if (screen.status !== 200) throw new Error('Consent screen failed: ' + screen.status);
-    const approval = {
-      consent_id: html.match(/name="consent_id" value="([^"]+)"/)[1],
-      csrf_token: html.match(/name="csrf_token" value="([^"]+)"/)[1],
-      client_id: client.client_id, decision: 'approve', state: params.state,
-    };
-    if (consentOnly) return { client, cookie, approval, html };
-    const approved = await post('/oauth/authorize', approval, { Origin: origin, Cookie: cookie });
-    if (approved.status !== 302) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
-    const code = new URL(approved.headers.get('Location')).searchParams.get('code');
+    let code, approval, html = '';
+    if (screen.status === 302) {
+      // A client with a live grant is auto-approved without the consent screen.
+      if (consentOnly) throw new Error('consentOnly requires the consent screen');
+      code = new URL(screen.headers.get('Location')).searchParams.get('code');
+    } else {
+      if (screen.status !== 200) throw new Error('Consent screen failed: ' + screen.status);
+      html = await screen.text();
+      approval = {
+        consent_id: html.match(/name="consent_id" value="([^"]+)"/)[1],
+        csrf_token: html.match(/name="csrf_token" value="([^"]+)"/)[1],
+        client_id: client.client_id, decision: 'approve', state: params.state,
+      };
+      if (consentOnly) return { client, cookie, approval, html };
+      const approved = await post('/oauth/authorize', approval, { Origin: origin, Cookie: cookie });
+      if (approved.status !== 302) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
+      code = new URL(approved.headers.get('Location')).searchParams.get('code');
+    }
     // Most tests need isolated legacy grants to prove per-tool enforcement.
     // Real consent now grants all scopes; keep that path in scopes/browser tests.
     await db.prepare('UPDATE oauth_auth_codes SET scope=? WHERE code_hash=?')
