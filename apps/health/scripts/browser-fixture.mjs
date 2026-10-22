@@ -244,7 +244,7 @@ const server = createServer(async (req, res) => {
       await db.prepare("DELETE FROM health_sync_windows WHERE collection='sleep'").run();
       const today = calendarDay();
       const date = back => shiftDay(today, -back);
-      if (scenario === 'records' || scenario === 'journal' || scenario === 'design') {
+      if (scenario === 'records' || scenario === 'journal' || scenario === 'design' || scenario === 'nap-only') {
         const design = scenario === 'design';
         const journal = scenario === 'journal' || design;
         const phaseFor = () => {
@@ -311,6 +311,10 @@ const server = createServer(async (req, res) => {
               .bind('test-user', 'sleep', id, day, JSON.stringify(payload), new Date().toISOString()).run();
           }
         }
+        if (scenario === 'nap-only') {
+          // Only the nap remains on the latest day: the UI must not frame it as the night.
+          await db.prepare("DELETE FROM health_records WHERE collection='sleep' AND day=? AND json_extract(payload,'$.type')='long_sleep'").bind(today).run();
+        }
         if (journal) {
           await db.prepare("DELETE FROM daily_cache WHERE user_id='test-user'").run();
           for (let back = 0; back < 90; back++) {
@@ -344,7 +348,7 @@ const server = createServer(async (req, res) => {
           }
         }
       }
-      if (scenario === 'empty' || scenario === 'records' || scenario === 'journal' || scenario === 'design') {
+      if (scenario === 'empty' || scenario === 'records' || scenario === 'journal' || scenario === 'design' || scenario === 'nap-only') {
         for (const count of [7, 30]) {
           await db.prepare('INSERT INTO health_sync_windows (user_id, collection, window_from, window_to, synced_at, attempted_at) VALUES (?, ?, ?, ?, ?, ?)')
             .bind('test-user', 'sleep', date(count - 1), today, new Date().toISOString(), new Date().toISOString()).run();

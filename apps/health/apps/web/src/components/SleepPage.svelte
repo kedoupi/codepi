@@ -32,6 +32,7 @@
   let routineCount = $state(7);
 
   const periods = $derived(sleepForDay(records, selectedDay));
+  const dayHasMain = $derived(periods.some(record => record.type === "long_sleep"));
   const selected = $derived(periods.find(record => record.id === selectedId) ?? periods[0]);
   const timeline = $derived(selected ? buildTimeline(selected) : null);
   const stages = $derived(selected ? stageDurations(selected, timeline?.stages ?? []) : []);
@@ -159,13 +160,17 @@
       <a href="/settings" class="ai-btn">{text("前往数据设置", "Open data settings")}</a>
     </div>
   {:else if selected}
+    {#if !dayHasMain}
+      <div class="sleep-notice" role="status" data-testid="nap-only-notice">{text("这一天 Oura 没有返回主睡眠记录；下方展示的是小睡或休息时段，不代表夜间睡眠。", "Oura returned no main-sleep record for this day; below is a nap or rest period, not overnight sleep.")}</div>
+    {/if}
     <section class="night-summary" aria-label={text("选中的这一晚", "Selected night")}>
       <div class="night-context">
         <div>
           <h2 class="night-headline">{medianDelta ? (medianDelta.delta >= 0
             ? text(`比个人近期水平多睡了 ${medianDelta.delta} 分钟`, `${medianDelta.delta} min more than your recent median`)
             : text(`比个人近期水平少睡了 ${Math.abs(medianDelta.delta)} 分钟`, `${Math.abs(medianDelta.delta)} min less than your recent median`))
-            : text("看见这一晚，也看见恢复的变化。", "This night, and what changes over time.")}</h2>
+            : dayHasMain ? text("看见这一晚，也看见恢复的变化。", "This night, and what changes over time.")
+              : text("这一天只有小睡或休息时段。", "Only nap or rest periods were recorded this day.")}</h2>
           {#if medianDelta}<p class="hint baseline-note">{text(`较此前 ${medianDelta.count} 晚主睡眠中位数`, `Compared with ${medianDelta.count} earlier main-sleep nights`)}</p>{/if}
         </div>
         {#if night}<p class="night-bounds">{kind(selected)} · {night.startLabel} — {night.endLabel}</p>{/if}
@@ -181,7 +186,7 @@
     <div class="night-grid">
       <section class="night-main" data-testid="sleep-detail" aria-label={text("这一晚的时间线", "Timeline of this night")}>
         <div class="section-title">
-          <h2>{text("这一晚的睡眠", "This night")}</h2>
+          <h2>{selected.type === "long_sleep" ? text("这一晚的睡眠", "This night") : text("这段记录的时间线", "This period's timeline")}</h2>
           <div class="night-tools">
             <select class="period-picker" aria-label={text("选择睡眠记录", "Choose sleep period")} value={selected.id} onchange={event => { selectedId = event.currentTarget.value; }}>
               {#each periods as period}<option value={period.id}>{kind(period)} {clock(period.bedtime_start)}</option>{/each}

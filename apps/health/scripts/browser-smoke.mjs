@@ -346,6 +346,15 @@ try {
   });
   await page.waitForSelector('[data-testid="sleep-detail"]');
   await page.screenshot({ path: '/tmp/oura-sleep-desktop.png' });
+  await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=nap-only', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('[data-testid="nap-only-notice"]')?.textContent.includes('没有返回主睡眠记录'));
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.period-picker option').length), 1);
+  assert.equal(await page.evaluate(() => document.querySelector('[data-testid="sleep-duration"]').textContent), '0 小时 30 分');
+  await healthy('nap-only day states the missing main sleep instead of framing a nap as the night');
+  await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=records', { method: 'POST' }); });
+  await page.reload();
+  await page.waitForSelector('[data-testid="sleep-detail"]');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('main *')].every(el => el.getBoundingClientRect().right <= innerWidth + 1)), true, 'sleep content fits mobile');
   await page.screenshot({ path: '/tmp/oura-sleep-mobile.png' });
