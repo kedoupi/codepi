@@ -1,12 +1,13 @@
 import { WorkflowEntrypoint } from 'cloudflare:workers';
 import publicKey from '../../../scripts/cloudflare/backup-public-key.pem';
-import { assertRecentMonitor, backupOperation, monitorOperation, scheduleOperation } from './operations.mjs';
+import { assertRecentMonitor, backupOperation, monitorOperation, observeOperation, scheduleOperation } from './operations.mjs';
 
 export class OperationsWorkflow extends WorkflowEntrypoint {
   async run(event, step) {
     if (event.payload?.kind === 'monitor') return monitorOperation(this.env, step, event);
     if (event.payload?.kind === 'backup') return backupOperation(this.env, step, event, publicKey);
-    throw new Error('operations kind must be monitor or backup');
+    if (event.payload?.kind === 'observe') return observeOperation(this.env, step, event);
+    throw new Error('operations kind must be monitor, backup or observe');
   }
 }
 

@@ -4,7 +4,8 @@ import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
 import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
 import { offsiteRelease } from './offsite.mjs';
-import { backupDatabase, verifyBackupObject } from './backup.mjs';
+import { createObservabilityClient } from '../../../scripts/cloudflare/observability-api.mjs';
+import { observeReleaseRound, runObserver } from './observer.mjs';
 import {
   assertCollectionBinding,
   backupCollectionMaterial,
@@ -71,6 +72,17 @@ export async function monitorOperation(env, step, event, { monitor = runMonitor,
     return report;
   }));
   return { ok: true, checks: report.results.length };
+}
+
+export async function observeOperation(env, step, event, {
+  observability = createObservabilityClient({ accountId: env.CLOUDFLARE_ACCOUNT_ID, apiToken: env.CLOUDFLARE_API_TOKEN }),
+  notify,
+  coreCheck = async ({ env: runtimeEnv }) => runMonitor({ env: runtimeEnv, requireD1: false, requireVersions: false }),
+  activeVersionCheck,
+} = {}) {
+  const manifest = event.payload?.manifest ?? event.payload?.release_manifest;
+  assert.ok(manifest?.release_id && Array.isArray(manifest.services), 'observe payload requires a release manifest');
+  return runObserver({ manifest, bucket: env.BACKUPS, step, env, observability, notify, coreCheck, activeVersionCheck });
 }
 
 export async function backupOperation(env, step, event, publicKey, {
