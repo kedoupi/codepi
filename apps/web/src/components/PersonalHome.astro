@@ -213,9 +213,8 @@ import { products } from '@kedoupi/shared/products';
         if (heroCopy instanceof HTMLElement) {
           const heroFade = clamp(1 - (progress - 0.02) / 0.18, 0, 1);
           heroCopy.style.opacity = String(heroFade);
-          const isStackedLayout = (innerWidth < 960 || window.innerHeight > window.innerWidth)
-            && !(window.innerHeight < 520 && window.innerWidth > window.innerHeight);
-          const heroOffset = isStackedLayout ? '0px' : '-50%';
+          const isCompactLandscape = innerWidth >= 640 && window.innerHeight < 520 && innerWidth > window.innerHeight;
+          const isStackedLayout = innerWidth < 1024 && !isCompactLandscape;
           heroCopy.style.transform = `translateY(${heroOffset}) translateY(-${(1 - heroFade) * 28}px)`;
           heroCopy.style.pointerEvents = heroFade < 0.05 ? 'none' : 'auto';
           heroCopy.style.visibility = heroFade <= 0.01 ? 'hidden' : 'visible';
@@ -270,8 +269,8 @@ import { products } from '@kedoupi/shared/products';
         let width = canvas.clientWidth || innerWidth;
         let height = canvas.clientHeight || innerHeight;
         let aspect = width / Math.max(height, 1);
-        let isCompactLandscape = height < 520 && width > height;
-        let isStacked = (width < 960 || height > width) && !isCompactLandscape;
+        let isCompactLandscape = width >= 640 && height < 520 && width > height;
+        let isStacked = width < 1024 && !isCompactLandscape;
         const TAN17 = Math.tan(17 * Math.PI / 180);
 
         const renderer = new THREE.WebGLRenderer({
@@ -552,6 +551,7 @@ import { products } from '@kedoupi/shared/products';
         let smoothPermission = 1;
         let lastBuiltProgress = -1;
         let lastBuiltStacked = isStacked;
+        let isHeroVisible = true;
 
         const resize = () => {
           width = canvas.clientWidth || innerWidth;
@@ -559,9 +559,8 @@ import { products } from '@kedoupi/shared/products';
           if (!width || !height) return;
 
           aspect = width / height;
-          isCompactLandscape = height < 520 && width > height;
-          const newIsStacked = (width < 960 || height > width) && !isCompactLandscape;
-          const layoutChanged = newIsStacked !== isStacked;
+          isCompactLandscape = width >= 640 && height < 520 && width > height;
+          const newIsStacked = width < 1024 && !isCompactLandscape;
           isStacked = newIsStacked;
 
           renderer.setSize(width, height, false);
@@ -580,10 +579,24 @@ import { products } from '@kedoupi/shared/products';
         };
         const resizeObserver = new ResizeObserver(resize);
         resizeObserver.observe(canvas);
-        window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+        const heroVisibilityObserver = new IntersectionObserver(([entry]) => {
+          isHeroVisible = entry.isIntersecting;
+          if (!isHeroVisible && animation) {
+            cancelAnimationFrame(animation);
+            animation = 0;
+          } else if (isHeroVisible && !animation) {
+            previous = performance.now();
+            animation = requestAnimationFrame(render);
+          }
+        });
+        heroVisibilityObserver.observe(hero);
         resize();
 
         const render = now => {
+          if (!isHeroVisible) {
+            animation = 0;
+            return;
+          }
           animation = requestAnimationFrame(render);
           if (document.hidden) {
             previous = now;
@@ -605,7 +618,7 @@ import { products } from '@kedoupi/shared/products';
           const interactiveY = pointer.y + ambientDriftY;
 
           // 核心形态动态重构 (当滚动进度变化或布局模式切换时)
-          if (Math.abs(smoothProgress - lastBuiltProgress) > 0.003 || lastBuiltStacked !== isStacked) {
+          if (Math.abs(smoothProgress - lastBuiltProgress) >= 0.05 || lastBuiltStacked !== isStacked) {
             ribbons.forEach(({ mesh, highlight, curve, spec, segments, index }) => {
               const updatedPoints = getInterpolatedPoints(index, smoothProgress, isStacked);
               curve.points = updatedPoints;
@@ -684,8 +697,17 @@ import { products } from '@kedoupi/shared/products';
         root.classList.add('has-webgl');
         animation = requestAnimationFrame(render);
 
+        canvas.addEventListener('webglcontextlost', event => {
+          event.preventDefault();
+          cancelAnimationFrame(animation);
+          animation = 0;
+          root.classList.remove('has-webgl');
+          root.classList.add('webgl-failed');
+        });
         addEventListener('pagehide', () => {
           cancelAnimationFrame(animation);
+          animation = 0;
+          heroVisibilityObserver.disconnect();
           removeEventListener('pointermove', onPointerMove);
           resizeObserver.disconnect();
           ribbons.forEach(({ mesh, highlight, material, highlightMaterial }) => {
@@ -733,7 +755,6 @@ html{scroll-behavior:smooth;background:var(--paper)}
 body{
   margin:0;
   min-width:0;
-  overflow-x:hidden;
   background:var(--paper);
   color:var(--ink);
   font-family:var(--font-sans);
@@ -748,6 +769,7 @@ button{font:inherit;color:inherit}
 button,a{-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--color-focus);outline-offset:5px}
 .width{width:min(calc(100% - var(--gutter)*2),var(--max));margin-inline:auto}
+.personal-home{overflow-x:clip}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
 /* Hero & 3D Stage */
@@ -761,7 +783,7 @@ button,a{-webkit-tap-highlight-color:transparent}
   position:sticky;
   top:0;
   height:100vh;
-  height:100dvh;
+  height:100svh;
   overflow:hidden;
   isolation:isolate;
 }
@@ -792,14 +814,14 @@ button,a{-webkit-tap-highlight-color:transparent}
 .has-webgl .fallback-thread{display:none!important}
 .fallback-thread{
   position:absolute;
-  top:48%;
-  left:50%;
+  top:calc(50% + 18px);
+  left:var(--gutter);
   z-index:0;
-  width:min(62vw,900px);
-  height:2px;
-  background:linear-gradient(90deg,transparent,var(--orange) 35%,var(--ink) 65%,transparent);
-  transform:translate(-50%,-50%) rotate(-12deg);
-  opacity:.25;
+  width:min(420px, 48vw);
+  height:1px;
+  background:linear-gradient(90deg,var(--orange),transparent);
+  transform:none;
+  opacity:.16;
 }
 
 /* 首屏主标题 Hero Copy */
@@ -1227,16 +1249,10 @@ section[id]{
 }
 
 /* 响应式断点：双列模式（默认 desktop）、单列堆叠模式（移动端与平板竖屏） */
-@media (max-width: 959px), (orientation: portrait) {
+@media (max-width: 1023px) {
   :root{--gutter:clamp(20px, 4.5vw, 40px)}
-  .header,.header-inner{min-height:62px}
-  .header-inner{width:calc(100% - 24px)}
-  .brand img{width:104px}
-  .nav{gap:0}
-  .nav a:not(:last-child){display:none}
-  .nav a:last-child{min-height:38px;padding:0 14px}
   .hero{height:460vh;height:460dvh}
-  .hero-stage{height:100vh;height:100dvh}
+  .hero-stage{height:100vh;height:100svh}
   .hero-copy{
     top:clamp(12%, 14vh, 18%);
     left:var(--gutter);
@@ -1305,21 +1321,14 @@ section[id]{
   .future-note{margin-top:22px;font-size:16px;line-height:1.75}
   .actions{align-items:stretch;flex-direction:column;max-width:260px;margin-top:28px}
   .primary,.secondary{font-size:16px}
-  .footer-inner{align-items:flex-start;flex-direction:column;gap:12px}
 }
 
 /* 超矮横屏（手机横置）：回到双列布局，避免文字与光线互相穿插 */
-@media (max-height: 520px) and (orientation: landscape) {
+@media (max-height: 520px) and (min-width: 640px) and (min-aspect-ratio: 1/1) {
   :root{--gutter:clamp(16px, 3vw, 28px)}
-  .header,.header-inner{min-height:52px}
-  .header-inner{width:calc(100% - 24px)}
-  .brand img{width:96px}
-  .nav{gap:0}
-  .nav a:not(:last-child){display:none}
-  .nav a:last-child{min-height:34px;padding:0 12px}
 
   .hero{height:420vh;height:420dvh}
-  .hero-stage{height:100vh;height:100dvh;min-height:0}
+  .hero-stage{height:100vh;height:100svh;min-height:0}
   .hero-copy{
     top:50%;
     left:var(--gutter);
