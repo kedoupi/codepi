@@ -28,7 +28,12 @@ export function journalData(days: Day[], sleeps: SleepRecord[], end: string) {
   })) as Day[];
   const calendar = calendarDays(cleanDays, 90, end);
   const recent = calendar.slice(-30);
-  const sleepRows = recent.map(day => ({ date: day.date, row: sleepForDay(sleeps, day.date)[0] }));
+  const sleepRows = recent.map(day => {
+    const rows = sleepForDay(sleeps, day.date);
+    // Explicitly typed naps/rest never stand in as the main sleep; only an
+    // unmarked period may fall back as the day's longest record.
+    return { date: day.date, row: rows.find(record => record.type === "long_sleep") ?? rows.find(record => !record.type) };
+  });
   const sleep = sleepRows.map(({ date, row }) => ({
     date,
     value: finite(row?.total_sleep_duration) && row.total_sleep_duration >= 0 ? row.total_sleep_duration / 3600 : null,

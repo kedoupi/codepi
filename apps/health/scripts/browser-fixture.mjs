@@ -312,8 +312,8 @@ const server = createServer(async (req, res) => {
           }
         }
         if (scenario === 'nap-only') {
-          // Only the nap remains on the latest day: the UI must not frame it as the night.
-          await db.prepare("DELETE FROM health_records WHERE collection='sleep' AND day=? AND json_extract(payload,'$.type')='long_sleep'").bind(today).run();
+          // Recent days keep only naps: the UI must not frame them as nights.
+          await db.prepare("DELETE FROM health_records WHERE collection='sleep' AND day>=? AND json_extract(payload,'$.type')='long_sleep'").bind(shiftDay(today, -9)).run();
         }
         if (journal) {
           await db.prepare("DELETE FROM daily_cache WHERE user_id='test-user'").run();
