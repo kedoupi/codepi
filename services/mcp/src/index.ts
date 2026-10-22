@@ -16,11 +16,15 @@ async function ready(env: Env) {
   return ssoReady(env);
 }
 
-async function route(request: Request, env: Env) {
+async function route(request: Request, env: Env, requestId: string) {
   const url = new URL(request.url);
   // Discovery and callbacks must share one canonical issuer; do not derive it from Host.
-  if (url.origin !== env.MCP_ORIGIN || env.AUTH_CLIENT_ID !== "mcp" || env.SSO_ENABLED !== "1") {
+  if (env.AUTH_CLIENT_ID !== "mcp" || env.SSO_ENABLED !== "1") {
     throw new HttpError("mcp_not_configured", 503);
+  }
+  if (url.origin !== env.MCP_ORIGIN) {
+    console.warn(JSON.stringify({ event: "mcp_rejected_origin", request_id: requestId, origin: url.origin }));
+    return json({ error: "canonical_origin_required" }, 503);
   }
   const path = url.pathname, method = request.method;
   const bearer = path === "/mcp" || path.startsWith("/.well-known/") || ["/oauth/register", "/oauth/token", "/oauth/revoke"].includes(path);
@@ -62,7 +66,7 @@ export default {
   async fetch(request: Request, env: Env) {
     const requestId = crypto.randomUUID();
     let result: Response;
-    try { result = await route(request, env); }
+    try { result = await route(request, env, requestId); }
     catch (error) {
       const known = error instanceof HttpError || error instanceof SsoError;
       const code = known ? error.code : "internal_error", status = known ? error.status : 500;
