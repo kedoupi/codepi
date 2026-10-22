@@ -3,6 +3,7 @@ import test from 'node:test';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { experimental_readRawConfig } from 'wrangler';
 
@@ -22,9 +23,9 @@ test('real Worker assets serve the SPA, forward APIs and reject retired connecto
   // Stale server artifacts must never be served as public assets.
   await writeFile(join(assets, '_worker.js'), 'server-source-must-not-be-public');
   await writeFile(join(assets, '_routes.json'), '{"legacy":true}');
-  const { rawConfig: config } = experimental_readRawConfig({ config: new URL('../wrangler.toml', import.meta.url).pathname });
+  const { rawConfig: config } = experimental_readRawConfig({ config: fileURLToPath(new URL('../wrangler.toml', import.meta.url)) });
   const bundle = await build({
-    entryPoints: [new URL('../worker/index.ts', import.meta.url).pathname],
+    entryPoints: [fileURLToPath(new URL('../worker/index.ts', import.meta.url))],
     bundle: true, format: 'esm', platform: 'neutral', write: false,
   });
   // Record API requests to catch accidental forwarding of retired connectors.
