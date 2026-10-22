@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixture, ORIGIN, hash } from './runtime.mjs';
+import { fixture, ORIGIN, REDIRECT, hash } from './runtime.mjs';
 import { healthData } from './health-pages.mjs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -103,6 +103,35 @@ test('consent and connection revocation require owner session, same origin and C
   assert.equal((await f.rpc(grant.access_token, 'tools/list')).status, 401);
   f.state.subject = 'someone-else';
   await assert.rejects(() => f.login(), /SSO callback failed/);
+});
+
+test('an approved client re-authorizes without the consent screen until revoked', async t => {
+  const f = await fixture(t), first = await f.grant();
+  const reauthorize = async () => {
+    const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+    const params = new URLSearchParams({ client_id: first.client.client_id, redirect_uri: REDIRECT,
+      response_type: 'code', code_challenge: await hash(verifier), code_challenge_method: 'S256',
+      state: 'reauth', resource: ORIGIN + '/mcp' });
+    const screen = await f.at('/oauth/authorize?' + params, { headers: { Cookie: first.cookie } });
+    return { screen, verifier };
+  };
+  const second = await reauthorize();
+  assert.equal(second.screen.status, 302, 'a live grant must skip the consent screen');
+  const location = new URL(second.screen.headers.get('Location'));
+  assert.equal(location.searchParams.get('state'), 'reauth');
+  const code = location.searchParams.get('code');
+  assert.ok(code);
+  const exchanged = await f.post('/oauth/token', { grant_type: 'authorization_code', code,
+    client_id: first.client.client_id, redirect_uri: REDIRECT, code_verifier: second.verifier, resource: ORIGIN + '/mcp' });
+  assert.equal(exchanged.status, 200, 'the auto-issued code must exchange for tokens');
+
+  const page = await f.at('/connections', { headers: { Cookie: first.cookie } });
+  const csrf = (await page.text()).match(/name="csrf_token" value="([^"]+)"/)[1];
+  await f.post('/connections', { client_id: first.client.client_id, csrf_token: csrf },
+    { Cookie: first.cookie, Origin: ORIGIN });
+  const third = await reauthorize();
+  assert.equal(third.screen.status, 200, 'a revoked grant must show the consent screen again');
+  assert.match(await third.screen.text(), /name="consent_id"/);
 });
 
 test('statistics scan all saved records with units, daily weighting and honest missingness', async t => {
