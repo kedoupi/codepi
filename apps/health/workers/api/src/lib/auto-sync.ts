@@ -2,8 +2,9 @@ import type { Env } from "../env";
 import { ApiError, normalizeApiError } from "./errors.ts";
 import { HEALTH_COLLECTIONS, collectionAccess, deniedHealthCollections, isCollectionAccessDenied, healthWindow, syncHealthWindow } from "./health-records.ts";
 import { loadDailyForUser } from "./user-daily.ts";
-import { reserveSyncWrites } from "./sync-budget.ts";
 import { calendarDay } from "../../../../shared/dates.ts";
+import { reserveSyncWrites } from "./sync-budget.ts";
+import { withD1Retry } from "./d1-retry.ts";
 
 const DAY = 86_400_000;
 const CRON = "*/2 * * * *";
@@ -107,7 +108,7 @@ async function cleanup(env: Env, now: number) {
 }
 
 export async function automaticSyncStatus(env: Env, userId: string, now = Date.now()) {
-  const row = await env.DB.prepare("SELECT * FROM auto_sync_state WHERE user_id=?").bind(userId).first<State>();
+  const row = await withD1Retry(() => env.DB.prepare("SELECT * FROM auto_sync_state WHERE user_id=?").bind(userId).first<State>());
   const tasks: Task[] = JSON.parse(row?.payload ?? "[]");
   const unavailable = await deniedHealthCollections(env, userId);
   const denied = new Set(unavailable.map(row => row.collection));
@@ -183,9 +184,9 @@ export async function requestAutomaticSync(env: Env, userId: string, requested?:
   if (!owner) throw new ApiError("reconnect_required", 401);
   const now = Date.now();
   const lease = crypto.randomUUID();
-  const row = await env.DB.prepare(`INSERT INTO auto_sync_state (user_id,lease_id,lease_until) VALUES (?,?,?)
+  const row = await withD1Retry(() => env.DB.prepare(`INSERT INTO auto_sync_state (user_id,lease_id,lease_until) VALUES (?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET lease_id=excluded.lease_id,lease_until=excluded.lease_until
-    WHERE auto_sync_state.lease_until<? RETURNING *`).bind(userId, lease, now + 120_000, now).first<State>();
+    WHERE auto_sync_state.lease_until<? RETURNING *`).bind(userId, lease, now + 120_000, now).first<State>());
   if (!row) {
     if (requested) throw new ApiError("sync_in_progress", 409);
     const status = await automaticSyncStatus(env, userId);
@@ -233,7 +234,11 @@ export async function requestAutomaticSync(env: Env, userId: string, requested?:
       console.log(JSON.stringify({ event: "auto_sync", action: "manual_plan", run_day: today, tasks: tasks.length }));
     }
   } finally {
-    await env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
+    try {
+      await withD1Retry(() => env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run());
+    } catch (error) {
+      console.warn("Failed to release automatic sync lease", error);
+    }
   }
   return { started, status: await automaticSyncStatus(env, userId) };
 }

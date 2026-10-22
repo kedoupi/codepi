@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { personalOwner, readSsoSession, ssoEnabled } from "./sso";
+import { withD1Retry } from "./d1-retry.ts";
 import {
   cookieSecure,
   DEV_USER_ID,
@@ -97,11 +98,11 @@ export async function loadSession(
   env: Env,
   sessionId: string,
 ): Promise<SessionRow | null> {
-  const row = await env.DB.prepare(
+  const row = await withD1Retry(() => env.DB.prepare(
     `SELECT id, user_id, kind, expires_at FROM sessions WHERE id = ?`,
   )
     .bind(sessionId)
-    .first<SessionRow>();
+    .first<SessionRow>());
   if (!row) return null;
   if (Date.parse(row.expires_at) < Date.now()) {
     await env.DB.prepare(`DELETE FROM sessions WHERE id = ?`).bind(sessionId).run();
@@ -121,7 +122,7 @@ export async function readSessionFromRequest(
 ): Promise<SessionRow | null> {
   if (ssoEnabled(env)) {
     const owner = personalOwner(env);
-    const session = await readSsoSession(request, env);
+    const session = await withD1Retry(() => readSsoSession(request, env));
     if (!session || session.userId !== owner) return null;
     return { id: session.id, user_id: owner, kind: "sso", expires_at: new Date(session.expiresAt).toISOString() };
   }

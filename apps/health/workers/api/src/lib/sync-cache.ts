@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 import { decorateDaily, type DailyResponse, type NestedDay } from "./daily.ts";
 import { ApiError, normalizeApiError } from "./errors.ts";
-
+import { withD1Retry } from "./d1-retry.ts";
 export type SyncState = {
   synced_at: string | null;
   window_to: string | null;
@@ -17,8 +17,8 @@ export type SyncInfo = {
   windowDays: number;
 };
 export async function readSyncState(env: Env, userId: string): Promise<SyncState | null> {
-  return env.DB.prepare("SELECT synced_at, window_to, last_error, lease_until FROM sync_state WHERE user_id = ?")
-    .bind(userId).first<SyncState>();
+  return withD1Retry(() => env.DB.prepare("SELECT synced_at, window_to, last_error, lease_until FROM sync_state WHERE user_id = ?")
+    .bind(userId).first<SyncState>());
 }
 
 export async function cachedDaily(
