@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import { ApiError, normalizeApiError, ouraResponseError } from "./errors.ts";
-import { OURA_API_BASE } from "./oura";
+import { OURA_API_BASE } from "./oura.ts";
 import { withOuraAccess } from "./oura-access.ts";
 import { reserveSyncWrites } from "./sync-budget.ts";
 import { calendarDay } from "../../../../shared/dates.ts";

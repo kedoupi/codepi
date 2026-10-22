@@ -12,6 +12,7 @@ type Task = {
   collection: string; from: string; to: string;
   state: "pending" | "done" | "failed" | "split" | "unavailable";
   attempts: number; after: number; error?: string;
+  priority: "scheduled" | "interactive";
 };
 type State = {
   run_day: string | null; status: string; started_at: string | null; finished_at: string | null;
@@ -21,8 +22,16 @@ type Coverage = {
   collection: string; window_from: string; window_to: string;
   synced_at: string | null; attempted_at: string; last_error: string | null;
 };
-const task = (collection: string, from: string, to: string): Task =>
-  ({ collection, from, to, state: "pending", attempts: 0, after: 0 });
+const MAX_TASKS_PER_INVOCATION = 3;
+const task = (collection: string, from: string, to: string, priority: Task["priority"] = "scheduled"): Task =>
+  ({ collection, from, to, state: "pending", attempts: 0, after: 0, priority });
+
+// Pre-deploy payloads have no priority; they are all scheduled background work.
+export function normalizeTasks(payload: string): Task[] {
+  const tasks: Task[] = JSON.parse(payload);
+  for (const item of tasks) item.priority ??= "scheduled";
+  return tasks;
+}
 
 export function planAutomaticSync(today: string, coverage: Coverage[]): Task[] {
   const end = Date.parse(today);
@@ -75,6 +84,14 @@ function preserveRetryDelays(tasks: Task[], previous: Task[], now: number) {
       item.error = globalHold.error;
     }
   }
+}
+
+// Both halves keep the parent's priority: a split is the same unit of work.
+export function splitTask(item: Task): Task[] {
+  const middle = Math.floor((Date.parse(item.to) - Date.parse(item.from)) / DAY / 2);
+  const cut = Date.parse(item.from) + middle * DAY;
+  return [task(item.collection, date(cut + DAY), item.to, item.priority),
+    task(item.collection, item.from, date(cut), item.priority)];
 }
 
 async function cleanup(env: Env, now: number) {
@@ -150,7 +167,7 @@ export function mergeRefreshTasks(previous: Task[], requested: RefreshWindow[], 
     if (previous.some(t => t.collection === window.collection && t.from <= window.from && t.to >= window.to
       && (t.state === "pending" || t.state === "unavailable" || t.state === "failed" && t.after > now))) continue;
     if (planned.some(t => t.collection === window.collection && t.from <= window.from && t.to >= window.to)) continue;
-    planned.push(task(window.collection, window.from, window.to));
+    planned.push(task(window.collection, window.from, window.to, "interactive"));
   }
   preserveRetryDelays(planned, previous, now);
   return [...previous, ...planned];
@@ -185,7 +202,7 @@ export async function requestAutomaticSync(env: Env, userId: string, requested?:
       const refusal = denied.find(d => requested.some(w => w.collection === d.collection));
       if (refusal) throw new ApiError(refusal.code, 403);
       if (row.status !== "blocked") {
-        const previous: Task[] = JSON.parse(row.payload);
+        const previous = normalizeTasks(row.payload);
         const tasks = mergeRefreshTasks(previous, requested, now);
         if (tasks.length > previous.length) {
           await env.DB.prepare(`UPDATE auto_sync_state SET status='running',started_at=COALESCE(started_at,?),
@@ -203,7 +220,7 @@ export async function requestAutomaticSync(env: Env, userId: string, requested?:
       const coverage = await env.DB.prepare("SELECT * FROM health_sync_windows WHERE user_id=?")
         .bind(userId).all<Coverage>();
       const tasks = planAutomaticSync(today, coverage.results);
-      const previous: Task[] = JSON.parse(row.payload);
+      const previous = normalizeTasks(row.payload);
       preserveRetryDelays(tasks, previous, now);
       // An early manual update must not consume the 09:00 daily gate. Keep
       // the previous gate day until a run is actually started after 09:00.
@@ -255,7 +272,7 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       log({ action: "skip", reason: "blocked", error: row.last_error });
       return;
     }
-    let tasks: Task[] = JSON.parse(row.payload);
+    let tasks: Task[] = normalizeTasks(row.payload);
     // Reconcile pre-deploy queues and direct/manual refusals, even when the
     // old run already finished or its retry deadlines have not elapsed.
     const unavailable = await deniedHealthCollections(env, userId);
@@ -307,61 +324,78 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       row = { ...row, run_day: today, status: "running", last_error: lastError };
       log({ action: "plan", run_day: today, tasks: tasks.length });
     }
-    const item = tasks.find(t => t.state === "pending" && t.after <= now);
-    if (!item) {
-      if (reconciled) await saveProgress(env, userId, lease, tasks, false);
-      log({ action: "idle", reason: "no_task_due", pending: tasks.filter(t => t.state === "pending").length });
-      return;
-    }
     // This request supplies origin-dependent configuration only; it is never
     // routed through an authenticated HTTP endpoint or given a session.
     const request = new Request(env.FRONTEND_ORIGIN || "https://health.codepi.app");
-    let blocked = false;
-    try {
-      if (item.collection === "__scores") {
-        await reserveSyncWrites(env, userId, 1_000);
-        const data = await loadDailyForUser(request, env, userId, 90, true);
-        if (data instanceof Response) throw new ApiError("oura_not_configured", 503);
-        if (data.sync?.error) throw new ApiError(data.sync.error);
-        if (data.sync?.stale) throw new ApiError("sync_in_progress", 409);
-      } else {
-        await syncHealthWindow(request, env, userId, healthWindow(item.collection, item.from, item.to), true, true);
-      }
-      item.state = "done";
-      delete item.error;
-    } catch (error) {
-      const code = normalizeApiError(error, "upstream_unavailable", 502).code;
-      item.error = code;
-      if (code === "reconnect_required" || code === "oura_not_configured") {
-        blocked = true;
-      } else if (["daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(code)) {
-        const reset = Date.parse(date(now)) + DAY + 3_600_000;
-        for (const other of tasks.filter(t => t.state === "pending")) other.after = reset;
-      } else if (code === "sync_window_too_large" && item.from < item.to) {
-        const middle = Math.floor((Date.parse(item.to) - Date.parse(item.from)) / DAY / 2);
-        const cut = Date.parse(item.from) + middle * DAY;
-        item.state = "split";
-        tasks.splice(tasks.indexOf(item) + 1, 0,
-          task(item.collection, date(cut + DAY), item.to), task(item.collection, item.from, date(cut)));
-      } else if (item.collection !== "__scores" && isCollectionAccessDenied(code)) {
-        for (const other of tasks.filter(t => t.collection === item.collection && ["pending", "failed"].includes(t.state))) {
-          other.state = "unavailable";
-          other.error = code;
+    // One interactive window may jump the scheduled backlog per invocation;
+    // three 20-second provider calls still fit the 120-second lease.
+    let processed = 0;
+    let interactiveHandled = false;
+    for (let round = 0; round < MAX_TASKS_PER_INVOCATION; round++) {
+      const dueTasks = tasks.filter(t => t.state === "pending" && t.after <= now);
+      const item = interactiveHandled
+        ? dueTasks.find(t => t.priority === "scheduled") ?? dueTasks[0]
+        : dueTasks.find(t => t.priority === "interactive") ?? dueTasks[0];
+      if (!item) {
+        if (!processed) {
+          if (reconciled) await saveProgress(env, userId, lease, tasks, false);
+          log({ action: "idle", reason: "no_task_due", pending: tasks.filter(t => t.state === "pending").length });
         }
-      } else if (code === "sync_in_progress") {
-        item.after = now + 120_000;
-      } else {
-        item.attempts++;
-        item.after = now + 15 * 60_000 * item.attempts;
-        if (item.attempts >= 3 || code === "sync_window_too_large") item.state = "failed";
-        if (code === "rate_limited") {
-          for (const other of tasks.filter(t => t.state === "pending")) other.after = Math.max(other.after, item.after);
+        break;
+      }
+      processed++;
+      if (item.priority === "interactive") interactiveHandled = true;
+      let blocked = false;
+      let halt = false;
+      try {
+        if (item.collection === "__scores") {
+          await reserveSyncWrites(env, userId, 1_000);
+          const data = await loadDailyForUser(request, env, userId, 90, true);
+          if (data instanceof Response) throw new ApiError("oura_not_configured", 503);
+          if (data.sync?.error) throw new ApiError(data.sync.error);
+          if (data.sync?.stale) throw new ApiError("sync_in_progress", 409);
+        } else {
+          await syncHealthWindow(request, env, userId, healthWindow(item.collection, item.from, item.to), true, true);
+        }
+        item.state = "done";
+        delete item.error;
+      } catch (error) {
+        const code = normalizeApiError(error, "upstream_unavailable", 502).code;
+        item.error = code;
+        if (code === "reconnect_required" || code === "oura_not_configured") {
+          blocked = true;
+          halt = true;
+        } else if (["daily_sync_budget_reached", "storage_write_quota_exceeded"].includes(code)) {
+          const reset = Date.parse(date(now)) + DAY + 3_600_000;
+          for (const other of tasks.filter(t => t.state === "pending")) other.after = reset;
+          halt = true;
+        } else if (code === "sync_window_too_large" && item.from < item.to) {
+          item.state = "split";
+          tasks.splice(tasks.indexOf(item) + 1, 0, ...splitTask(item));
+        } else if (item.collection !== "__scores" && isCollectionAccessDenied(code)) {
+          for (const other of tasks.filter(t => t.collection === item.collection && ["pending", "failed"].includes(t.state))) {
+            other.state = "unavailable";
+            other.error = code;
+          }
+        } else if (code === "sync_in_progress") {
+          item.after = now + 120_000;
+          halt = true;
+        } else {
+          item.attempts++;
+          item.after = now + 15 * 60_000 * item.attempts;
+          if (item.attempts >= 3 || code === "sync_window_too_large") item.state = "failed";
+          if (code === "rate_limited") {
+            for (const other of tasks.filter(t => t.state === "pending")) other.after = Math.max(other.after, item.after);
+          }
         }
       }
+      const status = await saveProgress(env, userId, lease, tasks, blocked, item.error);
+      log({ action: "task", collection: item.collection, from: item.from, to: item.to,
+        state: item.state, code: item.error ?? null, status, remaining: tasks.filter(t => t.state === "pending").length });
+      // One transition event per block; later ticks keep the existing skip line.
+      if (blocked) log({ action: "blocked", collection: item.collection, code: item.error ?? null, status });
+      if (halt) break;
     }
-    const status = await saveProgress(env, userId, lease, tasks, blocked, item.error);
-    log({ action: "task", collection: item.collection, from: item.from, to: item.to,
-      state: item.state, code: item.error ?? null, status, remaining: tasks.filter(t => t.state === "pending").length });
   } finally {
     await env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
   }

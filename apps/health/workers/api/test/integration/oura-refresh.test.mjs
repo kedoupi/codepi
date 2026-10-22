@@ -93,7 +93,7 @@ test('an individual endpoint rejecting a refreshed token does not block every co
   const tick = () => worker.scheduled({ scheduledTime: Date.parse(`${today}T01:00:00Z`), cron: '*/2 * * * *' });
   await tick();
   const row = await f.db.prepare('SELECT status,last_error FROM auto_sync_state').first();
-  assert.equal(row.status, 'running');
+  assert.equal(row.status, 'completed');
   assert.equal(row.last_error, null, 'a paused resource must not masquerade as a retryable job failure');
   assert.equal(rejectedCalls, 2, 'retry the endpoint only once');
   assert.equal(exchanges, 2, 'login plus one refresh');
