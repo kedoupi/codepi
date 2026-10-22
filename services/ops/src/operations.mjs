@@ -62,6 +62,7 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
 export async function monitorOperation(env, step, event, { monitor = runMonitor, trafficCheck = checkTraffic } = {}) {
   const report = await settledStepResult(step.do('production monitor', STEP, async () => {
     const results = await monitor({ env, requireD1: true, requireVersions: true, versionCheck: checkGithubReleaseDrift });
+    results.push(...await backupFreshness(env.BACKUPS));
     results.push(...await trafficCheck({ env, bucket: env.BACKUPS }));
     const report = { instance_id: event.instanceId, kind: 'monitor', completed_at: new Date().toISOString(),
       build: env.BUILD_SHA, ok: results.every(result => result.ok && !result.skipped), results };

@@ -126,6 +126,8 @@ test('monitor preserves failures and appends traffic results in its private repo
   const report = await (await env.BACKUPS.get('reports/monitor/latest.json')).json();
   assert.equal(report.ok, false);
   assert.equal(report.results.filter(result => result.name.startsWith('zone traffic')).length, 2);
+  // Backup freshness must stay in the monitor report alongside traffic results.
+  assert.equal(report.results.filter(result => result.name.includes('backup completed within 30 hours')).length, 2);
 });
 
 test('freshness rejects stale and incomplete backups', async () => {
