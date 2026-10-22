@@ -45,6 +45,7 @@ export function buildReleaseManifest({ sourceSha, services, startedAt, nonce }) 
   if (!Array.isArray(services) || services.length === 0) throw new Error('services must be a non-empty array');
   const manifest = {
     version: 1,
+    release_id: `release-${sourceSha.slice(0, 12)}-${nonce}`,
     source_sha: sourceSha,
     started_at: startedAt,
     nonce,
@@ -59,6 +60,7 @@ export function buildReleaseManifest({ sourceSha, services, startedAt, nonce }) 
 export function validateReleaseManifest(manifest) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) throw new Error('manifest must be an object');
   if (manifest.version !== 1) throw new Error('unsupported manifest version');
+  requiredString(manifest.release_id, 'release_id');
   requiredString(manifest.source_sha, 'source_sha');
   requiredString(manifest.started_at, 'started_at');
   requiredString(manifest.nonce, 'nonce');

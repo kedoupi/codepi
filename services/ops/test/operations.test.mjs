@@ -3,11 +3,13 @@ import { Buffer } from 'node:buffer';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import test from 'node:test';
 import { DATABASES, DATABASE_NAMES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
+import { buildReleaseManifest } from '../../../scripts/cloudflare/release-observation.mjs';
 import {
   assertRecentMonitor,
   backupFreshness,
   backupOperation,
   monitorOperation,
+  observeOperation,
   scheduleOperation,
   settledStepResult,
 } from '../src/operations.mjs';
@@ -260,4 +262,65 @@ test('export rejects excessive plaintext without printing a signed URL', async (
       : new Response('too much synthetic SQL') };
   await assert.rejects(backupDatabase('synthetic', 'db', keys.publicKey, 'date', options), error =>
     /streaming size limit/.test(error.message) && !error.message.includes('SECRET'));
+});
+
+test('observe workflow completes a healthy window and writes a summary', async () => {
+  const bucket = bucketFixture();
+  const step = { ...stepFixture(), async sleep() {} };
+  const manifest = buildReleaseManifest({
+    sourceSha: 'a'.repeat(40), startedAt: new Date().toISOString(), nonce: 'synthetic',
+    services: [{
+      service: 'auth', script: 'codepi-auth', previous_version: 'prev-v', new_version: 'new-v',
+      previous_build_sha: 'b'.repeat(40), new_build_sha: 'a'.repeat(40), smoke: 'pass',
+      migration_applied: false, secret_changed: false, binding_changed: false, external_side_effects: false,
+    }],
+  });
+  const observability = {
+    async listIssues() { return []; },
+    async queryWorkerMetrics() {
+      return { invocations: 100, errors: 0, errorRate: 0, p95LatencyMs: 10, p99LatencyMs: 20,
+        cpuP95Ms: 1, cpuP99Ms: 2, wallTimeP95Ms: 5, wallTimeP99Ms: 8 };
+    },
+  };
+  const notifications = [];
+  const summary = await observeOperation({ ...baseEnv, BACKUPS: bucket }, step,
+    { payload: { kind: 'observe', manifest } }, {
+      observability,
+      notify: async event => { notifications.push(event); return { issueNumber: 1, commentId: 1 }; },
+      coreCheck: async () => [{ name: 'core', ok: true }],
+      activeVersionCheck: async () => 'new-v',
+    });
+  assert.equal(summary.state, 'healthy_reported');
+  assert.ok(notifications.some(item => item.severity === 'started'));
+  assert.ok(notifications.some(item => item.severity === 'healthy_reported'));
+});
+
+test('observe marks critical findings rollback_blocked when the manifest disallows rollback', async () => {
+  const bucket = bucketFixture();
+  const step = { ...stepFixture(), async sleep() {} };
+  const manifest = buildReleaseManifest({
+    sourceSha: 'a'.repeat(40), startedAt: new Date().toISOString(), nonce: 'synthetic',
+    services: [{
+      service: 'auth', script: 'codepi-auth', previous_version: 'prev-v', new_version: 'new-v',
+      previous_build_sha: 'b'.repeat(40), new_build_sha: 'a'.repeat(40), smoke: 'pass',
+      migration_applied: true, secret_changed: false, binding_changed: false, external_side_effects: false,
+    }],
+  });
+  const observability = {
+    async listIssues() { return []; },
+    async queryWorkerMetrics() {
+      return { invocations: 100, errors: 50, errorRate: 0.5, p95LatencyMs: 10, p99LatencyMs: 20,
+        cpuP95Ms: 1, cpuP99Ms: 2, wallTimeP95Ms: 5, wallTimeP99Ms: 8 };
+    },
+  };
+  const notifications = [];
+  const summary = await observeOperation({ ...baseEnv, BACKUPS: bucket }, step,
+    { payload: { kind: 'observe', manifest } }, {
+      observability,
+      notify: async event => { notifications.push(event); return { issueNumber: 1, commentId: 1 }; },
+      coreCheck: async () => [{ name: 'core', ok: true }],
+      activeVersionCheck: async () => 'new-v',
+    });
+  assert.equal(summary.state, 'rollback_blocked');
+  assert.ok(notifications.some(item => item.severity === 'critical'));
 });
