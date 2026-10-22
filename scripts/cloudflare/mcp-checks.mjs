@@ -10,6 +10,8 @@ export const MCP_SCOPES = Object.freeze([
   'me.read',
   'me.write',
   'invest.read',
+  'blog.read',
+  'blog.write',
 ]);
 
 export async function checkMcpHealth({ origin = MCP_ORIGIN, expectedBuild, request = fetch } = {}) {
