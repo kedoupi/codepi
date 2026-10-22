@@ -399,13 +399,13 @@
   background: var(--color-background);
   transition: all var(--motion-normal) ease;
 }
-.desk-range label:has(input:checked) {
+.desk-range label:focus-within, .desk-range label:has(input:checked) {
   border-color: var(--brand-orange-interactive);
   background: var(--brand-soft);
   color: var(--brand-orange-interactive);
   font-weight: 600;
 }
-.desk-sources label:has(input:checked) {
+.desk-sources label:focus-within, .desk-sources label:has(input:checked) {
   border-color: var(--color-border-strong);
   background: var(--color-surface);
   color: var(--color-text);

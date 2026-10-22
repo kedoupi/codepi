@@ -19,6 +19,9 @@ import '@kedoupi/shared/styles/site.css';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
 const personalSite = siteConfig.personalSite === true;
+const primaryNavLinks = personalSite
+  ? [...navLinks, { href: '/desk/', label: '我的工作台' }]
+  : navLinks;
 const extraFooterLinks = siteConfig.extraFooterLinks ?? [];
 const defaultRobots = siteConfig.defaultRobots ?? 'index, follow';
 
@@ -100,11 +103,34 @@ const jsonLd = {
           : <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" /><span class="kdp-wordmark">{siteName}</span></>}
       </a>
       <nav class="kdp-nav" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
-        {navLinks.map((link) => (
-          <a href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
+        {primaryNavLinks.map((link) => (
+          <a class:list={[{ 'kdp-nav-entry': link.href === '/desk/' }]} href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
         ))}
-        {personalSite && <a class="kdp-nav-entry kdp-desk-entry" href="/desk/" aria-current={pathname === '/desk/' ? 'page' : undefined}>我的工作台</a>}
       </nav>
+      <details class="kdp-mobile-nav">
+        <summary class="kdp-mobile-nav-toggle" aria-label="打开导航菜单"><span class="kdp-mobile-nav-icon" aria-hidden="true"></span><span class="sr-only">菜单</span></summary>
+        <nav class="kdp-mobile-nav-panel" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
+          {primaryNavLinks.map((link) => (
+            <a href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
+          ))}
+        </nav>
+      </details>
+      <script is:inline>
+        (() => {
+          const drawer = document.querySelector('.kdp-mobile-nav');
+          if (!drawer) return;
+          const close = () => { drawer.removeAttribute('open'); };
+          drawer.addEventListener('click', event => {
+            if (event.target instanceof HTMLAnchorElement) close();
+          });
+          document.addEventListener('click', event => {
+            if (drawer.hasAttribute('open') && !drawer.contains(event.target)) close();
+          });
+          document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') close();
+          });
+        })();
+      </script>
     </div>
   </header>
   <main id="main-content" class:list={['kdp-container kdp-main', { 'kdp-main--home': home }]} tabindex="-1">
