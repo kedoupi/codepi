@@ -31,7 +31,9 @@ test('BlogMcp rejects non-owner and validates submit input', async t => {
   assert.equal((await submit(f, draft({ slug: 'ok--dashes' }))).ok, true);
   assert.equal((await submit(f, draft({ title: 'x'.repeat(201) }))).ok, false);
   assert.equal((await submit(f, draft({ body_markdown: 'x'.repeat(96 * 1024 + 1) }))).error, 'payload_too_large');
-  assert.equal((await submit(f, draft({ slug: 'no-request-id', request_id: undefined }))).ok, false);
+  const withoutId = await submit(f, draft({ slug: 'no-request-id', request_id: undefined }));
+  assert.equal(withoutId.ok, true);
+  assert.equal((await submit(f, draft({ slug: 'no-request-id', request_id: undefined }))).data.revision, 2);
 });
 
 test('submit is idempotent, revision-checked and never touches the live post', async t => {

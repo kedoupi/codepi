@@ -20,6 +20,7 @@ apps/web worker ──> codepi-blog D1 (blog_drafts / blog_posts)
 - BlogMcp `execute({subject, client, clientName, operation, args})` → `{ok:true,data} | {ok:false,error,status}`；`subject !== "kdp-owner"` → `not_owner` 403。
   - `list`（blog.read）：`{offset?,limit?}` → `{posts:[…published], total, next_offset}`，**只含 published**。
   - `submit`（blog.write）：`{slug,title,summary,tag?,body_markdown,base_revision?,request_id}` → `{slug,revision,status:"draft",submitted_at}`。upsert 语义：已发布 slug 只写 draft 不动现网；同 request_id 幂等重试。错误：`invalid_arguments` 400、`payload_too_large` 413、`revision_conflict` 409。
+  - 修订（2026-10-22）：`request_id` 改为可选，缺省时服务端生成 UUID；只有需要幂等重试时才显式传。原因：agent 调用方普遍不带幂等键，必填导致提交必败。
   - `retract`（blog.write）：`{slug}` → 撤回 pending draft；无 → `not_found` 404。
   - slug：`^[a-z0-9][a-z0-9-]{0,79}$`，保留字 `{api,desk,blog,preview,sitemap-blog.xml}`；title ≤200、summary ≤500、tag ≤40。
 - Desk `/api/blog/*`（session 门后，匿名 401，Origin 不符 403）：

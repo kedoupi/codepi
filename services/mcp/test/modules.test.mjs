@@ -90,10 +90,11 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
   assert.equal(calls[0].operation, 'submit');
   await callTool(env, writer, 'blog_retract', { slug: 'synthetic-post' });
   assert.equal(calls[1].operation, 'retract');
-  for (const invalid of [{ ...submit, slug: 'Bad_Slug' }, { ...submit, title: '' }, { ...submit, user_id: 'x' },
-    { slug: 'a', title: 'T', summary: 'S', body_markdown: 'b' }]) {
+  for (const invalid of [{ ...submit, slug: 'Bad_Slug' }, { ...submit, title: '' }, { ...submit, user_id: 'x' }]) {
     await assert.rejects(callTool(env, writer, 'blog_submit', invalid), /invalid_arguments/);
   }
+  const { request_id: _omit, ...withoutId } = submit;
+  await callTool(env, writer, 'blog_submit', withoutId);
   await assert.rejects(callTool(env, writer, 'blog_submit', { ...submit, body_markdown: 'x'.repeat(96 * 1024 + 1) }),
     /invalid_arguments/);
 });
