@@ -215,7 +215,8 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
   和备份过期均失败，不降低既有 30 小时门槛。
 - Ops 不绑定业务 D1/Auth，不开放公网 URL；绑定独立私有 R2、自身 Workflow 与
   精确的 GU 只读原件 RPC，不直接绑定 GU bucket，不增加需要两侧同步的 secret。
-  专用账户 token 仅有 D1 Write（导出要求）和 Workers Scripts Read；R2 使用 binding。
+  专用账户 token 仅有 D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read；
+  后者只用于 `codepi.app` zone 的 GraphQL Analytics 查询。R2 使用 binding。
 - 备份在内存中公钥加密，R2 按前缀保留 14 天；Cloudflare 之外的密文经 GitHub API
   存私有 Release，独立记录回执。没有 GitHub 凭证时保留 R2 副本，跨平台状态失败。
   不把同账户 R2 当成异地恢复保障。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
