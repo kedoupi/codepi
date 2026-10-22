@@ -29,7 +29,7 @@
     </div>
     <div class="dist-chart" class:mobile-hidden={tab !== "distribution"}><h3>{text("两期的分布", "Distribution")}</h3><p class="hint">{text("每个点代表一天；缺失不补零。", "One dot per day; gaps are not zero-filled.")}</p><MetricDistribution current={metric.series} previous={metric.previousSeries} format={metric.format} axisFormat={value => metric.key === "duration" ? `${Math.round(value / 60 * 10) / 10}${text(" 小时", " h")}` : metric.format(value)} {locale} /></div>
   </div>
-  <div class="detail-note"><p>{metric.delta ? text(`均值${metric.delta}。`, `Mean change ${metric.delta}.`) : text("样本不足时保留原值，暂停比较。", "Values are kept; comparison pauses on sparse samples.")}{#if metric.key === "duration" && longNights.length} {text(`${longNights.map(day => day.slice(5).replace("-", "/")).join("、")} 两晚较长。`, `Longer nights: ${longNights.map(day => day.slice(5)).join(", ")}.`)}{/if}</p>{#if metric.key !== "steps" && metric.key !== "stress" && metric.key !== "recovery"}<a href="/sleep" class="report-link">{text("查看对应睡眠", "Open sleep records")} →</a>{/if}</div>
+  <div class="detail-note"><p>{metric.delta ? text(`均值${metric.delta}。`, `Mean change ${metric.delta}.`) : text("样本不足时保留原值，暂停比较。", "Values are kept; comparison pauses on sparse samples.")}{#if metric.key === "duration" && longNights.length}{" "}{text(`${longNights.map(day => day.slice(5).replace("-", "/")).join("、")} 两晚较长。`, `Longer nights: ${longNights.map(day => day.slice(5)).join(", ")}.`)}{/if}</p>{#if metric.key !== "steps" && metric.key !== "stress" && metric.key !== "recovery"}<a href="/sleep" class="report-link">{text("查看对应睡眠", "Open sleep records")} →</a>{/if}</div>
 </div>
 
 <style>

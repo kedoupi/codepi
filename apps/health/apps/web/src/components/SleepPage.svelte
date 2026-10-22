@@ -323,7 +323,8 @@
     .routine .section-title { flex-wrap: wrap; gap: 4px 10px; }.routine-intro { display: none; }.routine-link { order: 5; display: none; }
     .routine-chart { padding-right: 32px; }
     .routine-row { grid-template-columns: 54px minmax(0, 1fr); min-height: 14px; line-height: 14px; }.routine-day { font-size: 10px; }.routine-axis { margin-left: 54px; }.routine-axis span:nth-child(even) { visibility: hidden; }
-    .routine-start, .routine-end { font-size: 9px; top: -3px; }.routine-start { right: calc(100% + 6px); }.routine-end { left: calc(100% + 6px); }
+    .routine-row.chosen { min-height: 22px; }
+    .routine-start, .routine-end { font-size: 9px; top: -4px; line-height: 1.2; }.routine-start { right: calc(100% + 6px); }.routine-end { left: calc(100% + 6px); }
     .routine-track { height: 14px; }.routine-track > i { top: 4px; height: 5px; }.routine-track > i::before, .routine-track > i::after { width: 7px; height: 7px; }.routine-caption { text-align: left; }
   }
 </style>
