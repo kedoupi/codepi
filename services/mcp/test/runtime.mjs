@@ -49,6 +49,7 @@ export async function fixture(t, options = {}) {
           PROJECT: { type: 'worker', worker: 'project', exportName: 'ProjectMcp' },
           ME: { type: 'worker', worker: 'me', exportName: 'MeMcp' },
           GU: { type: 'worker', worker: 'gu', exportName: 'GuMcp' },
+          BLOG: { type: 'worker', worker: 'blog', exportName: 'BlogMcp' },
           ...values({ MCP_ORIGIN: origin, AUTH_CLIENT_ID: 'mcp', AUTH_CLIENT_SECRET: secret,
             AUTH_ORIGIN: 'https://auth.example', SSO_ENABLED: '1', BUILD_SHA: 'synthetic', ...mcpBindings }),
           AUTH: { type: 'fetcher', async handler(request) {
@@ -101,7 +102,23 @@ export async function fixture(t, options = {}) {
         },
       },
       dev: { outboundService: { type: 'fetcher', handler() { throw Error('Domain RPC must not contact external services'); } } },
-    }))],
+    })), {
+      config: {
+        name: 'blog', compatibilityDate: '2026-10-18', compatibilityFlags: ['nodejs_compat'],
+        exports: { BlogMcp: { type: 'worker' } },
+        manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: `
+          export const BlogMcp = {
+            async execute(request) {
+              return { ok: true, data: { echoed: request } };
+            },
+            async summary(subject) {
+              return { source: 'blog', status: 'empty', asOf: null, updatedAt: null, stale: false,
+                metrics: [], facts: [], notes: [], attention: [] };
+            },
+          };
+        ` } } },
+      },
+    }],
   });
   t.after(() => runtime.dispose());
   await runtime.ready;
@@ -138,7 +155,7 @@ export async function fixture(t, options = {}) {
   const post = (path, data, headers = {}) => at(path, { method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers },
     body: new URLSearchParams(data).toString() });
-  const allScopes = 'context.read projects.read projects.write health.read health.sync me.read me.write invest.read';
+  const allScopes = 'context.read projects.read projects.write health.read health.sync me.read me.write invest.read blog.read blog.write';
   async function grant({ exchange = true, scope = 'health.read health.sync', client: existingClient,
     registeredRedirect = REDIRECT, redirectUri = REDIRECT, consentOnly = false } = {}) {
     const cookie = await login();

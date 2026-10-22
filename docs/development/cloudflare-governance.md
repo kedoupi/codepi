@@ -35,7 +35,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`、`project`、`me`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`、`project`、`me`、`blog`。
 `role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`imports`、`mcp`、`backups`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
@@ -156,10 +156,12 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
    纯代理除外：它不得声明 ENVIRONMENT 等业务 vars，仅发布时注入 BUILD_SHA 元数据）；
 2. staging 已退役：任何 `[env.staging]` 段、staging 主机名或 `-staging` 资源名
    出现即违规（fail-closed）；
-3. 每个有状态服务恰好声明一个 D1 `DB` binding；重复/冲突的 D1 或 service binding
-   即违规；Health 前端不得声明 D1；
+3. 每个有状态服务恰好声明一个 D1 `DB` binding；`www` 是唯一例外，必须精确声明
+   `DB → codepi-desk` 与 `BLOG → codepi-blog` 两个 name-pinned D1 bindings；重复/冲突的
+   D1 或 service binding 即违规；Health 前端不得声明 D1；
 4. 每个服务必需的 service binding 必须精确等于约定的 production 目标
-   （www/gu/gzh/health-api 的 `AUTH` → `codepi-auth`；health 前端的 `WORKER` →
+   （www/gu/gzh/health-api 的 `AUTH` → `codepi-auth`；mcp 的 `BLOG` →
+   `codepi-www#BlogMcp`；health 前端的 `WORKER` →
    `codepi-health-api`，且不得再有 `AUTH`）；
 5. Health API 的 `AUTH_ORIGIN`、`FRONTEND_ORIGIN(S)`、`OURA_REDIRECT_URI` 必须是
    精确的 `https://(auth|health).codepi.app` 形态；`ALLOW_DEV_LOGIN="0"`；Health API
@@ -206,6 +208,8 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 
 - `services/ops` 的私有 Cron/Workflows 每 30 分钟巡检，UTC 18:00 导出备份清单中的全部 D1；
   失败步骤最多重试两次，不重新执行已成功的库。旧 Actions 仅保留手动应急入口。
+- 必需备份数据库由 `scripts/cloudflare/backup-core.mjs` 的 `DATABASE_NAMES` 唯一维护，
+  当前包含 `codepi-blog`；所有库均须进入加密日备与恢复覆盖。
 - 巡检共用本地 HTTP/SSO/MCP/Health 断言，通过 GitHub API 对照登记的 Worker 的活跃
   `BUILD_SHA` 和逐提交历史；文档或无关应用更新不报警。历史缺失、分流、凭证缺失
   和备份过期均失败，不降低既有 30 小时门槛。

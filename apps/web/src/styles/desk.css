@@ -572,6 +572,13 @@
   text-align: center;
 }
 
+.desk-review { margin-top: 24px; }
+.desk-review-item { padding: 16px 0; border-bottom: 1px solid var(--color-border); }
+.desk-review-item h3 { margin: 0 0 6px; color: var(--color-text); }
+.desk-review-item p { margin: 4px 0; color: var(--color-text-muted); }
+.desk-review-item .kdp-button, .desk-review-item .kdp-link { margin: 8px 8px 0 0; }
+.desk-review-subtitle { margin: 24px 0 0; color: var(--color-text); }
+
 @media (max-width: 960px) {
   .desk-overview {
     gap: 16px;

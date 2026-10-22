@@ -92,8 +92,8 @@ try {
     columns: getComputedStyle(document.querySelector('.desk-overview')).gridTemplateColumns.split(' ').length,
     overflow: document.documentElement.scrollWidth > innerWidth,
   }));
-  assert.equal(appearance.canvas, '#f4f7fb');
-  assert.match(appearance.font, /Avenir Next/);
+  assert.equal(appearance.canvas.toLowerCase(), '#faf8f4');
+  assert.match(appearance.font, /MiSans|Inter/);
   assert.equal(appearance.columns, 3);
   assert.equal(appearance.overflow, false);
   assert.equal(await page.evaluate(() => document.querySelector('details').open), false);
@@ -134,9 +134,9 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-overview')).gridTemplateColumns.split(' ').length), 1);
   assert.ok(await page.evaluate(() => {
-    const rect = document.querySelector('.kdp-desk-entry').getBoundingClientRect();
-    return rect.width > 0 && rect.height >= 44 && rect.right <= innerWidth;
-  }), 'The workbench entry remains visible and tappable on mobile');
+    const rect = document.querySelector('.kdp-mobile-nav-toggle').getBoundingClientRect();
+    return rect.width >= 44 && rect.height >= 44 && rect.right <= innerWidth;
+  }), 'The mobile navigation toggle remains visible and tappable on mobile');
   await page.screenshot({ path: 'desk-mobile.png' });
   await page.click('#desk-generate');
   await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 3);

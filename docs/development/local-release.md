@@ -77,6 +77,10 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
 | Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
 
+当 MCP 使用 `BLOG → codepi-www#BlogMcp` 时，必须先完成 Web / Desk（含
+`codepi-blog` migration 与 `BlogMcp` named RPC）发布并验收，再发布 MCP；MCP
+依赖 `codepi-www#BlogMcp`，不能反向部署。
+
 GU 原件备份首次启用需先完成 GU migration、私有 `MATERIALS` bucket 与 GU 发布，
 再发布绑定 `GuMaterialsBackup` 的 Ops。随后触发完整备份并核验当前清单全部数据库、原件、
 跨平台回执及恢复；新巡检不接受旧的 D1-only 回执。详见[定时运维](cloudflare-operations.md#gu-原件)。

@@ -9,7 +9,7 @@ import type { Env } from "./env";
 
 export const SUPPORTED_SCOPES = [
   "context.read", "projects.read", "projects.write", "health.read", "health.sync",
-  "me.read", "me.write", "invest.read",
+  "me.read", "me.write", "invest.read", "blog.read", "blog.write",
 ] as const;
 export type Scope = typeof SUPPORTED_SCOPES[number];
 export const LEGACY_SCOPE = "health.read health.sync";

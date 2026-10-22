@@ -10,6 +10,7 @@ import {
 const newIds = {
   'codepi-project': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'codepi-me': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'codepi-blog': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
 };
 const completeMapping = Object.fromEntries(DATABASE_NAMES.map(name => [name, DATABASES[name] ?? newIds[name]]));
 const env = { CLOUDFLARE_ACCOUNT_ID: 'synthetic-account', CLOUDFLARE_API_TOKEN: 'synthetic-token' };
@@ -33,11 +34,12 @@ function inventoryRequest(mutate = rows => rows) {
   return { request, calls };
 }
 
-test('the required inventory is dynamic and keeps all six managed IDs while resolving the two new names', async () => {
-  assert.equal(DATABASE_NAMES.length, 8);
+test('the required inventory is dynamic and keeps all six managed IDs while resolving the three new names', async () => {
+  assert.equal(DATABASE_NAMES.length, 9);
   assert.equal(Object.keys(DATABASES).length, 6);
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-project'));
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-me'));
+  assert.ok(!Object.hasOwn(DATABASES, 'codepi-blog'));
   const staged = inventoryRequest(rows => rows.reverse());
   const result = await resolveProductionDatabases({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,

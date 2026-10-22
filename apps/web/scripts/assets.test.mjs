@@ -51,6 +51,7 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
   const { rawConfig: config } = experimental_readRawConfig({ config: 'wrangler.toml' });
   const bundle = await build({
     entryPoints: [config.main], bundle: true, format: 'esm', platform: 'neutral', write: false,
+    external: ['cloudflare:workers'],
   });
   runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true, script: bundle.outputFiles[0].text,

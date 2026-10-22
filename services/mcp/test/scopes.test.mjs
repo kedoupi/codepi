@@ -26,7 +26,7 @@ test('refresh upgrades legacy partial grants and connection display unions live 
   const pair = await upgraded.json();
   assert.equal(pair.scope, f.allScopes);
   const names = (await f.rpc(pair.access_token, 'tools/list')).body.result.tools.map(t => t.name);
-  for (const name of ['project_handoff_save', 'health_get_sync_status', 'memory_save', 'invest_get_portfolio']) {
+  for (const name of ['project_handoff_save', 'health_get_sync_status', 'memory_save', 'invest_get_portfolio', 'blog_list']) {
     assert.ok(names.includes(name), name);
   }
   await f.grant({ scope: 'me.read', client: grant.client });
@@ -48,6 +48,15 @@ test('loopback port variation is allowed but authorization code binds the actual
     assert.equal(response.status, 400, candidate);
     assert.equal((await response.json()).error, 'invalid_redirect_uri');
   }
+});
+
+test('normalizeScope accepts blog scopes and still rejects unknown scopes', async t => {
+  const f = await fixture(t);
+  const grant = await f.grant({ scope: 'blog.read' });
+  assert.equal((await f.rpc(grant.access_token, 'tools/list')).body.result.tools.map(t => t.name).includes('blog_list'), true);
+  const denied = await f.post('/oauth/token', { grant_type: 'refresh_token', client_id: grant.client.client_id,
+    refresh_token: grant.refresh_token, scope: 'blog.read unknown.scope' });
+  assert.equal((await denied.json()).error, 'invalid_scope');
 });
 
 test('context-only clients see no domain data and legacy Health grants still work', async t => {

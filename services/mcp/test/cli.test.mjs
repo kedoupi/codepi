@@ -29,7 +29,7 @@ test('real CLI SDK client reads context, writes task handoffs, refreshes and rep
   const call = (name, args = {}) => callMcpTool({ server: ORIGIN, name, args, configDir, fetchImpl: f.fetch });
   const grant = await f.grant({ scope: 'context.read projects.read projects.write' });
   await credentials(grant, Date.now() + 10000);
-  assert.deepEqual((await call('get_context')).structured.sources.map(s => s.id), ['health', 'project', 'me', 'gu']);
+  assert.deepEqual((await call('get_context')).structured.sources.map(s => s.id), ['health', 'project', 'me', 'gu', 'blog']);
   const rotated = await store.read();
   assert.notEqual(rotated.tokens.refresh_token, grant.refresh_token);
   assert.equal(rotated.tokens.scope, f.allScopes);
