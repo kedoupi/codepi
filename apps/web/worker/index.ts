@@ -16,7 +16,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const post = slug ? (preview ? await getDraft(env.BLOG, slug) : await getPost(env.BLOG, slug)) : null;
   if (slug && !post) return notFound();
   const listing = slug ? null : await listPublished(env.BLOG, 0, 100);
-  const shell = await env.ASSETS.fetch(new Request(new URL("/blog/index.html", request.url), request));
+  const shell = await env.ASSETS.fetch(new Request(new URL("/blog/", request.url), request));
   if (!shell.ok) return shell;
   const title = post ? `${post.title} · 博客` : "博客";
   const description = post?.summary ?? "整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。";
