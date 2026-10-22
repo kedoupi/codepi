@@ -26,7 +26,8 @@ const PRIVATE_APPS = {
 
 const HEALTH_APPS = new Set(['project', 'me']);
 
-// The retired CloudBase leak route. Must stay closed: any 2xx here is a breach.
+// The retired CloudBase leak route. Must stay closed: any non-error response is a breach.
+// CloudBase now answers 423 Locked for the suspended environment; 4xx/5xx all mean closed.
 const LEGACY_ROUTE = 'https://api.xiaotaozi.cc/oura/daily';
 
 // D1 databases whose freshness we can verify remotely (read-only query).
@@ -110,7 +111,7 @@ async function checkLegacyRouteClosed(results) {
     // Cache-bust so a CDN hit cannot mask a re-opened origin.
     const res = await request(`${LEGACY_ROUTE}?user_id=kedoupi&_=${Date.now()}`);
     await res.body?.cancel();
-    assert.ok(res.status === 401 || res.status === 403 || res.status === 404, `status ${res.status}`);
+    assert.ok(res.status >= 400, `status ${res.status}`);
     results.push({ name, ok: true });
   } catch (error) {
     results.push({ name, ok: false, detail: error.message });

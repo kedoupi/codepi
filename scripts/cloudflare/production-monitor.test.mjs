@@ -154,6 +154,24 @@ test('monitor flags a re-opened legacy leak route', async () => {
   }
 });
 
+test('monitor treats a locked legacy route as closed', async () => {
+  const realFetch = globalThis.fetch;
+  const savedEnv = { ...process.env };
+  try {
+    delete process.env.CLOUDFLARE_ACCOUNT_ID;
+    delete process.env.CLOUDFLARE_API_TOKEN;
+    // CloudBase answers 423 Locked for the suspended environment; any 4xx/5xx means closed.
+    globalThis.fetch = stubFetch(async target =>
+      target.hostname === 'api.xiaotaozi.cc' ? new Response('Locked', { status: 423 }) : happyHandler()(target));
+    const results = await runMonitor();
+    const leak = results.find(r => r.name.includes('legacy'));
+    assert.ok(leak && leak.ok, 'a 423 on the legacy route must pass');
+  } finally {
+    globalThis.fetch = realFetch;
+    process.env = savedEnv;
+  }
+});
+
 test('monitor flags a stale health auto-sync', async () => {
   const realFetch = globalThis.fetch;
   const savedEnv = { ...process.env };
