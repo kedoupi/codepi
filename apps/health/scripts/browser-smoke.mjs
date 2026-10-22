@@ -352,6 +352,13 @@ try {
   assert.equal(await page.evaluate(() => document.querySelectorAll('.period-picker option').length), 1);
   assert.equal(await page.evaluate(() => document.querySelector('[data-testid="sleep-duration"]').textContent), '0 小时 30 分');
   await healthy('nap-only day states the missing main sleep instead of framing a nap as the night');
+  await navigate('/');
+  await page.waitForSelector('.journal-sleep .journal-metric');
+  const sleepMetricDate = await page.evaluate(() => document.querySelector('.journal-sleep .journal-metric span')?.textContent);
+  const shanghaiToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
+  assert.notEqual(sleepMetricDate, shanghaiToday, 'a nap-only day must not surface as the latest main sleep');
+  await navigate('/sleep');
+  await page.waitForSelector('[data-testid="nap-only-notice"]');
   await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=records', { method: 'POST' }); });
   await page.reload();
   await page.waitForSelector('[data-testid="sleep-detail"]');

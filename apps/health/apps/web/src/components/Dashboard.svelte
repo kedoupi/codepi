@@ -247,11 +247,11 @@
     <div class="journal-history-grid">
       <section class="journal-sleep sleep-preview" aria-labelledby="sleep-history-title" aria-busy={sleepLoading}>
         <div class="journal-section-top"><h2 id="sleep-history-title">{text("睡眠，是否回到你的节奏？", "Finding your sleep rhythm")}</h2><div class="journal-metric"><strong>{lastSleep ? duration(lastSleep.value! * 3600, locale) : "—"}</strong><span>{lastSleep?.date ?? text("暂无睡眠记录", "No sleep records")}</span></div></div>
-        <p class="journal-description">{text(`近 ${detailDays} 天每日主要睡眠时长；优先主睡眠，否则取最长记录，不累加小睡。`, `Main sleep over ${detailDays} days; longest record when unmarked, excluding additional naps.`)}</p>
+        <p class="journal-description">{text(`近 ${detailDays} 天每日主睡眠时长；明确的小睡与休息不计入。`, `Main sleep per night over ${detailDays} days; marked naps and rest periods are excluded.`)}</p>
         {#if sleepError}<div class="journal-empty" role="alert"><p>{sleepError}</p><button onclick={loadSleep}>{text("重试", "Retry")}</button></div>
         {:else if !sleeps.length}<div class="journal-empty"><p>{sleepLoading ? text("正在读取睡眠记录…", "Loading sleep records…") : !me.capabilities?.personal ? text("详细睡眠仅向个人工作区开放。", "Detailed sleep requires personal access.") : sleepVerified ? text("已检查近 30 天，暂无睡眠记录。", "The last 30 days were checked; no sleep records.") : text("近 30 天还没有保存的详细睡眠记录。", "No detailed sleep records saved in the last 30 days.")}</p><a class="journal-link" href="/sleep">{text("查看睡眠与同步", "Open sleep and sync")}</a></div>
         {:else}<JournalChart {locale} label={text(`近 ${detailDays} 天主要睡眠时长`, `Main sleep duration over ${detailDays} days`)} kind="bar" unit={text("小时", "hours")} average series={[{ label: text("主要睡眠时长", "Main sleep duration"), color: journalColors.sleep, points: model.sleep.slice(-detailDays) }]} />{/if}
-        <p class="journal-caption">{text("优先取主睡眠；未标记时取最长一段，不含其他小睡。空缺不是 0。", "Main sleep, or the longest period if unmarked; other naps excluded. Gaps are not zero.")} <a href="/sleep">{text("睡眠详情", "Sleep details")}</a></p>
+        <p class="journal-caption">{text("未标记的记录取最长一段；空缺不是 0。", "Unmarked periods fall back to the longest record; gaps are not zero.")} <a href="/sleep">{text("睡眠详情", "Sleep details")}</a></p>
         {#if sleepWarning}<p class="journal-notice" role="status">{sleepWarning}</p>{/if}
       </section>
       <section class="journal-activity" aria-labelledby="steps-title">

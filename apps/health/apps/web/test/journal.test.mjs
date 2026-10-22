@@ -24,11 +24,15 @@ test('main-sleep duration and HRV never combine naps; unmarked periods do not cl
     { id: 'nap', day: end, type: 'sleep', total_sleep_duration: 3600, average_hrv: 99 },
     { id: 'main', day: end, type: 'long_sleep', total_sleep_duration: 25200, average_hrv: 42 },
     { id: 'old', day: '2026-10-13', total_sleep_duration: 28000, average_hrv: 51 },
+    { id: 'nap-only', day: '2026-10-12', type: 'sleep', total_sleep_duration: 4000, average_hrv: 60 },
   ], end);
   assert.equal(model.sleep.at(-1).value, 7);
   assert.equal(model.hrv.at(-1).value, 42);
   assert.equal(model.hrv.at(-2).value, null);
   assert.equal(model.sleep.at(-2).value, 28000 / 3600);
+  // A day with only explicitly typed naps stays a gap instead of charting the nap.
+  assert.equal(model.sleep.at(-3).value, null);
+  assert.equal(model.hrv.at(-3).value, null);
 });
 
 test('HRV range uses earlier dates, minimum 14 valid days, excludes selected date and outliers by quartiles', () => {
