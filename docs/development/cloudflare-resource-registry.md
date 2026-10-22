@@ -443,6 +443,8 @@ secret 值、个人数据或 OAuth refresh token。
 | workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检、traffic samples 与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS；每 30 分钟写入 `reports/traffic/samples.json` | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 已有备份验收；traffic 代码尚未部署 |
 | r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文、运维报告与 `reports/traffic/samples.json` 流量基线 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问核验；traffic 前缀尚未有生产写入证据 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
+| ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | planned | 代码与本地测试已实现；线上 observe session、R2 报告和用户确认未验收 |
+| secret-ops-rollback-token | production | worker-secret | CLOUDFLARE_ROLLBACK_TOKEN（值不登记） | kedoupi | Observer 严重故障的受控 Worker 回滚 | credential-metadata | rollback-worker.mjs、worker-ops | - | scripts/cloudflare/provision-ops.mjs rollback-credential | planned | 独立 Workers Scripts Write credential；凭证尚未创建，值永不写入登记表 |
 <!-- registry-table:end -->
 
 ## 2026-10-19 临时恢复演练资源

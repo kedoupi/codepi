@@ -24,6 +24,45 @@ v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记
 这些是平台定时任务，不保证精确到分钟。只能从实际 Workflow 实例和 R2 对象确认
 执行结果，配置存在不代表已经执行。
 
+## 发布后 Ops Observer
+
+发布经理在生产 smoke 通过后生成一个 release manifest，并触发：
+
+```bash
+pnpm exec wrangler workflows trigger codepi-ops \
+  '{"kind":"observe","release_id":"<release_id>","manifest":<release-manifest-json>}'
+```
+
+`kind: observe` 由 `OperationsWorkflow` 创建观察实例；manifest 必须包含 release_id、previous/new version，以及每个服务的 `migration_applied`、`secret_changed`、`binding_changed`、`external_side_effects`。`rollback_allowed` 由这些字段和 previous version 自动推导。观察固定 30 分钟，在 t=0、5、10、15、20、25、30 分钟轮询。
+
+Observer 状态机为 `created → notified → observing`，健康结束为 `healthy_reported`；发现降级时进入 `degraded_notified` 后继续观察；严重时进入 `critical_detected`，再按安全门进入 `rollback_pending` 或 `rollback_blocked`，回滚核验后为 `rolled_back → rollback_verified`。失败为 `observation_failed`，重复事件以 event_id 幂等处理。
+
+每轮与事件报告写入私有 R2 `codepi-ops-backups`：
+
+```text
+reports/observer/<release_id>/events/<event_id>.json
+reports/observer/<release_id>/poll-0.json
+...
+reports/observer/<release_id>/poll-6.json
+reports/observer/<release_id>/summary.json
+```
+
+`summary.json` 是观察完成后的用户确认依据。报告只保存版本、服务、指标、阈值结论、状态和已脱敏的错误摘要；禁止写入 token、secret、私钥、SQL、请求 query、业务正文或私人数据。
+
+### Observer severity 与通知
+
+- `degraded`：`invocations >= 20` 且 error rate `>= 5%`，或 p99 `>=` 基线的 2 倍。
+- `critical`：版本身份不一致立即触发；核心契约硬失败连续 2 轮；或 error rate `>= 20%` 且 errors `>= 20` 连续 2 轮。
+- 否则为 `healthy`。阈值按每个服务计算，低于 invocation 门槛不因比例单独升级。
+
+发布开始、降级/严重事件和观察完成/健康结论写入 GitHub 长驻 Issue **`codepi release observations`** 的 comment，label 为 `codepi-release-observations`；event_id 用于幂等。失败告警继续沿用 Cloudflare Workers Issues 邮件链，不以 GitHub comment 取代。
+
+### 回滚安全门
+
+严重状态只有在 manifest 的所有受影响服务均 `rollback_allowed=true` 时进入 `rollback_pending`；任一 migration、secret、binding 或 external side effect，或缺少 previous version，自动进入 `rollback_blocked`。允许时由 `scripts/cloudflare/rollback-worker.mjs` 执行：回滚前必须核对 expected active version 且单一版本承载 100% 流量，使用 percentage deployment POST 切换并回读校验；不支持 force。回滚后进入 `rollback_verified` 才算完成，否则保持失败/阻断并立即通知用户。
+
+回滚使用独立的 `CLOUDFLARE_ROLLBACK_TOKEN`，通过 `node scripts/cloudflare/provision-ops.mjs rollback-credential` 创建，权限仅为 Workers Scripts Write；现有 `CLOUDFLARE_API_TOKEN` 不用于回滚且权限不变。凭证值永不写入文档、报告或日志。
+
 云端巡检还查询 `codepi.app` zone 的 hourly Analytics，追加 `zone traffic threats exceed threshold`
 与 `zone traffic requests surge` 两个结果。流量检查采用 fail-closed：网络、权限、GraphQL、
 Zone Analytics 或 R2 基线损坏/写入失败均产生失败结果，不转换为 skip。最近完整 UTC 小时

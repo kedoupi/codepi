@@ -15,7 +15,11 @@ export function extractPagesUrl(output) {
   return match?.[0].replace(/[),.]+$/, '') ?? null;
 }
 
-export function buildEntry({ service, target, sha, provider, identifier, smoke }) {
+export function buildEntry({
+  service, target, sha, provider, identifier, smoke,
+  previousVersion, newVersion, migrationApplied, secretChanged,
+  bindingChanged, externalSideEffects,
+}) {
   for (const [key, value] of Object.entries({ service, target, sha, provider, identifier, smoke })) {
     if (typeof value !== 'string' || !value.trim()) throw new Error(`evidence entry requires ${key}`);
     if (/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/.test(value)) {
@@ -25,7 +29,29 @@ export function buildEntry({ service, target, sha, provider, identifier, smoke }
   }
   if (!['production', 'staging', 'pr'].includes(target)) throw new Error(`unknown evidence target: ${target}`);
   if (!['pages', 'worker'].includes(provider)) throw new Error(`unknown evidence provider: ${provider}`);
-  return { service, target, sha, provider, identifier, smoke, recorded_at: new Date().toISOString() };
+  const optional = {
+    previous_version: previousVersion,
+    new_version: newVersion,
+    migration_applied: migrationApplied,
+    secret_changed: secretChanged,
+    binding_changed: bindingChanged,
+    external_side_effects: externalSideEffects,
+  };
+  for (const [key, value] of Object.entries(optional)) {
+    if (value !== undefined && value !== null && typeof value !== 'string' && typeof value !== 'boolean') {
+      throw new Error(`evidence ${key} must be a string or boolean`);
+    }
+  }
+  return {
+    service, target, sha, provider, identifier, smoke,
+    ...(previousVersion !== undefined ? { previous_version: previousVersion } : {}),
+    ...(newVersion !== undefined ? { new_version: newVersion } : {}),
+    ...(migrationApplied !== undefined ? { migration_applied: migrationApplied } : {}),
+    ...(secretChanged !== undefined ? { secret_changed: secretChanged } : {}),
+    ...(bindingChanged !== undefined ? { binding_changed: bindingChanged } : {}),
+    ...(externalSideEffects !== undefined ? { external_side_effects: externalSideEffects } : {}),
+    recorded_at: new Date().toISOString(),
+  };
 }
 
 export function appendEntry(file, entry) {
@@ -83,9 +109,15 @@ async function main(args = process.argv.slice(2)) {
     const file = args[args.indexOf('--file') + 1];
     if (!file) throw new Error('append requires --file');
     const fields = {};
-    for (const key of ['service', 'target', 'sha', 'provider', 'identifier', 'smoke']) {
+    for (const key of ['service', 'target', 'sha', 'provider', 'identifier', 'smoke',
+      'previousVersion', 'newVersion', 'migrationApplied', 'secretChanged',
+      'bindingChanged', 'externalSideEffects']) {
       const i = args.indexOf(`--${key}`);
-      if (i !== -1 && args[i + 1]) fields[key] = args[i + 1];
+      if (i !== -1 && args[i + 1]) {
+        const value = args[i + 1];
+        fields[key] = ['migrationApplied', 'secretChanged', 'bindingChanged', 'externalSideEffects']
+          .includes(key) ? value === 'true' : value;
+      }
     }
     appendEntry(file, buildEntry(fields));
     return 0;

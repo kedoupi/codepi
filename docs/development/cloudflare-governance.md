@@ -82,6 +82,14 @@ synthetic fixture；删除不涉及真实业务数据。若未来确需云端联
   一次生成并配对，通过运行时 readiness 验收；只在获授权的初始化/轮换时运行，
   不再把分别手填两端作为正常流程。跨 Worker 更新并非原子操作，部分失败必须中止发布。
 
+### 回滚写权限隔离与观察报告边界
+
+回滚是独立高风险能力：必须使用专用 secret `CLOUDFLARE_ROLLBACK_TOKEN` 和独立 token，最小权限仅 `Workers Scripts Write`；由 `node scripts/cloudflare/provision-ops.mjs rollback-credential` 创建。现有 `CLOUDFLARE_API_TOKEN` 的权限与用途不变，不得被回滚脚本复用。`rollback-worker.mjs` 禁止 force，只接受回滚前已核对的 expected active version、单一 100% 流量版本，并在 percentage deployment 后重新读取校验。
+
+release manifest 的 `rollback_allowed` 必须由 schema/迁移、secret、binding 和 external side effect 字段及 previous version 自动推导。任一 migration、secret、binding 或外部副作用变更，或缺少 previous version，均自动阻断回滚；文档、调用者和人工通知不得覆盖该结果。
+
+Observer 报告属于私有运维元数据：仅允许 release/version 身份、服务名、轮询指标、基线比较、severity、状态、事件 ID 和脱敏错误摘要。不得包含任何 token/secret 值、私钥、SQL、请求 query、业务正文、健康/财务/稿件内容或可恢复会话数据；R2 报告沿用运维桶的私有访问和生命周期边界。
+
 ## 6. 发布路径（本地执行）
 
 2026-10-18 所有者决定：本地检查与审查后通过 PR 合入 `main`，再由获授权的

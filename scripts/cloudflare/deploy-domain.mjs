@@ -163,6 +163,12 @@ export async function deployDomain(app, {
       source_sha: sha,
       version,
       smoke: 'pending',
+      previous_version: '',
+      new_version: version,
+      migration_applied: true,
+      secret_changed: true,
+      binding_changed: true,
+      external_side_effects: true,
     };
   } finally {
     await rm(work, { recursive: true, force: true });
