@@ -32,7 +32,9 @@ export async function renderMarkdown(body: string): Promise<string> {
 function row<T>(result: D1Result<T>): T | null { return result.results[0] ?? null; }
 
 export async function submitDraft(db: D1Database, input: Record<string, unknown>) {
-  const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision, request_id: requestId } = input;
+  const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision } = input;
+  // request_id is optional: supply one to make retries idempotent; otherwise each submit is a new revision.
+  const requestId = input.request_id === undefined || input.request_id === null ? crypto.randomUUID() : input.request_id;
   if (!validateSlug(slug) || !text(title, 200) || !title.trim() || !text(summary, 500) || typeof body !== "string" || !text(requestId, 200) || (tag !== undefined && tag !== null && !text(tag, 40)) || (baseRevision !== undefined && (!Number.isInteger(baseRevision) || (baseRevision as number) < 0))) throw invalid();
   if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
   const existing = row(await db.prepare("SELECT * FROM blog_drafts WHERE slug = ?").bind(slug).all<Draft>());
