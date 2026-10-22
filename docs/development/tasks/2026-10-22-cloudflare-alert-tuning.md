@@ -1,5 +1,5 @@
 # Cloudflare 告警优化与漂移发布
-- 状态：已完成并闭环。云端 monitor 10:00/10:30 两周期 complete、09:40Z 后零告警邮件、无 active issue；九库（含 codepi-blog）+ 114 份原件加密备份与 GitHub 跨平台回执通过。生产基线 `b67daa4d9684`（www/mcp 为 `969a58fee701` 兼容版本）。
+- 状态：已完成并闭环。云端 monitor 连续 complete、零 active issue；九库加密备份回执通过；流量监控两项检查已上线并在生产 PASS；Health 间歇 500 已修复发布；TLS 1.2/Full Strict/Always Use HTTPS 生效。
 - 日期与执行人：2026-10-22，omp 会话。注意：当日另一会话并行开发并合并了 PR #147/#152/#153/#155 等并自行发布了部分 Worker（www/mcp、health 首轮）；本会话负责告警治理与其余 Worker 的漂移发布，冲突点见第二、三轮复核。
 - 基线：开发基线 `57318989b37e3e1bdf2c80fe11231f7d9959c979`；发布源码 `6cf89f57849b6c0a495e6cd1b7a22c0f2fc08851`（PR #145 squash 合并后的远程 main，发布时经 `git ls-remote` 实时核对一致）。
 - worktree：开发 `<workspace>/orca/workspaces/kdp.cool/cloudflare告警优化`（分支 `kedoupi/cloudflare告警优化`）；发布 `<workspace>/.worktrees/kdp.cool/release-alert-optimization`（detached HEAD，干净且等于远程 main）。主 checkout `<workspace>/Coding/kdp.cool` 存在用户未提交改动，未触碰。
@@ -78,6 +78,24 @@
 9. **最终状态（10:35 UTC 复核）**：monitor 10:00、10:30 两周期 complete；09:40 后零告警邮件；
    `codepi-ops` issue resolved；账户无 active issue。教训：开发活跃期合并共享代码即产生漂移告警，
    应由同一发布者随合并节奏发布，或接受巡检红到下次发布。
+
+## 2026-10-22 下午：流量监控上线与 Health 500 修复
+
+10. **流量监控上线（PR #157）**：ops 30 分钟 monitor 新增 `zone traffic threats exceed threshold` 与
+    `zone traffic requests surge` 两项检查：GraphQL `httpRequests1hGroups` 按 UTC 整小时采样
+    （最近 2 小时窗口 upsert），基线存 `reports/traffic/samples.json`（7 天滚动、ETag 条件写、
+    损坏 fail-closed），冷启动 <24h 样本仅用绝对阈值（threats 25/h、requests 1000/h）。
+    `codepi-ops-runtime` token 的 Zone Analytics Read 最终经 Account API Tokens API 直接写入
+    （Dashboard 用户令牌与账户令牌混淆两轮未果）；16:33 手动 monitor 实例验证两项 PASS
+    （threats 9/h、requests 749/h），基线开始累积。审查中拦截初版实现两处缺陷：backupFreshness
+    被替换（已恢复并加钉线测试）、R2 读取误用无 body 的 `bucket.head()`（改 `get()`）。
+11. **Health /api/me 间歇 500（PR #160）**：D1 平台瞬时错误直达处理器且全库零重试。
+    新增 `withD1Retry`（仅瞬时错误重试一次、150ms 退避、配额/约束类确定性错误不重试），
+    覆盖 session/locale/connection/sync-state/lease 路径；Health API `100efebf`、
+    前端 `ad4586bd`、MCP `fb3a2eca` 从 `5719487ed1be` 发布，check:api/check:branding/check:live
+    与本地巡检全绿，两个 Health 500 issue 已 resolve。
+12. **TLS/SSL 加固（用户 Dashboard）**：Minimum TLS Version 1.2、加密模式 Full (Strict)、
+    Always Use HTTPS 均经控制面复读生效。
 
 ## 剩余风险
 
