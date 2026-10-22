@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { withD1Retry } from "./d1-retry.ts";
 
 export type LocalePref = "system" | "zh" | "en";
 
@@ -11,11 +12,11 @@ export async function loadLocalePref(
   env: Env,
   userId: string,
 ): Promise<LocalePref | null> {
-  const row = await env.DB.prepare(
+  const row = await withD1Retry(() => env.DB.prepare(
     `SELECT locale FROM user_prefs WHERE user_id = ?`,
   )
     .bind(userId)
-    .first<{ locale: string | null }>();
+    .first<{ locale: string | null }>());
   return normalizeLocalePref(row?.locale);
 }
 
