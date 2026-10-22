@@ -102,7 +102,7 @@ async function main() {
 
     // 3. Stamp the build so /api/health and the smoke check can prove the new
     //    version is live. BUILD_SHA is read as a plain var on the Worker.
-    const buildSha = (process.env.GITHUB_SHA || '').slice(0, 12)
+    let buildSha = (process.env.GITHUB_SHA || '').slice(0, 12)
       || spawnSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 
     // Version deployment keeps the existing zone route. Tokens need Worker edit
@@ -136,8 +136,18 @@ async function main() {
     if (installedCrons.length && JSON.stringify(installedCrons) !== JSON.stringify([...crons].sort())) {
       console.log(`Note: Cron schedule changed from [${installedCrons.join(', ')}] to [${crons.join(', ')}].`);
     }
-    console.log(`Verified Cron schedule: ${crons.join(', ')}`);
-    console.log(`Deployed ${version} build=${buildSha}`);
+    console.log(JSON.stringify({
+      service: 'health-api',
+      source_sha: buildSha,
+      previous_version: previousVersion,
+      new_version: version,
+      version,
+      smoke: 'pending',
+      migration_applied: true,
+      secret_changed: true,
+      binding_changed: true,
+      external_side_effects: true,
+    }));
   } catch (error) {
     console.error(`\nDeploy stopped at: ${completed}`);
     if (completed.includes('serving 100%')) {

@@ -28,7 +28,12 @@ export function deployWorker(service, sha, { cwd = root, execute = spawnSync } =
   assert.ok(!result.error && result.status === 0, `Worker deployment failed (exit ${result.status ?? 'unavailable'}); smoke not completed`);
   const version = extractWorkerVersion(result.stdout);
   assert.ok(version, 'deployment did not report a Worker version; do not mark the release successful');
-  return { service, source_sha: sha, version, smoke: 'pending' };
+  return {
+    service, source_sha: sha, version, smoke: 'pending',
+    previous_version: '', new_version: version,
+    migration_applied: true, secret_changed: true,
+    binding_changed: true, external_side_effects: true,
+  };
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

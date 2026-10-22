@@ -31,6 +31,21 @@ test('buildEntry 校验必填字段并拒绝凭据形态', () => {
   assert.throws(() => buildEntry({ service: '', target: 'staging', sha: 'abc123', provider: 'worker', identifier: 'v1', smoke: 'pass' }));
   assert.throws(() => buildEntry({ service: 'health', target: 'qa', sha: 'abc123', provider: 'worker', identifier: 'v1', smoke: 'pass' }));
 });
+test('buildEntry preserves old format and accepts observation fields', () => {
+  const entry = buildEntry({
+    service: 'health', target: 'production', sha: 'abc123', provider: 'worker',
+    identifier: 'v1', smoke: 'pass', previousVersion: 'old', newVersion: 'new',
+    migrationApplied: false, secretChanged: false, bindingChanged: false,
+    externalSideEffects: false,
+  });
+  assert.equal(entry.previous_version, 'old');
+  assert.equal(entry.new_version, 'new');
+  assert.equal(entry.migration_applied, false);
+  assert.equal(buildEntry({
+    service: 'health', target: 'production', sha: 'abc123', provider: 'worker',
+    identifier: 'v1', smoke: 'pass',
+  }).migration_applied, undefined);
+});
 
 test('findPagesDeployment 按 URL/alias 匹配', () => {
   const deployments = [
