@@ -4,7 +4,7 @@ export const OBSERVATION_ISSUE_TITLE = 'codepi release observations';
 export const OBSERVATION_LABEL = 'codepi-release-observations';
 
 function redact(value) {
-  return String(value ?? '').replace(/([?&](?:token|key|secret|password|authorization|signature|code)=[^&\s]*)/gi, '$1[REDACTED]').replace(/\b(?:bearer\s+)[^\s]+/gi, 'Bearer [REDACTED]').slice(0, 2000);
+  return String(value ?? '').replace(/([?&](?:token|key|secret|password|authorization|signature|code)=)[^&\s]*/gi, '$1[REDACTED]').replace(/\b(?:bearer\s+)[^\s]+/gi, 'Bearer [REDACTED]').slice(0, 2000);
 }
 
 async function request(api, path, options = {}) {

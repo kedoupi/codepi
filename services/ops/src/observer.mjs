@@ -44,7 +44,7 @@ export function classifySeverity({ metrics = {}, baseline = {}, hardFailure = fa
 }
 
 function safeValue(value) {
-  if (typeof value === 'string') return value.replace(/([?&](?:token|key|secret|password|authorization|signature|code)=[^&\s]*)/gi, '$1[REDACTED]').replace(/(?:bearer\s+)[^\s]+/gi, 'Bearer [REDACTED]').replace(/(?:-----BEGIN )[\s\S]*?(?:-----END [^-]+-----)/g, '[REDACTED]').slice(0, 1000);
+  if (typeof value === 'string') return value.replace(/([?&](?:token|key|secret|password|authorization|signature|code)=)[^&\s]*/gi, '$1[REDACTED]').replace(/(?:bearer\s+)[^\s]+/gi, 'Bearer [REDACTED]').replace(/(?:-----BEGIN )[\s\S]*?(?:-----END [^-]+-----)/g, '[REDACTED]').slice(0, 1000);
   if (Array.isArray(value)) return value.map(safeValue);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => !/(token|secret|password|authorization|private.?key|sql|query)/i.test(key)).map(([key, item]) => [key, safeValue(item)]));
   return value;
@@ -85,12 +85,19 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   const emit = async (type, detail = {}) => {
     const eventId = `${releaseId}-${events.length}-${type}`;
     const transition = detail.nextState ? transitionState(state, detail.nextState, eventId, seen) : { state, changed: false };
+    state = transition.state;
     const event = safeValue({ event_id: eventId, release_id: releaseId, type, state, at: now(), ...detail });
     delete event.nextState;
     events.push(event);
     await bucket.put(`reports/observer/${releaseId}/events/${eventId}.json`, JSON.stringify(event), { httpMetadata: { contentType: 'application/json' } });
   };
-  await emit('created', { nextState: 'notified' });
+  const affectedServices = manifest.services.map(item => item.service);
+  try {
+    await notify({ event_id: `${releaseId}-started`, releaseId, services: affectedServices, severity: 'started', summary: `observation window started (${new Date(Date.now() + 30 * 60000).toISOString()})`, rollback_allowed: manifest.services.every(item => item.rollback_allowed === true) }, { env });
+    await emit('notification_sent', { nextState: 'notified' });
+  } catch (error) {
+    await emit('notification_failed', { error: error.message, nextState: 'notified' });
+  }
   await emit('observation_started', { nextState: 'observing' });
   const offsets = [0, 5, 10, 15, 20, 25, 30];
   for (let i = 0; i < offsets.length; i++) {
@@ -113,6 +120,10 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   if (state === 'observing') await emit('healthy_reported', { nextState: 'healthy_reported' });
   const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
   await bucket.put(`reports/observer/${releaseId}/summary.json`, JSON.stringify(summary), { httpMetadata: { contentType: 'application/json' } });
+  try {
+    await notify({ event_id: `${releaseId}-completed`, releaseId, services: affectedServices, severity: summary.state, summary: `observation complete; summary: reports/observer/${releaseId}/summary.json` }, { env });
+    await emit('completion_notification_sent');
+  } catch (error) { await emit('notification_failed', { error: error.message }); }
   return summary;
 }
 
