@@ -572,12 +572,20 @@
   text-align: center;
 }
 
-.desk-review { margin-top: 24px; }
+.desk-review {
+  margin-top: 24px;
+  padding: 34px 32px 30px;
+  border-radius: 22px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgba(45, 42, 40, 0.02), 0 12px 32px rgba(45, 42, 40, 0.03);
+}
 .desk-review-item { padding: 16px 0; border-bottom: 1px solid var(--color-border); }
 .desk-review-item h3 { margin: 0 0 6px; color: var(--color-text); }
 .desk-review-item p { margin: 4px 0; color: var(--color-text-muted); }
 .desk-review-item .kdp-button, .desk-review-item .kdp-link { margin: 8px 8px 0 0; }
 .desk-review-subtitle { margin: 24px 0 0; color: var(--color-text); }
+.desk-review-empty { margin: 16px 0 0; color: var(--color-text-muted); font-size: 14px; }
 
 @media (max-width: 960px) {
   .desk-overview {

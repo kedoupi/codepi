@@ -74,8 +74,10 @@ async function loadReview() {
       else { const preview = node("a", "预览", "kdp-link"); preview.href = `/blog/preview/${item.slug}/`; const publish = node("button", "发布", "kdp-button"); publish.dataset.reviewAction = "publish"; const reject = node("button", "拒绝", "kdp-button kdp-button--secondary"); reject.dataset.reviewAction = "reject"; row.append(preview, publish, reject); }
       return row;
     };
-    const draftList = el("blog-drafts-list"); draftList.replaceChildren(...drafts.drafts.map(item => render(item)));
-    const publishedList = el("blog-published-list"); publishedList.replaceChildren(...published.posts.map(item => render(item, true)));
+    const draftList = el("blog-drafts-list");
+    draftList.replaceChildren(...(drafts.drafts.length ? drafts.drafts.map(item => render(item)) : [node("p", "暂无待审核的草稿。AI 客户端通过 MCP 提交的草稿会出现在这里。", "desk-review-empty")]));
+    const publishedList = el("blog-published-list");
+    publishedList.replaceChildren(...(published.posts.length ? published.posts.map(item => render(item, true)) : [node("p", "暂无已发布的文章。", "desk-review-empty")]));
     status.textContent = "";
   } catch (error) { if (!(error instanceof SessionExpired)) status.textContent = "博客审核暂时无法读取。"; }
 }
