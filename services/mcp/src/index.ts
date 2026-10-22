@@ -22,9 +22,10 @@ async function route(request: Request, env: Env, requestId: string) {
   if (env.AUTH_CLIENT_ID !== "mcp" || env.SSO_ENABLED !== "1") {
     throw new HttpError("mcp_not_configured", 503);
   }
+  // Wrong-origin probes are client/edge errors: answer 4xx so they never raise a 5xx Workers Issue.
   if (url.origin !== env.MCP_ORIGIN) {
     console.warn(JSON.stringify({ event: "mcp_rejected_origin", request_id: requestId, origin: url.origin }));
-    return json({ error: "canonical_origin_required" }, 503);
+    return json({ error: "canonical_origin_required" }, 403);
   }
   const path = url.pathname, method = request.method;
   const bearer = path === "/mcp" || path.startsWith("/.well-known/") || ["/oauth/register", "/oauth/token", "/oauth/revoke"].includes(path);
