@@ -41,4 +41,7 @@ test('existing label 422 is ignored and duplicate event comments are skipped', a
   };
   const result = await notifyGithub({ event_id: 'evt-1', releaseId: 'rel-5', severity: 'critical' }, { env: { GITHUB_TOKEN: 'synthetic', GITHUB_REPOSITORY: 'owner/repo' }, fetchImpl: request });
   assert.equal(result.issueNumber, 9);
+  assert.equal(result.commentId, null);
+  assert.equal(result.deduplicated, true);
+  assert.ok(!calls.some(call => call.options.method === 'POST' && call.url.includes('/comments')));
 });

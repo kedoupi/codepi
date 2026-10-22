@@ -174,6 +174,19 @@ node scripts/cloudflare/deployment-evidence.mjs append \
 `--smoke pass`。线上登录、Oura 重连和真实数据同步单独验收，不以 HTTP 200 代替。
 多服务部分成功时分别记录；下次发布仍包含未成功服务。
 
+### 4.1 发布后观察
+
+只有本节 smoke 与第 4 节线上验收全部通过，才允许结束发布 shell 的发布阶段。随后必须为本次发布生成**单一** release manifest（不得为每个服务分别触发观察），至少包含 `release_id`、source SHA、每个服务的 previous/new version、`migration_applied`、`secret_changed`、`binding_changed`、`external_side_effects`；manifest 会推导 `rollback_allowed`，不能手工放宽。
+
+在 `services/ops/` 使用 workspace 锁定的 Wrangler，将 manifest 作为 payload 触发 observe session：
+
+```bash
+pnpm exec wrangler workflows trigger codepi-ops \
+  '{"kind":"observe","release_id":"<release_id>","manifest":<release-manifest-json>}'
+```
+
+`<release-manifest-json>` 是已生成的 manifest 对象，不是路径字符串或第二份变体。发布开始和观察结论由 GitHub 长驻 Issue comment 通知；Cloudflare Issues 邮件链仍负责失败告警。Observer 固定在 t=0/5/10/15/20/25/30 分钟轮询，结束后从 R2 读取 `reports/observer/<release_id>/summary.json`，核对最终状态与报告，再向用户报告；在线正常必须由用户确认，不能用 Workflow 完成状态代替确认。观察期间不得另起一次发布或手工切换版本。
+
 ## 5. 失败与日常运行
 
 迁移失败则不切换代码；上传后切流失败保留原版本；切流后验收失败仅在 schema 和配置

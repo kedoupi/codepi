@@ -38,6 +38,23 @@
 
 四个 skill 的执行入口只维护在 `.agents/skills/`，详细流程链接到本目录，随仓库版本管理；各工具适配文件只负责引导读取。能发现原生 skill 时使用该工具的调用方式，不能发现时直接读取文件。`agents/openai.yaml` 仅为 Codex 的显示元数据，不是执行这些流程的必要条件。
 
+## 五角色发布流水线
+
+Ops Observer 已纳入正式交付协议。一次发布由同一条可追溯链路负责：
+
+1. **协调者**在 Orca main workspace 讨论需求、定义验收并拆分任务；main workspace 不直接承载实现改动。
+2. **实现 agent**为每个任务使用独立 worktree，按 `kdp-dev` 实施、验证并交付 commit。
+3. **PR 审查者**按 `kdp-review` 只读检查完整 diff、回归风险与证据，发表评论并通知原 Orca workspace；审查者不直接修改实现。
+4. **发布经理**按 `kdp-release` 在干净、已合并的 `main` 上持有唯一 merge/发布权，串行执行本地发布。
+5. **Ops Observer**在 smoke 通过并发布完成后自动创建 observe session，观察新版本 30 分钟并写入报告；它不替代发布前审查或用户验收。
+
+### PR 创建与重新审查
+
+PR 必须绑定 Orca workspace 的 reference（任务/会话标识或其可定位链接），描述至少包含 `task`、`base SHA`、实现范围、验证证据、未执行项和回滚边界。PR 的 source head SHA 发生变化（包括 rebase、冲突解决或追加提交）后，原审查结论失效，必须以新 head SHA 重新进行完整审查；不能以旧评论或旧 CI 结果代替。
+
+发布经理在生产 smoke 全部通过后，使用同一批发布事实生成单一 release manifest，并触发 `kind: observe` 的 Workflow。Observer 的结束状态、报告路径和用户确认必须回填任务记录；严重故障按运维文档的回滚安全门处理。
+
+
 ## 从需求到交付
 
 | 步骤 | Agent 的动作 | 需要留下什么 |
