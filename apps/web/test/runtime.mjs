@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { fixture as authFixture } from '../../../services/auth/test/runtime.mjs';
 const require = createRequire(new URL('../../../services/auth/package.json', import.meta.url));
@@ -10,7 +11,7 @@ const bundle = async contents => (await build({
   platform: 'neutral', write: false, loader: { '.css': 'text' },
   external: ['cloudflare:workers'],
 })).outputFiles[0].text;
-const deskScript = await bundle(`export {default} from './web/worker/index.ts';`);
+const deskScript = await bundle(`export {default, BlogMcp} from './web/worker/index.ts';`);
 const providers = {
   health: 'health/workers/api/src/index.ts',
   gu: 'gu/worker/index.ts',
@@ -60,6 +61,17 @@ export async function deskFixture(t, options = {}) {
   let beforeReply;
   const f = await authFixture(t, {}, {
     scripts: { desk: deskScript },
+    d1Databases: { desk: { BLOG: 'blog-test' } },
+    serviceBindings: { desk: { ASSETS: 'blog-assets' } },
+    extraWorkers: [{
+      name: 'blog-assets', modules: true, compatibilityDate: '2026-10-15',
+      script: `export default { async fetch() { globalThis.__assetFetches = (globalThis.__assetFetches || 0) + 1;
+        return new Response('<html><head><title>博客 | kedoupi（codepi）</title><meta name="description" content="博客"><link rel="canonical" href="https://codepi.app/blog/"></head><body><header class="blog-header"><h1 class="blog-title">真实想法</h1></header><main><section id="blog-list-mount" class="blog-list" hidden></section><section class="blog-empty-pavilion">正在整理</section></main></body></html>', { headers: { 'Content-Type': 'text/html; charset=utf-8', 'X-Asset-Fetch-Count': String(globalThis.__assetFetches) } }) } };`,
+    }, {
+      name: 'blog-rpc', modules: true, compatibilityDate: '2026-10-15',
+      serviceBindings: { BLOG_RPC: { name: 'desk', entrypoint: 'BlogMcp' } },
+      script: `export default { async fetch(req, env) { const reply = await env.BLOG_RPC.execute(await req.json()); return Response.json(reply); } };`,
+    }],
     bindings: { desk: {
       HEALTH_SUMMARY_TOKEN: sourceTokens.health, GU_SUMMARY_TOKEN: sourceTokens.gu, WECHAT_SUMMARY_TOKEN: sourceTokens.wechat,
       ...options.bindings,
@@ -75,6 +87,9 @@ export async function deskFixture(t, options = {}) {
       return response;
     } },
   });
+  const blog = await f.runtime.getD1Database('BLOG', 'desk');
+  const migration = await readFile(new URL('../migrations-blog/0001_blog.sql', import.meta.url), 'utf8');
+  await blog.batch(migration.split(';').filter(sql => sql.trim()).map(sql => blog.prepare(sql)));
   const app = await f.runtime.getWorker('desk');
   const origin = 'http://localhost:8804';
   const call = (path, cookies = '', body, custom = {}) => app.fetch(origin + path, {
@@ -82,5 +97,5 @@ export async function deskFixture(t, options = {}) {
     headers: { Cookie: cookies, Origin: origin, 'Content-Type': 'application/json', ...custom },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), redirect: 'manual',
   });
-  return { ...f, sources, calls, faults, call, beforeReply: fn => { beforeReply = fn; } };
+  return { ...f, sources, blog, calls, faults, call, rpc: async body => (await (await f.runtime.getWorker('blog-rpc')).fetch('http://localhost:8899/', { method: 'POST', body: JSON.stringify(body) })).json(), beforeReply: fn => { beforeReply = fn; } };
 }

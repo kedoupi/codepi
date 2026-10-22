@@ -140,7 +140,8 @@ function parseTomlEnv(root, tables, prefix) {
   const logs = tomlTableBodies(tables, `[${p}observability.logs]`).join('\n');
   const issues = tomlTableBodies(tables, `[${p}observability.issues]`).join('\n');
   const d1All = tomlTableBodies(tables, `[[${p}d1_databases]]`)
-    .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'), id: tomlString(body, 'database_id') }));
+    .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'),
+      id: /^REPLACE_WITH_[A-Z0-9_]+$/.test(tomlString(body, 'database_id') ?? '') ? undefined : tomlString(body, 'database_id') }));
   const servicesAll = tomlTableBodies(tables, `[[${p}services]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), service: tomlString(body, 'service'), entrypoint: tomlString(body, 'entrypoint') }));
   const routes = tomlRoutes(section);
@@ -331,6 +332,33 @@ function checkService(spec, cfg, index, violations) {
     }
   };
   const checkD1s = (env, envName) => {
+    if (spec.d1Bindings) {
+      const expected = new Map(Object.entries(spec.d1Bindings));
+      if (env.d1All.length !== expected.size) {
+        at(`${envName} must declare exactly ${expected.size} D1 bindings (got ${env.d1All.length})`);
+      }
+      if (env.d1Malformed && !(spec.provisionOnRelease && spec.allowPlanned?.d1
+        && env.d1All.every(d => d.binding && d.name))) at(`${envName} has malformed D1 declaration`);
+      for (const binding of env.duplicateD1Bindings) at(`${envName} has duplicate D1 binding "${binding}"`);
+      for (const d1 of env.d1All) {
+        const expectedName = expected.get(d1.binding);
+        if (!expectedName) {
+          at(`${envName} has unexpected D1 binding "${d1.binding}"`);
+          continue;
+        }
+        if (d1.name !== expectedName) {
+          at(`${envName} D1 database_name for ${d1.binding} must be ${expectedName}, got ${d1.name}`);
+          continue;
+        }
+        if (!d1.id && spec.provisionOnRelease && spec.allowPlanned?.d1) {
+          checkRef(d1.name, envName, 'd1', 'D1 reserved for release-time provisioning', true);
+        } else {
+          if (!d1.id) at(`${envName} D1 ${d1.binding} database_id is missing`);
+          checkD1(d1, envName, spec.allowPlanned?.d1 === true);
+        }
+      }
+      return;
+    }
     const expectedName = spec.d1Name;
     if (spec.noD1) {
       if (env.d1All.length !== 0) at(`${envName} must not declare a D1 binding`);
@@ -488,7 +516,7 @@ function checkService(spec, cfg, index, violations) {
     // 首页公开资产直出；API 和 Desk 规范域名/缓存策略由 Worker 处理。
     const workerFirstAll = [...assetsBody.matchAll(/^[ \t]*run_worker_first[ \t]*=/gm)];
     const workerFirstPattern = spec.id === 'www'
-      ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/desk"\s*,\s*"\/desk\/\*"\s*\][ \t]*(?:#[^\n]*)?$/gm
+      ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/desk"\s*,\s*"\/desk\/\*"(?:\s*,\s*"\/blog\/\*"\s*,\s*"\/sitemap-blog\.xml")?\s*\][ \t]*(?:#[^\n]*)?$/gm
       : spec.spa
         ? /^[ \t]*run_worker_first[ \t]*=[ \t]*\[\s*"\/api\/\*"\s*,\s*"\/mcp"\s*,\s*"\/oauth\/\*"\s*,\s*"\/\.well-known\/\*"\s*,\s*"\/well-known\/\*"\s*\][ \t]*(?:#[^\n]*)?$/gm
         : /^[ \t]*run_worker_first[ \t]*=[ \t]*true[ \t]*(?:#[^\n]*)?$/gm;
@@ -601,8 +629,9 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
       allowPlanned: { services: ['PROJECT', 'ME'] },
       serviceBindings: { AUTH: { production: 'codepi-auth' }, HEALTH: { production: 'codepi-health-api' },
-        PROJECT: { production: 'codepi-project' }, ME: { production: 'codepi-me' }, GU: { production: 'codepi-gu' } },
-      serviceEntrypoints: { HEALTH: 'HealthMcp', PROJECT: 'ProjectMcp', ME: 'MeMcp', GU: 'GuMcp' } },
+        PROJECT: { production: 'codepi-project' }, ME: { production: 'codepi-me' }, GU: { production: 'codepi-gu' },
+        BLOG: { production: 'codepi-www' } },
+      serviceEntrypoints: { HEALTH: 'HealthMcp', PROJECT: 'ProjectMcp', ME: 'MeMcp', GU: 'GuMcp', BLOG: 'BlogMcp' } },
     { id: 'project', file: 'apps/project/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-project',
       d1Name: 'codepi-project', envKey: 'staging', provisionOnRelease: true, authClientId: 'project',
       allowPlanned: { worker: true, d1: true, hosts: ['project.codepi.app'] },
@@ -615,7 +644,9 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       routesRequired: true, requiredRoutes: { prod: ['me.codepi.app'] },
       customDomainRoutes: ['me.codepi.app'],
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
-    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', d1Name: 'codepi-desk', envKey: 'staging',
+    { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', envKey: 'staging',
+      provisionOnRelease: true, allowPlanned: { d1: true },
+      d1Bindings: { DB: 'codepi-desk', BLOG: 'codepi-blog' },
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },

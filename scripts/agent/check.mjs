@@ -69,7 +69,7 @@ export function makePlan(files) {
   const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
     'apps/project/wrangler.toml', 'apps/me/wrangler.toml',
     'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
-  const migrationDirs = ['apps/web/migrations/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
+  const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
     'apps/project/migrations/', 'apps/me/migrations/',
     'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
   const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))

@@ -1,7 +1,8 @@
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
+import { getDraft, listDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, type BlogEnv } from "./blog";
 import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
-export interface DeskEnv extends SsoEnv {
+export interface DeskEnv extends SsoEnv, BlogEnv {
   HEALTH_SUMMARY_TOKEN?: string;
   GU_SUMMARY_TOKEN?: string;
   WECHAT_SUMMARY_TOKEN?: string;
@@ -115,6 +116,31 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (!session || session.subject !== "kdp-owner" || session.userId !== "desk-owner") {
     return deskJson({ error: "unauthorized" }, 401);
   }
+  if (path === "/api/blog/drafts" && request.method === "GET") return deskJson({ drafts: await listDrafts(env.BLOG) });
+  const draftMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)$/);
+  if (draftMatch && request.method === "GET") {
+    const draft = await getDraft(env.BLOG, decodeURIComponent(draftMatch[1]));
+    return draft ? deskJson({ draft }) : deskJson({ error: "not_found" }, 404);
+  }
+  const publishMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/publish$/);
+  if (publishMatch && request.method === "POST") {
+    try { return deskJson(await publishDraft(env.BLOG, decodeURIComponent(publishMatch[1]), url.origin)); }
+    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+  }
+  const rejectMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/reject$/);
+  if (rejectMatch && request.method === "POST") {
+    let payload: unknown = {};
+    try { payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || (payload.note !== undefined && typeof payload.note !== "string")) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await rejectDraft(env.BLOG, decodeURIComponent(rejectMatch[1]), payload.note as string | undefined)); }
+    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+  }
+  const unpublishMatch = path.match(/^\/api\/blog\/posts\/([^/]+)\/unpublish$/);
+  if (unpublishMatch && request.method === "POST") {
+    try { return deskJson(await unpublishPost(env.BLOG, decodeURIComponent(unpublishMatch[1]), url.origin)); }
+    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+  }
+  if (path === "/api/blog/posts" && request.method === "GET") return deskJson(await listPublished(env.BLOG, 0, 100));
   if (path === "/api/desk/me" && request.method === "GET") return deskJson({ authenticated: true });
   let range: DeskRange = "current";
   let sources: DeskSource[] = [...deskSources];

@@ -19,6 +19,7 @@ export const DATABASE_NAMES = Object.freeze([
   ...Object.keys(DATABASES),
   'codepi-project',
   'codepi-me',
+  'codepi-blog',
 ]);
 export const ORIGINAL_COLLECTIONS = Object.freeze([
   {

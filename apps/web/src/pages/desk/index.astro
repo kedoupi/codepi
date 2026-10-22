@@ -64,6 +64,14 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
         ))}
       </section>
 
+      <section class="kdp-card desk-review" aria-labelledby="review-title">
+        <div class="desk-section-heading"><div><p class="desk-eyebrow">审核 / BLOG</p><h2 id="review-title">博客审核</h2></div></div>
+        <div id="blog-review-status" class="desk-fine" role="status"></div>
+        <div id="blog-drafts-list"></div>
+        <h3 class="desk-review-subtitle">已发布文章</h3>
+        <div id="blog-published-list"></div>
+      </section>
+
       <div class="desk-workspace">
         <section class="kdp-card desk-digest" aria-labelledby="digest-title">
           <div class="desk-section-heading">

@@ -61,3 +61,8 @@ entrypoint = "MeMcp"
 binding = "GU"
 service = "codepi-gu"
 entrypoint = "GuMcp"
+
+[[services]]
+binding = "BLOG"
+service = "codepi-www"
+entrypoint = "BlogMcp"

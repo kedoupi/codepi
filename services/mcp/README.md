@@ -1,6 +1,6 @@
 # CodePi MCP
 
-One remote MCP entry at `https://mcp.codepi.app/mcp`. Domain tools cover Health, Project, Me and GU;
+One remote MCP entry at `https://mcp.codepi.app/mcp`. Domain tools cover Health, Project, Me, GU and Blog;
 this is a support service. New domains remain undeployed until the task records real release evidence. The official SDK handles stateless
 Streamable HTTP. No standalone SSE endpoint or Durable Object is required.
 
@@ -15,6 +15,8 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
   Public Health HTTP does not expose the RPC. No Health DB or Oura secrets are bound here.
 - `PROJECT`, `ME` and `GU` bind only to `ProjectMcp`, `MeMcp` and `GuMcp`.
   Project/Me own their new databases; GU reads the existing online workspace revision.
+- `BLOG` binds only to `codepi-www`'s `BlogMcp` RPC export. Blog data lives in the
+  homepage Worker's own database; MCP never binds a blog D1 directly.
 - Tool modules are registered in `src/modules.ts`; only implemented and granted
   modules appear. Owner login grants all currently supported scopes in one
   connection; refresh upgrades legacy partial grants and cannot narrow them.

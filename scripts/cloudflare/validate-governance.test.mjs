@@ -40,11 +40,12 @@ const REGISTRY_ROWS = [
   ['worker-health', 'production', 'worker', 'codepi-health', 'health.codepi.app'],
   ['worker-auth', 'production', 'worker', 'codepi-auth', 'auth.codepi.app (custom domain)'],
   ['worker-health-api', 'production', 'worker', 'codepi-health-api', 'health.codepi.app/api/*'],
-  ['d1-www', 'production', 'd1', `codepi-desk (${U.www})`, '-'],
-  ['d1-gu', 'production', 'd1', `codepi-gu (${U.gu})`, '-'],
-  ['d1-gzh', 'production', 'd1', `codepi-gzh (${U.gzh})`, '-'],
-  ['d1-auth', 'production', 'd1', `codepi-auth (${U.auth})`, '-'],
-  ['d1-health', 'production', 'd1', `codepi-health (${U.health})`, '-'],
+  ['d1-www', 'production', 'd1', `codepi-desk (${U.www})`, '-', 'managed'],
+  ['d1-blog', 'production', 'd1', 'codepi-blog', '-', 'planned'],
+  ['d1-gu', 'production', 'd1', `codepi-gu (${U.gu})`, '-', 'managed'],
+  ['d1-gzh', 'production', 'd1', `codepi-gzh (${U.gzh})`, '-', 'managed'],
+  ['d1-auth', 'production', 'd1', `codepi-auth (${U.auth})`, '-', 'managed'],
+  ['d1-health', 'production', 'd1', `codepi-health (${U.health})`, '-', 'managed'],
 ];
 
 function registryText(rows = REGISTRY_ROWS) {
@@ -279,7 +280,8 @@ ${OBSERVABILITY}
 function webWorkerConfig() {
   return privateWorkerConfig({ app: 'www' })
     .replace('run_worker_first = true', 'run_worker_first = ["/api/*", "/desk", "/desk/*"]\nnot_found_handling = "404-page"')
-    .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk');
+    .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk')
+    + '\n[[d1_databases]]\nbinding = "BLOG"\ndatabase_name = "codepi-blog"\n';
 }
 
 test('GU materials has an exact managed bucket', () => {
@@ -663,9 +665,26 @@ entrypoint = "MeMcp"
 binding = "GU"
 service = "codepi-gu"
 entrypoint = "GuMcp"
+[[services]]
+binding = "BLOG"
+service = "codepi-www"
+entrypoint = "BlogMcp"
 ${OBSERVABILITY}
 `;
 }
+test('www BLOG D1 is name-pinned and MCP BLOG RPC is exact', () => {
+  assert.deepEqual(run(legalFiles()), []);
+  for (const config of [
+    webWorkerConfig().replace('database_name = "codepi-blog"', 'database_name = "codepi-desk"'),
+    webWorkerConfig() + '\n[[d1_databases]]\nbinding = "EXTRA"\ndatabase_name = "codepi-blog"\n',
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'apps/web/wrangler.toml': config } }))
+      .some(v => v.startsWith('www:') && v.includes('D1')));
+  }
+  const wrongEntrypoint = mcpConfig().replace('entrypoint = "BlogMcp"', 'entrypoint = "OtherEntrypoint"');
+  assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': wrongEntrypoint } }))
+    .some(v => v.startsWith('mcp:') && v.includes('BLOG')));
+});
 
 test('MCP reserves its own D1 and requires the named Health RPC capability', () => {
   assert.deepEqual(run(legalFiles()), []);

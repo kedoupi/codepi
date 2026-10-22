@@ -61,6 +61,26 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
+async function loadReview() {
+  const status = el("blog-review-status");
+  try {
+    const drafts = await api("/api/blog/drafts") as { drafts: Array<Record<string, unknown>> };
+    const published = await api("/api/blog/posts") as { posts: Array<Record<string, unknown>> };
+    const render = (item: Record<string, unknown>, publishedItem = false) => {
+      const row = node("article", "", "desk-review-item");
+      row.dataset.slug = String(item.slug);
+      row.append(node("h3", String(item.title)), node("p", `${item.client_name ?? "MCP"} · ${time(String(item.updated_at ?? item.published_at ?? ""))} · 修订 ${item.revision}`), node("p", String(item.summary)));
+      if (publishedItem) { const button = node("button", "下架", "kdp-button kdp-button--secondary"); button.dataset.reviewAction = "unpublish"; row.append(button); }
+      else { const preview = node("a", "预览", "kdp-link"); preview.href = `/blog/preview/${item.slug}/`; const publish = node("button", "发布", "kdp-button"); publish.dataset.reviewAction = "publish"; const reject = node("button", "拒绝", "kdp-button kdp-button--secondary"); reject.dataset.reviewAction = "reject"; row.append(preview, publish, reject); }
+      return row;
+    };
+    const draftList = el("blog-drafts-list"); draftList.replaceChildren(...drafts.drafts.map(item => render(item)));
+    const publishedList = el("blog-published-list"); publishedList.replaceChildren(...published.posts.map(item => render(item, true)));
+    status.textContent = "";
+  } catch (error) { if (!(error instanceof SessionExpired)) status.textContent = "博客审核暂时无法读取。"; }
+}
+el("blog-drafts-list").addEventListener("click", async event => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-review-action]"); const row = (event.target as HTMLElement).closest<HTMLElement>("[data-slug]"); if (!button || !row) return; try { await api(button.dataset.reviewAction === "publish" ? `/api/blog/drafts/${row.dataset.slug}/publish` : button.dataset.reviewAction === "reject" ? `/api/blog/drafts/${row.dataset.slug}/reject` : `/api/blog/posts/${row.dataset.slug}/unpublish`, button.dataset.reviewAction === "reject" ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) } : { method: "POST" }); await loadReview(); } catch {} });
+el("blog-published-list").addEventListener("click", async event => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-review-action]"); const row = (event.target as HTMLElement).closest<HTMLElement>("[data-slug]"); if (!button || !row) return; try { await api(`/api/blog/posts/${row.dataset.slug}/unpublish`, { method: "POST" }); await loadReview(); } catch {} });
 
 function renderOverview(payload: Payload) {
   for (const data of payload.sources) {
@@ -149,6 +169,7 @@ async function initialize() {
     el("desk-private").hidden = false;
     el("desk-actions").hidden = false;
     await refresh();
+    await loadReview();
   } catch (error) {
     if (current === generation && !(error instanceof SessionExpired)) {
       showLogin("工作台连接暂不可用。若首次部署尚未完成，请稍后重新检查连接。");

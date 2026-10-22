@@ -39,7 +39,11 @@ export const GU_OPERATIONS = ["portfolio", "cash", "trades", "rules", "reports"]
 export type GuOperation = typeof GU_OPERATIONS[number];
 export type GuService = DomainService<GuOperation>;
 
-export const MCP_LIMITS = { overview: 4 * 1024, detail: 12 * 1024, context: 8 * 1024, importChunk: 24 * 1024 } as const;
+export const BLOG_OPERATIONS = ["list", "submit", "retract"] as const;
+export type BlogOperation = typeof BLOG_OPERATIONS[number];
+export type BlogService = DomainService<BlogOperation>;
+
+export const MCP_LIMITS = { overview: 4 * 1024, detail: 12 * 1024, context: 8 * 1024, importChunk: 24 * 1024, blogBody: 96 * 1024 } as const;
 export function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }
