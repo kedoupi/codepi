@@ -425,8 +425,8 @@ secret 值、个人数据或 OAuth refresh token。
 | worker-wechat-proxy | production | worker | wechat-proxy | kedoupi | 微信代理（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
 | kv-covers | production | kv | COVERS (4cbe9ae8f79e41bda85fa5bc391a77a4) | kedoupi | 未知（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
 | r2-sub2api-backups | production | r2 | sub2api-backups | kedoupi | 备份（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-16 |
-| tunnel-kdpmini | production | tunnel | kdpmini (1e1bfb4f-2b1b-4ede-8ce6-ef38d2487fbb) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
-| tunnel-voyracloud | production | tunnel | voyracloud (193a7c34-81b4-4c50-87fd-0700faf07033) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
+| r2-magpie-sync | production | r2 | codepi-magpie-sync | kedoupi | 外部项目同步（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-22 |
+| r2-surgeconf-subscriptions | production | r2 | surgeconf-subscriptions | kedoupi | 外部项目订阅（不在本仓库） | unknown | 未审计 | - | 不在本仓库 | unknown | 2026-10-22 |
 | tunnel-duoji-mini | production | tunnel | duoji_mini (5e9e0d79-e706-4619-b547-97b09aca5ce7) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | tunnel-grok-bot | production | tunnel | grok-bot (2a6e4216-a1c4-41de-ad9c-74aed1883563) | kedoupi | 未审计 Tunnel | unknown | 未审计 | - | Cloudflare 控制面 | unknown | 2026-10-16 |
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | retired | 2026-10-22 经所有者授权删除：平台事件邮件（约 22 封/周）与账户服务无关，平台故障由 Ops 巡检间接体现；如需恢复在 Dashboard 重建 |
@@ -439,9 +439,9 @@ secret 值、个人数据或 OAuth refresh token。
 | dns-xui001 | production | dns | xui001.kdp.cool CNAME 67833ac4-b573-4b6f-b7c8-9ae51edd5181.cfargotunnel.com | kedoupi | 未登记 Tunnel 的 CNAME | unknown | 未审计 | xui001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-16 |
 | worker-mcp | production | worker | codepi-mcp | kedoupi | services/mcp | auth-session-data | AUTH, HEALTH RPC, PROJECT RPC, ME RPC, GU RPC | mcp.codepi.app | services/mcp/wrangler.toml、local-release | managed | 2026-10-21 version 7790aa42-eb8a-4656-9259-a90885ba4c02；BUILD_SHA 0184542e3711；readiness、发现、匿名拒绝和连接管理入口通过；全量 scope 授权保持发布 |
 | d1-mcp | production | d1 | codepi-mcp (73c6ef4e-e2a0-41c2-9bce-ab41c7391caa) | kedoupi | services/mcp 授权状态（可重新授权恢复） | auth-session-data | worker-mcp DB、Ops 加密导出 | - | release-time exact-name resolution / migrations | managed | 2026-10-20 v3 隔离恢复 7 表/46 行全量内容与类型一致；历史 token/授权码/会话清理演练通过，2 个客户端注册保留 |
-| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维 | private-user-data | Cron、OPERATIONS、BACKUPS、GU/Me named RPC | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-21 version 6b9d3f71-7300-4091-8c86-9c8eb691e3a7；BUILD_SHA 0184542e3711；8 库/两类原件备份与 34/34 云端巡检通过 |
-| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572 complete；八库与 GU/Me 原件 R2/GitHub 完整；monitor cf_8a2afa9777e330cb8d0147c661fdc25ecd9fa865d95e4081bcb0879eaf84d256 34/34 |
-| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文与运维报告 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问再次核验；v3 manifest 覆盖 8 库、GU 112 件与 Me 空集合；120 个 GitHub payload 独立解密通过，14 天生命周期证据沿用 2026-10-19 |
+| worker-ops | production | worker | codepi-ops | kedoupi | services/ops 私有定时运维与 codepi.app zone Analytics 流量监控 | private-user-data | Cron、OPERATIONS、BACKUPS、GU/Me named RPC、zone analytics | 无公网入口 | services/ops/wrangler.toml | managed | 2026-10-21 version 6b9d3f71-7300-4091-8c86-9c8eb691e3a7；traffic 代码尚未部署 |
+| workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检、traffic samples 与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS；每 30 分钟写入 `reports/traffic/samples.json` | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 已有备份验收；traffic 代码尚未部署 |
+| r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文、运维报告与 `reports/traffic/samples.json` 流量基线 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问核验；traffic 前缀尚未有生产写入证据 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
 <!-- registry-table:end -->
 

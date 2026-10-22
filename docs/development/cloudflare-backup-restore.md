@@ -40,7 +40,8 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
   GU/Me 有索引原件成功后才提交 v3 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
   缺少 GitHub token 或复制失败时，不得称为跨平台备份完成。Release 当前不自动删除。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
-  D1 Write（导出要求）和 Workers Scripts Read，不将本机管理 token 放入 Worker。
+  D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read（仅查询
+  `codepi.app` zone 的 GraphQL hourly Analytics），不将本机管理 token 放入 Worker。
   运行细节见[定时运维](cloudflare-operations.md)。恢复私钥不上云。
 - 手动 Actions 仍可输出相同格式的 14 天 artifact，保留应急恢复入口；
   已记录的账户分钟限制见任务证据，不能将工作流文件存在当作该入口当前可用。

@@ -116,15 +116,18 @@ test('a paused instance cannot publish success after its ciphertext expires or i
   await assert.rejects(backupOperation(env, step, event, other.publicKey, { exportOne: exportStub }), /recipient changed/);
 });
 
-test('monitor preserves failed assertions in its private report and rejects skipped checks', async () => {
+test('monitor preserves failures and appends traffic results in its private report', async () => {
   const env = { BACKUPS: bucketFixture(), BUILD_SHA: 'synthetic' };
   await assert.rejects(monitorOperation(env, stepFixture(), { instanceId: 'monitor-synthetic' }, {
-    monitor: async () => [{ name: 'auth', ok: true }, { name: 'SSO', ok: false, detail: 'unavailable' },
-      { name: 'versions', ok: true, skipped: 'missing token' }],
+    monitor: async () => [{ name: 'auth', ok: true }, { name: 'SSO', ok: false, detail: 'unavailable' }],
+    trafficCheck: async () => [{ name: 'zone traffic threats exceed threshold', ok: false, detail: 'denied' },
+      { name: 'zone traffic requests surge', ok: false, detail: 'denied' }],
   }), /production checks failed/);
   const report = await (await env.BACKUPS.get('reports/monitor/latest.json')).json();
   assert.equal(report.ok, false);
-  assert.ok(report.results.some(result => result.name === 'SSO' && !result.ok));
+  assert.equal(report.results.filter(result => result.name.startsWith('zone traffic')).length, 2);
+  // Backup freshness must stay in the monitor report alongside traffic results.
+  assert.equal(report.results.filter(result => result.name.includes('backup completed within 30 hours')).length, 2);
 });
 
 test('freshness rejects stale and incomplete backups', async () => {

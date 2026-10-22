@@ -104,6 +104,12 @@ try {
       },
       dev: { outboundService: { type: 'fetcher', async handler(request) {
         const url = new URL(request.url);
+        if (url.hostname === 'api.cloudflare.com' && url.pathname === '/client/v4/graphql') {
+          return Response.json({ data: { viewer: { zones: [{ httpRequests1hGroups: [{
+            dimensions: { datetime: '2026-10-22T09:00:00Z' }, sum: { requests: 10, threats: 1, bytes: 100 },
+            uniq: { uniques: 2 },
+          }] }] } } });
+        }
         if (url.hostname === 'api.cloudflare.com' && url.pathname.endsWith('/export')) {
           exports.push(url.pathname);
           return Response.json({ success: true, result: { status: 'complete',
