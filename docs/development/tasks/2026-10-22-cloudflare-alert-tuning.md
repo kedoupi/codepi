@@ -1,6 +1,6 @@
 # Cloudflare 告警优化与漂移发布
-- 状态：已完成。云端巡检 05:30/06:00 两个自然周期 complete；全部 active issue 已清零；三次发布（`6cf89f57849b` 九服务、`120a8279231d` MCP 补发、`a49ba23db7b1` MCP 403 修正）均 smoke 通过。
-- 日期与执行人：2026-10-22，omp 会话，单一协调者、写入者与发布者，无并行写入。
+- 状态：已完成并闭环。云端 monitor 10:00/10:30 两周期 complete、09:40Z 后零告警邮件、无 active issue；九库（含 codepi-blog）+ 114 份原件加密备份与 GitHub 跨平台回执通过。生产基线 `b67daa4d9684`（www/mcp 为 `969a58fee701` 兼容版本）。
+- 日期与执行人：2026-10-22，omp 会话。注意：当日另一会话并行开发并合并了 PR #147/#152/#153/#155 等并自行发布了部分 Worker（www/mcp、health 首轮）；本会话负责告警治理与其余 Worker 的漂移发布，冲突点见第二、三轮复核。
 - 基线：开发基线 `57318989b37e3e1bdf2c80fe11231f7d9959c979`；发布源码 `6cf89f57849b6c0a495e6cd1b7a22c0f2fc08851`（PR #145 squash 合并后的远程 main，发布时经 `git ls-remote` 实时核对一致）。
 - worktree：开发 `<workspace>/orca/workspaces/kdp.cool/cloudflare告警优化`（分支 `kedoupi/cloudflare告警优化`）；发布 `<workspace>/.worktrees/kdp.cool/release-alert-optimization`（detached HEAD，干净且等于远程 main）。主 checkout `<workspace>/Coding/kdp.cool` 存在用户未提交改动，未触碰。
 - 授权：用户在本会话明确选择并授权四项操作——WAF 边缘拦截、MCP 日志降级 + Always Use HTTPS、按发布流重发漂移 Worker（含 PR 合并）、禁用 incident 通知策略。
@@ -55,9 +55,29 @@
    403 `canonical_origin_required`，仅 warn 日志。
 3. **WAF 规则扩展**：复核发现 `/.aws/credentials` 与双重编码 `/%2f%2eenv` 绕过首版规则；
    规则增加 `/.aws` 与 `url_decode(path) contains "/.env"`，两路径实测边缘 403。
-4. **最终状态**：云端 monitor 05:30、06:00 两个实例 complete；本地巡检 32/32 通过
-   （main=`a49ba23db7b1`）；`codepi-ops` AssertionError、`codepi-mcp` HttpServerError 与两个
-   复发的 security issue 全部 resolved，账户无 active issue。
+4. **第一轮转绿（06:00）后被后续合并打破**：云端 monitor 05:30–07:00 连续 4 次 complete；
+   `codepi-ops` AssertionError、`codepi-mcp` HttpServerError 与复发的 security issue 全部 resolved。
+
+## 2026-10-22 第二、三轮复核（并行开发期）
+
+5. **巡检 423 修复**：腾讯云 CloudBase 对已停用环境改返回 `423 Locked`，`monitor-core.mjs` 的
+   退役路由检查只接受 401/403/404 → 07:30 起每周期失败。按既有契约（任何 2xx 才是泄露）放宽为
+   接受任意 4xx/5xx（PR #151，含 423 回归测试），Ops 从 `9a72d9197eb5` 重发
+   （version `f4f05e81-9bf6-4353-9c29-0a5cf7ad3f14`）。
+6. **并行会话连续合并 #152/#153/#155/b67daa4 产生新漂移**：两轮追逐发布，最终把 project、me、
+   health-api、health-web、ops 从 `b67daa4d9684` 重发（health-api `db5a929e-857c-4074-958c-38a3266636e2`、
+   health-web `1d4fa24d-666f-413e-a7cb-67dae435fa20`、project `8918641d-43e6-4dfc-b53f-6ad20e90cb4f`、
+   me `99197b4f-0ce9-4120-a22e-913965535d77`、ops `195fc485-f559-46e1-8a79-5827275eaf69`，
+   auth/gu/gzh 在 `969a58fee701` 已覆盖），逐项 smoke 通过，本地巡检全绿。
+7. **WAF 第三轮补漏**：`/credentials.json`（gu/gzh occurrence 实测）加入拦截规则，实测边缘 403，
+   两个复发 security issue resolved。
+8. **备份覆盖缺口**：PR #152 把 `codepi-blog` 加入 `DATABASE_NAMES`（9 库），而 10-21 的日备只有 8 库，
+   两个 backupFreshness 检查失败（「backup database coverage is incomplete」）。经用户确认上线完成后，
+   手动触发 backup Workflow 实例 `cf_f2d9614b10ea262003857863bb013cd00b6b38598b7b371973e2f49ca200739b`：
+   9 库加密导出（含 codepi-blog）、GU/Me 114 份原件、R2 manifest 与 GitHub 跨平台回执全部成功。
+9. **最终状态（10:35 UTC 复核）**：monitor 10:00、10:30 两周期 complete；09:40 后零告警邮件；
+   `codepi-ops` issue resolved；账户无 active issue。教训：开发活跃期合并共享代码即产生漂移告警，
+   应由同一发布者随合并节奏发布，或接受巡检红到下次发布。
 
 ## 剩余风险
 
