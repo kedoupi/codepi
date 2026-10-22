@@ -5,7 +5,7 @@ import { hidden, page } from "./pages.ts";
 import { MODULES } from "./modules.ts";
 import {
   SUPPORTED_SCOPES, normalizeScope, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
-  takeConsentRequest, createAuthCode, lookupAuthCode, exchangeAuthCode, exchangeRefreshToken, sha256Base64Url,
+  takeConsentRequest, createAuthCode, lookupAuthCode, exchangeAuthCode, exchangeRefreshToken, hasLiveGrant, sha256Base64Url,
   revokeToken, revokeClient, listConnections,
 } from "./oauth-store.ts";
 
@@ -125,6 +125,14 @@ export async function authorize(request: Request, env: Env) {
     const target = new URL("/api/auth/login", env.MCP_ORIGIN);
     target.searchParams.set("return", new URL(request.url).pathname + new URL(request.url).search);
     return new Response(null, { status: 302, headers: { Location: target.href } });
+  }
+  // A client with a live grant was already approved by the owner for the fixed
+  // full-scope set; re-authorization skips the consent screen. Revoking the
+  // connection in the manager removes the grant and restores manual consent.
+  if (await hasLiveGrant(env, client.client_id)) {
+    const code = await createAuthCode(env, { clientId: client.client_id, userId: session.userId,
+      redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
+    return redirect(uri, { code, ...(state ? { state } : {}) });
   }
   const tx = await createConsentRequest(env, { clientId: client.client_id, userId: session.userId,
     redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
