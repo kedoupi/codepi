@@ -215,6 +215,7 @@ import { products } from '@kedoupi/shared/products';
           heroCopy.style.opacity = String(heroFade);
           const isCompactLandscape = innerWidth >= 640 && window.innerHeight < 520 && innerWidth > window.innerHeight;
           const isStackedLayout = innerWidth < 1024 && !isCompactLandscape;
+          const heroOffset = isStackedLayout ? '0px' : '-50%';
           heroCopy.style.transform = `translateY(${heroOffset}) translateY(-${(1 - heroFade) * 28}px)`;
           heroCopy.style.pointerEvents = heroFade < 0.05 ? 'none' : 'auto';
           heroCopy.style.visibility = heroFade <= 0.01 ? 'hidden' : 'visible';
@@ -561,6 +562,7 @@ import { products } from '@kedoupi/shared/products';
           aspect = width / height;
           isCompactLandscape = width >= 640 && height < 520 && width > height;
           const newIsStacked = width < 1024 && !isCompactLandscape;
+          const layoutChanged = newIsStacked !== isStacked;
           isStacked = newIsStacked;
 
           renderer.setSize(width, height, false);
@@ -618,7 +620,7 @@ import { products } from '@kedoupi/shared/products';
           const interactiveY = pointer.y + ambientDriftY;
 
           // 核心形态动态重构 (当滚动进度变化或布局模式切换时)
-          if (Math.abs(smoothProgress - lastBuiltProgress) >= 0.05 || lastBuiltStacked !== isStacked) {
+          if (Math.abs(smoothProgress - lastBuiltProgress) >= 0.01 || lastBuiltStacked !== isStacked) {
             ribbons.forEach(({ mesh, highlight, curve, spec, segments, index }) => {
               const updatedPoints = getInterpolatedPoints(index, smoothProgress, isStacked);
               curve.points = updatedPoints;
