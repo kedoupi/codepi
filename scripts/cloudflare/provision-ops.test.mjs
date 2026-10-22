@@ -32,6 +32,28 @@ test('Ops receives a dedicated runtime token with no Worker write or token-creat
   assert.match(existing.runtime_token, /not rotated/);
 });
 
+test('rollback credential is independent and has exactly Workers Scripts Write', async () => {
+  const calls = [];
+  const result = await provisionOps('rollback-credential', { env, request: async (url, init) => {
+    calls.push({ path: new URL(url).pathname, method: init.method, body: init.body && JSON.parse(init.body) });
+    if (url.endsWith('/secrets') && init.method === 'GET') return ok([]);
+    if (url.endsWith('/tokens') && init.method === 'GET') return ok([]);
+    if (url.endsWith('/permission_groups')) return ok([
+      { name: 'D1 Write', id: 'd1', is_selectable: true },
+      { name: 'Workers Scripts Read', id: 'read', is_selectable: true },
+      { name: 'Workers Scripts Write', id: 'write', is_selectable: true },
+    ]);
+    if (url.endsWith('/tokens')) return ok({ id: 'rollback-id', value: 'rollback-synthetic' });
+    return ok({});
+  } });
+  const tokenRequest = calls.find(call => call.path.endsWith('/tokens') && call.method === 'POST');
+  assert.equal(tokenRequest.body.name, 'codepi-ops-rollback');
+  assert.deepEqual(tokenRequest.body.policies[0].permission_groups, [{ id: 'write' }]);
+  assert.equal(calls.at(-1).body.name, 'CLOUDFLARE_ROLLBACK_TOKEN');
+  assert.equal(result.permissions.length, 1);
+  assert.doesNotMatch(JSON.stringify(result), /rollback-synthetic/);
+});
+
 test('Ops storage initialization targets only its private bucket and bounded backup/report retention', async () => {
   const calls = [];
   await provisionOps('storage', { env, request: async (url, init) => {
