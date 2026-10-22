@@ -1,6 +1,5 @@
 # Cloudflare 告警优化与漂移发布
-
-- 状态：告警根因已定位并修复；9 个漂移 Worker 已从合并后的 main 发布并逐项 smoke 通过；Ops 巡检转绿以云端下一个自然 monitor 周期为准。
+- 状态：已完成。云端巡检 05:30/06:00 两个自然周期 complete；全部 active issue 已清零；三次发布（`6cf89f57849b` 九服务、`120a8279231d` MCP 补发、`a49ba23db7b1` MCP 403 修正）均 smoke 通过。
 - 日期与执行人：2026-10-22，omp 会话，单一协调者、写入者与发布者，无并行写入。
 - 基线：开发基线 `57318989b37e3e1bdf2c80fe11231f7d9959c979`；发布源码 `6cf89f57849b6c0a495e6cd1b7a22c0f2fc08851`（PR #145 squash 合并后的远程 main，发布时经 `git ls-remote` 实时核对一致）。
 - worktree：开发 `<workspace>/orca/workspaces/kdp.cool/cloudflare告警优化`（分支 `kedoupi/cloudflare告警优化`）；发布 `<workspace>/.worktrees/kdp.cool/release-alert-optimization`（detached HEAD，干净且等于远程 main）。主 checkout `<workspace>/Coding/kdp.cool` 存在用户未提交改动，未触碰。
@@ -40,15 +39,32 @@
 | 6 | health-api | `04b34fe6-7e12-4bc6-99aa-0df482d60829` | `check:api` 全过（build 精确匹配、旧 MCP/OAuth 404） |
 | 7 | mcp | `ca619ece-4562-4a41-b417-b02f3b7f706b` | `check:live` 5 项通过；`http://mcp.codepi.app/` 实测返回 503 `canonical_origin_required` |
 | 8 | health-web | `30557e8d-ed1f-4400-8709-c5d1e6d2ed4c` | `check:branding` 通过 |
-| 9 | ops | `bbdad4c3-8268-4178-a1b1-7dc86e33ad32` | 无公网入口；以云端下一个 monitor 周期转绿为准 |
+| 9 | ops | `bbdad4c3-8268-4178-a1b1-7dc86e33ad32` | 无公网入口；云端 monitor 05:30/06:00 两周期 complete（见后续复核） |
 
 发布后本地巡检 `production-monitor.mjs --require-d1 --require-versions` 31/31 全部通过（9 个版本漂移项转 PASS）。逐服务 JSONL 证据：Git 外 `codepi-deployment-evidence-20261022.jsonl`。
 
-## 未完成与风险
+## 2026-10-22 后续复核与补发
 
-- Ops 巡检断言需等待两个自然 Cron 周期（下一份 `ok:true` 报告 + 随后的断言通过）；转绿前 `codepi-ops` Issue 保持 active，可能再触发少量复发邮件。转绿后 resolve 该 issue。
-- Always Use HTTPS 未开启（权限不足），明文探测仍会到达除 MCP 外的 Worker 并返回各自 4xx/503，但 WAF 已拦截扫描路径族，其余明文探测量级低。
-- `codepi-mcp` HTTP 503 exception issue（零星真实 5xx）保持 active 观察。
+1. **首轮云端复核（05:00 前）仍为红**：等待期间另一会话合并 PR #147（Health 同步批处理）并从
+   `120a8279231d` 发布了 Health；其变更按保守依赖映射波及 MCP，巡检剩余 1 项失败
+   （`codepi-mcp` 漂移）。该会话清理了本会话的发布锁与发布 worktree；锁空闲后本会话重新获取，
+   从 `120a8279231d` 补发 MCP（version `5720186a-bd73-420a-bf55-18dda2236f4f`，check:live 通过）。
+2. **5xx 响应同样建 Issue**：`canonical_origin_required` 的 503 仍触发 `HttpServerError` issue
+   （10-22 04:16 occurrence 实测）。改为 403（PR #149），从 `a49ba23db7b1fcc79a549e944914d3198c96b98c`
+   发布 MCP version `294bdd1f-ad61-4913-ab88-85ed5fe8ec49`；`http://mcp.codepi.app/` 实测返回
+   403 `canonical_origin_required`，仅 warn 日志。
+3. **WAF 规则扩展**：复核发现 `/.aws/credentials` 与双重编码 `/%2f%2eenv` 绕过首版规则；
+   规则增加 `/.aws` 与 `url_decode(path) contains "/.env"`，两路径实测边缘 403。
+4. **最终状态**：云端 monitor 05:30、06:00 两个实例 complete；本地巡检 32/32 通过
+   （main=`a49ba23db7b1`）；`codepi-ops` AssertionError、`codepi-mcp` HttpServerError 与两个
+   复发的 security issue 全部 resolved，账户无 active issue。
+
+## 剩余风险
+
+- Always Use HTTPS 未开启（当前 token 无 Zone Settings Write），明文探测仍会到达 Worker 并返回
+  4xx/403，不产生 Issue；建议用户在 Dashboard（SSL/TLS → Edge Certificates）手动开启。
+- 扫描器若改用本规则未覆盖的路径族，会产生新的 security issue 邮件；按 occurrence 路径扩充
+  WAF 表达式即可，规则维护在登记表 `waf-block-scanner-paths`。
 - 真实登录、Oura 同步、MCP 真实客户端调用未在本轮重新验收（无相关代码变更；SSO/凭证未改动）。
 
 ## 证据

@@ -9,7 +9,7 @@
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
 | CodePi MCP 领域扩展 | PR #121 已合并并从 `58bd615` 发布十个 Worker；Project/Me SSO、私有资源、20 条 Issues 规则、v3 八库/原件备份与隔离恢复通过；Project 只读 GitHub token 已生效并完成五来源真实同步 | [发布与验收](2026-10-20-codepi-mcp-domains.md#发布与真实验收)：Me 非空导入、真实客户端授权及 Project token 轮换/同步新鲜度告警仍待补 |
-| Cloudflare 告警优化 | 211 封/周邮件根因已定位：WAF 边缘拦截扫描路径（实测 403/200 对照）、incident 策略删除、MCP origin 告警降级（PR #145）、9 个漂移 Worker 从 `6cf89f57849b` 重发且逐项 smoke 通过 | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：Ops 云端巡检转绿待两个自然 Cron 周期复核；Always Use HTTPS 因 token 权限未开，待用户 Dashboard 手动开启 |
+| Cloudflare 告警优化 | 211 封/周邮件根因已定位并清零：WAF 边缘拦截扫描路径（含编码变体实测 403）、incident 策略删除、MCP origin 告警 403+warn（PR #145/#149）、漂移 Worker 全部重发，云端巡检两周期 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：Always Use HTTPS 因 token 权限未开，待用户 Dashboard 手动开启 |
 | Workers Issues 自动告警 | 十个生产 Worker 的 20 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
 | Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
 | GitHub 跨平台备份 | v3 自动复制八库、GU 112 份原件、Me 空集合及 manifest 共 122 个附件并通过独立解密；八库隔离恢复和 GU 112 份原件逐件恢复通过，Me 仅验证空集合 | [跨平台验收](2026-10-20-github-offsite.md)、[领域发布与 v3 恢复](2026-10-20-codepi-mcp-domains.md#备份巡检与隔离恢复)、[自动告警](2026-10-20-workers-issues.md)：Me 非空导入和私钥异机取回验收仍待补 |
