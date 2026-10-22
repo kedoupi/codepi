@@ -353,7 +353,8 @@ Health 看板图标由 `/icon.png`（应用图标）和 `/brand/codepi-symbol.pn
 - 北京时间每天 **09:00** 启动一次；也可由用户随时点击「更新数据」启动，
   仅处理 `PERSONAL_OWNER_ID` 对应的已授权账号。
   上线时若已过当天 09:00，下一次触发即可开始当日任务。不依赖浏览器或登录会话。
-- Cloudflare Cron `*/2 * * * *` 每两分钟唤醒一次，每次只处理一个窗口。
+- Cloudflare Cron `*/2 * * * *` 每两分钟唤醒一次，每次在同一租约内最多推进三个窗口，
+  网页或 MCP 请求的定向窗口优先于历史回填执行一次。
   日门控与任务清单保存在 D1 `auto_sync_state`；无需 Queue、新依赖或桌面自动化。
   发布脚本在版本部署后单独 PUT Worker schedules 并 GET 核验，不改动 zone routes。
   Cron 配置传播可能延迟，09:00 表示计划开始时间，并非全部数据就绪时间。

@@ -1,6 +1,6 @@
 import type { Env } from "../env";
-import { decorateDaily, type DailyResponse, type NestedDay } from "./daily";
-import { ApiError, normalizeApiError } from "./errors";
+import { decorateDaily, type DailyResponse, type NestedDay } from "./daily.ts";
+import { ApiError, normalizeApiError } from "./errors.ts";
 
 export type SyncState = {
   synced_at: string | null;

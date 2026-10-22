@@ -1,9 +1,9 @@
 import type { Env } from "../env";
-import { resolveEncryptionKey, oauthConfigured } from "./config";
+import { resolveEncryptionKey, oauthConfigured } from "./config.ts";
 import { DecryptError } from "./crypto.ts";
 import { ApiError } from "./errors.ts";
-import { refreshAccessToken } from "./oura";
-import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens";
+import { refreshAccessToken } from "./oura.ts";
+import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens.ts";
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
 export async function ouraAccessToken(

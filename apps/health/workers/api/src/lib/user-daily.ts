@@ -3,9 +3,9 @@ import {
   jsonError,
   oauthConfigured,
   resolveEncryptionKey,
-} from "./config";
-import { clampDays, dateWindow, loadDevDaily, mapOuraToDaily, type DailyResponse } from "./daily";
-import { fetchDailySummaries } from "./oura";
+} from "./config.ts";
+import { clampDays, dateWindow, loadDevDaily, mapOuraToDaily, type DailyResponse } from "./daily.ts";
+import { fetchDailySummaries } from "./oura.ts";
 import type { SessionRow } from "./session";
 import { cachedDaily } from "./sync-cache.ts";
 import { withOuraAccess } from "./oura-access.ts";

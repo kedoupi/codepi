@@ -65,7 +65,7 @@ test('09:00 gate, durable batches, successful empty coverage, score refresh and 
     (user_id,collection,window_from,window_to,synced_at,attempted_at) VALUES ('test-user',?,?,?,?,?)`)
     .bind(name, day(89), day(7), `${today}T00:00:00Z`, `${today}T00:00:00Z`)));
   await f.tick();
-  assert.equal((await f.status()).completed, 1, 'first tick refreshes homepage scores');
+  assert.equal((await f.status()).completed, 3, 'first tick refreshes scores plus two more batches in one lease');
   assert.equal((await f.db.prepare("SELECT COUNT(*) AS n FROM daily_cache").first()).n, 90);
   assert.equal((await f.tasks()).filter(task => task.from < day(6)).length, 0, 'no repeat of successfully checked empty history');
   const total = (await f.status()).total;
@@ -254,7 +254,7 @@ test('accepted work continues across midnight and the morning gate without losin
   assert.equal((await f.status()).status, 'running');
   assert.equal((await f.status()).completed, 1);
   assert.equal((await f.status()).last_success_at, '2000-01-01T00:00:00Z');
-  assert.deepEqual((await f.tasks())[1], delayed, 'daily gate cannot reset backoff or retry attempts');
+  assert.deepEqual((await f.tasks())[1], { ...delayed, priority: 'scheduled' }, 'daily gate cannot reset backoff or retry attempts');
   await f.queue([{ ...(await f.tasks())[0], state: 'done' }]);
   await f.db.prepare("UPDATE auto_sync_state SET status='completed',run_day=?").bind(day(1)).run();
   await f.tick();
@@ -301,7 +301,7 @@ test('automatic write budget defers work without damaging saved data; a new UTC 
   tasks.forEach(t => t.after = 0);
   await f.queue(tasks);
   await f.tick();
-  assert.equal((await f.status()).completed, 1);
+  assert.equal((await f.status()).completed, 2);
   assert.equal((await f.status()).error, null);
   const budget = await f.db.prepare("SELECT * FROM auto_sync_budget").first();
   assert.equal(budget.utc_day, budgetDay);
@@ -390,7 +390,7 @@ test('HTTP acceptance starts the score batch without waiting for the detail queu
     await new Promise(resolve => setTimeout(resolve, 20));
   } while (Date.now() < deadline);
   assert.equal(status.scores.status, 'completed', 'waitUntil should execute the first score batch');
-  assert.equal(status.details.completed, 0, 'the request does not serially drain the detail queue');
+  assert.ok(status.details.completed <= 2, 'the request does not serially drain the detail queue');
   assert.ok(status.details.remaining > 0);
 });
 
@@ -499,4 +499,84 @@ test('every scheduled invocation leaves one structured line, including wrong-cro
     'a real run reports its plan and processed batch');
   assert.equal(logs[0].action, 'plan');
   assert.equal(logs[1].action, 'task');
+});
+
+test('interactive windows lead one invocation; at most three tasks advance per tick', async t => {
+  const requested = [];
+  const f = await fixture(t, url => {
+    if (url.pathname.startsWith('/v2/usercollection/')) requested.push(url.pathname.split('/').at(-1));
+  });
+  requested.length = 0;
+  await f.queue([
+    pending('sleep'),
+    pending('session'),
+    { ...pending('daily_activity'), priority: 'interactive' },
+    pending('heartrate'),
+  ]);
+  await f.tick();
+  assert.deepEqual(requested, ['daily_activity', 'sleep', 'session'],
+    'the interactive window jumps the backlog, then scheduled tasks keep their order');
+  assert.deepEqual((await f.tasks()).filter(task => task.state === 'pending').map(task => task.collection),
+    ['heartrate'], 'the fourth task waits for the next tick');
+  assert.equal((await f.status()).status, 'running');
+  await f.tick();
+  assert.deepEqual(requested, ['daily_activity', 'sleep', 'session', 'heartrate']);
+  assert.equal((await f.status()).status, 'completed');
+});
+
+test('a rate limit inside a multi-task tick stops further provider requests', async t => {
+  const requested = [];
+  const f = await fixture(t, url => {
+    if (url.pathname.endsWith('/sleep')) { requested.push('sleep'); return new Response('', { status: 429 }); }
+    if (url.pathname.startsWith('/v2/usercollection/')) requested.push(url.pathname.split('/').at(-1));
+  });
+  requested.length = 0;
+  await f.queue([pending('sleep'), pending('heartrate'), pending('session')]);
+  await f.tick();
+  assert.deepEqual(requested, ['sleep'], 'a provider cooldown must not cascade into more requests');
+  assert.ok((await f.tasks()).every(task => task.after > Date.now()));
+});
+
+test('split children of an interactive window keep its priority', async t => {
+  const f = await fixture(t, url => {
+    if (url.pathname.endsWith('/sleep')) {
+      const span = Date.parse(url.searchParams.get('end_date')) - Date.parse(url.searchParams.get('start_date'));
+      return Response.json({ data: span > 86400000 ? Array.from({ length: 5001 }, () => ({})) : [], next_token: null });
+    }
+  });
+  await f.queue([pending('heartrate'), { ...pending('sleep', day(2), day(1)), priority: 'interactive' }]);
+  await f.tick();
+  const tasks = await f.tasks();
+  assert.equal(tasks.find(task => task.collection === 'sleep').state, 'split');
+  const children = tasks.filter(task => task.collection === 'sleep' && task.state !== 'split');
+  assert.equal(children.length, 2);
+  assert.ok(children.every(task => task.priority === 'interactive'));
+  await f.tick();
+  assert.equal((await f.status()).status, 'completed');
+});
+
+test('blocked emits one transition event; later ticks keep the skip line without new requests', async t => {
+  let calls = 0;
+  const requested = [];
+  const logs = [];
+  t.mock.method(console, 'log', line => logs.push(JSON.parse(line)));
+  const f = await fixture(t, url => {
+    if (url.pathname === '/oauth/token' && calls > 0) {
+      return Response.json({ error: 'invalid_grant' }, { status: 400 });
+    }
+    if (url.pathname.endsWith('/heartrate')) { calls++; requested.push('heartrate'); return new Response('', { status: 401 }); }
+    if (url.pathname.endsWith('/sleep')) requested.push('sleep');
+  });
+  await f.queue([pending('heartrate'), pending('sleep')]);
+  await f.tick();
+  assert.equal((await f.status()).status, 'blocked');
+  assert.deepEqual(requested, ['heartrate'], 'a block stops the rest of the invocation');
+  const transitions = logs.filter(entry => entry.action === 'blocked');
+  assert.deepEqual(transitions, [{ event: 'auto_sync', action: 'blocked', collection: 'heartrate',
+    code: 'reconnect_required', status: 'blocked' }], 'the transition is logged exactly once');
+  await f.tick(scheduledTime + 86400000);
+  assert.equal(calls, 1, 'a later cron must not retry revoked credentials');
+  assert.equal(logs.filter(entry => entry.action === 'blocked').length, 1, 'no second transition event');
+  assert.ok(logs.some(entry => entry.action === 'skip' && entry.reason === 'blocked'),
+    'later ticks keep the existing skip signal');
 });
