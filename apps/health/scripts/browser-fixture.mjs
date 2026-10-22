@@ -108,20 +108,22 @@ const server = createServer(async (req, res) => {
           res.writeHead(400).end('Unknown sync scenario');
           return;
         }
-        await db.batch([
-          db.prepare("DELETE FROM auto_sync_state WHERE user_id='test-user'"),
-          db.prepare("DELETE FROM auto_sync_budget WHERE user_id='test-user'"),
-          db.prepare("DELETE FROM health_sync_windows WHERE user_id='test-user'"),
-          // Keep the last good score snapshot readable while letting the real
-          // POST bypass the 30-second success cooldown and reach mock Oura.
-          db.prepare("UPDATE sync_state SET synced_at=? WHERE user_id='test-user'")
-            .bind(new Date(Date.now() - 60_000).toISOString()),
-        ]);
+        if (url.searchParams.get('keep') !== '1') {
+          await db.batch([
+            db.prepare("DELETE FROM auto_sync_state WHERE user_id='test-user'"),
+            db.prepare("DELETE FROM auto_sync_budget WHERE user_id='test-user'"),
+            db.prepare("DELETE FROM health_sync_windows WHERE user_id='test-user'"),
+            // Keep the last good score snapshot readable while letting the real
+            // POST bypass the 30-second success cooldown and reach mock Oura.
+            db.prepare("UPDATE sync_state SET synced_at=? WHERE user_id='test-user'")
+              .bind(new Date(Date.now() - 60_000).toISOString()),
+          ]);
+          providerCalls = [];
+          syncRequests = [];
+        }
         if (url.searchParams.get('hold_scores') === '1') {
           scoreGate = new Promise(resolve => { releaseScores = resolve; });
         }
-        providerCalls = [];
-        syncRequests = [];
       }
       const row = await db.prepare("SELECT payload,started_at,status,lease_until FROM auto_sync_state WHERE user_id='test-user'").first();
       const records = await db.prepare("SELECT COUNT(*) AS count FROM health_records WHERE user_id='test-user'").first();

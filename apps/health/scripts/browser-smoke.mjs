@@ -461,12 +461,12 @@ try {
   await page.goto('about:blank');
   await fixture('release-scores', 'POST');
   await settledScores();
-  await fixture('short-queue', 'POST');
+  await fixture('short-queue?collections=sleep,heartrate,session,workout', 'POST');
   await page.goto(`${origin}/`);
   await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '91');
   let auto = await automatic();
   assert.deepEqual(auto.scores, { status: 'completed', error: null });
-  assert.deepEqual(auto.details, { total: 2, completed: 0, failed: 0, remaining: 2 });
+  assert.deepEqual(auto.details, { total: 4, completed: 0, failed: 0, remaining: 4 });
   assert.equal(auto.status, 'running', 'official scores are ready while details still await Cron');
   await assertAutomaticDom(auto);
   await healthy('homepage restores scores separately from unfinished background details');
@@ -476,8 +476,8 @@ try {
   await fixture('automatic-sync', 'POST');
   await page.goto(`${origin}/settings`);
   auto = await automatic();
-  assert.deepEqual(auto.details, { total: 2, completed: 1, failed: 0, remaining: 1 });
-  assert.equal(auto.current.collection, 'heartrate');
+  assert.deepEqual(auto.details, { total: 4, completed: 3, failed: 0, remaining: 1 });
+  assert.equal(auto.current.collection, 'sleep', 'three batches per tick leave only the trimmed history window');
   await assertAutomaticDom(auto);
   await page.reload();
   await assertAutomaticDom(auto);
@@ -489,7 +489,7 @@ try {
   auto = await automatic();
   assert.equal(auto.status, 'completed');
   assert.equal(auto.current, null);
-  assert.deepEqual(auto.details, { total: 2, completed: 2, failed: 0, remaining: 0 });
+  assert.deepEqual(auto.details, { total: 4, completed: 4, failed: 0, remaining: 0 });
   assert.equal(auto.completed, auto.total);
   await assertAutomaticDom(auto);
   assert.ok((await assertSyncWrites(1)).providerCalls.includes('/v2/usercollection/heartrate'));
@@ -606,20 +606,24 @@ try {
   await healthy('homepage distinguishes failed score refresh from completed details and retains saved scores');
 
   // Preserve the previous oversized-window regression in the server executor.
-  await startShortScenario('oversized');
+  // Trim under the normal scenario so the 30-day history window survives the
+  // waitUntil head-start intact, then switch the provider to oversized
+  // responses without resetting the queue.
+  await startShortScenario('success');
+  await fixture('sync-scenario?mode=oversized&keep=1', 'POST');
   await page.goto('about:blank');
-  for (let tick = 0; tick < 20; tick++) {
+  for (let tick = 0; tick < 30; tick++) {
     await fixture('automatic-sync', 'POST');
     if ((await fixture('sync-scenario')).status !== 'running') break;
   }
   await page.goto(`${origin}/settings`);
   auto = await automatic();
   assert.equal(auto.status, 'completed');
-  assert.equal(auto.details.completed, 8, 'seven split sleep days and one heart-rate day complete');
+  assert.equal(auto.details.completed, 31, 'thirty split sleep days and one heart-rate day complete');
   const split = await page.evaluate(async () => (await (await fetch('/api/me/health-records/status')).json()));
   assert.equal(split.collections.find(row => row.name === 'sleep').failed_windows, 0);
   assert.equal(split.collections.find(row => row.name === 'heartrate').records, 1);
-  assert.equal((await assertSyncWrites(1)).tasks.filter(task => task.state === 'split').length, 6);
+  assert.equal((await assertSyncWrites(1)).tasks.filter(task => task.state === 'split').length, 29);
   await assertAutomaticDom(auto);
   await healthy('oversized batches split durably without browser window POSTs');
 
