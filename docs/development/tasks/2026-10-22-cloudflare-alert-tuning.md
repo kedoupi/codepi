@@ -20,10 +20,10 @@
 
 ## 已执行的远程变更
 
-1. **WAF 自定义规则**（zone `codepi.app` `268a0acf9bae4e2e2cbc4d8a0ba2c342`）：ruleset `8cc34f9e40d54621aff068b2ee37dd9b`，规则 `9d1cf91b6e6e49679e627fd1c3be7d6d`，action=block，覆盖 `/.git`、`/.env`、`/.svn`、`phpinfo`、`.php`、`/wp-`、`wp-includes`、`/wordpress/`、`/_profiler`、`/actuator/`、`/telescope/`、`/debug/`、`trace.axd` 及 url_decode 后的 `/.git`。路径清单来自 38 个 security issue 的实际 occurrence 采样。验证：`/.git/config`、`/wp-admin/setup.php`、`/api/.env`、`/phpinfo.php` 均边缘 403；`/`、`/about/`、MCP 两个 `/.well-known/*` 与 `/api/health` 均 200。
+1. **WAF 自定义规则**（zone `codepi.app` `268a0acf9bae4e2e2cbc4d8a0ba2c342`）：ruleset `8cc34f9e40d54621aff068b2ee37dd9b`，规则 `9d1cf91b6e6e49679e627fd1c3be7d6d`，action=block，覆盖 `/.git`、`/.env`、`/.svn`、`/.aws`、`phpinfo`、`.php`、`/wp-`、`wp-includes`、`/wordpress/`、`/_profiler`、`/actuator/`、`/telescope/`、`/debug/`、`trace.axd` 及 url_decode 后的 `/.git`、`/.env`（编码变体）。路径清单来自 security issue 的实际 occurrence 采样及复核补漏。验证：`/.git/config`、`/wp-admin/setup.php`、`/api/.env`、`/phpinfo.php`、`/.aws/credentials`、`/%2f%2eenv` 均边缘 403；`/`、`/about/`、MCP 两个 `/.well-known/*` 与 `/api/health` 均 200。
 2. **incident 通知策略删除**：`11766abf994c4e61adf7d19e7b956697`（kdp platform incident）已 DELETE；剩余策略为预算告警与 Workers Issues 策略。PUT 更新因账户掩码邮箱目的地 ID 不可得（`Invalid recipient`），删除经用户授权；如需恢复在 Dashboard 重建即可。
-3. **Issues 清理**：`codepi-mcp` 的 `mcp_not_configured` issue 与全部 38 个 security issue 已通过 API 标为 resolved。剩余 active：`codepi-mcp` 一个 HTTP 503 exception（观察）、`codepi-ops` 巡检断言（待云端转绿后 resolve）。
-4. **Always Use HTTPS 未执行**：当前 API token 无 Zone Settings Write（10000）与 Single Redirects 权限。MCP 代码降级已消除该告警源；zone 级 `Always Use HTTPS` 建议由用户在 Dashboard（SSL/TLS → Edge Certificates）手动开启，或换用具备权限的 token 后补做。
+3. **Issues 清理**：38 个 security issue、`codepi-mcp` 的 `mcp_not_configured`/HttpServerError issue、`codepi-ops` 巡检断言 issue 及两个复发 security issue 均已通过 API 标为 resolved；2026-10-22 07:35 复读账户无 active issue。
+4. **Always Use HTTPS**：2026-10-22 08:02 UTC 由用户在 Dashboard 手动开启（当前 API token 无 Zone Settings Write）；控制面复读 `always_use_https=on`，`http://codepi.app/` 与 `http://mcp.codepi.app/` 实测边缘 301 到 https。
 
 ## 发布记录（source SHA `6cf89f57849b`）
 
@@ -61,8 +61,7 @@
 
 ## 剩余风险
 
-- Always Use HTTPS 未开启（当前 token 无 Zone Settings Write），明文探测仍会到达 Worker 并返回
-  4xx/403，不产生 Issue；建议用户在 Dashboard（SSL/TLS → Edge Certificates）手动开启。
+- Always Use HTTPS 已开启（2026-10-22 08:02 UTC，用户 Dashboard 操作；控制面 `always_use_https=on` 与边缘 301 均已复读），明文探测不再到达 Worker。
 - 扫描器若改用本规则未覆盖的路径族，会产生新的 security issue 邮件；按 occurrence 路径扩充
   WAF 表达式即可，规则维护在登记表 `waf-block-scanner-paths`。
 - 真实登录、Oura 同步、MCP 真实客户端调用未在本轮重新验收（无相关代码变更；SSO/凭证未改动）。
