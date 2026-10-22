@@ -4,8 +4,9 @@ import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
 import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
 import { offsiteRelease } from './offsite.mjs';
+import { backupDatabase, verifyBackupObject } from './backup.mjs';
 import { createObservabilityClient } from '../../../scripts/cloudflare/observability-api.mjs';
-import { observeReleaseRound, runObserver } from './observer.mjs';
+import { runObserver } from './observer.mjs';
 import {
   assertCollectionBinding,
   backupCollectionMaterial,
