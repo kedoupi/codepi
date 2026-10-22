@@ -158,6 +158,8 @@ a { text-underline-offset: 4px; }
 }
 @media (max-width: 767px) {
   .kdp-container { width: calc(100% - 40px); }
+  /* The home hero is full-bleed; the container rule above must not shrink it. */
+  .kdp-main--home { width: 100%; max-width: none; }
 }
 @media (min-width: 1024px) {
   .kdp-mobile-nav { display: none; }
