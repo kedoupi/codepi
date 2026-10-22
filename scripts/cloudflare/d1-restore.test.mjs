@@ -15,8 +15,10 @@ const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
 const databaseId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const projectDatabaseId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const meDatabaseId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const blogDatabaseId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const productionIds = Object.fromEntries(DATABASE_NAMES.map(name => [name,
-  DATABASES[name] ?? (name === 'codepi-project' ? projectDatabaseId : meDatabaseId)]));
+  DATABASES[name] ?? (name === 'codepi-project' ? projectDatabaseId
+    : name === 'codepi-me' ? meDatabaseId : blogDatabaseId)]));
 const env = {
   CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic',
   D1_DATABASE_IDS: JSON.stringify(productionIds),

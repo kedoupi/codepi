@@ -68,6 +68,36 @@ test('read-only Health grants force cache-only queries and reject requested sync
   assert.ok(tools('health.read').find(t => t.name === 'health_query_records').annotations.readOnlyHint);
 });
 
+test('blog_list is callable with blog.read alone; writes require blog.write', async () => {
+  const calls = [];
+  const env = { BLOG: { execute: async request => { calls.push(request); return { ok: true, data: { posts: [] } }; },
+    summary: async () => ({ source: 'blog', status: 'empty', asOf: null, updatedAt: null, stale: false,
+      metrics: [], facts: [], notes: [], attention: [] }) } };
+  const reader = ctx('blog.read');
+  assert.ok(tools(reader.scope).map(t => t.name).includes('blog_list'));
+  assert.ok(!tools(reader.scope).map(t => t.name).includes('blog_submit'));
+  assert.ok(tools('blog.read').find(t => t.name === 'blog_list').annotations.readOnlyHint);
+  await assert.rejects(callTool(env, reader, 'blog_submit', { slug: 'a', title: 'T', summary: 'S',
+    body_markdown: 'b', request_id: 'r1' }), /tool_not_available/);
+  await assert.rejects(callTool(env, reader, 'blog_retract', { slug: 'a' }), /tool_not_available/);
+
+  const writer = ctx('blog.write');
+  const submit = { slug: 'synthetic-post', title: 'T', summary: 'S', body_markdown: 'body', request_id: 'r1' };
+  await callTool(env, writer, 'blog_submit', submit);
+  assert.equal(calls[0].client, 'synthetic-client');
+  assert.equal(calls[0].clientName, 'Synthetic');
+  assert.equal(calls[0].subject, 'kdp-owner');
+  assert.equal(calls[0].operation, 'submit');
+  await callTool(env, writer, 'blog_retract', { slug: 'synthetic-post' });
+  assert.equal(calls[1].operation, 'retract');
+  for (const invalid of [{ ...submit, slug: 'Bad_Slug' }, { ...submit, title: '' }, { ...submit, user_id: 'x' },
+    { slug: 'a', title: 'T', summary: 'S', body_markdown: 'b' }]) {
+    await assert.rejects(callTool(env, writer, 'blog_submit', invalid), /invalid_arguments/);
+  }
+  await assert.rejects(callTool(env, writer, 'blog_submit', { ...submit, body_markdown: 'x'.repeat(96 * 1024 + 1) }),
+    /invalid_arguments/);
+});
+
 test('domain writes receive grant identity, enforce schema and reject spoofed identity', async () => {
   let received;
   const env = { PROJECT: { execute: async request => { received = request; return { ok: true, data: { id: 'synthetic' } }; } } };

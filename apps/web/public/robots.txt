@@ -102,3 +102,4 @@ Disallow: /desk/
 Disallow: /api/
 
 Sitemap: https://codepi.app/sitemap-index.xml
+Sitemap: https://codepi.app/sitemap-blog.xml

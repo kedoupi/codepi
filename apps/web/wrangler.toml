@@ -6,7 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./dist"
 binding = "ASSETS"
-run_worker_first = ["/api/*", "/desk", "/desk/*"]
+run_worker_first = ["/api/*", "/desk", "/desk/*", "/blog/*", "/sitemap-blog.xml"]
 not_found_handling = "404-page"
 
 [[services]]
@@ -18,6 +18,12 @@ binding = "DB"
 database_name = "codepi-desk"
 database_id = "adfb0f6e-b776-471b-9f25-71982b53cbc4"
 migrations_dir = "migrations"
+
+[[d1_databases]]
+binding = "BLOG"
+database_name = "codepi-blog"
+database_id = "22e27bb5-230a-4b89-b969-3dc29c8a1d22"
+migrations_dir = "migrations-blog"
 
 [vars]
 SSO_ENABLED = "1"

@@ -120,25 +120,25 @@ function githubFixture() {
   };
 }
 
-test('full eight-database and two-thousand-original coverage is sharded, indexed and idempotent', async () => {
+test('full nine-database and two-thousand-original coverage is sharded, indexed and idempotent', async () => {
   const data = await fixture({ guCount: 1000, meCount: 1000 });
   const github = githubFixture();
   const run = () => offsiteRelease(data.manifest, prefix, data.bucket,
     { token: 'synthetic', request: github.request });
   const result = await run();
   assert.equal(result.format, 'sharded-v1');
-  assert.equal(result.payload_assets, 2008);
-  assert.equal(result.assets, 2010);
-  assert.deepEqual(result.shards.map(shard => shard.assets), [900, 900, 208]);
+  assert.equal(result.payload_assets, 2009);
+  assert.equal(result.assets, 2011);
+  assert.deepEqual(result.shards.map(shard => shard.assets), [900, 900, 209]);
   assert.ok(result.shards.every(shard => shard.assets <= OFFSITE_ASSET_LIMIT));
 
   const main = github.releases.get(mainTag);
   assert.deepEqual(main.assets.map(asset => asset.name), [OFFSITE_INDEX, 'manifest.json']);
   const index = JSON.parse(github.bytes(mainTag, OFFSITE_INDEX));
   assert.equal(index.format, 'codepi-offsite-v1');
-  assert.equal(index.assets, 2008);
+  assert.equal(index.assets, 2009);
   assert.equal(index.manifest.sha256, digest(github.bytes(mainTag, 'manifest.json')));
-  assert.deepEqual(index.shards.map(shard => shard.assets.length), [900, 900, 208]);
+  assert.deepEqual(index.shards.map(shard => shard.assets.length), [900, 900, 209]);
   assert.ok(index.shards.every(shard => shard.release_id > 0 && shard.tag.startsWith(`${mainTag}-part-`)));
   const mapped = new Map();
   for (const shard of index.shards) {
@@ -151,7 +151,7 @@ test('full eight-database and two-thousand-original coverage is sharded, indexed
       mapped.set(entry.path, bytes);
     }
   }
-  assert.equal(mapped.size, 2008);
+  assert.equal(mapped.size, 2009);
   assert.equal(mapped.get(`${DATABASE_NAMES[0]}.sql.enc`).toString(),
     `encrypted database ${DATABASE_NAMES[0]}`);
   assert.ok(mapped.has(`materials/${data.me.entries[999].file}`));

@@ -43,11 +43,11 @@ export async function fixture(t, overrides = {}, options = {}) {
       },
     }, ...Object.entries(clients).map(([id]) => ({
       name: id, modules: true, script: options.scripts?.[id] ?? bundle.outputFiles[0].text,
-      compatibilityDate: '2026-10-15', d1Databases: { DB: id + '-test' },
-      serviceBindings: { AUTH: 'auth' },
+      compatibilityDate: '2026-10-15', d1Databases: { DB: id + '-test', ...(options.d1Databases?.[id] || {}) },
+      serviceBindings: { AUTH: 'auth', ...(options.serviceBindings?.[id] || {}) },
       bindings: { AUTH_CLIENT_ID: id, AUTH_CLIENT_SECRET: clients[id].secret, AUTH_ORIGIN: overrides.AUTH_ORIGIN || authOrigin, SSO_ENABLED: '1', ...options.bindings?.[id] },
       ...(options.outbound?.[id] ? { outboundService: options.outbound[id] } : {}),
-    }))],
+    })), ...(options.extraWorkers || [])],
   }));
   t?.after(() => runtime.dispose());
   const db = await runtime.getD1Database('DB', 'auth');

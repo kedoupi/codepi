@@ -66,6 +66,23 @@ test('real named RPC: context aggregates only readable domains and GU empty stat
   assert.deepEqual((await f.tool(writer.access_token, 'get_context')).structuredContent.sources, []);
 });
 
+test('real named RPC: blog source appears only with a blog.read grant', async t => {
+  const f = await fixture(t);
+  const withBlog = await f.grant({ scope: 'context.read blog.read blog.write' });
+  const context = await f.tool(withBlog.access_token, 'get_context');
+  assert.equal(context.isError, undefined, JSON.stringify(context.structuredContent));
+  const blog = context.structuredContent.sources.find(s => s.id === 'blog');
+  assert.ok(blog, JSON.stringify(context.structuredContent));
+  assert.equal(blog.summary.status, 'empty');
+  const listed = await f.tool(withBlog.access_token, 'blog_list');
+  assert.equal(listed.isError, undefined, JSON.stringify(listed.structuredContent));
+  assert.equal(listed.structuredContent.echoed.operation, 'list');
+  assert.equal(listed.structuredContent.echoed.subject, 'kdp-owner');
+  assert.equal(listed.structuredContent.echoed.client, withBlog.client.client_id);
+  const noBlog = await f.grant({ scope: 'context.read' });
+  assert.equal((await f.tool(noBlog.access_token, 'get_context')).structuredContent.sources.find(s => s.id === 'blog'), undefined);
+});
+
 test('project lists stay bounded and expose forward pagination through the MCP schema', async t => {
   const f = await fixture(t), grant = await f.grant({ scope: 'projects.read projects.write' });
   const saved = await f.tool(grant.access_token, 'project_handoff_save', {

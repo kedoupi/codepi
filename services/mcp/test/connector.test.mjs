@@ -22,7 +22,7 @@ test('SSO, resource bound OAuth, SDK transport and private Health RPC work toget
   const discovery = await (await f.at('/.well-known/oauth-protected-resource/mcp')).json();
   assert.equal(discovery.resource, ORIGIN + '/mcp');
   assert.deepEqual(discovery.scopes_supported, ['context.read', 'projects.read', 'projects.write',
-    'health.read', 'health.sync', 'me.read', 'me.write', 'invest.read']);
+    'health.read', 'health.sync', 'me.read', 'me.write', 'invest.read', 'blog.read', 'blog.write']);
   const unauthorized = await f.rpc('x'.repeat(43), 'tools/list');
   assert.equal(unauthorized.status, 401);
   assert.match(unauthorized.headers.get('WWW-Authenticate'), /oauth-protected-resource/);
