@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { DATABASE_NAMES, keyId, resolveProductionDatabases } from '../../../scripts/cloudflare/backup-core.mjs';
 import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
+import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
 import { offsiteRelease } from './offsite.mjs';
 import { backupDatabase, verifyBackupObject } from './backup.mjs';
 import {
@@ -58,10 +59,10 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
   return results;
 }
 
-export async function monitorOperation(env, step, event, { monitor = runMonitor } = {}) {
+export async function monitorOperation(env, step, event, { monitor = runMonitor, trafficCheck = checkTraffic } = {}) {
   const report = await settledStepResult(step.do('production monitor', STEP, async () => {
     const results = await monitor({ env, requireD1: true, requireVersions: true, versionCheck: checkGithubReleaseDrift });
-    results.push(...await backupFreshness(env.BACKUPS));
+    results.push(...await trafficCheck({ env, bucket: env.BACKUPS }));
     const report = { instance_id: event.instanceId, kind: 'monitor', completed_at: new Date().toISOString(),
       build: env.BUILD_SHA, ok: results.every(result => result.ok && !result.skipped), results };
     await saveReport(env.BACKUPS, 'monitor', report);
