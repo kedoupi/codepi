@@ -11,15 +11,13 @@ export const DATABASES = {
   'codepi-gzh': 'acedb64c-d374-4e40-b61e-7df7f0766694',
   'codepi-health': '2e35deaa-8066-49c1-b19a-afcd8706d58c',
   'codepi-mcp': '73c6ef4e-e2a0-41c2-9bce-ab41c7391caa',
+  'codepi-blog': '22e27bb5-230a-4b89-b969-3dc29c8a1d22',
 };
-// A name is a required backup boundary even before its remote D1 exists. The
-// existing six IDs above remain exact; the two new names are resolved by exact
-// name at release time rather than extending the repository with fake IDs.
+// Project and Me are resolved by exact name at release time; existing IDs remain pinned.
 export const DATABASE_NAMES = Object.freeze([
   ...Object.keys(DATABASES),
   'codepi-project',
   'codepi-me',
-  'codepi-blog',
 ]);
 export const ORIGINAL_COLLECTIONS = Object.freeze([
   {
