@@ -6,7 +6,16 @@ const manifest = { release_id: 'rel-test', services: [{ service: 'api', script: 
 function bucket() { const data = new Map(); return { data, async put(key, value) { data.set(key, String(value)); } }; }
 function fakeClient(metrics) { return { async queryWorkerMetrics() { return metrics; }, async listIssues() { return []; } }; }
 const active = async () => 'new';
-const step = { async sleep() {}, async do(_name, options, fn) { fn ??= options; return fn(); } };
+// Mirrors the Workflows contract: sleep(name, duration) and do(name, [options], fn).
+const sleeps = [];
+const step = {
+  async sleep(name, duration) {
+    assert.equal(typeof name, 'string');
+    assert.match(String(duration), /^\d+ minutes$/);
+    sleeps.push([name, duration]);
+  },
+  async do(_name, options, fn) { fn ??= options; return fn(); },
+};
 
 test('state transitions are monotonic and event-idempotent', () => {
   const seen = new Set();
@@ -36,4 +45,12 @@ test('notification failure does not stop observation and reports contain no secr
   assert.equal(result.state, 'healthy_reported');
   const reports = [...b.data.values()].join('\n');
   assert.doesNotMatch(reports, /secret|token=secret|PRIVATE KEY|SELECT .* FROM/i);
+});
+
+test('waits between the seven polls with uniquely named Workflow sleeps', async () => {
+  sleeps.length = 0;
+  await runObserver({ manifest, bucket: bucket(), step, observability: fakeClient(null), activeVersionCheck: active, notify: async () => {} });
+  assert.equal(sleeps.length, 6);
+  assert.equal(new Set(sleeps.map(([name]) => name)).size, 6);
+  assert.ok(sleeps.every(([, duration]) => duration === '5 minutes'));
 });

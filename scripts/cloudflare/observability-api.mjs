@@ -53,24 +53,44 @@ function occurrence(item) {
   return { occurredAt: String(item.occurredAt ?? item.occurred_at ?? item.timestamp ?? ''), message: redactOccurrenceMessage(item.message ?? item.error ?? item.message_template ?? '') };
 }
 
-function findMetric(result, names) {
-  if (!result || typeof result !== 'object') return undefined;
-  for (const name of names) if (result[name] !== undefined) return result[name];
-  return undefined;
+const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql';
+const METRICS_QUERY = `query ObserverMetrics($accountTag: String!, $scriptName: String!, $scriptVersion: String!, $start: Time!, $end: Time!) {
+  viewer { accounts(filter: { accountTag: $accountTag }) {
+    workersInvocationsAdaptive(limit: 100, filter: { scriptName: $scriptName, scriptVersion: $scriptVersion, datetime_geq: $start, datetime_leq: $end }) {
+      sum { requests errors }
+      quantiles { cpuTimeP99 wallTimeP99 }
+    }
+  } }
+}`;
+
+async function graphql(fetchImpl, apiToken, timeoutMs, query, variables) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response, payload;
+  try {
+    response = await fetchImpl(GRAPHQL_URL, { method: 'POST', redirect: 'manual', signal: controller.signal, headers: { authorization: `Bearer ${apiToken}`, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query, variables }) });
+  } catch (cause) {
+    throw new ObservabilityError('Cloudflare metrics request failed (network)', 'network', { cause });
+  } finally { clearTimeout(timer); }
+  if (response.status === 401 || response.status === 403) throw new ObservabilityError('Cloudflare metrics authorization failed', 'auth', { status: response.status });
+  try { payload = await response.json(); } catch (cause) { throw new ObservabilityError('Cloudflare metrics response is not JSON', 'schema', { status: response.status, cause }); }
+  if (!response.ok || (Array.isArray(payload?.errors) && payload.errors.length)) throw new ObservabilityError(`Cloudflare metrics request failed (HTTP ${response.status})`, 'unknown', { status: response.status });
+  return payload?.data;
 }
 
-function metricResult(result) {
-  if (!result || typeof result !== 'object') return null;
-  const source = result.metrics && typeof result.metrics === 'object' ? result.metrics : result;
-  const fields = {
-    invocations: findMetric(source, ['invocations', 'requests', 'count']), errors: findMetric(source, ['errors', 'error_count']),
-    errorRate: findMetric(source, ['errorRate', 'error_rate']), p95LatencyMs: findMetric(source, ['p95LatencyMs', 'p95_latency_ms', 'latency_p95_ms']),
-    p99LatencyMs: findMetric(source, ['p99LatencyMs', 'p99_latency_ms', 'latency_p99_ms']), cpuP95Ms: findMetric(source, ['cpuP95Ms', 'cpu_p95_ms']),
-    cpuP99Ms: findMetric(source, ['cpuP99Ms', 'cpu_p99_ms']), wallTimeP95Ms: findMetric(source, ['wallTimeP95Ms', 'wall_time_p95_ms']),
-    wallTimeP99Ms: findMetric(source, ['wallTimeP99Ms', 'wall_time_p99_ms']),
-  };
-  if (Object.values(fields).some(value => typeof value !== 'number' || !Number.isFinite(value))) return null;
-  return fields;
+// Sums are exact across sampled rows; quantiles are the worst row, which is conservative.
+// GraphQL reports CPU/wall time in microseconds.
+function invocationMetrics(rows) {
+  if (!rows.length) return null;
+  let invocations = 0, errors = 0, cpu = 0, wall = 0;
+  for (const row of rows) {
+    const requests = row?.sum?.requests, failed = row?.sum?.errors;
+    if (!Number.isFinite(requests) || !Number.isFinite(failed)) throw new ObservabilityError('Cloudflare metrics schema is invalid', 'schema');
+    invocations += requests; errors += failed;
+    cpu = Math.max(cpu, Number(row?.quantiles?.cpuTimeP99) || 0);
+    wall = Math.max(wall, Number(row?.quantiles?.wallTimeP99) || 0);
+  }
+  return { invocations, errors, errorRate: invocations ? errors / invocations : 0, cpuP99Ms: cpu / 1000, wallTimeP99Ms: wall / 1000, p99LatencyMs: wall / 1000 };
 }
 
 export function createObservabilityClient({ accountId, apiToken, fetchImpl = fetch, timeoutMs = 10000 } = {}) {
@@ -122,14 +142,18 @@ export function createObservabilityClient({ accountId, apiToken, fetchImpl = fet
       if (!rows) throw new ObservabilityError('Cloudflare occurrences schema is invalid', 'schema');
       return rows.map(occurrence);
     },
-    async queryWorkerMetrics({ scriptName, versionId, sinceMinutes } = {}) {
-      const keysResult = await request('telemetry/keys', { query: { scriptName } });
-      const keys = pageItems(keysResult, ['keys', 'items', 'data']);
-      if (!keys) throw new ObservabilityError('Cloudflare telemetry keys schema is invalid', 'schema');
-      if (!keys.length) return null;
-      const queryResult = await request('telemetry/query', { method: 'POST', body: { scriptName, versionId, sinceMinutes, keys } });
-      const valuesResult = await request('telemetry/values', { method: 'POST', body: { scriptName, versionId, sinceMinutes, keys, query: queryResult } });
-      return metricResult(valuesResult) || metricResult(queryResult);
+    // Per-version invocation metrics come from the GraphQL Analytics dataset; the
+    // telemetry endpoints are event-log queries and do not expose these aggregates.
+    async queryWorkerMetrics({ scriptName, versionId, sinceMinutes = 5 } = {}) {
+      if (!scriptName || !versionId) throw new ObservabilityError('script and version are required', 'schema');
+      const end = new Date();
+      const start = new Date(end.getTime() - sinceMinutes * 60000);
+      const response = await graphql(fetchImpl, apiToken, timeoutMs, METRICS_QUERY, {
+        accountTag: accountId, scriptName, scriptVersion: versionId, start: start.toISOString(), end: end.toISOString(),
+      });
+      const rows = response?.viewer?.accounts?.[0]?.workersInvocationsAdaptive;
+      if (!Array.isArray(rows)) throw new ObservabilityError('Cloudflare metrics schema is invalid', 'schema');
+      return invocationMetrics(rows);
     },
   };
 }
