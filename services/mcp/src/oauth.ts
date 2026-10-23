@@ -61,11 +61,22 @@ export async function register(request: Request, env: Env) {
     response_types: ["code"], scope: scopes.join(" ") }, 201);
 }
 
-const redirect = (uri: string, params: Record<string, string>) => {
+const callbackUrl = (uri: string, params: Record<string, string>) => {
   const target = new URL(uri);
   for (const [key, value] of Object.entries(params)) target.searchParams.set(key, value);
-  return new Response(null, { status: 302, headers: { Location: target.href } });
+  return target.href;
 };
+
+const redirect = (uri: string, params: Record<string, string>) =>
+  new Response(null, { status: 302, headers: { Location: callbackUrl(uri, params) } });
+
+// A form POST's redirect chain stays bound by the consent page's CSP form-action,
+// so clients whose callback redirects onward (Meta agent, Cursor) get blocked.
+// A same-origin handoff page makes the hop to the client a fresh navigation.
+function handoffPage(clientName: string, target: string) {
+  return page("正在返回客户端", `<p>授权已完成，正在返回 <strong>${escapeHtml(clientName)}</strong>。</p>
+<p><a href="${escapeHtml(target)}">如果没有自动跳转，点这里继续</a></p>`, undefined, target);
+}
 
 async function sign(env: Env, message: string) {
   if (!env.AUTH_CLIENT_SECRET) throw new HttpError("auth_not_configured", 503);
@@ -89,7 +100,7 @@ async function owner(request: Request, env: Env) {
   return session;
 }
 
-function consentPage(clientName: string, fields: Record<string, string>, uri: string) {
+function consentPage(clientName: string, fields: Record<string, string>) {
   const item = (scope: string, label: string, sensitive: boolean) =>
     `<li>${escapeHtml(label)} <code>${scope}</code>${sensitive ? " · 敏感数据" : ""}</li>`;
   return page("连接 CodePi MCP", `<p>连接 <strong>${escapeHtml(clientName)}</strong> 将获得 CodePi MCP 当前支持的全部权限。敏感数据只能由已登录的所有者授权访问，不会向客户端提供第三方凭证。</p>
@@ -100,7 +111,7 @@ ${MODULES.map(m => Object.entries(m.consent).map(([s, label]) => item(s, label, 
 </ul></fieldset>
 <p>当前连接的全部权限一次开通；以后新增的已支持领域在 token 刷新后生效。可以在连接管理中随时撤销。</p>
 <div class="actions"><button class="approve" name="decision" value="approve">允许连接</button>
-<button name="decision" value="deny">拒绝</button></div></form>`, new URL(uri).origin);
+<button name="decision" value="deny">拒绝</button></div></form>`);
 }
 
 export async function authorize(request: Request, env: Env) {
@@ -138,7 +149,7 @@ export async function authorize(request: Request, env: Env) {
     redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
   const signed = `${tx.consentId}.${await sign(env, `${tx.consentId}:${state}`)}`;
   return consentPage(client.client_name ?? client.client_id, { client_id: client.client_id, state,
-    consent_id: signed, csrf_token: tx.csrfToken }, uri);
+    consent_id: signed, csrf_token: tx.csrfToken });
 }
 
 async function consent(request: Request, env: Env) {
@@ -162,10 +173,13 @@ async function consent(request: Request, env: Env) {
   }
   const tx = await takeConsentRequest(env, id);
   if (!tx) return oauthError("invalid_request", "Consent is expired or used", 403);
-  if (fields.get("decision") === "deny") return redirect(tx.redirect_uri, { error: "access_denied", ...(state ? { state } : {}) });
+  const clientName = (await getClient(env, tx.client_id))?.client_name ?? tx.client_id;
+  if (fields.get("decision") === "deny") {
+    return handoffPage(clientName, callbackUrl(tx.redirect_uri, { error: "access_denied", ...(state ? { state } : {}) }));
+  }
   const code = await createAuthCode(env, { clientId: tx.client_id, userId: tx.user_id, redirectUri: tx.redirect_uri,
     codeChallenge: tx.code_challenge, scope: grantedScope });
-  return redirect(tx.redirect_uri, { code, ...(state ? { state } : {}) });
+  return handoffPage(clientName, callbackUrl(tx.redirect_uri, { code, ...(state ? { state } : {}) }));
 }
 
 export async function token(request: Request, env: Env) {

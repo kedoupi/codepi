@@ -181,8 +181,10 @@ export async function fixture(t, options = {}) {
       };
       if (consentOnly) return { client, cookie, approval, html };
       const approved = await post('/oauth/authorize', approval, { Origin: origin, Cookie: cookie });
-      if (approved.status !== 302) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
-      code = new URL(approved.headers.get('Location')).searchParams.get('code');
+      if (approved.status !== 200) throw new Error('Consent approval failed: ' + approved.status + ' ' + await approved.text());
+      const handoff = await approved.text();
+      const target = new URL(handoff.match(/meta http-equiv="refresh" content="0;url=([^"]+)"/)[1].replaceAll('&amp;', '&'));
+      code = target.searchParams.get('code');
     }
     // Most tests need isolated legacy grants to prove per-tool enforcement.
     // Real consent now grants all scopes; keep that path in scopes/browser tests.
