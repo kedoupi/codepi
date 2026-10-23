@@ -21,7 +21,7 @@ export default defineConfig({
                   TEST_MIGRATIONS: migrations,
                   SESSION_SECRET: "test-session-secret",
                   OTP_PEPPER: "test-otp-pepper",
-                  ALLOWLIST: "codepi@example.invalid",
+                  ALLOWLIST: "owner@example.test",
                   OTP_FROM: "otp@kdp.cool",
                   ACCOUNT_BRAND: "珂抖屁",
                   ENVIRONMENT: "test",

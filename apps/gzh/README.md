@@ -27,7 +27,7 @@
 | 可推箱 | 老板点过 | 示例编辑去微信后台人工进箱；编辑可撤回待审 |
 | 已进箱 | 编辑确认 | 一期终点；编辑可撤回待审再过 |
 
-种子账号展示名写死 **珂抖屁**。一期允许名单只有 `codepi@example.invalid`（可用环境变量 `ALLOWLIST` 追加示例编辑邮箱，不必做多账号 UI）。
+种子账号展示名写死 **珂抖屁**。一期允许名单只有 `owner@example.invalid`（可用环境变量 `ALLOWLIST` 追加示例编辑邮箱，不必做多账号 UI）。
 
 演示稿：slug `kdp-MMDD-zao|zhong|wan` 且 `is_demo=1` 会标「演示」。迁移里写了 `2026-09-17` 三档。上海时区「今天」若三档都空且当天没被标记跳过，才自动补演示。演示可 **撤回待审**、**撤掉演示** 腾档，或直接交真稿替掉该档演示；撤掉后当天不再自动补。其它日期不自动造稿。
 
@@ -54,7 +54,7 @@ https://gzh.codepi.app/api/*     Worker：OTP、session、board、review
 | `RESEND_API_KEY` | secret | 旧 OTP 模式发信；本地省略时不发送邮件，合成验证码通过 dev 响应取得，不写日志 |
 | `SESSION_SECRET` | secret | 会话 token 哈希 |
 | `OTP_PEPPER` | secret | OTP 哈希盐 |
-| `ALLOWLIST` | var | 逗号分隔邮箱，默认 `codepi@example.invalid` |
+| `ALLOWLIST` | var | 逗号分隔邮箱，默认 `owner@example.invalid` |
 | `OTP_FROM` | var | 默认 `otp@kdp.cool` |
 | `ACCOUNT_BRAND` | var | 默认 `珂抖屁` |
 | `ENVIRONMENT` | var | `production` / `preview` / `development` / `test` |

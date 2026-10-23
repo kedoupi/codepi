@@ -1,6 +1,5 @@
 import type { Env } from "./types";
 
-export const OWNER_EMAIL = "kedoupi1121@gmail.com";
 export const MAX_BODY = 4 * 1024 * 1024;
 export const encoder = new TextEncoder();
 

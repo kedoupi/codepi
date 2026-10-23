@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 
-export const ALLOWED = "codepi@example.invalid";
+export const ALLOWED = "owner@example.test";
 
 export async function requestOtp(email: string, ip = "1.1.1.1") {
   return SELF.fetch("https://gzh.codepi.app/api/auth/request-otp", {

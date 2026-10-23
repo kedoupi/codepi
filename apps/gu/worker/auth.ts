@@ -1,7 +1,7 @@
 import type { Env } from "./types";
 import { brandedSender, buildOtpEmail } from "@kedoupi/shared/email/otp";
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "@kedoupi/shared/auth/client";
-import { OWNER_EMAIL, bodyJson, cookie, equal, json, localDev, object, readCookie, secretHash, token } from "./lib";
+import { bodyJson, cookie, equal, json, localDev, object, readCookie, secretHash, token } from "./lib";
 
 const OTP_TTL = 8 * 60 * 1000;
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
@@ -51,7 +51,7 @@ export async function requestOtp(request: Request, env: Env) {
         headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json", "Idempotency-Key": id },
         body: JSON.stringify({
           from: brandedSender(env.OTP_FROM || "otp@kdp.cool"),
-          to: [OWNER_EMAIL],
+          to: [env.OWNER_EMAIL],
           ...buildOtpEmail(code, "GU · 投资工作台"),
         }),
       });

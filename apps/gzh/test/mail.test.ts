@@ -41,7 +41,7 @@ describe("createMailer Resend payload", () => {
       OTP_FROM: "otp@kdp.cool",
     } as Env);
 
-    await mailer.sendOtp("codepi@example.invalid", "123456");
+    await mailer.sendOtp("owner@example.test", "123456");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -55,7 +55,7 @@ describe("createMailer Resend payload", () => {
       html: string;
     };
     expect(body.from).toBe(`${PRODUCT_BRAND} <otp@kdp.cool>`);
-    expect(body.to).toEqual(["codepi@example.invalid"]);
+    expect(body.to).toEqual(["owner@example.test"]);
     expect(body.subject).toBe(`${PRODUCT_BRAND} 登录验证码`);
     expect(body.text).toBe(buildOtpText("123456"));
     expect(body.html).toBe(buildOtpHtml("123456"));

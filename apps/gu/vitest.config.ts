@@ -17,6 +17,7 @@ export default defineConfig({
               OTP_PEPPER: "test-otp-secret-not-for-production",
               UPLOAD_TOKEN: "test-upload-token-not-for-production",
               ENVIRONMENT: "test",
+              OWNER_EMAIL: "owner@example.test",
               OTP_FROM: "otp@kdp.cool",
             },
           },

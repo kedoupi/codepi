@@ -71,7 +71,7 @@ describe("gzh SSO adapter", () => {
     expect(response.headers.get("Set-Cookie")).not.toContain("Domain=");
     const me = await sso.call("/api/me", cookie);
     expect(me.status).toBe(200);
-    expect(await me.json()).toMatchObject({ account: { email: "codepi@example.invalid", role: "owner" } });
+    expect(await me.json()).toMatchObject({ account: { email: "owner@example.test", role: "owner" } });
     expect((await sso.call("/api/board?date=2026-09-17", cookie)).status).toBe(200);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM accounts").first("n")).toBe(1);
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM posts WHERE account_id = 'acc_owner_kdp'").first("n")).toBe(before);

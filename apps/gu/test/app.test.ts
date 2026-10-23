@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import worker from "../worker/index";
-import { hash, OWNER_EMAIL } from "../worker/lib";
+import { hash } from "../worker/lib";
 import type { Dashboard, Env } from "../worker/types";
 import { markdown } from "../web/src/markdown";
 import { marketChange } from "../web/src/format";
@@ -97,7 +97,7 @@ describe("fixed owner authentication", () => {
       { ...env, ENVIRONMENT: "production", RESEND_API_KEY: "mock-key" });
     expect(result.status).toBe(200);
     const sent = JSON.parse(String(fetch.mock.calls[0][1]?.body));
-    expect(sent.to).toEqual([OWNER_EMAIL]);
+    expect(sent.to).toEqual([env.OWNER_EMAIL]);
     expect(await result.text()).not.toContain("dev_otp");
     expect(result.headers.get("Set-Cookie")).toContain("__Host-gu_challenge=");
     expect(result.headers.get("Set-Cookie")).toContain("Secure");

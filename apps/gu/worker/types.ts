@@ -4,6 +4,7 @@ export interface Env extends SsoEnv {
   MATERIALS?: R2Bucket;
   DESK_SUMMARY_TOKEN?: string;
   ASSETS?: Fetcher;
+  OWNER_EMAIL: string;
   ENVIRONMENT: string;
   SESSION_SECRET?: string;
   OTP_PEPPER?: string;

@@ -1,5 +1,6 @@
 # Local only. Generate separate random values; never reuse production secrets.
 ENVIRONMENT=development
+OWNER_EMAIL=owner@example.invalid
 SESSION_SECRET=replace-with-at-least-32-random-characters
 OTP_PEPPER=replace-with-at-least-32-random-characters
 UPLOAD_TOKEN=replace-with-at-least-32-random-characters

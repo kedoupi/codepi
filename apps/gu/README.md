@@ -113,12 +113,12 @@ npm run dev
 
 ## 旧批次的数据来源与同步（首次线上保存前）
 
-旧模式的投资原始资料在独立本地工作区 `<workspace>/Documents/独立本地投资工作区`。访问前读该工作区的 `AGENTS.md`；旧投资规则在 `skills/investment-analysis/SKILL.md`。这些资料是一次性迁移来源，线上启用后以 GU 已确认版本为准，不再要求本机持续生成/上传。旧模式网页展示派生数据，刷新行情不代表持仓或现金已经重新确认。
+旧模式的投资原始资料位于独立、本机管理的投资工作区（不属于本 Git 仓库）。访问前读该工作区的 `AGENTS.md`；旧投资规则在 `skills/investment-analysis/SKILL.md`。这些资料是一次性迁移来源，线上启用后以 GU 已确认版本为准，不再要求本机持续生成/上传。旧模式网页展示派生数据，刷新行情不代表持仓或现金已经重新确认。
 
 生成与上传脚本位于投资工作区的 `scripts/`，不属于本 Git 仓库。当前同步 Schema v2，包含六个 JSON 数组：`account`、`positions`、`risk`、`market`、`history`、`reports`。服务端仍接受已有 Schema v1 的五份批次，缺少历史数据时不画历史曲线。
 
 ```bash
-cd <workspace>/Documents/独立本地投资工作区
+cd /path/to/investment-workspace
 python3 scripts/build_dashboard.py --output-dir /tmp/gu-live-data
 python3 scripts/upload_dashboard.py --input-dir /tmp/gu-live-data --dry-run
 # 在授权同步的范围内，先通过环境变量配置 GU_UPLOAD_TOKEN：

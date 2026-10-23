@@ -19,6 +19,7 @@ SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "gu"
 AUTH_ORIGIN = "https://auth.codepi.app"
 ENVIRONMENT = "production"
+OWNER_EMAIL = "owner@example.invalid"
 OTP_FROM = "otp@kdp.cool"
 
 [[d1_databases]]
