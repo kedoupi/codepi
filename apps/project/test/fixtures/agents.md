@@ -5,7 +5,7 @@ This is the shared project contract for all coding agents working in this reposi
 ## Agent development
 
 - Start at `docs/development/README.md` for rule ownership and task routing; `docs/README.md` separates current references from historical plans. For continuing work, use `docs/development/tasks/README.md` to locate the task evidence. Follow `docs/development/agent-workflow.md` for development and handoff, and `docs/development/integration-release.md` for branch audits, integration, release and retirement. Small changes do not require a plan document.
-- Verify the actual Git root; a chat's old worktree path may no longer be a checkout. Reuse a suitable task worktree; create new independent worktrees under `~/.worktrees/<project-directory>/<branch>` (for example `~/.worktrees/kdp.cool/codex/task-name`). Record the starting SHA and inspect existing changes before editing. Detached HEAD is supported.
+- Verify the actual Git root; a chat's old worktree path may no longer be a checkout. Reuse a suitable task worktree; create new independent worktrees under `~/.worktrees/<project-directory>/<branch>` (for example `~/.worktrees/codepi/codex/task-name`). Record the starting SHA and inspect existing changes before editing. Detached HEAD is supported.
 - Read the target directory's `AGENTS.md` before modifying any app (`web`, `gu`, `gzh`, `health`), service (`auth`, `mcp`, `ops`) or `packages/shared/`, including when starting from the repository root.
 - Project skills live in `.agents/skills/`: `kdp-dev` for implementation, `kdp-review` for review, `kdp-release` for integration/release/retirement, `kdp-handoff` for continuity. Keep these skill names stable across product/domain renaming.
 - Tool entry points and portable invocation are documented in `docs/development/agent-compatibility.md`. If native skill discovery is unavailable, read the selected `SKILL.md` directly; `$skill` and `/skill` syntax are tool-specific conveniences.
@@ -26,7 +26,7 @@ Monorepo for the kedoupi（codepi）personal digital space, on `codepi.app`. The
 ## Architecture in one screen
 
 ```
-kdp.cool/
+codepi/
 ├── apps/
 │   ├── web/     → personal homepage and private desk (Astro)
 │   ├── gu/      → private investment app (Svelte + Vite + Hono Worker)
