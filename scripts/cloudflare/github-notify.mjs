@@ -14,7 +14,7 @@ async function request(api, path, options = {}) {
   });
   let body = null;
   try { body = await response.json(); } catch { /* response may have no body */ }
-  if (!response.ok) throw new Error(`GitHub notification failed (HTTP ${response.status})`);
+  if (!response.ok) throw new Error(`GitHub notification failed (HTTP ${response.status} ${options.method ?? 'GET'} ${path})`);
   return body;
 }
 
