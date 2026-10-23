@@ -1,6 +1,6 @@
 # 仓库公开、改名与全量重发
 
-- 状态：已交付；发布后观察已完成，线上正常待用户确认
+- 状态：已交付；发布后观察与浏览器验收已完成，未覆盖项见“继续工作”
 - 目标与验收：清理敏感内容后将仓库改名为 `kedoupi/codepi` 并公开；本机主目录改为 `~/Coding/codepi`；停止向公开仓库写入备份；全部生产 Worker 从新历史的 main 重新发布并通过巡检。
 - 不在范围内：轮换既有 SSO / provider 凭证、数据删除、Auth 旧回调删除（按原计划 10-29 后另行处理）。
 - worktree：发布用 `~/.worktrees/codepi/release/public-redeploy`（detached HEAD）；每个修复与本记录各用独立分支。
@@ -51,6 +51,16 @@ Ops 最先发布，旧代码中向 GitHub Release 上传备份的路径随之下
 3. 次日确认 UTC 18:00 备份：R2 完整清单已生成，公开仓库没有出现新 Release。
 4. 可选：如需彻底清除旧提交缓存，联系 GitHub Support。
 5. 既有遗留：Auth 旧 kdp.cool 回调 10-29 后删除。
+
+## 浏览器验收（2026-10-23，真实登录会话）
+
+- 首页与 `/apps/`：五个产品入口（Project/Me/Health/GU/GZH）渲染正常，公开页不含私有数据。
+- Project：登录态有效；`kedoupi-codepi` 为进行中，仓库链接指向 `kedoupi/codepi`，`kedoupi-kdp-cool` 显示为归档。
+- Health：每日简报与同步状态正常（30/30 批次完成）；真实评分数据渲染正常。
+- Me / GU / GZH：登录态与真实内容正常。
+- Desk：`codepi.app/desk` 聚合概览正常，Health/GU 摘要读取成功。
+- Auth：`/api/health` 返回 `ok=true` 且 `mailConfigured=true`。
+- 未覆盖：真实邮件 OTP、Oura 重新授权、MCP 客户端重新连接；邮箱与 provider 交互未在本轮重测。
 
 ## Project 旧项目卡
 
