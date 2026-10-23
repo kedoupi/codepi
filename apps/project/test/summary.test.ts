@@ -47,7 +47,7 @@ describe("project source summary", () => {
       { label: "进行中项目", value: "1" },
       { label: "最近 7 天交接", value: "1" },
     ]);
-    expect(summary.facts[0]).toContain("kdp.cool");
+    expect(summary.facts[0]).toContain("codepi");
     expect(summary.facts[0]).toContain("Run integration checks.");
     expect(summary.attention.some(item => item.label.includes("github_forbidden"))).toBe(true);
     expect("privateMetric" in summary).toBe(false);

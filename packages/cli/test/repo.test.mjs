@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 test("parses supported GitHub origin formats", () => {
   assert.equal(parseGitHubRemote("codepi@example.invalid:kedoupi/codepi.git"), "kedoupi/codepi");
   assert.equal(parseGitHubRemote("https://github.com/kedoupi/codepi.git"), "kedoupi/codepi");
-  assert.equal(parseGitHubRemote("ssh://codepi@example.invalid/kedoupi/codepi"), "kedoupi/codepi");
+  assert.equal(parseGitHubRemote("ssh://codepi@example.invalid:kedoupi/codepi"), "kedoupi/codepi");
   assert.equal(parseGitHubRemote("codepi@example.invalid:owner/repo.git\n"), "owner/repo");
 });
 

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 export const REPOSITORY = 'kedoupi/codepi';
 
 export async function githubApi(endpoint, { token, request = fetch, method = 'GET',
-  body, upload = false, allow404 = false, contentLength } = {}) {
+  body, upload = false, allow404 = false, contentLength,
+  repository = REPOSITORY } = {}) {
   assert.ok(token, 'GITHUB_TOKEN with repository Contents access is required');
   if (contentLength !== undefined) assert.ok(upload && Number.isSafeInteger(contentLength) && contentLength >= 0,
     'GitHub upload requires a valid content length');
@@ -20,7 +21,7 @@ export async function githubApi(endpoint, { token, request = fetch, method = 'GE
   }
   try {
     try {
-      response = await request(`https://${host}/repos/${REPOSITORY}${endpoint}`, {
+      response = await request(`https://${host}/repos/${repository}${endpoint}`, {
         method, redirect: 'manual', signal,
         headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.github+json',
           'user-agent': 'codepi-ops', 'x-github-api-version': '2022-11-28',

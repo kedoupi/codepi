@@ -34,7 +34,7 @@ describe("project configuration boundaries", () => {
     expect(isConfiguredForSync(configured, "kedoupi/codepi")).toBe(true);
     expect(isConfiguredForSync(configured, "kedoupi/other-repo")).toBe(false);
     expect(await activeProjects({ ...env, PROJECT_REPOS: "" } as Env)).toEqual([]);
-    expect((await resolveProject(configured, "KEDOUPI-KDP-COOL")).repo)
+    expect((await resolveProject(configured, "KEDOUPI-CODEPI")).repo)
       .toBe("kedoupi/codepi");
   });
 });

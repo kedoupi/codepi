@@ -50,7 +50,7 @@ Cloudflare Worker、D1、域名、Auth client 与 secrets 已创建并部署。2
   "project": {
     "id": "kedoupi-codepi",
     "repo": "kedoupi/codepi",
-    "name": "kdp.cool",
+    "name": "codepi",
     "status": "active",
     "default_branch": "main",
     "url": "https://project.codepi.app/p/kedoupi-codepi"
@@ -99,7 +99,7 @@ UTF-8 字节数。下一页使用上一页的 `next_cursor` 作为 `cursor`。�
     {
       "id": "kedoupi-codepi",
       "repo": "kedoupi/codepi",
-      "name": "kdp.cool",
+      "name": "codepi",
       "status": "active",
       "last_activity_at": "2026-10-20T04:00:00Z",
       "url": "https://project.codepi.app/p/kedoupi-codepi",

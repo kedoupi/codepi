@@ -11,7 +11,7 @@ test("default project output preserves every task_progress entry", () => {
     project: {
       id: "kedoupi-codepi",
       repo: "kedoupi/codepi",
-      name: "kdp.cool",
+      name: "codepi",
       status: "active",
     },
     task_progress: [
@@ -60,7 +60,7 @@ test("legacy project cards still render the latest progress", () => {
     project: {
       id: "kedoupi-codepi",
       repo: "kedoupi/codepi",
-      name: "kdp.cool",
+      name: "codepi",
       status: "active",
     },
     progress: {
@@ -81,7 +81,7 @@ test("project list renders the bounded latest handoff summary", () => {
     projects: [{
       id: "kedoupi-codepi",
       repo: "kedoupi/codepi",
-      name: "kdp.cool",
+      name: "codepi",
       status: "active",
       latest_handoff: {
         task_id: "task-bounded",
@@ -91,7 +91,7 @@ test("project list renders the bounded latest handoff summary", () => {
     }],
   });
 
-  assert.match(output, /kdp\.cool \(kedoupi\/kdp\.cool\) \[active\]/);
+  assert.match(output, /codepi \(kedoupi\/codepi\) \[active\]/);
   assert.match(output, /latest: task-bounded \[blocked\]/);
   assert.match(output, /next: Resolve the blocker\./);
 });

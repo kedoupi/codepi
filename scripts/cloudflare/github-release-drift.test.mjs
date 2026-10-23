@@ -11,7 +11,7 @@ function historyRequest({ changes = { [code]: ['apps/gu/src/a.ts'], [main]: ['do
   return async (url, init) => {
     assert.equal(init.redirect, 'manual');
     assert.equal(new URL(url).hostname, 'api.github.com');
-    const path = new URL(url).pathname.split('/kdp.cool')[1];
+    const path = new URL(url).pathname.split('/codepi')[1];
     if (path === '/commits/main') return Response.json({ sha: main });
     if (path === '/commits/' + base.slice(0, 12)) return Response.json({ sha: base });
     if (path.startsWith('/compare/')) return Response.json({

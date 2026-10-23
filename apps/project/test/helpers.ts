@@ -25,7 +25,7 @@ export async function seedProject(
   const project: ProjectRow = {
     id: TEST_PROJECT_ID,
     repo: "kedoupi/codepi",
-    name: "kdp.cool",
+    name: "codepi",
     status: "active",
     default_branch: "main",
     created_at: "2026-10-20T00:00:00Z",

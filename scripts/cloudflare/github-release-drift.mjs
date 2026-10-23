@@ -8,10 +8,12 @@ const MAX_COMMITS = 500;
 
 // Compare's aggregate file list loses reverted changes and truncates at 300 files.
 // Read every intervening commit, including each merge's first-parent file diff.
-export function githubHistory({ token, request = fetch } = {}) {
+export function githubHistory({ token, request = fetch, repository } = {}) {
   const cache = new Map();
   const get = endpoint => {
-    if (!cache.has(endpoint)) cache.set(endpoint, githubApi(endpoint, { token, request }));
+    if (!cache.has(endpoint)) cache.set(endpoint, githubApi(endpoint, {
+      token, request, repository,
+    }));
     return cache.get(endpoint);
   };
   const resolve = async ref => {
@@ -72,7 +74,11 @@ export function githubHistory({ token, request = fetch } = {}) {
 export async function checkGithubReleaseDrift({ env, request = fetch } = {}) {
   try {
     assert.ok(env.GITHUB_TOKEN, 'GITHUB_TOKEN with repository Contents access is required');
-    const history = githubHistory({ token: env.GITHUB_TOKEN, request });
+    const history = githubHistory({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      request,
+    });
     const main = await history.resolve('main');
     const results = [];
     for (const [service, script] of Object.entries(WORKERS)) {

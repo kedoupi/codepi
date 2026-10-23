@@ -83,7 +83,7 @@ function mockScript() {
         project: {
           id: "kedoupi-codepi",
           repo: "kedoupi/codepi",
-          name: "kdp.cool",
+          name: "codepi",
           status: "active",
           default_branch: "main",
           url: "https://project.codepi.app/p/kedoupi-codepi",

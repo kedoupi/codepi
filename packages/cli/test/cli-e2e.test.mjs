@@ -45,7 +45,7 @@ test("context, project, project list, and handoff work end-to-end against the of
           projects: [{
             id: "kedoupi-codepi",
             repo: "kedoupi/codepi",
-            name: "kdp.cool",
+            name: "codepi",
             status: "active",
             url: "https://project.codepi.app/p/kedoupi-codepi",
           }],
@@ -60,7 +60,7 @@ test("context, project, project list, and handoff work end-to-end against the of
           project: {
             id: "kedoupi-codepi",
             repo: args.project,
-            name: "kdp.cool",
+            name: "codepi",
             status: "active",
             url: "https://project.codepi.app/p/kedoupi-codepi",
           },
@@ -121,6 +121,7 @@ test("context, project, project list, and handoff work end-to-end against the of
     const handoff = await spawnCli([
       "--server", fake.server,
       "handoff",
+      "--repo", "kedoupi/codepi",
       "--task", "2026-10-20-codepi-mcp-domains",
       "--status", "in_progress",
       "--summary", "Implemented the CLI.",

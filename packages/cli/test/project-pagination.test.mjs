@@ -20,7 +20,7 @@ test("project reconstructs an oversized card from official SDK pagination pages"
     project: {
       id: "kedoupi-codepi",
       repo: "kedoupi/codepi",
-      name: "kdp.cool",
+      name: "codepi",
       status: "active",
       url: "https://project.codepi.app/p/kedoupi-codepi",
     },
