@@ -101,7 +101,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   await emit('observation_started', { nextState: 'observing' });
   const offsets = [0, 5, 10, 15, 20, 25, 30];
   for (let i = 0; i < offsets.length; i++) {
-    if (i > 0 && step?.sleep) await step.sleep(`${offsets[i] - offsets[i - 1]} minutes`);
+    if (i > 0 && step?.sleep) await step.sleep(`observer wait ${i}`, `${offsets[i] - offsets[i - 1]} minutes`);
     const poll = await (step?.do ? step.do(`observer poll ${i}`, async () => observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds })) : observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds }));
     await bucket.put(`reports/observer/${releaseId}/poll-${i}.json`, JSON.stringify(safeValue(poll)), { httpMetadata: { contentType: 'application/json' } });
     const critical = poll.services.some(item => item.severity === 'critical');
