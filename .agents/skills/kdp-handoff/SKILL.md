@@ -1,6 +1,6 @@
 ---
 name: kdp-handoff
-description: 在 kdp.cool 任务需要换 agent、跨会话继续或整理交付记录时使用，记录 worktree、基线、决策、验证证据和下一步；不执行 Git 合并、发布或给其他聊天发送消息。
+description: 在 codepi 任务需要换 agent、跨会话继续或整理交付记录时使用，记录 worktree、基线、决策、验证证据和下一步；不执行 Git 合并、发布或给其他聊天发送消息。
 ---
 
 # kedoupi 任务交接

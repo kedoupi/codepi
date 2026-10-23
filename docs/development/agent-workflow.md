@@ -82,7 +82,7 @@ PR 必须绑定 Orca workspace 的 reference（任务/会话标识或其可定�
 
 ```bash
 git worktree list
-git worktree add -b codex/task-name ~/.worktrees/kdp.cool/codex/task-name <已确认的基线SHA>
+git worktree add -b codex/task-name ~/.worktrees/codepi/codex/task-name <已确认的基线SHA>
 ```
 
 创建前确认路径、分支均未被其他任务占用；不要覆盖已有 worktree。然后让目标工具打开新目录。未提交改动不会由这条 Git 命令自动复制，新 worktree 也不会自动获得当前尚未提交的规范文件。跨机器可用各自 checkout/clone，交接仍使用明确的基线和已授权传递的产物。

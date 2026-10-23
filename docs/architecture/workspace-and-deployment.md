@@ -11,7 +11,7 @@ Project/Me 与 CLI。新增能力的本地实现与生产发布分别记录，�
 单一仓库，统一 pnpm workspace。产品目录、独立支撑服务和共享层：
 
 ```
-kdp.cool/
+codepi/
 ├── apps/
 │   ├── web/      → 首页 + Desk（Astro）
 │   ├── gu/       → 投资工作台（Svelte + Vite + Hono）

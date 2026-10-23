@@ -48,7 +48,7 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes
 ## 3. 有授权后集成
 
 - 先确认目标分支和基线，保护 main 现有未提交工作。不要为让工作区变干净而自动 stash/reset，也不要 `git add -A` 混入其他任务；提交时仅纳入已审查的明确路径。
-- 复用合适的独立任务 worktree；确需新建时遵循 `~/.worktrees/<项目目录>/<分支>`，本仓库例如 `~/.worktrees/kdp.cool/codex/integrate-history`，分支默认 `codex/` 前缀。不把旧 dirty 工作区静默复制到新基线。
+- 复用合适的独立任务 worktree；确需新建时遵循 `~/.worktrees/<项目目录>/<分支>`，本仓库例如 `~/.worktrees/codepi/codex/integrate-history`，分支默认 `codex/` 前缀。不把旧 dirty 工作区静默复制到新基线。
 - 按依赖顺序整合有效差异，保留当前产品方向和接口；冲突必须读取双方意图，不机械使用 ours/theirs。发现无法解释的并发改动立即停止并确认。
 - 审查绑定固定 SHA，或停止写入后的基线、文件清单与内容摘要。变更后原检查结论不自动沿用。
 - 在组合结果上运行针对性测试及 `node scripts/agent/check.mjs --base <集成前SHA>` 选出的检查；各分支独立通过不是组合通过。依赖缺失、未知路径和失败均列为未完成。

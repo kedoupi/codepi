@@ -1,6 +1,6 @@
 ---
 name: kdp-dev
-description: 在 kdp.cool 实现功能、修复问题或维护工程文档时使用，确定应用边界、worktree 隔离和受影响检查；不用于纯讨论或单独代码审查。
+description: 在 codepi 实现功能、修复问题或维护工程文档时使用，确定应用边界、worktree 隔离和受影响检查；不用于纯讨论或单独代码审查。
 ---
 
 # kedoupi 项目开发

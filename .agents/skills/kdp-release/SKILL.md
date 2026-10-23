@@ -1,6 +1,6 @@
 ---
 name: kdp-release
-description: 核对 kdp.cool 旧分支或 worktree 是否已归并、集成有效改动、发布产品与支撑服务或清理旧资源时使用；不用于普通功能开发。
+description: 核对 codepi 旧分支或 worktree 是否已归并、集成有效改动、发布产品与支撑服务或清理旧资源时使用；不用于普通功能开发。
 ---
 
 # kedoupi 集成与发布
