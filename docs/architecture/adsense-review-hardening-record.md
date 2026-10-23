@@ -9,7 +9,7 @@
 | 项 | 值 |
 | --- | --- |
 | AdSense 属性 | `kdp.cool`（apex，覆盖子域） |
-| Publisher | `pub-4790759596265225` |
+| Publisher | `adsense-publisher-redacted` |
 | 拒审项 | 低价值内容（所有权验证已通过） |
 | 目标 | 提高复审通过概率，使站点可展示广告 |
 | 代码落点 | `b90d24b` on `main` |
@@ -153,7 +153,7 @@ npx wrangler@4 pages deploy <site>/dist \
 [ ] GET text.kdp.cool/ 与 convert... — robots 含 noindex；无 adsbygoogle
 [ ] GET kdp.cool/                    — 仍有 adsbygoogle（审稿主表面）
 [ ] CF 各项目 canonical deployment commit == git rev-parse HEAD
-[ ] ads.txt 仍含 pub-4790759596265225
+[ ] ads.txt 使用已撤销的历史 publisher 标识（具体值不记录）
 ```
 
 软 404 特征：未知路径也 200 且 canonical 指向 `/` → 该路径不在当前部署包内。
