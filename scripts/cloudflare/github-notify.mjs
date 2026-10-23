@@ -47,7 +47,7 @@ export async function notifyGithub(event, { env = process.env, fetchImpl = fetch
       body: JSON.stringify({ title: OBSERVATION_ISSUE_TITLE, body: 'Automated post-release observation events.', labels: [OBSERVATION_LABEL] }),
     });
   }
-  const services = Array.isArray(event.services) ? event.services.map(item => item.service ?? item.script ?? 'unknown').join(', ') : 'unknown';
+  const services = Array.isArray(event.services) ? event.services.map(item => typeof item === 'string' ? item : (item.service ?? item.script ?? 'unknown')).join(', ') : 'unknown';
   const timestamp = event.at ?? new Date().toISOString();
   const eventId = redact(event.event_id ?? `${event.releaseId ?? event.release_id}-${event.severity ?? 'event'}`);
   const body = [
