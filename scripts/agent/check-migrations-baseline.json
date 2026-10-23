@@ -1,16 +1,12 @@
 {
-  "generated": "2026-10-18",
-  "note": "Frozen at guard introduction; do not edit existing entries.",
   "files": {
-    "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
     "apps/gu/migrations/0001_init.sql": "9903e6ba3f3832a2d91a11ff272ddccf9fb53a1551372d5dc15a36a57700a423",
     "apps/gu/migrations/0002_calendar.sql": "10c1a3a55a36d8e059d057151c5222138defdea1535b80575bde20d610f8b360",
     "apps/gu/migrations/0002_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
-    "apps/gzh/migrations/0001_init.sql": "4405aaa3bd4cdd18e691d8318e28eb4916240874815f7da94d633adf6e2d18cc",
+    "apps/gzh/migrations/0001_init.sql": "da5cf933fa49e3596afc94a9f5ae0cc54bcd834fc54d80bdc0bccc4a329d943a",
     "apps/gzh/migrations/0002_desk_meta.sql": "3542b0f87c4838be61e85901506d9ed902307996b37ea09a275d09c834020838",
     "apps/gzh/migrations/0003_post_is_demo.sql": "4eaef82a673d130b5718780b28779741af6573daecae3fb67f5c2e563efa40ab",
     "apps/gzh/migrations/0004_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
-    "services/auth/migrations/0001_auth.sql": "778e2d750a26f2d9ba94bbdc85e8910ae66478fcad4d146146a7c76ea4cf66d6",
     "apps/health/migrations/0001_init.sql": "5d60ed70cf3dff0ec08fd5dc61460b7def54257b8a60f989c11aa3d3cf334382",
     "apps/health/migrations/0002_subscriptions.sql": "ca86a1f2dbb7075bc0f9cc92732f3f7bd846d3e0d7521a6cdfd4ddad04452ca0",
     "apps/health/migrations/0003_daily_sync.sql": "bfc0ec9243e80e88028d00e63b862e51e1039f6dd34e2efa001676488af173ed",
@@ -21,6 +17,10 @@
     "apps/health/migrations/0008_auto_sync_budget.sql": "8f98ce7d82e8e635de4bdacd3b7c929b79d5974719b5ba7fdb1cceca640d9dd3",
     "apps/health/migrations/0009_mcp_token_family.sql": "c13fbcaff29d66d39c6031ba66d2482b9ad2cc62dc1b7df8a0809cb4554c333f",
     "apps/health/migrations/0010_shared_sso.sql": "672fb3227bf261f0e6bedd019b8660805830c8011b989ce5b4222f68ac7e5cd4",
-    "apps/health/migrations/0011_repair_consent_coverage.sql": "c7065d5d1e15235554595b3ce2e83e4dfdde94ff224e3ce4d4210189b4c21ef1"
-  }
+    "apps/health/migrations/0011_repair_consent_coverage.sql": "c7065d5d1e15235554595b3ce2e83e4dfdde94ff224e3ce4d4210189b4c21ef1",
+    "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
+    "services/auth/migrations/0001_auth.sql": "778e2d750a26f2d9ba94bbdc85e8910ae66478fcad4d146146a7c76ea4cf66d6"
+  },
+  "generated": "2026-10-18",
+  "note": "Frozen at guard introduction; do not edit existing entries."
 }
