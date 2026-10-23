@@ -122,7 +122,7 @@ describe("project board components", () => {
         projects: [{
           id: "kedoupi-codepi",
           repo: "kedoupi/codepi",
-          name: "kdp.cool",
+          name: "codepi",
           status: "active",
           last_activity_at: "2026-10-20T04:00:00Z",
           url: "https://project.codepi.app/p/kedoupi-codepi",
@@ -132,6 +132,6 @@ describe("project board components", () => {
       },
     });
     expect(screen.getByText(/Continue with the board/)).toBeTruthy();
-    expect(screen.getByText("kdp.cool")).toBeTruthy();
+    expect(screen.getByText("codepi")).toBeTruthy();
   });
 });
