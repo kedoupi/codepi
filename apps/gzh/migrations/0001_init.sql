@@ -66,8 +66,9 @@ CREATE TABLE reviews (
 
 CREATE INDEX idx_reviews_post ON reviews (post_id, created_at);
 
+-- 公开仓库：owner 账号使用合成邮箱；生产实际邮箱由环境配置为准。
 INSERT INTO accounts (id, email, display_name, role, active)
-VALUES ('acc_owner_kdp', 'codepi@example.invalid', '珂抖屁', 'owner', 1);
+VALUES ('acc_owner_kdp', 'owner@example.com', '珂抖屁', 'owner', 1);
 
 INSERT INTO posts (
   id, account_id, title, slot, publish_date, status, preview_path, note, digest
