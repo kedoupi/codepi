@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { notifyGithub } from './github-notify.mjs';
 
-function response(body, status = 200) { return { ok: status >= 200 && status < 300, status, async json() { return body; } }; }
+function response(body, status = 200) { const text = typeof body === 'string' ? body : JSON.stringify(body); return { ok: status >= 200 && status < 300, status, headers: new Headers(), async json() { return body; }, async text() { return text; } }; }
 
 test('finds the long-lived observation issue and appends a safe comment', async () => {
   const calls = [];

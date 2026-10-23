@@ -12,9 +12,14 @@ async function request(api, path, options = {}) {
     ...options,
     headers: { accept: 'application/vnd.github+json', 'content-type': 'application/json', ...(options.headers ?? {}) },
   });
+  const text = await response.text().catch(() => '');
   let body = null;
-  try { body = await response.json(); } catch { /* response may have no body */ }
-  if (!response.ok) throw new Error(`GitHub notification failed (HTTP ${response.status} ${options.method ?? 'GET'} ${path}: ${redact(body?.message ?? 'no message')})`);
+  try { body = JSON.parse(text); } catch { /* response may have no JSON body */ }
+  if (!response.ok) {
+    const detail = redact(body?.message ?? text.slice(0, 160) ?? 'no body');
+    const reqId = response.headers.get('x-github-request-id') ?? 'no-request-id';
+    throw new Error(`GitHub notification failed (HTTP ${response.status} ${options.method ?? 'GET'} ${path}: ${detail}; gh-request=${reqId})`);
+  }
   return body;
 }
 
