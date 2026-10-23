@@ -6,8 +6,9 @@ export function contentSecurityPolicy(callbackOrigin?: string) {
   return `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${callbackOrigin ? ` ${callbackOrigin}` : ""}; frame-ancestors 'none'; base-uri 'none'`;
 }
 
-export function page(title: string, body: string, callbackOrigin?: string) {
-  return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+export function page(title: string, body: string, callbackOrigin?: string, refreshTarget?: string) {
+  const refresh = refreshTarget ? `<meta http-equiv="refresh" content="0;url=${escapeHtml(refreshTarget)}">` : "";
+  return new Response(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">${refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · CodePi MCP</title>
 <style>${tokens}
 *{box-sizing:border-box}body{margin:0;min-height:100svh;padding:24px;background:var(--kdp-canvas);color:var(--kdp-ink);font:16px/1.7 var(--kdp-font)}

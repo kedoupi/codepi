@@ -42,13 +42,23 @@ try {
   const origin = `http://127.0.0.1:${server.address().port}`;
   f = await fixture({ after: fn => cleanup.push(fn) }, { origin });
   cookie = await f.login();
+  // Real clients (Meta agent, Cursor) answer the OAuth callback with a redirect to
+  // their own app origin. Browsers apply the consent page's CSP form-action to every
+  // hop of the POST navigation, so this third origin is what exposed the bug.
+  const landingServer = createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end('<!doctype html><title>Synthetic client app</title><p>Connected</p>');
+  });
+  await new Promise(resolve => landingServer.listen(0, 'localhost', resolve));
+  cleanup.push(() => new Promise(resolve => landingServer.close(resolve)));
+  const landing = `http://localhost:${landingServer.address().port}/connected`;
   const callbackServer = createServer((request, response) => {
     const url = new URL(request.url, 'http://localhost');
     if (url.pathname !== '/callback') { response.writeHead(204); response.end(); return; }
     callback = url.searchParams;
     callbackReferrer = request.headers.referer;
-    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end('<!doctype html><title>Synthetic client</title><p>Callback received</p>');
+    response.writeHead(302, { Location: landing });
+    response.end();
   });
   await new Promise(resolve => callbackServer.listen(0, '127.0.0.1', resolve));
   cleanup.push(() => new Promise(resolve => callbackServer.close(resolve)));
@@ -79,7 +89,7 @@ try {
   assert.equal(await fits(), true);
   await page.screenshot({ path: 'consent-mobile.png' });
   await page.click('loc=css:button[value="approve"]');
-  await page.waitForFunction(() => location.pathname === '/callback');
+  await page.waitForFunction(() => location.pathname === '/connected');
   assert.equal(callback.get('state'), 'browser-state');
   assert.ok(callback.get('code'));
   assert.equal(callbackReferrer, undefined, 'cross-origin callbacks must not receive consent URLs as referrers');
@@ -97,7 +107,7 @@ try {
   assert.equal((await f.rpc(pair.access_token, 'tools/list')).status, 401, 'browser revocation retires the client grant');
   await page.goto(authorize);
   await page.click('loc=css:button[value="deny"]');
-  await page.waitForFunction(() => location.pathname === '/callback');
+  await page.waitForFunction(() => location.pathname === '/connected');
   assert.equal(callback.get('error'), 'access_denied');
   assert.deepEqual(page.diagnostics.filter(event => event.method === 'Runtime.exceptionThrown'
     || event.method === 'Network.loadingFailed'

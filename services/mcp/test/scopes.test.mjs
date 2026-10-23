@@ -9,7 +9,8 @@ test('one owner login grants every supported scope without per-scope selection',
   assert.doesNotMatch(pending.html, /<input[^>]+name="scope"/);
   for (const scope of f.allScopes.split(' ')) assert.ok(pending.html.includes(scope), scope);
   const approved = await f.post('/oauth/authorize', pending.approval, headers);
-  assert.equal(approved.status, 302);
+  assert.equal(approved.status, 200, 'approval returns a same-origin handoff page instead of a form redirect');
+  assert.match(await approved.text(), /meta http-equiv="refresh"/);
   const consent = await f.db.prepare('SELECT scope FROM oauth_consent_requests').first();
   assert.equal(consent.scope, f.allScopes);
   const saved = await f.db.prepare('SELECT scope FROM oauth_auth_codes').first();
