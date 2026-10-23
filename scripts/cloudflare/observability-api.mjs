@@ -36,15 +36,21 @@ function pageItems(result, names) {
   return null;
 }
 
+function epochIso(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  return String(value ?? '');
+}
+
 function issue(item) {
   if (!item || typeof item !== 'object' || item.id == null) throw new ObservabilityError('Cloudflare issue schema is invalid', 'schema');
   return {
     id: String(item.id),
-    scriptName: String(item.scriptName ?? item.script_name ?? item.script ?? ''),
-    title: String(item.title ?? item.name ?? ''),
-    firstSeenAt: String(item.firstSeenAt ?? item.first_seen_at ?? item.first_seen ?? ''),
-    lastSeenAt: String(item.lastSeenAt ?? item.last_seen_at ?? item.last_seen ?? ''),
-    occurrences: number(item.occurrences ?? item.occurrence_count),
+    scriptName: String(item.service ?? ''),
+    title: String(item.title ?? ''),
+    status: String(item.status ?? ''),
+    firstSeenAt: epochIso(item.firstObserved),
+    lastSeenAt: epochIso(item.lastObserved),
+    occurrences: number(item.count),
   };
 }
 
@@ -118,19 +124,20 @@ export function createObservabilityClient({ accountId, apiToken, fetchImpl = fet
     throw new ObservabilityError('Cloudflare observability rate limited', 'rate_limited', { status: 429 });
   }
 
-  async function listIssues({ scriptName, sinceMinutes } = {}) {
+  // The API filters by `service` and `status` and pages with `page`/`perPage`; it has
+  // no time filter, so recency is applied to `lastObserved` here.
+  async function listIssues({ scriptName, sinceMinutes, now = Date.now() } = {}) {
     const all = [];
-    let page;
-    for (let pages = 0; pages < 100; pages++) {
-      const result = await request('issues', { query: { scriptName, sinceMinutes, page } });
+    for (let page = 1; page <= 100; page++) {
+      const result = await request('issues', { query: { service: scriptName, status: 'active', page, perPage: 50 } });
       const rows = pageItems(result, ['issues', 'items', 'data']);
       if (!rows) throw new ObservabilityError('Cloudflare issues list schema is invalid', 'schema');
       all.push(...rows.map(issue));
-      const next = result?.nextPage ?? result?.next_page ?? result?.pagination?.next_page;
-      if (!next || next === page) break;
-      page = next;
+      if (rows.length < 50) break;
     }
-    return all;
+    if (!sinceMinutes) return all;
+    const cutoff = now - sinceMinutes * 60000;
+    return all.filter(item => Date.parse(item.lastSeenAt) >= cutoff);
   }
 
   return {
