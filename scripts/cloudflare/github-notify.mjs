@@ -10,7 +10,7 @@ function redact(value) {
 async function request(api, path, options = {}) {
   const response = await api(`https://api.github.com${path}`, {
     ...options,
-    headers: { accept: 'application/vnd.github+json', 'content-type': 'application/json', ...(options.headers ?? {}) },
+    headers: { accept: 'application/vnd.github+json', 'content-type': 'application/json', 'user-agent': 'codepi-ops', 'x-github-api-version': '2022-11-28', ...(options.headers ?? {}) },
   });
   const text = await response.text().catch(() => '');
   let body = null;
