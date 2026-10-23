@@ -3,17 +3,25 @@ import test from 'node:test';
 import { createObservabilityClient, ObservabilityError } from './observability-api.mjs';
 
 const response = (result, status = 200) => new Response(JSON.stringify({ success: status < 400, result }), { status, headers: { 'content-type': 'application/json' } });
-const issue = (id) => ({ id, scriptName: 'auth', title: 'failure', firstSeenAt: '2026-10-23T00:00:00Z', lastSeenAt: '2026-10-23T00:01:00Z', occurrences: 2 });
+const NOW = Date.parse('2026-10-23T05:00:00Z');
+const apiIssue = (id, lastObserved) => ({ id, service: 'codepi-auth', title: 'failure', status: 'active', firstObserved: NOW - 86400000, lastObserved, count: 2 });
 
-test('lists paginated issues and maps their public shape', async () => {
+test('filters active issues by service, pages with perPage and keeps only recent ones', async () => {
   const calls = [];
+  const first = Array.from({ length: 50 }, (_, i) => apiIssue(`old-${i}`, NOW - 3600000));
+  first[0] = apiIssue('recent', NOW - 60000);
   const client = createObservabilityClient({ accountId: 'account', apiToken: 'token', fetchImpl: async (url) => {
-    calls.push(url.toString());
-    return response(url.searchParams.get('page') === 'next' ? { issues: [issue('two')] } : { issues: [issue('one')], next_page: 'next' });
+    calls.push(url);
+    return response(url.searchParams.get('page') === '1' ? first : [apiIssue('recent-2', NOW - 120000)]);
   } });
-  assert.deepEqual(await client.listIssues({ scriptName: 'auth', sinceMinutes: 30 }), [issue('one'), issue('two')]);
+  const issues = await client.listIssues({ scriptName: 'codepi-auth', sinceMinutes: 5, now: NOW });
+  assert.deepEqual(issues.map(item => item.id), ['recent', 'recent-2']);
+  assert.deepEqual(issues[0], { id: 'recent', scriptName: 'codepi-auth', title: 'failure', status: 'active', firstSeenAt: new Date(NOW - 86400000).toISOString(), lastSeenAt: new Date(NOW - 60000).toISOString(), occurrences: 2 });
   assert.equal(calls.length, 2);
-  assert.match(calls[0], /\/workers\/observability\/issues\?/);
+  assert.equal(calls[0].searchParams.get('service'), 'codepi-auth');
+  assert.equal(calls[0].searchParams.get('status'), 'active');
+  assert.equal(calls[0].searchParams.get('perPage'), '50');
+  assert.equal(calls[0].searchParams.has('scriptName'), false);
 });
 
 test('retries 429 and classifies authorization failures', async () => {
