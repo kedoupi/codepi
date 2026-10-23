@@ -10,10 +10,10 @@ import { makeTempDir, removeTempDir } from "./helpers.mjs";
 const execFileAsync = promisify(execFile);
 
 test("parses supported GitHub origin formats", () => {
-  assert.equal(parseGitHubRemote("codepi@example.invalid:kedoupi/codepi.git"), "kedoupi/codepi");
+  assert.equal(parseGitHubRemote("git@github.com:kedoupi/codepi.git"), "kedoupi/codepi");
   assert.equal(parseGitHubRemote("https://github.com/kedoupi/codepi.git"), "kedoupi/codepi");
-  assert.equal(parseGitHubRemote("ssh://codepi@example.invalid:kedoupi/codepi"), "kedoupi/codepi");
-  assert.equal(parseGitHubRemote("codepi@example.invalid:owner/repo.git\n"), "owner/repo");
+  assert.equal(parseGitHubRemote("ssh://git@github.com/kedoupi/codepi"), "kedoupi/codepi");
+  assert.equal(parseGitHubRemote("git@github.com:owner/repo.git\n"), "owner/repo");
 });
 
 test("rejects missing and non-GitHub remotes", () => {
@@ -28,7 +28,7 @@ test("detects repository through git remote get-url origin", async () => {
   try {
     await execFileAsync("git", ["init", "-q"], { cwd: dir });
     await mkdir(join(dir, ".git"), { recursive: true });
-    await execFileAsync("git", ["remote", "add", "origin", "codepi@example.invalid:owner/repo.git"], { cwd: dir });
+    await execFileAsync("git", ["remote", "add", "origin", "git@github.com:owner/repo.git"], { cwd: dir });
     assert.equal(await detectRepo(dir), "owner/repo");
   } finally {
     await removeTempDir(dir);
