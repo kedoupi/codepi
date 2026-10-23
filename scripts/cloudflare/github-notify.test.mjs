@@ -13,6 +13,18 @@ test('finds the long-lived observation issue and appends a safe comment', async 
   assert.doesNotMatch(calls.at(-1).options.body, /secret/);
 });
 
+test('accepts plain service names from the observer manifest', async () => {
+  let posted;
+  const request = async (url, options = {}) => {
+    if (url.includes('/issues?')) return response([{ number: 7, title: 'codepi release observations' }]);
+    posted = options.body;
+    return response({ id: 99 });
+  };
+  await notifyGithub({ releaseId: 'rel-names', severity: 'started', services: ['mcp', 'ops'] }, { env: { GITHUB_TOKEN: 'synthetic' }, fetchImpl: request });
+  assert.match(posted, /services: mcp, ops/);
+  assert.doesNotMatch(posted, /unknown/);
+});
+
 test('creates the issue when it does not exist', async () => {
   const calls = [];
   const request = async (url, options = {}) => { calls.push({ url, options }); if (url.includes('/issues?')) return response([]); if (options.method === 'POST' && url.endsWith('/issues')) return response({ number: 8 }); return response({ id: 100 }); };
