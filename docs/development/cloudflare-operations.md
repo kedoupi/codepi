@@ -6,8 +6,7 @@
 
 v3 的 Project/Me 备份与巡检已随 `58bd615` 上线并完成真实验收：生产备份实例
 `cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
-覆盖八库、GU 112 件与 Me 空集合，私有 GitHub 分片 120/120 独立解密通过；
-8 个隔离 D1 共核对 98 张表、138,986 行，临时资源已清理；新云端巡检 34/34。
+覆盖八库、GU 112 件与 Me 空集合，私有 R2 密文与 manifest 验收通过；新云端巡检 34/34。
 当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
 v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记录是旧覆盖的证据。
 
@@ -18,7 +17,6 @@ v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记
 | `codepi-ops` Worker | 两个 Cron，无公网 routes、workers.dev 或 preview URL |
 | `codepi-ops` Workflow | 以确定的 instance ID 去重，每个步骤最多重试两次，指数退避 |
 | `codepi-ops-backups` 私有 R2 | 全库与 GU/Me 原件密文、完成清单、运维报告，以及 `reports/traffic/samples.json`；流量基线按最近 7 天逐小时滚动 |
-| GitHub API | 私有仓库 main/逐提交历史读取；凭证就绪后把密文复制到私有 Release |
 
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
 这些是平台定时任务，不保证精确到分钟。只能从实际 Workflow 实例和 R2 对象确认
@@ -152,18 +150,12 @@ UUID、object key、大小及摘要，不含文件名或正文。逐件验证源
 KDPB001 envelope 保持 v1，原 D1 解密工具仍可使用。旧 `d1-backup.mjs` 与手动 Actions
 应急入口只导出 D1，不生成原件完整覆盖回执。
 
-有 `GITHUB_TOKEN` 时，逐个把密文经流式 API 上传私有分片 Release，
-每片最多 900 个附件，名称为 `ops-backup-<instance>-part-01` 等。
-主 Release `ops-backup-<instance>` 最后写 `offsite-index.json` 和原 `manifest.json`；
-索引记录每件密文的分片、文件名、恢复路径、大小和 SHA-256。
-按 GitHub 返回的 SHA-256 和大小验证，重试只复用完全匹配的既有附件，
-不删除或覆盖不一致的附件。八库与两类各 1000 件的上限会生成三片密文，
-旧 v2/v3 单 Release 副本仍可按原 manifest 读取。全部完成后才写
-`reports/backup/offsite-success.json`。Release 不消耗 Actions runner；
-当前实现保留主 Release 及其全部分片，清理为独立操作；不能只保留主 Release
-或只下载它的两个元数据附件就称为有完整副本。
-未配置凭证或上传失败时，保留已完成的 R2 备份，标记 `offsite=failed`，
-Workflow 仍失败，不把同账户 R2 当成跨平台备份。
+备份完整成功的唯一标准是：所有必需 D1、GU/Me 原件均完成加密写入私有 R2，校验通过后提交
+v3 `manifest.json` 与 `reports/backup/r2-success.json`。`reports/backup/latest.json` 记录
+`r2=complete`、`ok=true`；Workflow 不再调用 GitHub Release，也不读取 `GITHUB_TOKEN`。
+R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用；需要异机恢复时由人工在仓库之外导出
+完整 R2 前缀并按 manifest 校验。历史 GitHub Release 不是当前备份通道，仍需在公开仓库前
+按授权清理，不能把历史附件当作当前自动备份成功证据。
 
 恢复流程及 MCP 授权状态恢复限制见 [备份 runbook](cloudflare-backup-restore.md)。
 
@@ -198,30 +190,10 @@ R2 写入通过 bucket binding；不会把本机的管理 token 放进 Worker。
 新值在内存中直写 `CLOUDFLARE_API_TOKEN` secret，不输出或保存；既有 secret 不轮换。
 两步间断时按返回的非敏感 token ID 调查，不能通过反复创建 token 掩盖故障。
 
-`GITHUB_TOKEN` 首次由所有者配置：只选 `kedoupi/codepi`，
-授予 **Contents: Read and write**，用于历史读取和备份附件。不需要 Actions 或账户管理
-权限。通过 Wrangler secret 输入配置，不放在命令行参数、源码、PR 或聊天中。
-现有 ChatGPT GitHub 连接器支持本次仓库操作，但不是 Worker 可长期调用的凭证。
-未配置该 secret 时，GitHub 相关检查和跨平台备份必须保持失败。
-
-凭证类型使用 fine-grained PAT，Repository access 只选择上述仓库，
-Repository permissions 仅设置 Contents 读写，其他保留默认。
-若使用 Cloudflare Dashboard，变量类型必须选择 **Secret**；
-普通 Text 变量不在 `wrangler secret list` 中，也不满足凭证存储约定。
-从最新、干净且已合并的 main 持有生产发布锁后，在 `services/ops/` 交互输入：
-
-```bash
-pnpm exec wrangler secret put GITHUB_TOKEN
-```
-
-不得把本机广权限 `gh` OAuth 登录值转存到 Worker。配置后先创建新的 backup 实例，
-核对当前必需库与原件 manifest、全部 Release 附件及自动跨平台成功回执，再运行 monitor。
-一次性通过本机授权复制的密文可以作为手动副本，但其回执须另存，
-不得写成自动 Workflow 成功或消除自动凭证缺失告警。
-2026-10-20 v3 生产 Workflow 验收自动复制，八库、GU 112 份原件、Me 空集合及 manifest
-共 122 个 GitHub 附件已完成独立下载、摘要和内存解密，云端巡检 34/34。
-本轮手动触发 Workflow，没有等待下一次 Cron；旧手动副本与失败报告继续保留。
-详细实例、凭证类型修正和剩余项见[跨平台验收](tasks/2026-10-20-github-offsite.md)。
+GitHub API 仍可用于巡检所需的仓库历史读取；Ops 不再配置或读取用于备份复制的
+`GITHUB_TOKEN`。历史 Release 中的密文附件属于公开前待清理对象，不是当前备份成功标准。
+公开前由仓库所有者在 GitHub 控制面清理历史 Release，并在仓库外保留经授权的恢复副本；
+本任务不执行远程删除。
 
 ## 操作与证据
 

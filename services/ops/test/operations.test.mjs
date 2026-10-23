@@ -66,7 +66,7 @@ test('partial exports never publish a manifest and resuming does not re-export c
   assert.equal(bucket.data.has(`backups/${event.instanceId}/manifest.json`), false);
   assert.equal(bucket.data.has('reports/backup/r2-success.json'), false);
   fail = false;
-  await assert.rejects(backupOperation(env, step, event, keys.publicKey, { exportOne }), /GITHUB_TOKEN/);
+  await backupOperation(env, step, event, keys.publicKey, { exportOne });
   assert.equal(calls.filter(name => name === 'codepi-auth').length, 1);
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
   assert.equal(manifest.databases.length, DATABASE_NAMES.length);
@@ -76,26 +76,23 @@ test('partial exports never publish a manifest and resuming does not re-export c
     assert.equal(decrypt(object.bytes, keys.privateKey).sql.toString(), 'CREATE TABLE synthetic(id);');
   }
   const report = await (await bucket.get('reports/backup/latest.json')).json();
-  assert.equal(report.ok, false);
+  assert.equal(report.ok, true);
   assert.equal(report.r2, 'complete');
-  assert.equal(report.offsite, 'failed');
-  assert.equal(bucket.data.has('reports/backup/offsite-success.json'), false);
   assert.doesNotMatch(JSON.stringify([...step.state.values()]), /CREATE TABLE|signed_url|wrapped_key|PRIVATE KEY/);
   const fresh = await backupFreshness(bucket);
   assert.equal(fresh[0].ok, true);
-  assert.equal(fresh[1].ok, false);
 });
 
 test('a put followed by an interrupted workflow reuses the existing ciphertext', async () => {
   const bucket = bucketFixture(), step = stepFixture();
   const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]) };
-  await assert.rejects(backupOperation(env, step, event, keys.publicKey, { exportOne: exportStub }), /GITHUB_TOKEN/);
+  await backupOperation(env, step, event, keys.publicKey, { exportOne: exportStub });
   for (const name of Object.keys(DATABASES)) step.state.delete(`encrypted export ${name}`);
-  await assert.rejects(backupOperation(env, step, event, keys.publicKey, {
+  await backupOperation(env, step, event, keys.publicKey, {
     exportOne: (name, id, publicKey, time, options) => backupDatabase(name, id, publicKey, time, {
       ...options, request: () => { throw new Error('must reuse saved ciphertext'); },
     }),
-  }), /GITHUB_TOKEN/);
+  });
 });
 
 test('a paused instance cannot publish success after its ciphertext expires or its recipient changes', async () => {
@@ -129,7 +126,7 @@ test('monitor preserves failures and appends traffic results in its private repo
   assert.equal(report.ok, false);
   assert.equal(report.results.filter(result => result.name.startsWith('zone traffic')).length, 2);
   // Backup freshness must stay in the monitor report alongside traffic results.
-  assert.equal(report.results.filter(result => result.name.includes('backup completed within 30 hours')).length, 2);
+  assert.equal(report.results.filter(result => result.name.includes('backup completed within 30 hours')).length, 1);
 });
 
 test('freshness rejects stale and incomplete backups', async () => {
@@ -176,8 +173,7 @@ test('missing, corrupted or interrupted GU originals cannot publish a complete m
 test('Me imports are encrypted alongside GU and missing ME coverage cannot publish a manifest', async () => {
   const bucket = bucketFixture(), me = meFixture(['Synthetic Me import one', 'Synthetic Me import two']);
   const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture([]), ME: me };
-  await assert.rejects(backupOperation(env, stepFixture(), event, keys.publicKey, { exportOne: exportStub }),
-    /GITHUB_TOKEN/);
+  await backupOperation(env, stepFixture(), event, keys.publicKey, { exportOne: exportStub });
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
   assert.equal(manifest.version, 3);
   assert.deepEqual(manifest.materials.collections.map(collection => collection.source), ['codepi-gu', 'codepi-me']);
@@ -208,7 +204,7 @@ test('material ciphertext is reused after a receipt interruption and expiration 
   }, step, event, keys.publicKey, { exportOne: exportStub });
   await assert.rejects(run(), /synthetic pause/);
   interrupted = false;
-  await assert.rejects(run(), /GITHUB_TOKEN/);
+  await run();
   assert.equal(reads, 1);
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
   const guCollection = manifest.materials.collections.find(collection => collection.source === 'codepi-gu');

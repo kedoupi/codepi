@@ -79,12 +79,11 @@ try {
     exports: { MeImportsBackup: { type: 'worker' } },
     env: { DB: { type: 'd1', name: `${name}-me-db` }, IMPORTS: { type: 'r2', name: `${name}-imports` } },
   } });
-  const exports = [], expected = new Map(), releases = new Map(), releaseAssets = new Map(), uploads = [];
+  const exports = [], expected = new Map();
   const sqlById = new Map([
     [databaseIds['codepi-gu'], guSql],
     [databaseIds['codepi-me'], meSql],
   ]);
-  let nextReleaseId = 100;
   runtime = new Miniflare({
     workers: [{
       config: {
@@ -137,42 +136,6 @@ try {
             },
           }, { highWaterMark: 0 }));
         }
-        if (url.hostname === 'api.github.com') {
-          const tag = url.pathname.match(/\/releases\/tags\/([^/]+)$/)?.[1];
-          if (tag) {
-            const release = releases.get(decodeURIComponent(tag));
-            return release ? Response.json(release) : new Response('', { status: 404 });
-          }
-          if (request.method === 'POST' && url.pathname.endsWith('/releases')) {
-            const release = { id: nextReleaseId++, tag_name: (await request.json()).tag_name };
-            releases.set(release.tag_name, release);
-            releaseAssets.set(release.id, []);
-            return Response.json(release);
-          }
-          const id = Number(url.pathname.match(/\/releases\/(\d+)\/assets$/)?.[1]);
-          assert.ok(releaseAssets.has(id), 'synthetic GitHub release is unknown');
-          const assets = releaseAssets.get(id);
-          const page = Number(url.searchParams.get('page')), perPage = Number(url.searchParams.get('per_page'));
-          return Response.json(assets.slice((page - 1) * perPage, page * perPage)
-            .map(({ bytes: _, ...asset }) => asset));
-        }
-        if (url.hostname === 'uploads.github.com') {
-          const id = Number(url.pathname.match(/\/releases\/(\d+)\/assets$/)?.[1]);
-          assert.ok(releaseAssets.has(id), 'synthetic GitHub upload release is unknown');
-          const hash = createHash('sha256');
-          const chunks = [];
-          let bytes = 0;
-          for await (const chunk of request.body) {
-            bytes += chunk.byteLength; hash.update(chunk); chunks.push(chunk);
-          }
-          assert.equal(Number(request.headers.get('content-length')), bytes,
-            'native R2 stream upload must preserve a fixed content length');
-          const asset = { name: url.searchParams.get('name'), state: 'uploaded',
-            size: bytes, digest: `sha256:${hash.digest('hex')}` };
-          releaseAssets.get(id).push({ ...asset, bytes: Buffer.concat(chunks) });
-          uploads.push({ release_id: id, ...asset });
-          return Response.json(asset);
-        }
         throw new Error('runtime test attempted an unexpected external request');
       } } },
     }, guWorker('gu-source'), guWorker('gu-recovery'),
@@ -193,77 +156,55 @@ try {
   await guBucket.put('materials/unindexed-synthetic', 'Synthetic orphan');
   await meBucket.put('imports/unindexed-synthetic', 'Synthetic orphan');
 
-  for (const withGithub of [false, true]) {
-    const query = withGithub ? '?withGithub=1' : '';
-    const result = await runtime.dispatchFetch(`https://ops.synthetic/start${query}`);
-    assert.equal(result.status, 200);
-    let status;
-    for (let i = 0; i < 240; i++) {
-      status = await (await runtime.dispatchFetch(`https://ops.synthetic/status${query}`)).json();
-      if (['errored', 'complete'].includes(status.status)) break;
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
-    assert.equal(status.status, withGithub ? 'complete' : 'errored',
-      `native workflow status: ${JSON.stringify(status)}`);
-    const prefix = `backups/${withGithub ? 'synthetic-offsite' : 'synthetic-native'}`;
-    const manifestObject = await bucket.get(`${prefix}/manifest.json`);
-    assert.ok(manifestObject, `synthetic native workflow failed before manifest: ${JSON.stringify(status)}`);
-    const manifest = await manifestObject.json();
-    assert.equal(manifest.version, 3);
-    assert.equal(manifest.databases.length, DATABASE_NAMES.length);
-    assert.deepEqual(manifest.materials.collections.map(collection => collection.source),
-      ['codepi-gu', 'codepi-me']);
-    assert.equal(manifest.materials.objects, originals.length + meOriginals.length);
-    for (const collection of manifest.materials.collections) {
-      const sourceOriginals = collection.source === 'codepi-gu' ? originals : meOriginals;
-      for (const [i, entry] of collection.entries.entries()) {
-        const ciphertext = Buffer.from(await (await bucket.get(`${prefix}/materials/${entry.file}`)).arrayBuffer());
-        assert.equal(createHash('sha256').update(ciphertext).digest('hex'), entry.sha256);
-        const recovered = decrypt(ciphertext, keys.privateKey);
-        assert.equal(createHash('sha256').update(recovered.sql).digest('hex'), entry.source_sha256);
-        assert.equal(recovered.sql.length, entry.source_bytes);
-        assert.deepEqual(recovered.sql, sourceOriginals[i]);
-        assert.equal(recovered.metadata.kind, collection.kind);
-      }
-    }
-    for (const entry of manifest.databases) {
-      const object = await bucket.get(`${prefix}/${entry.file}`);
-      const encrypted = Buffer.from(await object.arrayBuffer());
-      assert.equal(createHash('sha256').update(encrypted).digest('hex'), entry.sha256);
-      const decrypted = decrypt(encrypted, keys.privateKey);
-      const source = expected.get(databaseIds[entry.database]);
-      assert.ok(source, `missing synthetic export for ${entry.database}`);
-      assert.equal(createHash('sha256').update(decrypted.sql).digest('hex'), source.sha256);
-      assert.equal(decrypted.metadata.database_id, databaseIds[entry.database]);
-      if (entry.database === 'codepi-health') {
-        assert.ok(source.bytes > 64 * 1024 * 1024);
-        assert.ok(encrypted.length > 16 * 1024 * 1024);
-      }
-    }
-    const report = await (await bucket.get('reports/backup/latest.json')).json();
-    assert.equal(report.r2, 'complete');
-    assert.equal(report.ok, withGithub);
-    assert.deepEqual([...report.database_names].sort(), [...DATABASE_NAMES].sort());
-    assert.deepEqual([...report.materials.sources].sort(), ['codepi-gu', 'codepi-me']);
-    assert.equal(!!await bucket.get('reports/backup/offsite-success.json'), withGithub);
+  const result = await runtime.dispatchFetch('https://ops.synthetic/start');
+  assert.equal(result.status, 200);
+  let status;
+  for (let i = 0; i < 240; i++) {
+    status = await (await runtime.dispatchFetch('https://ops.synthetic/status')).json();
+    if (['errored', 'complete'].includes(status.status)) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
   }
-  assert.equal(exports.length, 2 * DATABASE_NAMES.length);
-  assert.equal(uploads.length, DATABASE_NAMES.length + originals.length + meOriginals.length + 2);
-  assert.equal(uploads.at(-1).name, 'manifest.json');
-  const offsiteTag = 'ops-backup-synthetic-offsite';
-  const mainRelease = releases.get(offsiteTag);
-  const mainAssets = releaseAssets.get(mainRelease.id);
-  assert.deepEqual(mainAssets.map(asset => asset.name), ['offsite-index.json', 'manifest.json']);
-  const offsiteIndexAsset = mainAssets.find(asset => asset.name === 'offsite-index.json');
-  const offsiteIndex = JSON.parse(offsiteIndexAsset.bytes);
-  assert.equal(offsiteIndex.assets, DATABASE_NAMES.length + originals.length + meOriginals.length);
-  assert.equal(offsiteIndex.shards.length, 1);
-  assert.equal(offsiteIndex.shards[0].tag, `${offsiteTag}-part-01`);
-  assert.equal(offsiteIndex.shards[0].assets.length, DATABASE_NAMES.length + originals.length + meOriginals.length);
-  assert.equal(createHash('sha256').update(mainAssets.at(-1).bytes).digest('hex'), offsiteIndex.manifest.sha256);
-
-  const prefix = 'backups/synthetic-offsite';
-  const manifest = await (await bucket.get(`${prefix}/manifest.json`)).json();
+  assert.equal(status.status, 'complete', `native workflow status: ${JSON.stringify(status)}`);
+  const prefix = 'backups/synthetic-native';
+  const manifestObject = await bucket.get(`${prefix}/manifest.json`);
+  assert.ok(manifestObject, `native workflow failed before manifest: ${JSON.stringify(status)}`);
+  const manifest = await manifestObject.json();
+  assert.equal(manifest.version, 3);
+  assert.equal(manifest.databases.length, DATABASE_NAMES.length);
+  assert.deepEqual(manifest.materials.collections.map(collection => collection.source),
+    ['codepi-gu', 'codepi-me']);
+  assert.equal(manifest.materials.objects, originals.length + meOriginals.length);
+  for (const collection of manifest.materials.collections) {
+    const sourceOriginals = collection.source === 'codepi-gu' ? originals : meOriginals;
+    for (const [i, entry] of collection.entries.entries()) {
+      const ciphertext = Buffer.from(await (await bucket.get(`${prefix}/materials/${entry.file}`)).arrayBuffer());
+      assert.equal(createHash('sha256').update(ciphertext).digest('hex'), entry.sha256);
+      const recovered = decrypt(ciphertext, keys.privateKey);
+      assert.equal(createHash('sha256').update(recovered.sql).digest('hex'), entry.source_sha256);
+      assert.equal(recovered.sql.length, entry.source_bytes);
+      assert.deepEqual(recovered.sql, sourceOriginals[i]);
+      assert.equal(recovered.metadata.kind, collection.kind);
+    }
+  }
+  for (const entry of manifest.databases) {
+    const object = await bucket.get(`${prefix}/${entry.file}`);
+    const encrypted = Buffer.from(await object.arrayBuffer());
+    assert.equal(createHash('sha256').update(encrypted).digest('hex'), entry.sha256);
+    const decrypted = decrypt(encrypted, keys.privateKey);
+    const source = expected.get(databaseIds[entry.database]);
+    assert.ok(source, `missing synthetic export for ${entry.database}`);
+    assert.equal(createHash('sha256').update(decrypted.sql).digest('hex'), source.sha256);
+    assert.equal(decrypted.metadata.database_id, databaseIds[entry.database]);
+    if (entry.database === 'codepi-health') {
+      assert.ok(source.bytes > 64 * 1024 * 1024);
+      assert.ok(encrypted.length > 16 * 1024 * 1024);
+    }
+  }
+  const report = await (await bucket.get('reports/backup/latest.json')).json();
+  assert.equal(report.r2, 'complete');
+  assert.equal(report.ok, true);
+  assert.deepEqual([...report.database_names].sort(), [...DATABASE_NAMES].sort());
+  assert.deepEqual([...report.materials.sources].sort(), ['codepi-gu', 'codepi-me']);
   const backupDir = path.join(directory, 'download');
   await mkdir(path.join(backupDir, 'materials'), { recursive: true, mode: 0o700 });
   await writeFile(path.join(backupDir, 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 });
@@ -354,7 +295,7 @@ try {
     assert.equal((await recovery.fetch(`https://gu-recovery.synthetic${url}`)).status, 401);
     assert.equal((await recovery.fetch(`https://gu-recovery.synthetic${url}`, { headers: { Cookie: cookie } })).status, 404);
   }
-  console.log('PASS native Workflows + named GU/Me RPC + multipart R2: eight D1 exports, 64+ MiB SQL, encrypted GU and Me originals, offsite digests, isolated D1/R2 recovery and authenticated GU downloads');
+  console.log('PASS native Workflows + named GU/Me RPC + multipart R2: eight D1 exports, 64+ MiB SQL, encrypted GU and Me originals, isolated D1/R2 recovery and authenticated GU downloads');
 } finally {
   await runtime?.dispose();
   await rm(directory, { recursive: true, force: true });

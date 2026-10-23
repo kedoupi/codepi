@@ -37,8 +37,8 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
 - 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部必需库和
-  GU/Me 有索引原件成功后才提交 v3 manifest；跨平台副本经 GitHub API 存私有 Release，独立记录回执。
-  缺少 GitHub token 或复制失败时，不得称为跨平台备份完成。Release 当前不自动删除。
+  GU/Me 有索引原件成功后才提交 v3 manifest；R2 manifest 与 success report 是完整备份标准。
+  GitHub Release 不再是自动备份通道，历史 Release 仅是公开前待清理对象。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read（仅查询
   `codepi.app` zone 的 GraphQL hourly Analytics），不将本机管理 token 放入 Worker。
@@ -68,17 +68,10 @@ Time Travel bookmark；六库本机导出和解密记录保留在早期任务中
 上述两轮演练当时的跨平台复制因缺少 `GITHUB_TOKEN` 失败，该次执行不替代后续
 定时新鲜度和异机恢复演练。
 
-2026-10-20 后续[跨平台验收](tasks/2026-10-20-github-offsite.md)已将定时备份
-`backup-20261019T180026000Z` 手动复制到私有 GitHub Release：
-六份 D1 密文、112 份原件密文和 manifest 共 119 个附件。
-从 GitHub 下载的六库和全部原件已通过摘要、身份及既有私钥内存解密；
-未写明文或重新导入生产库。手动回执独立记录，未改写自动备份状态。
-随后所有者配置凭证，新实例 `acceptance-github-backup-20261020T010216314Z`
-已由生产 Workflow 自动复制到私有 Release `417899953`，生成自动跨平台成功回执。
-全部 119 个附件独立下载、六库与 112 份原件的摘要、GCM、身份和内存解密通过，
-未写明文或导入生产库；新云端巡检 26/26。
-本轮手动触发 Workflow 验收自动链路，下一次 Cron 定时运行仍以实际报告为准。
-详细时间、版本和未覆盖项见上述跨平台记录。
+2026-10-20 的跨平台验收记录保留为历史证据：当时曾将备份密文手动及自动复制到
+私有 GitHub Release，并完成附件摘要、身份和内存解密核对；这些 Release 不是当前
+自动备份通道，公开仓库前必须由所有者按授权清理。R2 manifest 与 success report
+才是当前完整备份标准；本任务不执行远程删除。
 
 随后[其余五库恢复验收](tasks/2026-10-20-recovery-acceptance.md)直接使用上述自动
 GitHub 副本，Auth/Desk/GZH/Health/MCP 共 47 表、138,106 行导入全新隔离 D1，
@@ -125,9 +118,9 @@ Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面�
 
 1. 确认事故时间与目标库。优先评估 D1 Time Travel；直接回溯生产库属于单独的
    事故操作，先记录目标 bookmark、影响范围和授权。
-2. 下载目标完整的 R2 前缀或私有 Release 附件到仓库之外（历史 Actions artifact 仍适用）。
-   分片 Release 按下节索引收齐全部附件。检查 `manifest.json`
-   是否包含所需库、公钥指纹及导出时间；下载解压后的密文可用 SHA-256 对照 manifest。
+2. 下载目标完整的 R2 前缀到仓库之外；历史 GitHub Release 仅作为公开前待清理对象，
+   不作为当前自动备份通道。检查 `manifest.json` 是否包含所需库、公钥指纹及导出时间；
+   下载的密文可用 SHA-256 对照 manifest。
 3. 使用仓库约定的 Node 24 环境，准备匹配的恢复私钥及本机环境变量 `CLOUDFLARE_ACCOUNT_ID` /
    `CLOUDFLARE_API_TOKEN`，使用 D1 写权限。不把值放进命令参数或日志。
    恢复前通过精确名称查询取得 `DATABASE_NAMES` 全部生产 UUID；也可从已核验配置提供完整
@@ -169,12 +162,12 @@ MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或�
 不得把历史 token 的“未撤销”状态直接恢复到线上。此清理属于事故恢复中的显式步骤，
 通用 restore 脚本不会自动修改生产库。授权备份仍按敏感数据加密保管。
 
-## GitHub 分片副本下载
+## 历史 GitHub Release 副本（公开前清理）
 
-新版主 Release 只保存 `offsite-index.json` 和原始 `manifest.json`；
-密文分散在索引列出的 `ops-backup-<instance>-part-<编号>` Release。
-下载到尚未使用的 Git 外目录，先核对索引 `format=codepi-offsite-v1`，
-再核对 manifest 字节数、SHA-256 与 `index.manifest` 一致。
+以下仅用于读取历史 Release 的既有副本，不描述当前自动备份流程。历史副本应在公开仓库前
+按授权清理；当前恢复优先使用完整 R2 前缀。
+历史主 Release 可能保存 `offsite-index.json` 和原始 `manifest.json`，密文可能分散在
+索引列出的 `ops-backup-<instance>-part-<编号>` Release。
 
 遍历 `index.shards`，按其中精确的 `tag` 或 `release_id` 下载该片全部 `assets`。
 每件核对 `file`、`bytes`、`sha256`，并与原 manifest 的对应项比对；

@@ -7,7 +7,8 @@ function response(body, status = 200) { return { ok: status >= 200 && status < 3
 test('finds the long-lived observation issue and appends a safe comment', async () => {
   const calls = [];
   const request = async (url, options = {}) => { calls.push({ url, options }); if (url.includes('/issues?')) return response([{ number: 7, title: 'codepi release observations' }]); return response({ id: 99 }); };
-  await notifyGithub({ releaseId: 'rel-1', severity: 'critical', summary: 'bad?token=secret', services: [{ service: 'api' }] }, { env: { GITHUB_TOKEN: 'synthetic', GITHUB_REPOSITORY: 'owner/repo' }, fetchImpl: request });
+  await notifyGithub({ releaseId: 'rel-1', severity: 'critical', summary: 'bad?token=secret', services: [{ service: 'api' }] }, { env: { GITHUB_TOKEN: 'synthetic' }, fetchImpl: request });
+  assert.match(calls[0].url, /repos\/kedoupi\/codepi\/issues/);
   assert.equal(calls.filter(call => call.options.method === 'POST').length, 1);
   assert.doesNotMatch(calls.at(-1).options.body, /secret/);
 });

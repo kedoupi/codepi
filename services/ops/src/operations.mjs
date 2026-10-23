@@ -3,7 +3,6 @@ import { DATABASE_NAMES, keyId, resolveProductionDatabases } from '../../../scri
 import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { checkGithubReleaseDrift } from '../../../scripts/cloudflare/github-release-drift.mjs';
 import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
-import { offsiteRelease } from './offsite.mjs';
 import { backupDatabase, verifyBackupObject } from './backup.mjs';
 import { createObservabilityClient } from '../../../scripts/cloudflare/observability-api.mjs';
 import { runObserver } from './observer.mjs';
@@ -40,7 +39,7 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
   const results = [];
   const databaseNames = [...DATABASE_NAMES].sort();
   const originalSources = ORIGINAL_COLLECTIONS.map(collection => collection.source).sort();
-  for (const location of ['r2', 'offsite']) {
+  for (const location of ['r2']) {
     const name = `all D1 databases and originals ${location} backup completed within 30 hours`;
     try {
       const object = await bucket.get(`reports/backup/${location}-success.json`);
@@ -162,26 +161,8 @@ export async function backupOperation(env, step, event, publicKey, {
       materials: { sources: collections.map(collection => collection.source), objects: materialCount },
       build: env.BUILD_SHA };
     await env.BACKUPS.put('reports/backup/r2-success.json', JSON.stringify(success));
-    await saveReport(env.BACKUPS, 'backup', { ...success, r2: 'complete', offsite: 'pending', ok: false });
+    await saveReport(env.BACKUPS, 'backup', { ...success, r2: 'complete', ok: true });
     return success;
-  }));
-  let offsite;
-  try {
-    offsite = await settledStepResult(step.do('copy ciphertext outside Cloudflare', STEP, () =>
-      offsiteRelease(manifest, prefix, env.BACKUPS, { token: env.GITHUB_TOKEN })));
-  } catch (error) {
-    await settledStepResult(step.do('record offsite failure', STEP, async () => {
-      await saveReport(env.BACKUPS, 'backup', { ...success, r2: 'complete', offsite: 'failed', ok: false,
-        reason: env.GITHUB_TOKEN ? 'github_transfer_failed' : 'github_token_missing' });
-      return { ok: false };
-    }));
-    throw error;
-  }
-  await settledStepResult(step.do('commit offsite receipt', STEP, async () => {
-    const report = { ...success, completed_at: new Date().toISOString(), offsite, r2: 'complete', ok: true };
-    await env.BACKUPS.put('reports/backup/offsite-success.json', JSON.stringify(report));
-    await saveReport(env.BACKUPS, 'backup', report);
-    return { ok: true, databases: entries.length, materials: materialCount };
   }));
   return { ok: true, databases: entries.length, materials: materialCount };
 }
