@@ -123,7 +123,7 @@ test('Cloudflare configs, governance scripts and docs select the static governan
 });
 
 test('docs skip application builds but product Markdown remains covered', () => {
-  assert.deepEqual(makePlan(['docs/architecture/example.md', 'apps/health/AGENTS.md', 'README.md']).checks, []);
+  assert.deepEqual(makePlan(['docs/architecture/example.md', 'apps/health/AGENTS.md', 'README.md', 'LICENSE', 'NOTICE.md']).checks, []);
   assert.deepEqual(makePlan(['apps/web/src/content/post.md']).apps, ['web']);
   assert.deepEqual(makePlan(['.agents/skills/kdp-dev/SKILL.md']).checks, [
     { cwd: '.', argv: ['node', '--test', 'scripts/agent/check.test.mjs'] },

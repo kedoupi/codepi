@@ -99,7 +99,7 @@ export function makePlan(files) {
     } else if (file.startsWith('apps/oura/')) {
       // A rename diff includes deleted paths from before the Health directory move.
       add(['health']);
-    } else if (file.startsWith('docs/') || /(^|\/)(README|AGENTS)\.md$/.test(file)) {
+    } else if (file.startsWith('docs/') || /(^|\/)(README|AGENTS)\.md$/.test(file) || /^(LICENSE|NOTICE\.md)$/.test(file)) {
       continue;
     } else if (file.startsWith('.github/')) {
       addAll();
