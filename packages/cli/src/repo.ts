@@ -7,7 +7,7 @@ export function parseGitHubRemote(remote: string): string | null {
   const value = remote.trim();
   if (!value) return null;
 
-  const scp = /^(?:(?:[^@\s]+@)?github\.com|\{\{EMAIL_[^}]+\}\}):([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?$/i.exec(value);
+  const scp = /^(?:[^@\s]+@)?github\.com:([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+?)(?:\.git)?$/i.exec(value);
   if (scp) return validRepo(scp[1] ?? "", scp[2] ?? "");
 
   let url: URL;

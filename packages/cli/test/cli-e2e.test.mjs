@@ -82,7 +82,7 @@ test("context, project, project list, and handoff work end-to-end against the of
   try {
     await writeCredentials(dir, fake.server);
     await execFileAsync("git", ["init", "-q"], { cwd: repoDir });
-    await execFileAsync("git", ["remote", "add", "origin", "codepi@example.invalid:kedoupi/codepi.git"], { cwd: repoDir });
+    await execFileAsync("git", ["remote", "add", "origin", "git@github.com:kedoupi/codepi.git"], { cwd: repoDir });
     const env = { CODEPI_CONFIG_DIR: dir };
 
     const context = await spawnCli(["--server", fake.server, "context", "--json"], { env });
@@ -275,7 +275,7 @@ test("handoff derives branch, repository and merge-base from the working tree", 
       "commit", "-q", "--allow-empty", "-m", "change",
     ], { cwd: repoDir });
     await execFileAsync("git", [
-      "remote", "add", "origin", "codepi@example.invalid:kedoupi/codepi.git",
+      "remote", "add", "origin", "git@github.com:kedoupi/codepi.git",
     ], { cwd: repoDir });
 
     await writeCredentials(dir, fake.server);
