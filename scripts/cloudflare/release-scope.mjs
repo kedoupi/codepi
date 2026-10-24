@@ -11,7 +11,7 @@ export function affectedWorkers(files) {
   const affected = new Set();
   const add = services => services.forEach(service => affected.add(service));
   for (const file of files) {
-    if (/^scripts\/cloudflare\/(?:backup-core|backup-public-key|monitor-core|mcp-checks|worker-api|release-scope|github-api|github-release-drift|originals-restore|deploy-domain|pair-mcp-secret)\./.test(file)
+    if (/^scripts\/cloudflare\/(?:backup-core|backup-public-key|monitor-core|mcp-checks|worker-api|release-scope|github-api|github-release-drift|originals-restore|deploy-domain|pair-mcp-secret|traffic-monitor|observability-api|rollback-worker|github-notify)\./.test(file)
       && !/\.test\.mjs$/.test(file)) {
       add(['ops']);
       continue;

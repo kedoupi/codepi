@@ -32,6 +32,7 @@ async function fixture(t) {
 }
 
 test('release scope separates Health Workers, includes shared dependencies, and preserves content Markdown', () => {
+  assert.deepEqual(affectedWorkers(['.claude/skills/kdp-dev/SKILL.md']), []);
   assert.deepEqual(affectedWorkers(['docs/architecture/a.md', '.github/workflows/test.yml', 'services/mcp/README.md',
     'apps/gu/test/example.mjs', 'apps/health/shared/date.test.ts', 'services/mcp/scripts/check-live.mjs',
     'services/mcp/scripts/deploy.mjs']), []);
@@ -44,6 +45,16 @@ test('release scope separates Health Workers, includes shared dependencies, and 
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/about.md']), ['web']);
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/docs/example.md']), ['web']);
   assert.deepEqual(affectedWorkers(['services/auth/scripts/build.mjs']).sort(), Object.keys(WORKERS).sort());
+  for (const file of ['services/ops/src/operations.mjs', 'scripts/cloudflare/traffic-monitor.mjs',
+    'scripts/cloudflare/observability-api.mjs', 'scripts/cloudflare/rollback-worker.mjs',
+    'scripts/cloudflare/github-notify.mjs']) {
+    assert.deepEqual(affectedWorkers([file]), ['ops'], file);
+  }
+  for (const file of ['services/ops/test/operations.test.mjs', 'scripts/cloudflare/traffic-monitor.test.mjs',
+    'scripts/cloudflare/observability-api.test.mjs', 'scripts/cloudflare/rollback-worker.test.mjs',
+    'scripts/cloudflare/github-notify.test.mjs']) {
+    assert.deepEqual(affectedWorkers([file]), [], file);
+  }
   for (const file of ['pnpm-lock.yaml', 'package.json', 'pnpm-workspace.yaml', '.npmrc',
     'packages/shared/auth/client.ts', 'services/auth/src/app.ts', 'new-build-input']) {
     assert.deepEqual(affectedWorkers([file]).sort(), Object.keys(WORKERS).sort(), file);

@@ -22,6 +22,7 @@ export function createMailer(env: Env): Mailer {
       const from = env.OTP_FROM?.trim() || "otp@kdp.cool";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
+        signal: AbortSignal.timeout(10_000),
         headers: {
           Authorization: `Bearer ${env.RESEND_API_KEY}`,
           "content-type": "application/json",

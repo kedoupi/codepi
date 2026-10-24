@@ -6,14 +6,23 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { launchBrowser } from "../../health/scripts/browser-cdp.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = join(root, "dist");
-const port = Number(process.env.ME_SMOKE_PORT || 8796);
-const origin = `http://127.0.0.1:${port}`;
+const requestedPort = resolveSmokePort(process.env.ME_SMOKE_PORT);
+let origin;
 const artifacts = process.env.ME_SMOKE_ARTIFACTS || "/tmp/me-browser-smoke";
+function resolveSmokePort(value) {
+  if (value == null || value === "") return 0;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error(`ME_SMOKE_PORT must be an integer from 0 to 65535; received ${JSON.stringify(value)}`);
+  }
+  return port;
+}
+
 const require = createRequire(import.meta.url);
 const wranglerRequire = createRequire(require.resolve("wrangler"));
 const { Miniflare, Response: WorkerResponse } = wranglerRequire("miniflare");
@@ -192,7 +201,8 @@ async function createRuntime(workerSource, auth) {
   };
 }
 
-async function startProxy(worker) {
+async function startProxy(worker, listenPort = requestedPort) {
+  let activeWorker = worker;
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url || "/", origin);
@@ -228,7 +238,8 @@ async function startProxy(worker) {
         body: ["GET", "HEAD"].includes(method) ? undefined : Buffer.concat(chunks),
         redirect: "manual",
       });
-      const result = await worker.fetch(proxied);
+      if (!activeWorker) throw new Error("Browser fixture proxy worker is not ready");
+      const result = await activeWorker.fetch(proxied);
       const outgoing = {};
       for (const [key, value] of result.headers) {
         if (key !== "set-cookie") outgoing[key] = value;
@@ -248,11 +259,24 @@ async function startProxy(worker) {
       if (process.env.ME_SMOKE_DEBUG === "1") console.error(error);
     }
   });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
-  });
-  return server;
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(listenPort, "127.0.0.1", resolve);
+    });
+  } catch (error) {
+    await closeServer(server);
+    throw error;
+  }
+  const address = server.address();
+  assert.ok(address && typeof address === "object", "proxy listener has an address");
+  origin = `http://127.0.0.1:${address.port}`;
+  return {
+    server,
+    setWorker(value) { activeWorker = value; },
+    origin,
+    port: address.port,
+  };
 }
 
 function closeServer(server) {
@@ -440,7 +464,10 @@ async function main() {
   let browser;
   let failure;
   try {
+    const proxy = await startProxy(null);
+    server = proxy.server;
     const fixture = await createRuntime(built.source, auth);
+    proxy.setWorker(fixture.worker);
     runtime = fixture.runtime;
     const { db, bucket, driver } = fixture;
     const initial = await importSnapshot(db, bucket);
@@ -475,7 +502,6 @@ async function main() {
     assert.equal((await rpc(driver, "timeline.search", { query: "桌面" })).items.length, 0,
       "AI timeline proposal is not active");
 
-    server = await startProxy(fixture.worker);
     const health = await fetch(`${origin}/api/health`);
     assert.equal(health.status, 200);
     assert.deepEqual(await health.json(), {
@@ -746,4 +772,6 @@ async function main() {
   }
 }
 
-await main();
+export { closeServer, resolveSmokePort, startProxy };
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

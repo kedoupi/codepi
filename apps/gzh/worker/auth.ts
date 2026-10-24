@@ -173,16 +173,20 @@ export async function handleRequestOtp(
 
   const code = randomDigits(6);
   const codeHash = await hashSecret(code, env.OTP_PEPPER);
+  const otpId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO otp_codes (id, email, code_hash, expires_at, attempts, created_at, ip_hash)
      VALUES (?, ?, ?, ?, 0, ?, ?)`,
   )
-    .bind(crypto.randomUUID(), email, codeHash, plusMs(OTP_TTL_MS, now), nowIso(now), hashedIp)
+    .bind(otpId, email, codeHash, plusMs(OTP_TTL_MS, now), nowIso(now), hashedIp)
     .run();
 
   try {
     await mailer.sendOtp(email, code);
   } catch {
+    await env.DB.prepare("UPDATE otp_codes SET used_at = ? WHERE id = ?")
+      .bind(nowIso(new Date()), otpId)
+      .run();
     return json({ ok: false, error: "发送失败，请稍后重试" }, 502);
   }
 

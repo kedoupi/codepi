@@ -1,5 +1,6 @@
-import { SELF } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { handleRequestOtp } from "../worker/auth";
 import { ALLOWED, loginAsAllowlisted, requestOtp, verifyOtp } from "./helpers";
 
 describe("otp + session", () => {
@@ -71,6 +72,28 @@ describe("otp + session", () => {
     const secondBody = (await second.json()) as { dev_otp?: string };
     expect(second.status).toBe(200);
     expect(secondBody.dev_otp).toBeUndefined();
+  });
+  it("marks an inserted OTP used when mail delivery fails", async () => {
+    await env.DB.prepare("DELETE FROM otp_codes WHERE email = ?").bind(ALLOWED).run();
+    const request = new Request("https://gzh.codepi.app/api/auth/request-otp", {
+      method: "POST",
+      headers: { "content-type": "application/json", "CF-Connecting-IP": "9.9.9.9" },
+      body: JSON.stringify({ email: ALLOWED }),
+    });
+
+    const response = await handleRequestOtp(request, env, {
+      sendOtp: async () => {
+        throw new Error("send_failed");
+      },
+    });
+
+    expect(response.status).toBe(502);
+    const row = await env.DB.prepare(
+      "SELECT used_at FROM otp_codes WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+    )
+      .bind(ALLOWED)
+      .first<{ used_at: string | null }>();
+    expect(row?.used_at).not.toBeNull();
   });
 });
 

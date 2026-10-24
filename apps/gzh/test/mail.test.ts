@@ -61,4 +61,19 @@ describe("createMailer Resend payload", () => {
     expect(body.html).toBe(buildOtpHtml("123456"));
     expect(body.html).toContain("123456");
   });
+  it("uses a 10-second timeout signal for Resend", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const mailer = createMailer({
+      RESEND_API_KEY: "re_test",
+      OTP_FROM: "otp@kdp.cool",
+    } as Env);
+
+    await mailer.sendOtp("owner@example.test", "123456");
+
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.signal).toBe(timeout.mock.results[0]?.value);
+  });
 });

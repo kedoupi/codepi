@@ -308,11 +308,21 @@ export async function readHealthRecords(
   if (!Number.isInteger(offset) || offset < 0 || offset > 100_000) throw new ApiError("invalid_offset", 400);
   const query = "FROM health_records WHERE user_id=? AND collection=? AND (day='' OR (day>=? AND day<=?))";
   const args = [userId, w.spec.name, w.from, w.to];
-  const rows = await env.DB.prepare(`SELECT payload ${query} ORDER BY day, record_id LIMIT 21 OFFSET ?`)
-    .bind(...args, offset).all<{ payload: string }>();
-  const count = await env.DB.prepare(`SELECT COUNT(*) AS n ${query}`).bind(...args).first<{ n: number }>();
-  const state = await windowState(env, userId, w);
-  const refusal = (await deniedHealthCollections(env, userId)).find(row => row.collection === w.spec.name);
+  const windowsQuery = `SELECT collection, window_from, window_to, synced_at, attempted_at, last_error
+    FROM health_sync_windows WHERE user_id=? AND collection=?`;
+  const [rows, count, windows] = await Promise.all([
+    env.DB.prepare(`SELECT payload ${query} ORDER BY day, record_id LIMIT 21 OFFSET ?`)
+      .bind(...args, offset).all<{ payload: string }>(),
+    env.DB.prepare(`SELECT COUNT(*) AS n ${query}`).bind(...args).first<{ n: number }>(),
+    env.DB.prepare(windowsQuery).bind(userId, w.spec.name).all<CoverageWindow & { collection: string }>(),
+  ]);
+  const coverageWindows = snapshot(w.spec) ? windows.results
+    : windows.results.filter(row => row.window_from <= w.to && row.window_to >= w.from);
+  const state = coverageWindows.find(row => row.window_from === w.from && row.window_to === w.to) ?? null;
+  const syncedAt = state?.last_error
+    ? recoveredAt(w.spec, state, coverageWindows.filter(row => !row.last_error)) : null;
+  const resolvedState = syncedAt ? { ...state!, last_error: null, synced_at: syncedAt } : state;
+  const refusal = collectionAccess(windows.results)[0] ?? null;
   const records: RecordData[] = [];
   let responseBytes = 0;
   for (const row of rows.results.slice(0, 20)) {
@@ -330,13 +340,13 @@ export async function readHealthRecords(
     total: count?.n ?? 0, next_offset: rows.results.length > records.length ? offset + records.length : null,
     series_included: includeSeries,
     access: {
-      status: refusal ? "unavailable" : state?.synced_at ? "available" : "unknown",
+      status: refusal ? "unavailable" : resolvedState?.synced_at ? "available" : "unknown",
       automatic_retry: !refusal, code: refusal?.code ?? null, checked_at: refusal?.checked_at ?? null,
     },
     sync: {
-      synced_at: state?.synced_at ?? null, error: state?.last_error ?? null,
-      stale: !state?.synced_at || Boolean(state.last_error) || now - Date.parse(state.synced_at) >= 600_000,
-      window_verified: Boolean(state?.synced_at),
+      synced_at: resolvedState?.synced_at ?? null, error: resolvedState?.last_error ?? null,
+      stale: !resolvedState?.synced_at || Boolean(resolvedState.last_error) || now - Date.parse(resolvedState.synced_at) >= 600_000,
+      window_verified: Boolean(resolvedState?.synced_at),
     },
   };
 }
