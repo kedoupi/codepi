@@ -4,12 +4,38 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { extractWorkerVersion } from './deployment-evidence.mjs';
 import { remoteMain } from './release-drift.mjs';
+import { WORKERS } from './release-scope.mjs';
 
 export const DEPLOY_DIRS = {
   auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh',
   'health-web': 'apps/health/apps/web', ops: 'services/ops',
 };
 const root = fileURLToPath(new URL('../../', import.meta.url));
+const versionUuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+
+function parseOptions(args) {
+  const options = {};
+  const valueOptions = new Set([
+    '--previous-version', '--migration-applied', '--secret-changed',
+    '--binding-changed', '--external-side-effects',
+  ]);
+  for (let i = 0; i < args.length; i++) {
+    const option = args[i];
+    if (!valueOptions.has(option)) throw new Error(`Unknown option: ${option}`);
+    const value = args[++i];
+    if (value === undefined) throw new Error(`${option} requires true or false`);
+    if (option === '--previous-version') options.previousVersion = value;
+    else {
+      if (value !== 'true' && value !== 'false') throw new Error(`${option} must be true or false`);
+      const key = {
+        '--migration-applied': 'migrationApplied', '--secret-changed': 'secretChanged',
+        '--binding-changed': 'bindingChanged', '--external-side-effects': 'externalSideEffects',
+      }[option];
+      options[key] = value === 'true';
+    }
+  }
+  return options;
+}
 
 // Called inside the release coordinator's lock, after build/migrations.
 // Health API and MCP retain their specialized deployment scripts.
@@ -20,7 +46,7 @@ export function deployWorker(service, sha, {
   for (const [name, value] of Object.entries({ migrationApplied, secretChanged, bindingChanged, externalSideEffects })) {
     if (value !== undefined) assert.equal(typeof value, 'boolean', `${name} must be a boolean when provided`);
   }
-  if (previousVersion !== undefined) assert.match(previousVersion, /^[a-f0-9-]{36}$/i, 'previousVersion must be a Worker version ID');
+  if (previousVersion !== undefined) assert.match(previousVersion, versionUuid, 'previousVersion must be a Worker version ID');
   assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|gzh|health-web|ops');
   assert.match(sha ?? '', /^[a-f0-9]{40}$/, 'pass the full merged source SHA');
   const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -37,9 +63,9 @@ export function deployWorker(service, sha, {
   const version = extractWorkerVersion(result.stdout);
   assert.ok(version, 'deployment did not report a Worker version; do not mark the release successful');
   return {
-    service, source_sha: sha, version, smoke: 'pending',
+    service, script: WORKERS[service], source_sha: sha, version, smoke: 'pending',
+    new_version: version, new_build_sha: sha,
     ...(previousVersion !== undefined ? { previous_version: previousVersion } : {}),
-    new_version: version,
     ...(migrationApplied !== undefined ? { migration_applied: migrationApplied } : {}),
     ...(secretChanged !== undefined ? { secret_changed: secretChanged } : {}),
     ...(bindingChanged !== undefined ? { binding_changed: bindingChanged } : {}),
@@ -49,8 +75,8 @@ export function deployWorker(service, sha, {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    assert.equal(process.argv.length, 4, 'Usage: deploy-worker.mjs <auth|web|gu|gzh|health-web|ops> <full-source-SHA>');
-    console.log(JSON.stringify(deployWorker(process.argv[2], process.argv[3])));
+    assert.ok(process.argv.length >= 4, 'Usage: deploy-worker.mjs <auth|web|gu|gzh|health-web|ops> <full-source-SHA> [evidence flags]');
+    console.log(JSON.stringify(deployWorker(process.argv[2], process.argv[3], parseOptions(process.argv.slice(4)))));
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

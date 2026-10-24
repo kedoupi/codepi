@@ -30,6 +30,23 @@ export function transitionState(state, next, eventId, seen = new Set()) {
 
 function number(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }
 function serviceName(item) { return item.service ?? item.scriptName ?? item.script ?? 'unknown'; }
+function normalizedWords(value) {
+  return typeof value === 'string' ? value.toLowerCase().replace(/^codepi[-_]/, '').split(/[^a-z0-9]+/).filter(Boolean) : [];
+}
+
+function resultBelongsToService(result, item) {
+  if (!result || result.ok !== false) return false;
+  const identities = [item.service, item.script].filter(Boolean).map(normalizedWords).filter(words => words.length);
+  const explicit = [result.service, result.script].filter(Boolean).map(normalizedWords).filter(words => words.length);
+  if (explicit.length) return explicit.some(target => identities.some(identity => target.join('-') === identity.join('-')));
+  const name = normalizedWords(result.name);
+  return identities.some(identity => identity.every(word => name.includes(word)));
+}
+
+function hasServiceCoreFailure(coreResults, item) {
+  return coreResults.some(result => resultBelongsToService(result, item));
+}
+
 
 export function classifySeverity({ metrics = {}, baseline = {}, hardFailure = false, versionMismatch = false, criticalRounds = 0 } = {}) {
   if (versionMismatch) return 'critical';
@@ -65,7 +82,7 @@ export async function observeReleaseRound({ manifest, round, observability, core
       metrics = await observability.queryWorkerMetrics({ scriptName: script, versionId: item.new_version, sinceMinutes: 5 });
       issues = await observability.listIssues({ scriptName: script, sinceMinutes: 5 });
     } catch (error) { observabilityFailed = true; issues = [{ title: 'observability unavailable', message: error.message }]; }
-    const hardFailure = coreResults.some(result => result && result.ok === false);
+    const hardFailure = hasServiceCoreFailure(coreResults, item);
     const highCritical = (number(metrics?.invocations) ?? 0) >= 20 && (number(metrics?.errorRate) ?? 0) >= 0.20 && (number(metrics?.errors) ?? 0) >= 20;
     const previousCritical = priorCritical.get(script) ?? 0;
     const severity = classifySeverity({ metrics: metrics ?? {}, baseline: item.baseline ?? {}, hardFailure, versionMismatch, criticalRounds: previousCritical });
@@ -87,6 +104,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   let state = 'created';
   const seen = new Set();
   const criticalRounds = new Map();
+  let rollbackSummary = null;
   let lastPoll = null;
   const events = [];
   const emit = async (type, detail = {}) => {
@@ -118,38 +136,41 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
       const criticalServices = poll.services.filter(item => item.severity === 'critical');
       await emit('critical_detected', { nextState: 'critical_detected', services: criticalServices.map(item => item.service) });
       const rollbackAllowed = manifest.services.every(item => item.rollback_allowed === true);
+      rollbackSummary = { allowed: rollbackAllowed, successful_services: [], failed_services: [], lingering: [] };
       if (!rollbackAllowed) {
-        await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: false });
+        const observedByScript = new Map(poll.services.map(item => [item.script, item]));
+        rollbackSummary.failed_services = manifest.services
+          .filter(item => item.rollback_allowed !== true)
+          .map(item => ({ service: serviceName(item), script: item.script, reason: 'manifest_rollback_not_allowed' }));
+        rollbackSummary.lingering = manifest.services.map(item => {
+          const observed = observedByScript.get(item.script);
+          return { service: serviceName(item), script: item.script, active_version: observed?.active_version ?? null, expected_version: item.new_version };
+        });
+        await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: false, failed_services: rollbackSummary.failed_services, lingering: rollbackSummary.lingering });
       } else {
         await emit('rollback_candidate', { nextState: 'rollback_pending', rollback_allowed: true });
-        const rollbackResults = [];
-        try {
-          for (const observed of criticalServices) {
-            const item = manifest.services.find(service => service.script === observed.script);
+        for (const observed of criticalServices) {
+          const item = manifest.services.find(service => service.script === observed.script);
+          try {
             assert.ok(item?.previous_version, `previous version is required for ${observed.script}`);
             const api = rollbackApi ?? (rollbackWorker === executeRollback ? cloudflareApi({ env }) : undefined);
             const result = await (step?.do
-              ? step.do(`rollback ${observed.script}`, async () => rollbackWorker({
-                script: observed.script,
-                expectedActiveVersion: item.new_version,
-                targetVersion: item.previous_version,
-                api,
-              }))
-              : rollbackWorker({
-                script: observed.script,
-                expectedActiveVersion: item.new_version,
-                targetVersion: item.previous_version,
-                api,
-              }));
+              ? step.do(`rollback ${observed.script}`, async () => rollbackWorker({ script: observed.script, expectedActiveVersion: item.new_version, targetVersion: item.previous_version, api }))
+              : rollbackWorker({ script: observed.script, expectedActiveVersion: item.new_version, targetVersion: item.previous_version, api }));
             assert.equal(result?.active_version, item.previous_version, `rollback worker did not report ${item.previous_version} for ${observed.script}`);
             const verifiedVersion = await activeVersionCheck(observed.script, { env });
             assert.equal(verifiedVersion, item.previous_version, `rollback verification failed for ${observed.script}`);
-            rollbackResults.push({ service: observed.service, script: observed.script, previous_version: item.previous_version, active_version: verifiedVersion });
+            rollbackSummary.successful_services.push({ service: observed.service, script: observed.script, version: verifiedVersion });
+          } catch (error) {
+            rollbackSummary.failed_services.push({ service: observed.service, script: observed.script, error: safeValue(error.message) });
+            rollbackSummary.lingering.push({ service: observed.service, script: observed.script, active_version: observed.active_version, expected_version: item?.previous_version ?? null });
           }
-          await emit('rollback_executed', { nextState: 'rolled_back', services: rollbackResults });
-          await emit('rollback_verified', { nextState: 'rollback_verified', services: rollbackResults });
-        } catch (error) {
-          await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: true, error: error.message, services: rollbackResults });
+        }
+        if (rollbackSummary.failed_services.length > 0) {
+          await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: true, failed_services: rollbackSummary.failed_services, lingering: rollbackSummary.lingering });
+        } else {
+          await emit('rollback_executed', { nextState: 'rolled_back', services: rollbackSummary.successful_services });
+          await emit('rollback_verified', { nextState: 'rollback_verified', services: rollbackSummary.successful_services });
         }
       }
       try { await notify({ releaseId, services: criticalServices, severity: 'critical', summary: 'critical release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
@@ -158,6 +179,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
       try { await notify({ releaseId, services: poll.services.filter(item => item.severity === 'degraded'), severity: 'degraded', summary: 'degraded release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
       await emit('degraded_observation_continued', { nextState: 'observing' });
     }
+    if (TERMINAL.has(state)) break;
   }
   if (state === 'observing') {
     const lastSeverity = lastPoll?.services.some(item => item.severity === 'degraded') ? 'degraded' : 'healthy';
@@ -167,7 +189,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
       await emit('healthy_reported', { nextState: 'healthy_reported' });
     }
   }
-  const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
+const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, rollback: rollbackSummary, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
   await bucket.put(`reports/observer/${releaseId}/summary.json`, JSON.stringify(summary), { httpMetadata: { contentType: 'application/json' } });
   try {
     await notify({ event_id: `${releaseId}-completed`, releaseId, services: affectedServices, severity: summary.state, summary: `observation complete; summary: reports/observer/${releaseId}/summary.json` }, { env });

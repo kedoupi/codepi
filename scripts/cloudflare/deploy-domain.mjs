@@ -108,6 +108,33 @@ async function resolveD1(name, { appDir, provisionD1, execute, assertRemote }) {
   assert.match(matches[0].uuid ?? '', uuid, `D1 ${name} has an invalid UUID`);
   return matches[0].uuid;
 }
+function parseOptions(args) {
+  const options = {};
+  const valueOptions = new Set([
+    '--previous-version', '--migration-applied', '--secret-changed',
+    '--binding-changed', '--external-side-effects',
+  ]);
+  for (let i = 0; i < args.length; i++) {
+    const option = args[i];
+    if (option === '--provision-d1') {
+      options.provisionD1 = true;
+      continue;
+    }
+    if (!valueOptions.has(option)) throw new Error(`Unknown option: ${option}`);
+    const value = args[++i];
+    if (value === undefined) throw new Error(`${option} requires true or false`);
+    if (option === '--previous-version') options.previousVersion = value;
+    else {
+      if (value !== 'true' && value !== 'false') throw new Error(`${option} must be true or false`);
+      const key = {
+        '--migration-applied': 'migrationApplied', '--secret-changed': 'secretChanged',
+        '--binding-changed': 'bindingChanged', '--external-side-effects': 'externalSideEffects',
+      }[option];
+      options[key] = value === 'true';
+    }
+  }
+  return options;
+}
 
 export async function deployDomain(app, {
   sha, provisionD1 = false, cwd = root, execute = spawnSync, previousVersion,
@@ -116,7 +143,7 @@ export async function deployDomain(app, {
   for (const [name, value] of Object.entries({ migrationApplied, secretChanged, bindingChanged, externalSideEffects })) {
     if (value !== undefined) assert.equal(typeof value, 'boolean', `${name} must be a boolean when provided`);
   }
-  if (previousVersion !== undefined) assert.match(previousVersion, /^[a-f0-9-]{36}$/i, 'previousVersion must be a Worker version ID');
+  if (previousVersion !== undefined) assert.match(previousVersion, uuid, 'previousVersion must be a Worker version ID');
   const domain = DOMAINS[app];
   assert.ok(domain, 'expected --app mcp|project|me');
   const appDir = path.join(cwd, domain.appDir);
@@ -172,10 +199,12 @@ export async function deployDomain(app, {
       database_id: databaseId,
       migrations: migrations.length,
       source_sha: sha,
+      script: domain.worker,
       version,
       smoke: 'pending',
       ...(previousVersion !== undefined ? { previous_version: previousVersion } : {}),
       new_version: version,
+      new_build_sha: sha,
       ...(migrationApplied !== undefined ? { migration_applied: migrationApplied } : {}),
       ...(secretChanged !== undefined ? { secret_changed: secretChanged } : {}),
       ...(bindingChanged !== undefined ? { binding_changed: bindingChanged } : {}),
@@ -192,10 +221,12 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--app') options.app = args[++i];
       else if (args[i] === '--sha') options.sha = args[++i];
-      else if (args[i] === '--provision-d1') options.provisionD1 = true;
-      else throw new Error(`Unknown option: ${args[i]}`);
+      else {
+        Object.assign(options, parseOptions(args.slice(i)));
+        break;
+      }
     }
-    assert.ok(options.app, 'Usage: deploy-domain.mjs --app <mcp|project|me> [--sha <full-source-SHA>] [--provision-d1]');
+    assert.ok(options.app, 'Usage: deploy-domain.mjs --app <mcp|project|me> [--sha <full-source-SHA>] [evidence flags]');
     console.log(JSON.stringify(await deployDomain(options.app, options)));
   } catch (error) {
     console.error(error.message);

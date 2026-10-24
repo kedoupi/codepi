@@ -161,6 +161,15 @@ test('release evidence facts are optional and invalid caller facts fail closed',
   assert.deepEqual(f.requests, []);
 });
 
+test('preflight rejects a malformed HEALTH_PREVIOUS_VERSION before remote access', async t => {
+  const f = await fixture(t);
+  const run = await f.run({ HEALTH_PREVIOUS_VERSION: 'not-a-uuid' });
+  assert.equal(run.status, 1, run.output);
+  assert.match(run.output, /HEALTH_PREVIOUS_VERSION must be a Worker version UUID/);
+  assert.deepEqual(run.commands, []);
+  assert.deepEqual(f.requests, []);
+});
+
 test('missing credentials stop before the bundle or network is touched', async t => {
   const f = await fixture(t);
   for (const env of [{ CLOUDFLARE_API_TOKEN: '' }, { CLOUDFLARE_ACCOUNT_ID: '' }]) {
