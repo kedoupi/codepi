@@ -68,7 +68,7 @@ pnpm test:browser
 与 Auth 的 `SSO_CLIENT_SECRET_ME` 由获授权的配对脚本同时配置。源码不放 D1 UUID
 占位值，不复制生产 `.dev.vars` 或真实数据来测试。
 
-`pnpm deploy` 是获授权发布时的入口，由通用脚本按精确名称解析 D1、执行迁移和上传；
+`pnpm run deploy` 是获授权发布时的入口，由通用脚本按精确名称解析 D1、执行迁移和上传；
 首次创建须单独使用 `--provision-d1`，R2 的创建与私有性需另行核验。所有发布必须
 从已合并、干净且等于远程 main 的源码执行，并按
 [本地发布流程](../../docs/development/local-release.md)持锁及完成线上 smoke。

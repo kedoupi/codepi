@@ -1,16 +1,13 @@
 import { hashSecret, randomDigits, randomToken, timingSafeEqual } from "./crypto";
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, SsoError } from "@kedoupi/shared/auth/client";
-import {
-  brandName,
-  clientIp,
-  isHttps,
-  json,
-  normalizeEmail,
-  nowIso,
-  parseAllowlist,
-  plusMs,
-  readCookie,
-} from "./lib";
+import { bodyJson, ValidationError, brandName, clientIp,
+isHttps,
+json,
+normalizeEmail,
+nowIso,
+parseAllowlist,
+plusMs,
+readCookie, } from "./lib";
 import { createMailer, exposeDevOtp, type Mailer } from "./mail";
 import {
   OTP_MAX_ATTEMPTS,
@@ -108,11 +105,7 @@ export async function handleRequestOtp(
 ): Promise<Response> {
   if (ssoEnabled(env)) return json({ ok: false, error: "请使用统一登录" }, 404);
   let body: RequestOtpBody;
-  try {
-    body = (await request.json()) as RequestOtpBody;
-  } catch {
-    return json({ ok: true, message: GENERIC_OTP_MSG });
-  }
+  try { body = (await bodyJson(request)) as RequestOtpBody; } catch (error) { if (error instanceof ValidationError) return json({ ok: false, error: "请求过大" }, 400); return json({ ok: true, message: GENERIC_OTP_MSG }); }
 
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const generic = json({ ok: true, message: GENERIC_OTP_MSG });
@@ -200,7 +193,7 @@ export async function handleVerifyOtp(request: Request, env: Env): Promise<Respo
   if (ssoEnabled(env)) return json({ ok: false, error: "请使用统一登录" }, 404);
   let body: VerifyOtpBody;
   try {
-    body = (await request.json()) as VerifyOtpBody;
+    body = (await bodyJson(request)) as VerifyOtpBody;
   } catch {
     return json({ ok: false, error: "验证失败" }, 400);
   }

@@ -1,4 +1,4 @@
-import { brandName, isDateOnly, isSlug, isSlot, json, nowIso, shanghaiDate } from "./lib";
+import { bodyJson, brandName, isDateOnly, isSlug, isSlot, json, nowIso, shanghaiDate } from "./lib";
 import { ensureTodayDemo, markSkipAutoDemo, shouldClearDemo } from "./seed";
 import {
   canEditCopy,
@@ -179,7 +179,7 @@ export async function handleUpsertPost(
 
   let body: UpsertBody;
   try {
-    body = (await request.json()) as UpsertBody;
+    body = (await bodyJson(request)) as UpsertBody;
   } catch {
     return json({ ok: false, error: "请求无效" }, 400);
   }
@@ -339,7 +339,7 @@ export async function handlePatchPost(
 
   let body: PatchBody;
   try {
-    body = (await request.json()) as PatchBody;
+    body = (await bodyJson(request)) as PatchBody;
   } catch {
     return json({ ok: false, error: "请求无效" }, 400);
   }
@@ -423,7 +423,7 @@ export async function handleReview(
 
   let body: ReviewBody;
   try {
-    body = (await request.json()) as ReviewBody;
+    body = (await bodyJson(request)) as ReviewBody;
   } catch {
     return json({ ok: false, error: "请求无效" }, 400);
   }

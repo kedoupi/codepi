@@ -8,6 +8,26 @@ import { test } from 'node:test';
 
 const root = new URL('../../', import.meta.url);
 const workspaceFiles = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'];
+test('all workflow actions are pinned to immutable official commits', async () => {
+  const files = ['d1-backup', 'deploy-platform', 'production-monitor', 'validate-sso'];
+  for (const name of files) {
+    const workflow = await readFile(new URL(`.github/workflows/${name}.yml`, root), 'utf8');
+    const uses = workflow.split('\n').filter(line => /\buses:/.test(line));
+    assert.ok(uses.length > 0, `${name}: expected Actions uses`);
+    for (const line of uses) {
+      assert.match(line, /uses: [^@]+@[0-9a-f]{40} # v(?:4|6|7)$/,
+        `${name}: Action references must use a 40-hex commit and retain its version comment`);
+    }
+  }
+});
+
+test('MCP browser checks publish artifacts even after failures', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  const build = workflow.split('\n  mcp-build:')[1]?.split('\n  auth-build:')[0];
+  assert.ok(build);
+  assert.match(build, /MCP_BROWSER_ARTIFACTS:\s*\$\{\{\s*runner\.temp\s*\}\}\/mcp-browser-artifacts/);
+  assert.match(build, /- name: Upload browser screenshots and diagnostics[\s\S]*?if: always\(\)[\s\S]*?uses: actions\/upload-artifact@[0-9a-f]{40} # v7[\s\S]*?name: mcp-browser-\$\{\{\s*github\.run_attempt\s*\}\}[\s\S]*?retention-days: 7/);
+});
 
 test('every install runs from the workspace root with the pinned pnpm and root lockfile', async () => {
   for (const name of ['deploy-platform', 'validate-sso']) {
@@ -126,7 +146,7 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.ok(job, 'www-build must exist');
   const beforeTests = job.split('      - run: npm test')[0];
   assert.match(job, /- run: npm test/);
-  assert.match(beforeTests, /uses: pnpm\/action-setup@v6/);
+  assert.match(beforeTests, /uses: pnpm\/action-setup@[0-9a-f]{40} # v6/);
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
 });
 test('GU builds run the deployment check even when SSO validation is skipped', async () => {
@@ -147,9 +167,9 @@ test('Health builds the workspace once and product jobs use current Actions vers
     const nextJob = jobName === 'project-build' ? 'me-build' : jobName === 'me-build' ? 'cli-build' : null;
     const job = workflow.split(`\n  ${jobName}:`)[1]?.split(nextJob ? `\n  ${nextJob}:` : '\n\n')[0];
     assert.ok(job, `${jobName} must exist`);
-    assert.match(job, /actions\/checkout@v7/);
-    assert.match(job, /pnpm\/action-setup@v6/);
-    assert.match(job, /actions\/setup-node@v7/);
+    assert.match(job, /actions\/checkout@[0-9a-f]{40} # v7/);
+    assert.match(job, /pnpm\/action-setup@[0-9a-f]{40} # v6/);
+    assert.match(job, /actions\/setup-node@[0-9a-f]{40} # v7/);
   }
 });
 
@@ -169,7 +189,7 @@ test('MCP CI checks the real Health RPC and browser flow without deployment', as
 
 test('manual fallback monitoring fetches full main history and requires strict checks', async () => {
   const workflow = await readFile(new URL('.github/workflows/production-monitor.yml', root), 'utf8');
-  assert.match(workflow, /uses: actions\/checkout@v7\n\s+with:\n\s+ref: main\n\s+fetch-depth: 0/);
+  assert.match(workflow, /uses: actions\/checkout@[0-9a-f]{40} # v7\n\s+with:\n\s+ref: main\n\s+fetch-depth: 0/);
   assert.match(workflow, /production-monitor\.mjs --require-d1 --require-versions/);
   assert.doesNotMatch(workflow, /^  (?:schedule|push):/m);
   assert.match(workflow, /^  workflow_dispatch:/m);

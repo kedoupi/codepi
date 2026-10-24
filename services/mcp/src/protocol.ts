@@ -4,7 +4,10 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import type { Env } from "./env.ts";
 import { findAccessToken, normalizeScope } from "./oauth-store.ts";
 import { callTool, tools, instructions } from "./modules.ts";
+import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { boundedText, HttpError, json } from "./http.ts";
+
+const MCP_REQUEST_LIMIT = MCP_LIMITS.blogBody * 4;
 
 export async function mcp(request: Request, env: Env) {
   const auth = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43})$/i);
@@ -21,7 +24,7 @@ export async function mcp(request: Request, env: Env) {
   if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
     return json({ error: "unsupported_media_type" }, 415);
   }
-  const body = await boundedText(request);
+  const body = await boundedText(request, MCP_REQUEST_LIMIT);
   const incoming = new Request(request.url, { method: "POST", headers: request.headers, body });
   const server = new Server({ name: "codepi", version: "1.0.0" }, {
     capabilities: { tools: {} },

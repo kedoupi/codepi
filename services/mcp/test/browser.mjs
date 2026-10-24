@@ -7,7 +7,7 @@ import { fixture, hash } from './runtime.mjs';
 import { launchBrowser } from '../../../apps/health/scripts/browser-cdp.mjs';
 
 const cleanup = [];
-const artifacts = await mkdtemp(path.join(tmpdir(), 'codepi-mcp-browser-'));
+const artifacts = process.env.MCP_BROWSER_ARTIFACTS || await mkdtemp(path.join(tmpdir(), 'codepi-mcp-browser-'));
 let f;
 let browser;
 let failure;

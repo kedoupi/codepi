@@ -1,5 +1,9 @@
 import { SLOTS, type Slot } from "./types";
 
+export const MAX_BODY = 256 * 1024;
+
+export class ValidationError extends Error {}
+
 export function shanghaiDate(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -75,6 +79,36 @@ export function json(data: unknown, status = 200, headers?: HeadersInit): Respon
       ...headers,
     },
   });
+}
+
+export async function bodyJson(request: Request, limit = MAX_BODY): Promise<unknown> {
+  if (!request.headers.get("Content-Type")?.startsWith("application/json")) {
+    throw new ValidationError("需要 JSON 请求");
+  }
+  if (Number(request.headers.get("Content-Length")) > limit) {
+    throw new ValidationError("请求过大");
+  }
+  const reader = request.body?.getReader();
+  if (!reader) throw new ValidationError("请求为空");
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > limit) {
+      await reader.cancel();
+      throw new ValidationError("请求过大");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
 }
 
 export function readCookie(request: Request, name: string): string | null {

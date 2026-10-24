@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, ORIGIN, REDIRECT, hash } from './runtime.mjs';
 import { healthData } from './health-pages.mjs';
+import { MCP_LIMITS } from '@kedoupi/shared/mcp/contract';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -343,7 +344,7 @@ test('protocol bounds bodies, validates media type and rejects unsafe client red
   assert.equal((await f.at('/mcp', { headers })).status, 405);
   assert.equal((await f.at('/mcp', { method: 'POST', headers, body: '{}' })).status, 415);
   const large = await f.at('/mcp', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-    body: ' '.repeat(32769) });
+    body: ' '.repeat(MCP_LIMITS.blogBody * 4 + 1) });
   assert.equal(large.status, 413);
   const malformed = await f.at('/mcp', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{' });
   assert.equal(malformed.status, 400);
@@ -351,6 +352,28 @@ test('protocol bounds bodies, validates media type and rejects unsafe client red
     assert.equal((await f.at('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ redirect_uris: [uri] }) })).status, 400);
   }
+});
+
+test('blog submissions accept domain-sized bodies without widening the envelope', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const headers = { Authorization: 'Bearer ' + grant.access_token, 'Content-Type': 'application/json',
+    Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' };
+  const body = 'x'.repeat(40 * 1024);
+  const accepted = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_submit', arguments: { slug: 'long-post', title: 'Long post',
+      summary: 'Long post summary', body_markdown: body },
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body?.result?.structuredContent?.echoed?.args?.body_markdown?.length, body.length);
+  const envelope = await f.at('/mcp', { method: 'POST', headers,
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) + ' '.repeat(MCP_LIMITS.blogBody * 4 + 1) });
+  assert.equal(envelope.status, 413);
+  const domain = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_submit', arguments: { slug: 'too-long', title: 'Too long',
+      summary: 'Too long summary', body_markdown: 'x'.repeat(96 * 1024 + 1) },
+  });
+  assert.equal(domain.status, 200);
+  assert.equal(domain.body?.result?.structuredContent?.error, 'invalid_arguments');
 });
 
 test('only unified MCP accepts grants while Health exposes data through RPC', async t => {
