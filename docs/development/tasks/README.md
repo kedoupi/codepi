@@ -10,7 +10,7 @@
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
 | 仓库公开与全量重发 | 已改名 `kedoupi/codepi` 并公开；备份 Release/tag 已删除；十个 Worker 已重发；通知、备份、巡检、MCP 授权修复和浏览器验收均已通过 | [任务记录](2026-10-23-public-rename-redeploy.md)：本机 main 待 `git pull --ff-only`；真实邮件 OTP、Oura 重授权和 MCP 客户端重连待所有者操作 |
-| Ops Observer 正式工作流 | 实现、协议文档、回滚凭证、GitHub 通知和真实 30 分钟观察均已完成；PR Supervisor 已配置；发布后自动触发和真实安全回滚演练仍待补 | [任务记录](2026-10-23-ops-observer.md) |
+| Ops Observer 正式工作流 | PR #188 补齐错误率推导、通知跨页去重、回滚重试及 active-version 对账；Ops 已发布，生产巡检及第五轮七轮真实观察通过，R2 summary 与 Issue 通知已核对 | [任务记录](2026-10-23-ops-observer.md)：发布后自动触发和真实安全回滚演练仍待补 |
 | Cloudflare 告警优化 | 已闭环：WAF 边缘拦截（含编码变体与 credentials.json）、incident 策略删除、MCP 403+warn（PR #145/#149）、巡检 423 修复（PR #151）、全部漂移 Worker 重发、codepi-blog 纳入九库备份（手动实例已回执）、monitor 连续 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：开发活跃期合并共享代码即产生漂移告警，需随合并节奏发布 |
 | Workers Issues 自动告警 | 十个生产 Worker 的 20 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
 | Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
@@ -18,7 +18,7 @@
 | Health 历史同步告警 | PR #111 已合并，Health API/MCP 已发布；真实账号 16 类旧告警归零，48 条历史记录保留，生产巡检 24/24 通过 | [修复与发布证据](2026-10-20-health-sync-alerts.md)：刷新设置页读取新状态，无需重新同步 |
 | GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：原资料、生产数据、正式密文保留；GitHub 自动复制已验收，自动研究与 GU MCP 为后续阶段 |
 | 工程文档与 Agent 规范整理 | 本地整理、链接核对与受影响检查完成，经 PR #106 交付 | [本轮记录](2026-10-19-engineering-docs.md)：入口、规则、skills 与历史标记已校正；主干状态以 PR 为准，后续新任务从包含规范的 main 开始 |
-| Cloudflare 定时运维 | v3 自动跨平台复制与云端巡检 34/34 通过；八库及两类原件完整，临时恢复资源已清理 | [领域发布与 v3 恢复](2026-10-20-codepi-mcp-domains.md#备份巡检与隔离恢复)、[告警验收](2026-10-20-workers-issues.md)：自动告警送达已补齐，异机私钥取回为 TODO；每日 Cron 以实际回执为准 |
+| Cloudflare 定时运维 | 私有 R2 v3 备份为现行通道，覆盖九库及 GU/Me 原件；GitHub Release 自动复制已退役，仅保留历史验收记录 | [R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[公开与重发记录](2026-10-23-public-rename-redeploy.md)：每日 Cron 以实际回执为准，异机私钥取回为 TODO |
 | 统一 MCP / Health | 已上线；所有者确认 Claude 手机端已连接并使用 | [使用确认与验收范围](2026-10-18-unified-mcp.md#2026-10-19-claude-手机端使用确认)：按使用反馈改进，其他客户端及刷新/撤销等专项检查按需补齐 |
 | Desk 真实使用验收 | Worker、D1 和所需 secret 名称已有后续发布证据；不能继续仅凭最初 P6 记录判断“未部署” | [首页迁移](2026-10-17-web-static-assets.md)、[资源登记表](../cloudflare-resource-registry.md)、[应用说明](../../../apps/web/README.md)：如继续此产品，核对登录后的三来源摘要，不因旧 TODO 重建资源或轮换凭证 |
 | 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标，未覆盖 Desk/MCP | 本轮仅记录：[Auth 使用限制](../../../services/auth/README.md#validation)。后续先更新目标和覆盖范围，再按授权执行真实邮件验收；不影响现行发布探针 |
