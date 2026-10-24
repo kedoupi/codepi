@@ -215,14 +215,17 @@ export async function latestPerTask(env: Env, projectId: string): Promise<{
   status: HandoffStatus;
   latest: Handoff;
 }[]> {
-  const rows = await env.DB.prepare(`SELECT h.* FROM handoffs h
-    WHERE h.project_id=?
-      AND NOT EXISTS (
-        SELECT 1 FROM handoffs n
-        WHERE n.project_id=h.project_id AND n.task_id=h.task_id
-          AND (n.created_at>h.created_at OR (n.created_at=h.created_at AND n.rowid>h.rowid))
-      )
-    ORDER BY h.created_at DESC, h.rowid DESC`).bind(projectId).all<HandoffRow>();
+  const rows = await env.DB.prepare(`SELECT * FROM (
+      SELECT h.*, h.rowid AS handoff_rowid,
+        ROW_NUMBER() OVER (
+          PARTITION BY h.task_id
+          ORDER BY h.created_at DESC, h.rowid DESC
+        ) AS task_rank
+      FROM handoffs h
+      WHERE h.project_id=?
+    )
+    WHERE task_rank=1
+    ORDER BY created_at DESC, handoff_rowid DESC`).bind(projectId).all<HandoffRow>();
   return rows.results.map(row => ({
     task_id: row.task_id,
     status: row.status,

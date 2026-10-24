@@ -71,6 +71,25 @@ describe("task handoffs", () => {
       .rejects.toMatchObject({ code: "request_id_conflict", status: 409 });
   });
 
+  it("keeps the latest row per task with bounded result cardinality", async () => {
+    for (let index = 0; index < 200; index += 1) {
+      const handoff = await saveHandoff(env, handoffInput({
+        taskId: "long-running-task",
+        summary: `progress-${index}`,
+        requestId: `request-${index}`,
+      }));
+      await env.DB.prepare("UPDATE handoffs SET created_at=? WHERE id=?")
+        .bind(
+          `2026-10-20T${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}:00`,
+          handoff.handoff.id,
+        )
+        .run();
+    }
+    const tasks = await latestPerTask(env, "kedoupi-codepi");
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].latest.summary).toBe("progress-199");
+  });
+
   it("keeps per-task progress separate when tasks run concurrently", async () => {
     const a1 = await saveHandoff(env, handoffInput({ taskId: "task-a", summary: "A first" }));
     await env.DB.prepare("UPDATE handoffs SET created_at=? WHERE id=?")

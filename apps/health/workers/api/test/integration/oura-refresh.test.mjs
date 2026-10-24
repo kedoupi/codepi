@@ -56,6 +56,26 @@ test('a bad collection request does not tell the user their authorization expire
   assert.equal((await response.json()).error, 'upstream_request_rejected');
 });
 
+test('daily pagination overflow preserves the previous cache and records the limit error', async t => {
+  let overflow = false;
+  const f = await fixture(t, url => {
+    if (!overflow) return undefined;
+    if (!/^\/v2\/usercollection\/daily_(sleep|readiness|activity)$/.test(url.pathname)) return undefined;
+    const page = url.searchParams.get('next_token');
+    const number = page ? Number(page.slice('page-'.length)) : 0;
+    return Response.json({ data: [], next_token: `page-${number + 1}` });
+  });
+  const before = await (await f.daily()).json();
+  await f.db.prepare("UPDATE sync_state SET synced_at='2000-01-01T00:00:00Z'").run();
+  overflow = true;
+  const response = await f.daily();
+  assert.equal(response.status, 200);
+  const after = await response.json();
+  assert.deepEqual(after.days, before.days);
+  assert.equal(after.sync.error, 'sync_window_too_large');
+  assert.equal(after.sync.stale, true);
+});
+
 test('a successful live sync releases an obsolete authorization block', async t => {
   const f = await fixture(t);
   await f.db.prepare(`INSERT INTO auto_sync_state

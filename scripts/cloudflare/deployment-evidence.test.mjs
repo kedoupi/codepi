@@ -47,6 +47,15 @@ test('buildEntry preserves old format and accepts observation fields', () => {
   }).migration_applied, undefined);
 });
 
+test('buildEntry rejects invalid explicit observation facts without inventing defaults', () => {
+  for (const key of ['migrationApplied', 'secretChanged', 'bindingChanged', 'externalSideEffects']) {
+    assert.throws(() => buildEntry({
+      service: 'health', target: 'production', sha: 'abc123', provider: 'worker',
+      identifier: 'v1', smoke: 'pending', [key]: 'false',
+    }), /must be boolean/);
+  }
+});
+
 test('findPagesDeployment 按 URL/alias 匹配', () => {
   const deployments = [
     { id: 'dep-old', url: 'https://old.pages.dev' },

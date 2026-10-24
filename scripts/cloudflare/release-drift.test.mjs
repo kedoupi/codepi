@@ -144,13 +144,31 @@ test('SHA-stamped deploy targets only the five simple Workers and requires exact
   };
   for (const [service, dir] of Object.entries(DEPLOY_DIRS)) {
     const result = deployWorker(service, f.base, { cwd: f.cwd, execute });
+    const call = calls.at(-1);
     assert.equal(result.version, version);
     assert.equal(result.smoke, 'pending');
-    const call = calls.at(-1);
+    assert.equal(Object.hasOwn(result, 'previous_version'), false);
+    assert.equal(Object.hasOwn(result, 'migration_applied'), false);
+    assert.equal(Object.hasOwn(result, 'secret_changed'), false);
+    assert.equal(Object.hasOwn(result, 'binding_changed'), false);
+    assert.equal(Object.hasOwn(result, 'external_side_effects'), false);
     assert.equal(call.options.cwd, path.join(f.cwd, dir));
     assert.deepEqual(call.args, ['exec', 'wrangler', 'deploy', '--var', `BUILD_SHA:${f.base.slice(0, 12)}`]);
     assert.equal(call.options.env.GITHUB_SHA, f.base);
   }
+  const explicit = deployWorker('auth', f.base, {
+    cwd: f.cwd, execute, previousVersion: version,
+    migrationApplied: false, secretChanged: true, bindingChanged: false, externalSideEffects: true,
+  });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(explicit).filter(([key]) => key !== 'new_version'
+      && (key.endsWith('_version') || key.endsWith('_applied')
+      || key.endsWith('_changed') || key === 'external_side_effects'))),
+    {
+      previous_version: version, migration_applied: false, secret_changed: true,
+      binding_changed: false, external_side_effects: true,
+    },
+  );
   assert.throws(() => deployWorker('health-api', f.base, { cwd: f.cwd, execute }), /expected/);
   await writeFile(path.join(f.cwd, 'dirty'), 'unreviewed');
   assert.throws(() => deployWorker('auth', f.base, { cwd: f.cwd, execute }), /clean/);
@@ -158,5 +176,5 @@ test('SHA-stamped deploy targets only the five simple Workers and requires exact
   f.git('checkout', '-b', 'unmerged');
   const side = await f.commit('services/mcp/src/change.ts');
   assert.throws(() => deployWorker('auth', side, { cwd: f.cwd, execute }), /remote main/);
-  assert.equal(calls.length, Object.keys(DEPLOY_DIRS).length);
+  assert.equal(calls.length, Object.keys(DEPLOY_DIRS).length + 1);
 });

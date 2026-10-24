@@ -22,6 +22,21 @@ test('builds the fixed observation window and derives rollback permission', () =
   assert.equal(manifest.services[0].rollback_allowed, true);
 });
 
+test('manifest generation rejects incomplete or invalid observation facts', () => {
+  const withoutFacts = { ...service };
+  for (const key of ['migration_applied', 'secret_changed', 'binding_changed', 'external_side_effects']) {
+    delete withoutFacts[key];
+  }
+  assert.throws(() => buildReleaseManifest({
+    sourceSha: 'newsha', services: [withoutFacts],
+    startedAt: '2026-10-23T00:00:00.000Z', nonce: 'missing',
+  }), /must be boolean/);
+  assert.throws(() => buildReleaseManifest({
+    sourceSha: 'newsha', services: [{ ...service, external_side_effects: 'false' }],
+    startedAt: '2026-10-23T00:00:00.000Z', nonce: 'invalid',
+  }), /must be boolean/);
+});
+
 test('blocks rollback when any unsafe change or no previous version exists', () => {
   for (const key of ['migration_applied', 'secret_changed', 'binding_changed', 'external_side_effects']) {
     const manifest = buildReleaseManifest({

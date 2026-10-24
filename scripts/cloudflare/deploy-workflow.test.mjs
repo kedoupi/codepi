@@ -46,6 +46,12 @@ test('workspace-only changes trigger validation of all consumers', async () => {
     execFileSync('grep', ['-qE', pattern], { input: `${file}\n` });
   }
 });
+
+test('changes to the platform workflow trigger pull request validation', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  assert.equal(workflow.split("      - '.github/workflows/deploy-platform.yml'").length - 1, 1,
+    'pull_request changes to deploy-platform.yml must trigger validation');
+});
 test('platform concurrency isolates forked pull requests by number', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
   assert.match(workflow, /group: platform-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}/);

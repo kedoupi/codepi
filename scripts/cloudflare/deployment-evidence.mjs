@@ -32,14 +32,21 @@ export function buildEntry({
   const optional = {
     previous_version: previousVersion,
     new_version: newVersion,
+  };
+  for (const [key, value] of Object.entries(optional)) {
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      throw new Error(`evidence ${key} must be a string`);
+    }
+  }
+  const facts = {
     migration_applied: migrationApplied,
     secret_changed: secretChanged,
     binding_changed: bindingChanged,
     external_side_effects: externalSideEffects,
   };
-  for (const [key, value] of Object.entries(optional)) {
-    if (value !== undefined && value !== null && typeof value !== 'string' && typeof value !== 'boolean') {
-      throw new Error(`evidence ${key} must be a string or boolean`);
+  for (const [key, value] of Object.entries(facts)) {
+    if (value !== undefined && typeof value !== 'boolean') {
+      throw new Error(`evidence ${key} must be boolean`);
     }
   }
   return {

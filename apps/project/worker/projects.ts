@@ -1,6 +1,6 @@
 import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { AppError, jsonBytes, maxIso, projectUrl, text } from "./lib";
-import { handoffFromRow } from "./handoffs";
+import { handoffFromRow, latestHandoff } from "./handoffs";
 import type { Env, HandoffRow, ProjectRow, ProjectStatus } from "./types";
 import type { Handoff } from "./types";
 
@@ -147,8 +147,16 @@ export async function latestHandoffs(
   const latest = new Map<string, HandoffRow>();
   if (!projectIds.length) return latest;
   const placeholders = projectIds.map(() => "?").join(",");
-  const rows = await env.DB.prepare(`SELECT * FROM handoffs
-    WHERE project_id IN (${placeholders}) ORDER BY created_at DESC, rowid DESC`)
+  const rows = await env.DB.prepare(`SELECT * FROM (
+      SELECT h.*, h.rowid AS handoff_rowid,
+        ROW_NUMBER() OVER (
+          PARTITION BY h.project_id
+          ORDER BY h.created_at DESC, h.rowid DESC
+        ) AS project_rank
+      FROM handoffs h
+      WHERE h.project_id IN (${placeholders})
+    )
+    WHERE project_rank=1`)
     .bind(...projectIds).all<HandoffRow>();
   for (const row of rows.results) {
     if (!latest.has(row.project_id)) latest.set(row.project_id, row);
@@ -324,5 +332,5 @@ export async function updateProject(
 }
 
 export async function projectLatestHandoff(env: Env, projectId: string) {
-  return (await latestHandoffs(env, [projectId])).get(projectId) ?? null;
+  return latestHandoff(env, projectId);
 }

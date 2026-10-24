@@ -151,6 +151,15 @@ test('--preflight-only validates locally and reads the active version without pr
   ]);
   await assert.rejects(stat(join(f.root, 'workers/api/.deploy-preflight')), { code: 'ENOENT' });
 });
+test('release evidence facts are optional and invalid caller facts fail closed', async t => {
+  const source = await readFile(new URL('../deploy-api.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /migration_applied:\s*true|secret_changed:\s*true|binding_changed:\s*true|external_side_effects:\s*true/);
+  const f = await fixture(t);
+  const run = await f.run({ HEALTH_MIGRATION_APPLIED: 'maybe' });
+  assert.equal(run.status, 1);
+  assert.match(run.output, /HEALTH_MIGRATION_APPLIED must be true or false/);
+  assert.deepEqual(f.requests, []);
+});
 
 test('missing credentials stop before the bundle or network is touched', async t => {
   const f = await fixture(t);

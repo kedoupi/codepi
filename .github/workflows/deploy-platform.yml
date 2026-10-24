@@ -30,6 +30,7 @@ on:
       - '.github/workflows/production-monitor.yml'
       - '.github/dependabot.yml'
       - '.github/workflows/validate-sso.yml'
+      - '.github/workflows/deploy-platform.yml'
   workflow_dispatch:
 
 permissions:
