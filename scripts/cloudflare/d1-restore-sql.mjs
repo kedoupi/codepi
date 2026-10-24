@@ -118,3 +118,34 @@ export function prepareRestoreSql(input) {
     db.close();
   }
 }
+function executeSql(db, sql) {
+  let offset = 0;
+  while (sql.slice(offset).trim()) {
+    const statement = db.prepare(sql.slice(offset));
+    statement.setReadBigInts(true);
+    statement.run();
+    offset += statement.sourceSQL.length;
+  }
+}
+
+export function inspectRestoreSql(input) {
+  const sql = prepareRestoreSql(input);
+  const db = new DatabaseSync(':memory:', { enableForeignKeyConstraints: false });
+  try {
+    executeSql(db, sql);
+    const tables = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*' ORDER BY name",
+    ).all();
+    return tables.map(({ name }) => {
+      const identifier = `"${name.replaceAll('"', '""')}"`;
+      const row = db.prepare(`SELECT count(*) AS n FROM ${identifier}`).get();
+      const count = Number(row.n);
+      if (!Number.isSafeInteger(count)) throw new Error();
+      return { name, count };
+    });
+  } catch {
+    throw new Error('Cannot inspect this D1 export safely; no import was started');
+  } finally {
+    db.close();
+  }
+}

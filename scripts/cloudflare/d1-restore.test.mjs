@@ -47,9 +47,11 @@ test('restores into an empty target with the pinned Wrangler and removes plainte
   };
   let queried;
   await restoreBackup({ ...opts, databaseId: databaseId.toUpperCase(), execute,
-    request: async url => {
+    request: async (url, init) => {
       queried = url;
-      return Response.json({ success: true, result: [{ success: true, results: [{ n: 0 }] }] });
+      const sql = JSON.parse(init.body).sql;
+      const results = sql.includes('SELECT name FROM sqlite_master') ? [{ name: 'sample' }] : [{ n: 0 }];
+      return Response.json({ success: true, result: [{ success: true, results }] });
     } });
   assert.match(queried, new RegExp(`/d1/database/${databaseId}/query$`));
   await assert.rejects(access(sqlPath), { code: 'ENOENT' });
@@ -137,6 +139,46 @@ test('fails closed for an incomplete explicit map or an unverifiable exact-name 
   assert.equal(queried, false);
 });
 
+test('passes only when restored table coverage and row counts match the export', async t => {
+  const opts = await fixture(t);
+  await writeFile(opts.file, encrypt(Buffer.from(
+    'CREATE TABLE alpha(id INTEGER); INSERT INTO alpha VALUES (1),(2); CREATE TABLE beta(id INTEGER);',
+  ), keys.publicKey, { database: 'synthetic' }));
+  const seen = [];
+  await restoreBackup({ ...opts, execute: () => ({ status: 0 }),
+    request: async (_url, init) => {
+      const sql = JSON.parse(init.body).sql;
+      seen.push(sql);
+      if (sql.includes('count(*) AS n FROM sqlite_master')) return Response.json({
+        success: true, result: [{ success: true, results: [{ n: 0 }] }],
+      });
+      if (sql.includes('SELECT name FROM sqlite_master')) return Response.json({
+        success: true, result: [{ success: true, results: [{ name: 'alpha' }, { name: 'beta' }] }],
+      });
+      return Response.json({ success: true, result: [{ success: true, results: [{ n: sql.includes('"alpha"') ? 2 : 0 }] }] });
+    } });
+  assert.ok(seen.some(sql => sql.includes('FROM "alpha"')));
+});
+
+test('fails when a restored table has fewer remote rows', async t => {
+  const opts = await fixture(t);
+  await writeFile(opts.file, encrypt(Buffer.from(
+    'CREATE TABLE sample(id INTEGER); INSERT INTO sample VALUES (1);',
+  ), keys.publicKey, { database: 'synthetic' }));
+  await assert.rejects(restoreBackup({ ...opts, execute: () => ({ status: 0 }),
+    request: async (_url, init) => {
+      const sql = JSON.parse(init.body).sql;
+      if (sql.includes('count(*) AS n FROM sqlite_master')) return Response.json({
+        success: true, result: [{ success: true, results: [{ n: 0 }] }],
+      });
+      if (sql.includes('SELECT name FROM sqlite_master')) return Response.json({
+        success: true, result: [{ success: true, results: [{ name: 'sample' }] }],
+      });
+      return Response.json({ success: true, result: [{ success: true, results: [{ n: 0 }] }] });
+    },
+  }), /mismatched row counts/);
+});
+
 test('failed imports remove plaintext and never echo provider SQL output', async t => {
   const opts = await fixture(t);
   let sqlPath;
@@ -156,7 +198,12 @@ test('the encrypted restore path passes bounded statements to Wrangler without s
 INSERT INTO sample VALUES(1,'${body.replaceAll("'", "''")}');`;
   await writeFile(opts.file, encrypt(Buffer.from(source), keys.publicKey, { database: 'synthetic' }));
   let sqlPath;
-  await restoreBackup({ ...opts, request: request(0), execute: (_command, args) => {
+  await restoreBackup({ ...opts, request: async (_url, init) => {
+    const sql = JSON.parse(init.body).sql;
+    const results = sql.includes('SELECT name FROM sqlite_master') ? [{ name: 'sample' }]
+      : [{ n: sql.includes('FROM "sample"') ? 1 : 0 }];
+    return Response.json({ success: true, result: [{ success: true, results }] });
+  }, execute: (_command, args) => {
     sqlPath = args[args.indexOf('--file') + 1];
     const sql = readFileSync(sqlPath, 'utf8');
     const db = new DatabaseSync(':memory:');

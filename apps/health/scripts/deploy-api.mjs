@@ -46,6 +46,10 @@ async function main() {
   const { name, databaseName, crons } = readWranglerConfig(`${cwd}/wrangler.toml`, { dir: cwd });
   // Every step that touches production, in order, so a failure can say where it stopped.
   let completed = 'nothing (no remote change was made)';
+  const configuredPreviousVersion = process.env.HEALTH_PREVIOUS_VERSION || '';
+  if (configuredPreviousVersion && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(configuredPreviousVersion)) {
+    throw new Error('HEALTH_PREVIOUS_VERSION must be a Worker version UUID');
+  }
 
   // ------------------------------------------------------------- 1. preflight
   // A malformed wrangler.toml or a missing token must stop the deploy BEFORE any
@@ -90,9 +94,8 @@ async function main() {
   process.stdout.write('Preflight: verifying Cloudflare credentials and current deployment...\n');
   // Reading the actual Worker proves the token has access to this account;
   // token verification alone does not prove its resource permissions.
-  const before = await cloudflare(schedulesUrl);
-  const installedCrons = (before.schedules || []).map(row => row.cron).sort();
   let previousVersion = process.env.HEALTH_PREVIOUS_VERSION || '';
+  const before = await cloudflare(schedulesUrl);
   if (!previousVersion) {
     const deployments = await cloudflare(`${script}/deployments`);
     const versions = deployments?.deployments?.[0]?.versions ?? [];
@@ -120,8 +123,9 @@ async function main() {
 
     // 3. Stamp the build so /api/health and the smoke check can prove the new
     //    version is live. BUILD_SHA is read as a plain var on the Worker.
-    let buildSha = (process.env.GITHUB_SHA || '').slice(0, 12)
-      || spawnSync('git', ['rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+    const sourceSha = process.env.GITHUB_SHA || spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+    if (!/^[a-f0-9]{40}$/i.test(sourceSha)) throw new Error('GITHUB_SHA must be the full 40-character source SHA');
+    const buildSha = sourceSha.slice(0, 12);
 
     // Version deployment keeps the existing zone route. Tokens need Worker edit
     // permissions, but not zone route write permissions for every release.
@@ -156,7 +160,9 @@ async function main() {
     }
     console.log(JSON.stringify({
       service: 'health-api',
-      source_sha: buildSha,
+      script: name,
+      source_sha: sourceSha,
+      new_build_sha: sourceSha,
       previous_version: previousVersion,
       new_version: version,
       version,

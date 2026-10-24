@@ -46,25 +46,14 @@ test('workspace-only changes trigger validation of all consumers', async () => {
     execFileSync('grep', ['-qE', pattern], { input: `${file}\n` });
   }
 });
-
-test('local check and governance paths trigger platform validation', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
   const triggers = workflow.split('\npermissions:')[0];
-  const governancePaths = [
-    'docs/development/**',
-    '.agents/**',
-    '.claude/**',
-    '.cursor/**',
-    '.github/copilot-instructions.md',
-    'CLAUDE.md',
-    'GEMINI.md',
-    '.gitignore',
-  ];
-  for (const file of governancePaths) {
-    assert.equal(triggers.split(`      - '${file}'`).length - 1, 1,
-      `pull_request must include local check/governance path ${file}`);
-  }
-});
+  assert.equal(triggers.split("      - 'AGENTS.md'").length - 1, 1,
+    'root AGENTS.md changes must trigger platform validation');
+  const pattern = workflow.match(/all_trigger='([^']+)'/)?.[1];
+  assert.ok(pattern);
+  assert.doesNotMatch(pattern, /scripts\/cloudflare/,
+    'Cloudflare governance scripts must not trigger every application build');
 
 test('changes to the platform workflow trigger pull request validation', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');

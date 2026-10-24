@@ -11,7 +11,7 @@ import {
   parseDatabaseConfig,
   resolveProductionDatabases,
 } from './backup-core.mjs';
-import { prepareRestoreSql } from './d1-restore-sql.mjs';
+import { inspectRestoreSql, prepareRestoreSql } from './d1-restore-sql.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -48,16 +48,17 @@ export async function restoreBackup({ file, privateKeyFile, databaseId, env = pr
   assert.match(databaseId || '', /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i, 'target D1 UUID is required');
   const targetId = databaseId.toLowerCase();
   const { sql, metadata } = decrypt(await readFile(file), await readFile(privateKeyFile, 'utf8'));
+  const expectedTables = inspectRestoreSql(sql);
   assert.notEqual(metadata.database_id?.toLowerCase(), targetId,
     'refusing to restore over a production database');
   const productionIds = await productionDatabaseIds(env, request);
   assert.ok(!productionIds.has(targetId), 'refusing to restore over a production database');
   const accountId = env.CLOUDFLARE_ACCOUNT_ID;
   const token = env.CLOUDFLARE_API_TOKEN;
-  const result = await cloudflareApi(`/d1/database/${targetId}/query`, {
+  const empty = await cloudflareApi(`/d1/database/${targetId}/query`, {
     sql: "SELECT count(*) AS n FROM sqlite_master WHERE type IN ('table','view') AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*'",
   }, { accountId, token, request });
-  assert.ok(result?.[0]?.success && result[0].results?.[0]?.n === 0,
+  assert.ok(empty?.[0]?.success && empty[0].results?.[0]?.n === 0,
     'restore target must be empty; existing data was not changed');
   const dir = await mkdtemp(path.join(os.tmpdir(), 'codepi-restore-'));
   try {
@@ -72,6 +73,24 @@ export async function restoreBackup({ file, privateKeyFile, databaseId, env = pr
     { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 600000 });
     // Wrangler error output can include SQL values; keep only the exit status.
     assert.ok(!result.error && result.status === 0, `D1 restore failed (exit ${result.status ?? 'unavailable'})`);
+    const remoteTablesResult = await cloudflareApi(`/d1/database/${targetId}/query`, {
+      sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB '_cf_*' AND name NOT GLOB 'sqlite_*' ORDER BY name",
+    }, { accountId, token, request });
+    assert.ok(remoteTablesResult?.[0]?.success && Array.isArray(remoteTablesResult[0].results),
+      'D1 restore verification could not read target tables');
+    const remoteNames = remoteTablesResult[0].results.map(row => row.name);
+    const expectedNames = expectedTables.map(table => table.name);
+    assert.ok(remoteNames.length === expectedNames.length
+      && remoteNames.every((name, index) => name === expectedNames[index]),
+    'D1 restore verification found mismatched tables');
+    for (const table of expectedTables) {
+      const identifier = `"${table.name.replaceAll('"', '""')}"`;
+      const rows = await cloudflareApi(`/d1/database/${targetId}/query`, {
+        sql: `SELECT count(*) AS n FROM ${identifier}`,
+      }, { accountId, token, request });
+      assert.ok(rows?.[0]?.success && rows[0].results?.[0]?.n === table.count,
+        'D1 restore verification found mismatched row counts');
+    }
     console.log(`PASS restored ${metadata.database} into the empty recovery database`);
     return metadata;
   } finally {

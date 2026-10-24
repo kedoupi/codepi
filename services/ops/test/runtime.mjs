@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DATABASES, DATABASE_NAMES, decrypt } from '../../../scripts/cloudflare/backup-core.mjs';
 import { restoreBackup } from '../../../scripts/cloudflare/d1-restore.mjs';
+import { inspectRestoreSql } from '../../../scripts/cloudflare/d1-restore-sql.mjs';
 import { restoreOriginals } from '../../../scripts/cloudflare/originals-restore.mjs';
-
 const require = createRequire(import.meta.url);
 const { Miniflare, Response } = createRequire(require.resolve('wrangler'))('miniflare');
 const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
@@ -225,12 +225,27 @@ try {
   };
   const guRecoveryDb = await runtime.getD1Database('DB', 'gu-recovery');
   const meRecoveryDb = await runtime.getD1Database('DB', 'me-recovery');
+  let importedSql;
   const localRequest = async (url, init) => {
     try {
       const id = url.match(/\/database\/([^/]+)\/query$/)?.[1];
       const db = id === guTarget ? guRecoveryDb : id === meTarget ? meRecoveryDb : undefined;
       assert.ok(db, 'unexpected isolated recovery database');
       const body = JSON.parse(init.body);
+      if (importedSql && body.sql.includes('SELECT name FROM sqlite_master')) {
+        return globalThis.Response.json({
+          success: true,
+          result: [{ success: true, results: inspectRestoreSql(importedSql).map(table => ({ name: table.name })) }],
+        });
+      }
+      if (importedSql && body.sql.includes('SELECT count(*) AS n FROM')) {
+        const tableName = body.sql.match(/FROM "((?:[^"]|"")+)"/)?.[1]?.replaceAll('""', '"');
+        const table = inspectRestoreSql(importedSql).find(item => item.name === tableName);
+        return globalThis.Response.json({
+          success: true,
+          result: [{ success: true, results: [{ n: table?.count ?? 0 }] }],
+        });
+      }
       const result = await db.prepare(body.sql).all();
       return globalThis.Response.json({ success: true, result: [{ success: true, results: result.results }] });
     } catch (error) {
@@ -239,7 +254,6 @@ try {
     }
   };
   const restoreDatabase = async (database, target, recoveryDb) => {
-    let importedSql;
     await restoreBackup({
       file: path.join(backupDir, `${database}.sql.enc`), privateKeyFile, databaseId: target, env,
       request: localRequest,

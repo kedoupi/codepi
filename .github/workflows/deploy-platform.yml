@@ -37,8 +37,7 @@ on:
       - '.cursor/**'
       - '.github/copilot-instructions.md'
       - 'CLAUDE.md'
-      - 'GEMINI.md'
-      - '.gitignore'
+      - 'AGENTS.md'
   workflow_dispatch:
 
 permissions:
@@ -102,7 +101,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          all_trigger='^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|services/auth/|packages/shared/|scripts/cloudflare/|\.github/workflows/deploy-platform\.yml$)'
+          all_trigger='^(package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.npmrc$|services/auth/|packages/shared/|\.github/workflows/deploy-platform\.yml$)'
           mark_all() { for s in auth web gu gzh health mcp project me cli; do echo "$s=yes" >> "$GITHUB_OUTPUT"; done; }
           for s in auth web gu gzh health mcp project me cli; do echo "$s=no" >> "$GITHUB_OUTPUT"; done
           if [ "$EVENT" = 'push' ] || [ "$EVENT" = 'workflow_dispatch' ]; then

@@ -93,7 +93,9 @@ test('deploy-domain supports the required --app form and injects one exact-name 
     assert.equal(result.database_id, databaseId);
     assert.equal(result.migrations, 1);
     assert.equal(result.source_sha, f.sha);
-    assert.equal(result.version, version);
+    assert.equal(result.script, DOMAINS[app].worker);
+    assert.equal(result.new_version, version);
+    assert.equal(result.new_build_sha, f.sha);
     assert.equal(result.previous_version, undefined);
     assert.equal(result.migration_applied, undefined);
     assert.equal(result.secret_changed, undefined);
