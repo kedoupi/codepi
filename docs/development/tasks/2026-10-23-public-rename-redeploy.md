@@ -1,11 +1,11 @@
 # 仓库公开、改名与全量重发
 
-- 状态：已交付；发布后观察与浏览器验收已完成，未覆盖项见“继续工作”
+- 状态：已交付；发布后观察、通知、备份和浏览器验收已完成，剩余项均为可选或需所有者操作
 - 目标与验收：清理敏感内容后将仓库改名为 `kedoupi/codepi` 并公开；本机主目录改为 `~/Coding/codepi`；停止向公开仓库写入备份；全部生产 Worker 从新历史的 main 重新发布并通过巡检。
 - 不在范围内：轮换既有 SSO / provider 凭证、数据删除、Auth 旧回调删除（按原计划 10-29 后另行处理）。
 - worktree：发布用 `~/.worktrees/codepi/release/public-redeploy`（detached HEAD）；每个修复与本记录各用独立分支。
 - 起始 SHA：重写前本地 main `ffa8c70`；重写后公开 main `caf7f19`。
-- 交付 SHA：全量发布 `4b65167`（PR #163）；Ops 观察器修复 `a1abba3`（PR #164）、`83c5115`（PR #165）。
+- 交付 SHA：公开重发基线 `4b65167`；后续 Ops / MCP / CLI / 文档修复已分别经 PR #163–#175 合并；当前远程 main `805af3fc3a6f`。
 - 协调者 / 执行者 / 集成者：主会话（OMP），单一写入者顺序执行；生产发布全程持 `codepi-production-release.lock`。
 
 ## 已完成
@@ -20,7 +20,7 @@
 
 | 服务 | 旧版本 | 新版本 |
 | --- | --- | --- |
-| ops | 366370eb | 3ffe50d3 → 2f2aa602（#164）→ 6cd996af（#165）→ 4d601fbc（回滚凭证 secret） |
+| ops | 366370eb | 公开重发后历经观察器、通知与日志修复；当前生产版本以控制面为准 |
 | auth | b93b8374 | be166a50 |
 | www | c8056e49 | 54017904 |
 | gu | b322ec72 | 1bad98a7 |
@@ -28,7 +28,7 @@
 | health-api | 100efebf | e411309b |
 | project | 8918641d | 4084c084 |
 | me | 99197b4f | ff2721b3 |
-| mcp | fb3a2eca | 426e906f |
+| mcp | fb3a2eca | 426e906f；授权修复后重新发布 `263f7fa1` |
 | health（前端） | ad4586bd | 74f7c5da |
 
 Ops 最先发布，旧代码中向 GitHub Release 上传备份的路径随之下线。新 Ops 对 GitHub 只读取提交历史（版本漂移），另外写观察 Issue。
@@ -46,11 +46,19 @@ Ops 最先发布，旧代码中向 GitHub Release 上传备份的路径随之下
 
 ## 继续工作
 
-1. 所有者操作：Ops `GITHUB_TOKEN` 只有 Contents 权限，观察通知返回 HTTP 403。如需 GitHub Issue 通知，给该 fine-grained token 增加 `kedoupi/codepi` 的 Issues 读写。不加不影响巡检和观察报告（R2）。
-2. 所有者操作：本机主 checkout 仍停在重写前的 `ffa8c70`（工作区内容与新 main 一致），需在 `~/Coding/codepi` 执行 `git checkout -B main origin/main`。工具策略禁止 agent 切换共享 checkout。
-3. 次日确认 UTC 18:00 备份：R2 完整清单已生成，公开仓库没有出现新 Release。
-4. 可选：如需彻底清除旧提交缓存，联系 GitHub Support。
-5. 既有遗留：Auth 旧 kdp.cool 回调 10-29 后删除。
+1. 所有者操作：本机主 checkout 仍落后远程 main 两个提交；在 `~/Coding/codepi` 执行 `git pull --ff-only`，确认工作区干净。
+2. 可选：如需彻底清除旧提交缓存，联系 GitHub Support。
+3. 既有遗留：Auth 旧 `kdp.cool` 回调按计划 10-29 后删除。
+4. 未覆盖：真实邮件 OTP、Oura 重新授权、MCP 客户端在修复后重新连接；这些需要所有者在实际客户端/账号中操作。
+
+## 后续线上证据
+
+- Ops `GITHUB_TOKEN` 已配置 `kedoupi/codepi` 的 Issues 写权限；此前 403 的真实原因是通知请求缺少 `User-Agent`。PR #174 修复后，观察开始通知和完成通知均成功写入 Issue #169。
+- PR #175 修复观察评论的服务名显示，生产通知现显示 `services: ops`。
+- `release-c97ae7a7fa7b-uafix` 30 分钟观察完成，状态 `healthy_reported`；R2 summary 完整。
+- `reports/backup/latest.json`：9 个 D1、GU/Me 原件 114 个对象、`ok=true`、`r2=complete`。
+- `reports/monitor/latest.json`：最近巡检 `ok=true`，版本漂移检查通过。
+- MCP 授权修复已通过真实浏览器回调跳转、token 兑换、`tools/list` 和撤销验收。
 
 ## 浏览器验收（2026-10-23，真实登录会话）
 
