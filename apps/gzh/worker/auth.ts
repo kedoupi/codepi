@@ -210,48 +210,45 @@ export async function handleVerifyOtp(request: Request, env: Env): Promise<Respo
     return json({ ok: false, error: "验证失败" }, 400);
   }
 
+  const now = nowIso();
   const row = await env.DB.prepare(
-    `SELECT id, code_hash, expires_at, attempts, used_at
-     FROM otp_codes
-     WHERE email = ?
-     ORDER BY created_at DESC
-     LIMIT 1`,
+    `UPDATE otp_codes
+     SET attempts = attempts + 1
+     WHERE id = (
+       SELECT id FROM otp_codes
+       WHERE email = ? AND used_at IS NULL AND expires_at > ?
+       ORDER BY created_at DESC
+       LIMIT 1
+     )
+       AND attempts < ?
+       AND used_at IS NULL
+       AND expires_at > ?
+     RETURNING id, code_hash, attempts`,
   )
-    .bind(email)
+    .bind(email, now, OTP_MAX_ATTEMPTS, now)
     .first<{
       id: string;
       code_hash: string;
-      expires_at: string;
       attempts: number;
-      used_at: string | null;
     }>();
 
-  if (!row || row.used_at || Date.parse(row.expires_at) <= Date.now()) {
-    return json({ ok: false, error: "验证失败" }, 400);
-  }
-
-  if (row.attempts >= OTP_MAX_ATTEMPTS) {
-    await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ?`)
-      .bind(nowIso(), row.id)
-      .run();
+  if (!row) {
     return json({ ok: false, error: "验证失败" }, 400);
   }
 
   const incoming = await hashSecret(code, env.OTP_PEPPER);
   if (!timingSafeEqual(incoming, row.code_hash)) {
-    const nextAttempts = row.attempts + 1;
-    await env.DB.prepare(`UPDATE otp_codes SET attempts = ? WHERE id = ?`)
-      .bind(nextAttempts, row.id)
-      .run();
-    if (nextAttempts >= OTP_MAX_ATTEMPTS) {
-      await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ?`)
-        .bind(nowIso(), row.id)
+    if (row.attempts >= OTP_MAX_ATTEMPTS) {
+      await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ? AND used_at IS NULL`)
+        .bind(now, row.id)
         .run();
     }
     return json({ ok: false, error: "验证失败" }, 400);
   }
 
-  await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ?`).bind(nowIso(), row.id).run();
+  await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ? AND used_at IS NULL`)
+    .bind(now, row.id)
+    .run();
 
   let account = await findAccountByEmail(env, email);
   if (!account) {

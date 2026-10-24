@@ -56,6 +56,22 @@ test('a bad collection request does not tell the user their authorization expire
   assert.equal((await response.json()).error, 'upstream_request_rejected');
 });
 
+test('rate-limited collection preserves the cached snapshot and exposes backoff state', async t => {
+  let limited = false;
+  const f = await fixture(t, url => {
+    if (limited && url.pathname.endsWith('/daily_sleep')) return new Response('', { status: 429 });
+  });
+  const before = await (await f.daily()).json();
+  await f.db.prepare("UPDATE sync_state SET synced_at='2000-01-01T00:00:00Z'").run();
+  limited = true;
+  const response = await f.daily();
+  assert.equal(response.status, 200);
+  const after = await response.json();
+  assert.deepEqual(after.days, before.days);
+  assert.equal(after.sync.error, 'rate_limited');
+  assert.equal(after.sync.stale, true);
+});
+
 test('daily pagination overflow preserves the previous cache and records the limit error', async t => {
   let overflow = false;
   const f = await fixture(t, url => {

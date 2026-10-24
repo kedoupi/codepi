@@ -16,6 +16,7 @@ import {
   upsertEncryptedTokens,
   type StoredTokens,
 } from "../src/lib/tokens.ts";
+import { withD1Retry } from "../src/lib/d1-retry.ts";
 
 const SECRET = "test-token-encryption-key";
 
@@ -168,6 +169,30 @@ describe("encrypted_tokens storage is identity-bound", () => {
     // Next refresh rewrites the row in the new AAD-bound format.
     await upsertEncryptedTokens(env, "user-a", SECRET, tokens);
     assert.match(env.rows.get("user-a")!.ciphertext, new RegExp(`^v${BLOB_VERSION}\\.`));
+  });
+  it("retries a transient D1 failure while persisting refreshed tokens", async () => {
+    let writes = 0;
+    const env = fakeEnv();
+    const originalPrepare = env.DB.prepare.bind(env.DB);
+    env.DB.prepare = ((sql: string) => {
+      const statement = originalPrepare(sql);
+      if (!/INSERT INTO encrypted_tokens/i.test(sql)) return statement;
+      return {
+        bind(...args: unknown[]) {
+          const bound = statement.bind(...args);
+          return {
+            ...bound,
+            async run() {
+              writes++;
+              if (writes === 1) throw new Error("D1_ERROR: internal error");
+              return bound.run();
+            },
+          };
+        },
+      };
+    }) as typeof env.DB.prepare;
+    await withD1Retry(() => upsertEncryptedTokens(env, "user-a", SECRET, tokens));
+    assert.equal(writes, 2);
     assert.deepEqual(await loadEncryptedTokens(env, "user-a", SECRET), tokens);
   });
 

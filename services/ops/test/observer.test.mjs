@@ -106,3 +106,42 @@ test('waits between the seven polls with uniquely named Workflow sleeps', async 
   assert.equal(new Set(sleeps.map(([name]) => name)).size, 6);
   assert.ok(sleeps.every(([, duration]) => duration === '5 minutes'));
 });
+test('rolls back every critical service and verifies the previous versions', async () => {
+  const b = bucket();
+  const calls = [];
+  let checks = 0;
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step,
+    observability: fakeClient({ invocations: 20, errors: 20, errorRate: .20 }),
+    activeVersionCheck: async () => (++checks <= 2 ? 'new' : 'old'),
+    rollbackWorker: async args => { calls.push(args); return { script: args.script, active_version: args.targetVersion }; },
+    rollbackApi: async () => {},
+    notify: async () => {},
+  });
+  assert.equal(result.state, 'rollback_verified');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { script: 'api', expectedActiveVersion: 'new', targetVersion: 'old', api: calls[0].api });
+  assert.match([...b.data.values()].join('\n'), /rollback_executed/);
+  assert.match([...b.data.values()].join('\n'), /rollback_verified/);
+});
+
+test('blocks rollback when the worker or post-rollback verification fails', async () => {
+  const b = bucket();
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step,
+    observability: fakeClient({ invocations: 20, errors: 20, errorRate: .20 }),
+    activeVersionCheck: async () => 'new',
+    rollbackWorker: async () => { throw new Error('rollback API unavailable'); },
+    rollbackApi: async () => {},
+    notify: async () => {},
+  });
+  assert.equal(result.state, 'rollback_blocked');
+  const events = [...b.data.values()].join('\n');
+  assert.match(events, /rollback_pending/);
+  assert.match(events, /rollback_blocked/);
+  assert.doesNotMatch(events, /rollback_verified/);
+});

@@ -28,6 +28,14 @@ test("unknown, malformed and oversized Oura errors keep their HTTP classificatio
   }
 });
 
+test("Oura rate limits stay rate_limited instead of becoming upstream_unavailable", async t => {
+  t.mock.method(globalThis, "fetch", async () => new Response("", { status: 429 }));
+  await assert.rejects(
+    upstreamFetch("https://api.ouraring.com/v2/usercollection/daily_sleep"),
+    (error: unknown) => error instanceof ApiError && error.code === "rate_limited" && error.status === 429,
+  );
+});
+
 test("permission diagnostics read split chunks and cancel oversized streams", async t => {
   let cancelled = false;
   const encoder = new TextEncoder();

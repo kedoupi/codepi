@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { activeWorkerVersion } from '../../../scripts/cloudflare/worker-api.mjs';
+import { cloudflareApi, rollbackWorker as executeRollback } from '../../../scripts/cloudflare/rollback-worker.mjs';
 import { notifyGithub } from '../../../scripts/cloudflare/github-notify.mjs';
 
 export const OBSERVATION_STATES = new Set(['created', 'notified', 'observing', 'awaiting_user_confirmation', 'healthy_reported', 'degraded_notified', 'degraded_reported', 'critical_detected', 'rollback_pending', 'rolled_back', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
@@ -79,7 +80,7 @@ export async function observeReleaseRound({ manifest, round, observability, core
   return safeValue({ round, services, core: coreResults, criticalRounds: Object.fromEntries(priorCritical) });
 }
 
-export async function runObserver({ manifest, bucket, step, env = {}, observability, notify = notifyGithub, coreCheck, activeVersionCheck, now = () => new Date().toISOString() }) {
+export async function runObserver({ manifest, bucket, step, env = {}, observability, notify = notifyGithub, coreCheck, activeVersionCheck = activeWorkerVersion, rollbackWorker = executeRollback, rollbackApi, now = () => new Date().toISOString() }) {
   assert.ok(manifest?.release_id && Array.isArray(manifest.services), 'release manifest is required');
   assert.ok(bucket && typeof bucket.put === 'function', 'observer report bucket is required');
   const releaseId = manifest.release_id;
@@ -113,11 +114,45 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
     await bucket.put(`reports/observer/${releaseId}/poll-${i}.json`, JSON.stringify(safeValue(poll)), { httpMetadata: { contentType: 'application/json' } });
     const critical = poll.services.some(item => item.severity === 'critical');
     const degraded = poll.services.some(item => item.severity === 'degraded');
-    if (critical && state !== 'rollback_pending' && state !== 'rollback_blocked') {
-      await emit('critical_detected', { nextState: 'critical_detected', services: poll.services.filter(item => item.severity === 'critical').map(item => item.service) });
+    if (critical && state === 'observing') {
+      const criticalServices = poll.services.filter(item => item.severity === 'critical');
+      await emit('critical_detected', { nextState: 'critical_detected', services: criticalServices.map(item => item.service) });
       const rollbackAllowed = manifest.services.every(item => item.rollback_allowed === true);
-      await emit(rollbackAllowed ? 'rollback_candidate' : 'rollback_blocked', { nextState: rollbackAllowed ? 'rollback_pending' : 'rollback_blocked', rollback_allowed: rollbackAllowed });
-      try { await notify({ releaseId, services: poll.services.filter(item => item.severity === 'critical'), severity: 'critical', summary: 'critical release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
+      if (!rollbackAllowed) {
+        await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: false });
+      } else {
+        await emit('rollback_candidate', { nextState: 'rollback_pending', rollback_allowed: true });
+        const rollbackResults = [];
+        try {
+          for (const observed of criticalServices) {
+            const item = manifest.services.find(service => service.script === observed.script);
+            assert.ok(item?.previous_version, `previous version is required for ${observed.script}`);
+            const api = rollbackApi ?? (rollbackWorker === executeRollback ? cloudflareApi({ env }) : undefined);
+            const result = await (step?.do
+              ? step.do(`rollback ${observed.script}`, async () => rollbackWorker({
+                script: observed.script,
+                expectedActiveVersion: item.new_version,
+                targetVersion: item.previous_version,
+                api,
+              }))
+              : rollbackWorker({
+                script: observed.script,
+                expectedActiveVersion: item.new_version,
+                targetVersion: item.previous_version,
+                api,
+              }));
+            assert.equal(result?.active_version, item.previous_version, `rollback worker did not report ${item.previous_version} for ${observed.script}`);
+            const verifiedVersion = await activeVersionCheck(observed.script, { env });
+            assert.equal(verifiedVersion, item.previous_version, `rollback verification failed for ${observed.script}`);
+            rollbackResults.push({ service: observed.service, script: observed.script, previous_version: item.previous_version, active_version: verifiedVersion });
+          }
+          await emit('rollback_executed', { nextState: 'rolled_back', services: rollbackResults });
+          await emit('rollback_verified', { nextState: 'rollback_verified', services: rollbackResults });
+        } catch (error) {
+          await emit('rollback_blocked', { nextState: 'rollback_blocked', rollback_allowed: true, error: error.message, services: rollbackResults });
+        }
+      }
+      try { await notify({ releaseId, services: criticalServices, severity: 'critical', summary: 'critical release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
     } else if (degraded && state === 'observing') {
       await emit('degraded_detected', { nextState: 'degraded_notified', services: poll.services.filter(item => item.severity === 'degraded').map(item => item.service) });
       try { await notify({ releaseId, services: poll.services.filter(item => item.severity === 'degraded'), severity: 'degraded', summary: 'degraded release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }

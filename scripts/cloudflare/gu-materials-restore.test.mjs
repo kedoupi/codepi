@@ -53,6 +53,8 @@ async function fixture(t, count = 2) {
 test('recovery verifies D1 references, restores exact bytes privately and reports newer originals separately', async t => {
   const opts = await fixture(t);
   opts.index.pop(); // The second original arrived after the D1 export.
+  opts.manifest.materials.through = 1;
+  await opts.save();
   const report = await restoreMaterials(opts);
   assert.deepEqual([report.objects, report.indexed, report.extra_objects], [2, 1, 1]);
   assert.equal((await stat(opts.outDir)).mode & 0o777, 0o700);
@@ -68,6 +70,13 @@ test('recovery verifies D1 references, restores exact bytes privately and report
 test('a verified empty index and archive restore as zero originals', async t => {
   const opts = await fixture(t, 0);
   assert.equal((await restoreMaterials(opts)).objects, 0);
+});
+
+test('missing D1 rows cannot be reported as a successful recovery', async t => {
+  const opts = await fixture(t);
+  opts.index.pop();
+  await assert.rejects(restoreMaterials(opts), /missing exported originals/);
+  await assert.rejects(access(opts.outDir), { code: 'ENOENT' });
 });
 
 test('missing originals, ciphertext corruption and source hash mismatches remove partial plaintext', async t => {

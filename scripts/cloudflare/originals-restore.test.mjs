@@ -135,6 +135,25 @@ test('legacy v2 GU-only backups remain readable without inventing Me coverage', 
     'Synthetic GU original 0');
 });
 
+test('new originals after the D1 export remain recoverable as extra objects', async t => {
+  const opts = await fixture(t);
+  opts.manifest.materials.collections.find(collection => collection.source === 'codepi-gu').through = 0;
+  opts.gu.index.pop();
+  await opts.save();
+  const report = await restoreOriginals(opts);
+  assert.deepEqual(report.collections.map(item => [item.source, item.indexed, item.extra_objects]), [
+    ['codepi-gu', 0, 1],
+    ['codepi-me', 1, 0],
+  ]);
+});
+
+test('missing D1 rows cannot be reported as a successful recovery', async t => {
+  const opts = await fixture(t);
+  opts.gu.index.pop();
+  await assert.rejects(restoreOriginals(opts), /missing exported originals/);
+  await assert.rejects(access(opts.outDir), { code: 'ENOENT' });
+});
+
 test('all manifest production identities are excluded even when a new database UUID uses uppercase', async t => {
   const opts = await fixture(t);
   const projectId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
