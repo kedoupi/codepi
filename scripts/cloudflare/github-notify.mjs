@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 export const OBSERVATION_ISSUE_TITLE = 'codepi release observations';
 export const OBSERVATION_REPOSITORY = 'kedoupi/codepi';
 export const OBSERVATION_LABEL = 'codepi-release-observations';
+export const MAX_GITHUB_PAGES = 10;
 function redact(value) {
   return String(value ?? '').replace(/([?&](?:token|key|secret|password|authorization|signature|code)=)[^&\s]*/gi, '$1[REDACTED]').replace(/\b(?:bearer\s+)[^\s]+/gi, 'Bearer [REDACTED]').slice(0, 2000);
 }
@@ -31,9 +32,13 @@ export async function notifyGithub(event, { env = process.env, fetchImpl = fetch
   assert.ok(slash > 0, 'GITHUB_REPOSITORY must be owner/name');
   const owner = repository.slice(0, slash), repo = repository.slice(slash + 1);
   const headers = { authorization: `Bearer ${token}` };
-  const query = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&per_page=100`;
-  const issues = await request(fetchImpl, query, { headers });
-  let issue = Array.isArray(issues) ? issues.find(item => item.title === OBSERVATION_ISSUE_TITLE && !item.pull_request) : null;
+  let issue = null;
+  for (let page = 1; page <= MAX_GITHUB_PAGES && !issue; page++) {
+    const issues = await request(fetchImpl, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?state=open&sort=created&direction=desc&per_page=100&page=${page}`, { headers });
+    if (!Array.isArray(issues)) break;
+    issue = issues.find(item => item.title === OBSERVATION_ISSUE_TITLE && !item.pull_request) ?? null;
+    if (issues.length < 100) break;
+  }
   if (!issue) {
     try {
       await request(fetchImpl, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/labels`, {
@@ -58,9 +63,13 @@ export async function notifyGithub(event, { env = process.env, fetchImpl = fetch
     `time: ${redact(timestamp)}`,
     `event_id: ${eventId}`,
   ].join('\n');
-  const comments = await request(fetchImpl, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issue.number}/comments?per_page=100`, { headers });
-  if (Array.isArray(comments) && comments.some(comment => typeof comment.body === 'string' && comment.body.includes(`event_id: ${eventId}`))) {
-    return { issueNumber: issue.number, commentId: null, deduplicated: true };
+  for (let page = 1; page <= MAX_GITHUB_PAGES; page++) {
+    const comments = await request(fetchImpl, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issue.number}/comments?direction=desc&per_page=100&page=${page}`, { headers });
+    if (!Array.isArray(comments)) break;
+    if (comments.some(comment => typeof comment.body === 'string' && comment.body.includes(`event_id: ${eventId}`))) {
+      return { issueNumber: issue.number, commentId: null, deduplicated: true };
+    }
+    if (comments.length < 100) break;
   }
   const comment = await request(fetchImpl, `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${issue.number}/comments`, {
     method: 'POST', headers, body: JSON.stringify({ body }),

@@ -3,6 +3,7 @@ import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { activeWorkerVersion } from '../../../scripts/cloudflare/worker-api.mjs';
 import { cloudflareApi, rollbackWorker as executeRollback } from '../../../scripts/cloudflare/rollback-worker.mjs';
 import { notifyGithub } from '../../../scripts/cloudflare/github-notify.mjs';
+import { STEP } from './step-options.mjs';
 
 export const OBSERVATION_STATES = new Set(['created', 'notified', 'observing', 'awaiting_user_confirmation', 'healthy_reported', 'degraded_notified', 'degraded_reported', 'critical_detected', 'rollback_pending', 'rolled_back', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
 const TERMINAL = new Set(['healthy_reported', 'degraded_reported', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
@@ -29,6 +30,10 @@ export function transitionState(state, next, eventId, seen = new Set()) {
 }
 
 function number(value) { return typeof value === 'number' && Number.isFinite(value) ? value : null; }
+function effectiveErrorRate(metrics, invocations, errors) {
+  const rate = number(metrics.errorRate);
+  return rate ?? (invocations > 0 ? errors / invocations : null);
+}
 function serviceName(item) { return item.service ?? item.scriptName ?? item.script ?? 'unknown'; }
 function normalizedWords(value) {
   return typeof value === 'string' ? value.toLowerCase().replace(/^codepi[-_]/, '').split(/[^a-z0-9]+/).filter(Boolean) : [];
@@ -53,7 +58,7 @@ export function classifySeverity({ metrics = {}, baseline = {}, hardFailure = fa
   if (hardFailure && criticalRounds >= 1) return 'critical';
   const invocations = number(metrics.invocations) ?? 0;
   const errors = number(metrics.errors) ?? 0;
-  const rate = number(metrics.errorRate);
+  const rate = effectiveErrorRate(metrics, invocations, errors);
   const p99 = number(metrics.p99LatencyMs);
   const baselineP99 = number(metrics.baselineP99LatencyMs) ?? number(baseline.p99LatencyMs);
   const degraded = invocations >= 20 && ((rate !== null && rate >= 0.05) || (p99 !== null && baselineP99 !== null && p99 >= 2 * baselineP99));
@@ -83,7 +88,9 @@ export async function observeReleaseRound({ manifest, round, observability, core
       issues = await observability.listIssues({ scriptName: script, sinceMinutes: 5 });
     } catch (error) { observabilityFailed = true; issues = [{ title: 'observability unavailable', message: error.message }]; }
     const hardFailure = hasServiceCoreFailure(coreResults, item);
-    const highCritical = (number(metrics?.invocations) ?? 0) >= 20 && (number(metrics?.errorRate) ?? 0) >= 0.20 && (number(metrics?.errors) ?? 0) >= 20;
+    const invocations = number(metrics?.invocations) ?? 0;
+    const errors = number(metrics?.errors) ?? 0;
+    const highCritical = invocations >= 20 && (effectiveErrorRate(metrics ?? {}, invocations, errors) ?? -Infinity) >= 0.20 && errors >= 20;
     const previousCritical = priorCritical.get(script) ?? 0;
     const severity = classifySeverity({ metrics: metrics ?? {}, baseline: item.baseline ?? {}, hardFailure, versionMismatch, criticalRounds: previousCritical });
     if (activeVersionCheckFailed || observabilityFailed) {
@@ -155,15 +162,23 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
             assert.ok(item?.previous_version, `previous version is required for ${observed.script}`);
             const api = rollbackApi ?? (rollbackWorker === executeRollback ? cloudflareApi({ env }) : undefined);
             const result = await (step?.do
-              ? step.do(`rollback ${observed.script}`, async () => rollbackWorker({ script: observed.script, expectedActiveVersion: item.new_version, targetVersion: item.previous_version, api }))
+              ? step.do(`rollback ${observed.script}`, STEP, async () => rollbackWorker({ script: observed.script, expectedActiveVersion: item.new_version, targetVersion: item.previous_version, api }))
               : rollbackWorker({ script: observed.script, expectedActiveVersion: item.new_version, targetVersion: item.previous_version, api }));
             assert.equal(result?.active_version, item.previous_version, `rollback worker did not report ${item.previous_version} for ${observed.script}`);
             const verifiedVersion = await activeVersionCheck(observed.script, { env });
             assert.equal(verifiedVersion, item.previous_version, `rollback verification failed for ${observed.script}`);
             rollbackSummary.successful_services.push({ service: observed.service, script: observed.script, version: verifiedVersion });
           } catch (error) {
-            rollbackSummary.failed_services.push({ service: observed.service, script: observed.script, error: safeValue(error.message) });
-            rollbackSummary.lingering.push({ service: observed.service, script: observed.script, active_version: observed.active_version, expected_version: item?.previous_version ?? null });
+            // A POST may have committed before its response failed. Re-read the
+            // control plane independently before recording a blocked rollback.
+            let recoveredVersion = null;
+            try { recoveredVersion = await activeVersionCheck(observed.script, { env }); } catch {}
+            if (recoveredVersion === item?.previous_version) {
+              rollbackSummary.successful_services.push({ service: observed.service, script: observed.script, version: recoveredVersion });
+            } else {
+              rollbackSummary.failed_services.push({ service: observed.service, script: observed.script, error: safeValue(error.message) });
+              rollbackSummary.lingering.push({ service: observed.service, script: observed.script, active_version: recoveredVersion, expected_version: item?.previous_version ?? null });
+            }
           }
         }
         if (rollbackSummary.failed_services.length > 0) {
@@ -173,10 +188,10 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
           await emit('rollback_verified', { nextState: 'rollback_verified', services: rollbackSummary.successful_services });
         }
       }
-      try { await notify({ releaseId, services: criticalServices, severity: 'critical', summary: 'critical release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
+      try { await notify({ event_id: `${releaseId}-round-${i}-critical`, releaseId, services: criticalServices, severity: 'critical', summary: 'critical release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
     } else if (degraded && state === 'observing') {
       await emit('degraded_detected', { nextState: 'degraded_notified', services: poll.services.filter(item => item.severity === 'degraded').map(item => item.service) });
-      try { await notify({ releaseId, services: poll.services.filter(item => item.severity === 'degraded'), severity: 'degraded', summary: 'degraded release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
+      try { await notify({ event_id: `${releaseId}-round-${i}-degraded`, releaseId, services: poll.services.filter(item => item.severity === 'degraded'), severity: 'degraded', summary: 'degraded release observation' }, { env }); } catch (error) { await emit('notification_failed', { error: error.message }); }
       await emit('degraded_observation_continued', { nextState: 'observing' });
     }
     if (TERMINAL.has(state)) break;
@@ -189,7 +204,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
       await emit('healthy_reported', { nextState: 'healthy_reported' });
     }
   }
-const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, rollback: rollbackSummary, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
+  const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, rollback: rollbackSummary, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
   await bucket.put(`reports/observer/${releaseId}/summary.json`, JSON.stringify(summary), { httpMetadata: { contentType: 'application/json' } });
   try {
     await notify({ event_id: `${releaseId}-completed`, releaseId, services: affectedServices, severity: summary.state, summary: `observation complete; summary: reports/observer/${releaseId}/summary.json` }, { env });

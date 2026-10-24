@@ -14,7 +14,7 @@
 | Cloudflare 告警优化 | 已闭环：WAF 边缘拦截（含编码变体与 credentials.json）、incident 策略删除、MCP 403+warn（PR #145/#149）、巡检 423 修复（PR #151）、全部漂移 Worker 重发、codepi-blog 纳入九库备份（手动实例已回执）、monitor 连续 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：开发活跃期合并共享代码即产生漂移告警，需随合并节奏发布 |
 | Workers Issues 自动告警 | 十个生产 Worker 的 20 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
 | Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
-| GitHub 跨平台备份 | v3 自动复制八库、GU 112 份原件、Me 空集合及 manifest 共 122 个附件并通过独立解密；八库隔离恢复和 GU 112 份原件逐件恢复通过，Me 仅验证空集合 | [跨平台验收](2026-10-20-github-offsite.md)、[领域发布与 v3 恢复](2026-10-20-codepi-mcp-domains.md#备份巡检与隔离恢复)、[自动告警](2026-10-20-workers-issues.md)：Me 非空导入和私钥异机取回验收仍待补 |
+| GitHub 跨平台备份（历史证据） | 2026-10-20 的私有 GitHub Release 副本仅保留为历史验收证据；`services/ops/src/offsite.mjs` 已下线，禁止把公开仓库 Release 当作备份通道。当前备份标准是私有 R2 v3 `manifest.json` 与 `reports/backup/r2-success.json`，覆盖九库及 GU/Me 原件 | [10-23 改名记录](2026-10-23-public-rename-redeploy.md)、[R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[历史验收](2026-10-20-github-offsite.md) |
 | Health 历史同步告警 | PR #111 已合并，Health API/MCP 已发布；真实账号 16 类旧告警归零，48 条历史记录保留，生产巡检 24/24 通过 | [修复与发布证据](2026-10-20-health-sync-alerts.md)：刷新设置页读取新状态，无需重新同步 |
 | GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：原资料、生产数据、正式密文保留；GitHub 自动复制已验收，自动研究与 GU MCP 为后续阶段 |
 | 工程文档与 Agent 规范整理 | 本地整理、链接核对与受影响检查完成，经 PR #106 交付 | [本轮记录](2026-10-19-engineering-docs.md)：入口、规则、skills 与历史标记已校正；主干状态以 PR 为准，后续新任务从包含规范的 main 开始 |

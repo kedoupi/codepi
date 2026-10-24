@@ -96,6 +96,8 @@ test('validation maps PR consumers and rejects invalid ranges and events', async
   };
   const base = await commit('README.md');
   await commit('apps/health/change.ts');
+  const cliBase = git('rev-parse', 'HEAD');
+  await commit('packages/cli/change.ts');
   const output = path.join(cwd, 'outputs');
   const run = async (event = 'pull_request', prBase = base) => {
     await writeFile(output, '');
@@ -106,8 +108,10 @@ test('validation maps PR consumers and rejects invalid ranges and events', async
     return Object.fromEntries((await readFile(output, 'utf8')).trim().split('\n').map(line => line.split('=')));
   };
   const all = Object.fromEntries(['auth', 'web', 'gu', 'gzh', 'health', 'mcp', 'project', 'me', 'cli'].map(id => [id, 'yes']));
-  const healthOnly = { ...Object.fromEntries(Object.keys(all).map(id => [id, 'no'])), health: 'yes', mcp: 'yes' };
-  assert.deepEqual(await run(), healthOnly);
+  const healthCliOnly = { ...Object.fromEntries(Object.keys(all).map(id => [id, 'no'])), health: 'yes', cli: 'yes', mcp: 'yes' };
+  const cliOnly = { ...Object.fromEntries(Object.keys(all).map(id => [id, 'no'])), cli: 'yes', mcp: 'yes' };
+  assert.deepEqual(await run(), healthCliOnly);
+  assert.deepEqual(await run('pull_request', cliBase), cliOnly);
   assert.deepEqual(await run('push'), all);
   assert.deepEqual(await run('workflow_dispatch'), all);
   await assert.rejects(run('unknown'), /unsupported validation event/);
@@ -126,6 +130,23 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
 });
 
+test('Health builds the workspace once and product jobs use current Actions versions', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  const health = workflow.split('\n  health-build:')[1]?.split('\n  project-build:')[0];
+  assert.ok(health);
+  assert.equal((health.match(/^\s+- run: pnpm build$/gm) ?? []).length, 1);
+  assert.doesNotMatch(health, /pnpm --filter @health-kdp\/web build/);
+  for (const jobName of ['project-build', 'me-build', 'cli-build']) {
+    const nextJob = jobName === 'project-build' ? 'me-build' : jobName === 'me-build' ? 'cli-build' : null;
+    const job = workflow.split(`\n  ${jobName}:`)[1]?.split(nextJob ? `\n  ${nextJob}:` : '\n\n')[0];
+    assert.ok(job, `${jobName} must exist`);
+    assert.match(job, /actions\/checkout@v7/);
+    assert.match(job, /pnpm\/action-setup@v6/);
+    assert.match(job, /actions\/setup-node@v7/);
+  }
+});
+
+
 test('MCP CI checks the real Health RPC and browser flow without deployment', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
   assert.match(workflow, /'services\/mcp\/\*\*'/);
@@ -134,6 +155,8 @@ test('MCP CI checks the real Health RPC and browser flow without deployment', as
   assert.match(build, /pnpm test/);
   assert.match(build, /pnpm typecheck/);
   assert.match(build, /pnpm test:browser:built/);
+  const mcpPackage = await readFile(new URL('services/mcp/package.json', root), 'utf8');
+  assert.match(mcpPackage, /pnpm --filter @kedoupi\/codepi build/);
   assert.doesNotMatch(workflow, /mcp-deploy-production:|pnpm run deploy/);
 });
 

@@ -58,3 +58,26 @@ test('existing label 422 is ignored and duplicate event comments are skipped', a
   assert.equal(result.deduplicated, true);
   assert.ok(!calls.some(call => call.options.method === 'POST' && call.url.includes('/comments')));
 });
+test('paginates issues and newest-first comments before deduplicating', async () => {
+  const calls = [];
+  const firstPageIssues = Array.from({ length: 100 }, (_, index) => ({ number: index + 1, title: `issue-${index}` }));
+  const firstPageComments = Array.from({ length: 100 }, () => ({ body: 'other event' }));
+  const request = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.includes('/issues?')) {
+      return response(/page=1(?:&|$)/.test(url) ? firstPageIssues : [{ number: 42, title: 'codepi release observations' }]);
+    }
+    if (url.includes('/comments?')) {
+      return response(/page=1(?:&|$)/.test(url) ? firstPageComments : [{ body: 'event_id: evt-paged' }]);
+    }
+    return response({ id: 1 });
+  };
+  const result = await notifyGithub(
+    { event_id: 'evt-paged', releaseId: 'rel-paged', severity: 'critical' },
+    { env: { GITHUB_TOKEN: 'synthetic', GITHUB_REPOSITORY: 'owner/repo' }, fetchImpl: request },
+  );
+  assert.equal(result.deduplicated, true);
+  assert.equal(calls.filter(call => call.url.includes('/issues?')).length, 2);
+  assert.equal(calls.filter(call => call.url.includes('/comments?')).length, 2);
+  assert.match(calls.find(call => call.url.includes('/comments?')).url, /direction=desc/);
+});
