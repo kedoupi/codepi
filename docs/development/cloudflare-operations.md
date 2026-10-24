@@ -61,10 +61,13 @@ reports/observer/<release_id>/summary.json
 
 回滚使用独立的 `CLOUDFLARE_ROLLBACK_TOKEN`，通过 `node scripts/cloudflare/provision-ops.mjs rollback-credential` 创建，权限仅为 Workers Scripts Write；现有 `CLOUDFLARE_API_TOKEN` 不用于回滚且权限不变。凭证值永不写入文档、报告或日志。
 
-云端巡检还查询 `codepi.app` zone 的 hourly Analytics，追加 `zone traffic threats exceed threshold`
-与 `zone traffic requests surge` 两个结果。流量检查采用 fail-closed：网络、权限、GraphQL、
-Zone Analytics 或 R2 基线损坏/写入失败均产生失败结果，不转换为 skip。最近完整 UTC 小时
-缺失时也失败；冷启动前 24 个历史小时只使用绝对阈值，之后按同一 UTC 时段的七天均值判定。
+云端巡检还查询 `codepi.app` zone 的 hourly Analytics，追加
+`zone traffic threats exceed threshold` 与 `zone traffic requests surge` 两个结果。正常
+阈值计算产生的 threats 结果带 `advisory: true`：扫描流量被 WAF 拦截时仍写入完整
+报告与基线，但不使本轮生产 monitor 失败。requests 流量结果始终是阻断性检查；
+基础设施、网络、权限、GraphQL、Zone Analytics 或 R2 基线损坏/写入失败等错误
+没有 `advisory` 标记，继续 fail-closed 并使本轮失败。最近完整 UTC 小时缺失时也失败；
+冷启动前 24 个历史小时只使用绝对阈值，之后按同一 UTC 时段的七天均值判定。
 
 Ops token 最小权限为 `D1 Write + Workers Scripts Read + Zone Analytics Read`；
 后者仅用于 `codepi.app` zone 的 GraphQL Analytics 查询。

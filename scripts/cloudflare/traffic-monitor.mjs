@@ -79,7 +79,8 @@ export function evaluateTrafficAlerts(samples, { now = Date.now(), thresholds = 
     const config = thresholds[metricName], sameSlot = history.filter(sample => sample.hour.slice(11, 13) === current.hour.slice(11, 13));
     const mean = sameSlot.length ? sameSlot.reduce((sum, sample) => sum + sample[metricName], 0) / sameSlot.length : 0;
     const threshold = cold || !sameSlot.length ? config.absoluteMinimum : Math.max(config.absoluteMinimum, config.multiplier * mean);
-    return result(names[metricName], current[metricName] <= threshold, `hour=${current.hour}; value=${current[metricName]}; threshold=${threshold}; baseline_samples=${sameSlot.length}`);
+    const alert = result(names[metricName], current[metricName] <= threshold, `hour=${current.hour}; value=${current[metricName]}; threshold=${threshold}; baseline_samples=${sameSlot.length}`);
+    return metricName === 'threats' ? { ...alert, advisory: true } : alert;
   });
 }
 export async function checkTraffic({ env = process.env, bucket = env.BACKUPS, ...options } = {}) {

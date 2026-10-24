@@ -8,6 +8,7 @@ import {
   assertRecentMonitor,
   backupFreshness,
   backupOperation,
+  isBlockingMonitorResult,
   monitorOperation,
   observeOperation,
   scheduleOperation,
@@ -127,6 +128,26 @@ test('monitor preserves failures and appends traffic results in its private repo
   assert.equal(report.results.filter(result => result.name.startsWith('zone traffic')).length, 2);
   // Backup freshness must stay in the monitor report alongside traffic results.
   assert.equal(report.results.filter(result => result.name.includes('backup completed within 30 hours')).length, 1);
+});
+test('advisory threat alerts remain in the report without failing the monitor', async () => {
+  const env = { BACKUPS: bucketFixture(), BUILD_SHA: 'synthetic' };
+  await env.BACKUPS.put('reports/backup/r2-success.json', JSON.stringify({
+    completed_at: new Date().toISOString(), databases: DATABASE_NAMES.length, database_names: DATABASE_NAMES,
+    materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
+  }));
+  const traffic = [
+    { name: 'zone traffic threats exceed threshold', ok: false, advisory: true, detail: 'scan denied' },
+    { name: 'zone traffic requests surge', ok: true },
+  ];
+  assert.equal(isBlockingMonitorResult(traffic[0]), false);
+  assert.equal(isBlockingMonitorResult(traffic[1]), false);
+  await monitorOperation(env, stepFixture(), { instanceId: 'monitor-advisory' }, {
+    monitor: async () => [{ name: 'auth', ok: true }],
+    trafficCheck: async () => traffic,
+  });
+  const report = await (await env.BACKUPS.get('reports/monitor/latest.json')).json();
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.results.filter(result => result.name.startsWith('zone traffic')), traffic);
 });
 
 test('freshness rejects stale and incomplete backups', async () => {
