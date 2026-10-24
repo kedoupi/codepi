@@ -20,6 +20,7 @@ export function deployWorker(service, sha, { cwd = root, execute = spawnSync } =
   assert.equal(git(['rev-parse', 'HEAD']), sha, 'source does not match HEAD');
   assert.equal(git(['status', '--porcelain']), '', 'release source must be clean');
   assert.equal(remoteMain(cwd), sha, 'release source must equal current remote main');
+  assert.equal(remoteMain(cwd), sha, 'source must equal current remote main immediately before deployment');
   const result = execute('pnpm', ['exec', 'wrangler', 'deploy', '--var', `BUILD_SHA:${sha.slice(0, 12)}`], {
     cwd: path.join(cwd, DEPLOY_DIRS[service]), encoding: 'utf8',
     env: { ...process.env, CI: 'true', GITHUB_SHA: sha, WRANGLER_SEND_METRICS: 'false' },

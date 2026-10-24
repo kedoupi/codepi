@@ -1,9 +1,79 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mergeRefreshTasks, normalizeTasks, planAutomaticSync, splitTask } from "../src/lib/auto-sync.ts";
+import { mergeRefreshTasks, normalizeTasks, planAutomaticSync, runAutomaticSync, splitTask } from "../src/lib/auto-sync.ts";
 import { calendarDay } from "../../../shared/dates.ts";
 
 const today = calendarDay(new Date());
+
+function leaseFixture({ releaseError, deniedError }: {
+  releaseError?: Error | ((attempt: number) => Error | undefined);
+  deniedError?: Error;
+} = {}) {
+  let releaseAttempts = 0;
+  const db = {
+    prepare(sql: string) {
+      const statement = {
+        bind() { return statement; },
+        async first() {
+          if (sql.includes("FROM encrypted_tokens")) return { user_id: "test-user" };
+          if (sql.startsWith("INSERT INTO auto_sync_state")) {
+            return { status: "idle", payload: "[]", run_day: today };
+          }
+          return null;
+        },
+        async all() {
+          if (deniedError) throw deniedError;
+          return { results: [] };
+        },
+        async run() {
+          if (sql.startsWith("UPDATE auto_sync_state SET lease_until=0")) {
+            releaseAttempts++;
+            const failure = typeof releaseError === "function" ? releaseError(releaseAttempts) : releaseError;
+            if (failure) throw failure;
+          }
+        },
+      };
+      return statement;
+    },
+  };
+  return {
+    releaseAttempts: () => releaseAttempts,
+    env: {
+      AUTO_SYNC_ENABLED: "1",
+      PERSONAL_OWNER_ID: "test-user",
+      TOKEN_ENCRYPTION_KEY: "test-key",
+      OURA_CLIENT_ID: "test-client",
+      OURA_CLIENT_SECRET: "test-secret",
+      DB: db,
+    } as unknown as Parameters<typeof runAutomaticSync>[0],
+  };
+}
+
+test("automatic sync retries a transient lease-release failure", async () => {
+  const fixture = leaseFixture({ releaseError: attempt => attempt === 1 ? new Error("D1_ERROR: internal error") : undefined });
+  await runAutomaticSync(fixture.env, Date.parse(`${today}T00:00:00Z`), "*/2 * * * *");
+  assert.equal(fixture.releaseAttempts(), 2);
+});
+
+test("automatic sync lease cleanup warns without masking the main failure", async () => {
+  const fixture = leaseFixture({
+    releaseError: new Error("permanent D1 failure"),
+    deniedError: new Error("main sync failure"),
+  });
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    await assert.rejects(
+      runAutomaticSync(fixture.env, Date.parse(`${today}T00:00:00Z`), "*/2 * * * *"),
+      /main sync failure/,
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(fixture.releaseAttempts(), 1);
+  assert.match(String(warnings[0]?.[0]), /Failed to release automatic sync lease/);
+});
 
 test("requested windows are interactive; containment dedupe keeps the scheduled task", () => {
   const previous = normalizeTasks(JSON.stringify([

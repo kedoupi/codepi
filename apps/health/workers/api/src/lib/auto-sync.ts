@@ -402,7 +402,11 @@ export async function runAutomaticSync(env: Env, scheduledTime: number, cron: st
       if (halt) break;
     }
   } finally {
-    await env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
+    try {
+      await withD1Retry(() => env.DB.prepare("UPDATE auto_sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run());
+    } catch (error) {
+      console.warn("Failed to release automatic sync lease", error);
+    }
   }
 }
 

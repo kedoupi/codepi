@@ -29,7 +29,7 @@ on:
       - '.github/workflows/d1-backup.yml'
       - '.github/workflows/production-monitor.yml'
       - '.github/dependabot.yml'
-      - '.github/workflows/deploy-platform.yml'
+      - '.github/workflows/validate-sso.yml'
   workflow_dispatch:
 
 permissions:
@@ -37,7 +37,8 @@ permissions:
 
 # Validation only; production deployments run locally after merge.
 concurrency:
-  group: platform-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  # PR numbers are globally unique, unlike head_ref branch names across forks.
+  group: platform-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

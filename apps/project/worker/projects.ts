@@ -1,6 +1,6 @@
 import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { AppError, jsonBytes, maxIso, projectUrl, text } from "./lib";
-import { handoffFromRow, latestHandoff } from "./handoffs";
+import { handoffFromRow } from "./handoffs";
 import type { Env, HandoffRow, ProjectRow, ProjectStatus } from "./types";
 import type { Handoff } from "./types";
 
@@ -140,11 +140,42 @@ export async function activeProjects(env: Env): Promise<ProjectRow[]> {
     repos.has(project.repo.toLowerCase()));
 }
 
-async function lastActivity(env: Env, project: ProjectRow, latestAt: string | null) {
-  const event = await env.DB.prepare(
-    "SELECT MAX(happened_at) AS at FROM repo_events WHERE project_id=?",
-  ).bind(project.id).first<{ at: string | null }>();
-  return maxIso(project.updated_at, latestAt, event?.at);
+export async function latestHandoffs(
+  env: Env,
+  projectIds: string[],
+): Promise<Map<string, HandoffRow>> {
+  const latest = new Map<string, HandoffRow>();
+  if (!projectIds.length) return latest;
+  const placeholders = projectIds.map(() => "?").join(",");
+  const rows = await env.DB.prepare(`SELECT * FROM handoffs
+    WHERE project_id IN (${placeholders}) ORDER BY created_at DESC, rowid DESC`)
+    .bind(...projectIds).all<HandoffRow>();
+  for (const row of rows.results) {
+    if (!latest.has(row.project_id)) latest.set(row.project_id, row);
+  }
+  return latest;
+}
+
+export async function activityByProject(
+  env: Env,
+  projectIds: string[],
+): Promise<Map<string, string | null>> {
+  const activity = new Map<string, string | null>();
+  if (!projectIds.length) return activity;
+  const placeholders = projectIds.map(() => "?").join(",");
+  const rows = await env.DB.prepare(`SELECT project_id, MAX(happened_at) AS at
+    FROM repo_events WHERE project_id IN (${placeholders}) GROUP BY project_id`)
+    .bind(...projectIds).all<{ project_id: string; at: string | null }>();
+  for (const row of rows.results) activity.set(row.project_id, row.at);
+  return activity;
+}
+
+function lastActivity(
+  project: ProjectRow,
+  latestAt: string | null,
+  eventAt: string | null,
+) {
+  return maxIso(project.updated_at, latestAt, eventAt);
 }
 
 function sortProjectItems<T extends {
@@ -168,22 +199,27 @@ export async function listProjects(
   status?: ProjectStatus,
 ): Promise<ProjectList> {
   const projects = await allProjects(env, status);
-  const items: ProjectListItem[] = [];
-  for (const project of projects) {
-    const latestRow = await env.DB.prepare(`SELECT * FROM handoffs
-      WHERE project_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`)
-      .bind(project.id).first<HandoffRow>();
+  const [latestByProject, eventAtByProject] = await Promise.all([
+    latestHandoffs(env, projects.map(project => project.id)),
+    activityByProject(env, projects.map(project => project.id)),
+  ]);
+  const items: ProjectListItem[] = projects.map(project => {
+    const latestRow = latestByProject.get(project.id);
     const latest = latestRow ? handoffFromRow(latestRow) : null;
-    items.push({
+    return {
       id: project.id,
       repo: project.repo,
       name: project.name,
       status: project.status,
-      last_activity_at: await lastActivity(env, project, latest?.at ?? null),
+      last_activity_at: lastActivity(
+        project,
+        latest?.at ?? null,
+        eventAtByProject.get(project.id) ?? null,
+      ),
       url: projectUrl(env, project.id),
       latest_handoff: latest,
-    });
-  }
+    };
+  });
   sortProjectItems(items);
   return {
     as_of: asOfOf(items),
@@ -204,22 +240,22 @@ export async function listProjectSummaries(
   status?: ProjectStatus,
 ): Promise<ProjectListSummary> {
   const projects = await allProjects(env, status);
-  const items: ProjectListSummaryItem[] = [];
-  for (const project of projects) {
-    const latest = await env.DB.prepare(`SELECT task_id,status,next,created_at FROM handoffs
-      WHERE project_id=? ORDER BY created_at DESC, rowid DESC LIMIT 1`)
-      .bind(project.id).first<{
-        task_id: string;
-        status: Handoff["status"];
-        next: string;
-        created_at: string;
-      }>();
-    items.push({
+  const [latestByProject, eventAtByProject] = await Promise.all([
+    latestHandoffs(env, projects.map(project => project.id)),
+    activityByProject(env, projects.map(project => project.id)),
+  ]);
+  const items: ProjectListSummaryItem[] = projects.map(project => {
+    const latest = latestByProject.get(project.id);
+    return {
       id: project.id,
       repo: project.repo,
       name: project.name,
       status: project.status,
-      last_activity_at: await lastActivity(env, project, latest?.created_at ?? null),
+      last_activity_at: lastActivity(
+        project,
+        latest?.created_at ?? null,
+        eventAtByProject.get(project.id) ?? null,
+      ),
       url: projectUrl(env, project.id),
       latest_handoff: latest
         ? {
@@ -228,8 +264,8 @@ export async function listProjectSummaries(
           next: briefNext(latest.next),
         }
         : null,
-    });
-  }
+    };
+  });
   sortProjectItems(items);
   return {
     as_of: asOfOf(items),
@@ -288,5 +324,5 @@ export async function updateProject(
 }
 
 export async function projectLatestHandoff(env: Env, projectId: string) {
-  return latestHandoff(env, projectId);
+  return (await latestHandoffs(env, [projectId])).get(projectId) ?? null;
 }

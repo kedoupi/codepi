@@ -39,10 +39,26 @@ test('version mismatch is immediately critical and rollback can be blocked', asy
   assert.match([...b.data.values()].join('\n'), /critical_detected/);
 });
 
+test('persistent degradation is reported from the final poll', async () => {
+  const b = bucket();
+  const notifications = [];
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step,
+    observability: fakeClient({ invocations: 20, errors: 1, errorRate: .05 }),
+    activeVersionCheck: active,
+    notify: async payload => notifications.push(payload),
+  });
+  assert.equal(result.state, 'degraded_reported');
+  assert.equal(JSON.parse(b.data.get('reports/observer/rel-test/summary.json')).state, 'degraded_reported');
+  assert.equal(notifications.at(-1).severity, 'degraded_reported');
+});
+
 test('notification failure does not stop observation and reports contain no secrets', async () => {
   const b = bucket();
   const result = await runObserver({ manifest, bucket: b, step, observability: fakeClient({ invocations: 20, errors: 1, errorRate: .05 }), activeVersionCheck: active, notify: async () => { throw new Error('forbidden?token=secret'); } });
-  assert.equal(result.state, 'healthy_reported');
+  assert.equal(result.state, 'degraded_reported');
   const reports = [...b.data.values()].join('\n');
   assert.doesNotMatch(reports, /secret|token=secret|PRIVATE KEY|SELECT .* FROM/i);
 });

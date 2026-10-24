@@ -2,7 +2,7 @@
 
 `codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客、笔记和公共 MCP 按阶段建设。广告收入与流量增长不再作为项目目标。
 
-产品目录位于 `apps/`，公开入口的唯一清单是 `packages/shared/products.ts`。Auth、MCP、Ops 与 shared 是支撑层。统一 MCP 的 Health 版本已上线；本轮扩展 Project、Me、GU 只读能力，并新增 `codepi` CLI。新增资源仍为 planned，实际实现、检查与上线状态分别记录在[领域扩展任务](docs/development/tasks/2026-10-20-codepi-mcp-domains.md)。
+产品目录位于 `apps/`，公开入口的唯一清单是 `packages/shared/products.ts`。Auth、MCP、Ops 与 shared 是支撑层。统一 MCP 的 Health 版本已上线；Project、Me、GU 的只读能力已实现并完成本地/发布验收，实际资源与剩余线上流程状态分别记录在[领域扩展任务](docs/development/tasks/2026-10-20-codepi-mcp-domains.md)。
 
 原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
@@ -21,8 +21,8 @@
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
-| `apps/project/` | `project.codepi.app`（planned） | `codepi-project` | 项目卡、任务交接与 GitHub 同步 |
-| `apps/me/` | `me.codepi.app`（planned） | `codepi-me` | 待确认记忆、个人资料与经历 |
+| `apps/project/` | `project.codepi.app` | `codepi-project` | 项目卡、任务交接与 GitHub 同步 |
+| `apps/me/` | `me.codepi.app` | `codepi-me` | 确认区、个人资料与经历 |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，客户端表见 shared/auth/clients.ts |
 | `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，逐工具授权与领域 RPC；独立授权 D1 |
 | `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[运维说明](docs/development/cloudflare-operations.md) |
@@ -145,7 +145,7 @@ callback 可以先声明，缺少 opt-in secret 时客户端仍关闭，既有�
 | P4 | 公众号工作台（GZH）视觉统一 | 已上线 |
 | P5 | 博客栏目上线（`/blog/`），公开笔记与内容发布 | 博客已上线 |
 | P6 | 本人工作台与按需摘要（`/desk/`） | 已部署；登录后的三来源摘要使用验收见任务索引，不凭早期 TODO 判断配置缺失 |
-| P9 | 五站下线、codepi.app 迁域、四产品收尾 | 已完成（Pages 全部退役，四产品均为 Workers Static Assets） |
+| P9 | 五站下线、codepi.app 迁域、六产品收尾 | 已完成（Pages 全部退役，六产品均为 Workers Static Assets） |
 | P7 | 公开内容 MCP | 待实施 |
 | P8 | 私人应用的授权 AI 能力 | 统一 MCP 已上线，Health 已在 Claude 手机端使用；其他模块按产品进度设计 |
 
