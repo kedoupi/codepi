@@ -29,6 +29,7 @@
 - 线上证据：`release-c97ae7a7fa7b-uafix` 7 轮观察完成，状态 `healthy_reported`；R2 summary 已写入；Issue #169 收到开始、critical/blocked 历史事件和完成评论。后续 `release-805af3fc3a6f-namesfix` 的通知显示 `services: ops`。
 - 生产巡检和备份：`reports/monitor/latest.json` 为 `ok=true`；`reports/backup/latest.json` 为 9 个 D1、114 个 GU/Me 原件对象、`ok=true`、`r2=complete`。
 - 第五轮线上证据：`release-db367df0e71a-fifth-round-ops` 的 active/expected version 七轮一致，无 Issues 或核心检查失败；实例于 2026-10-24T09:30:02Z 完成，完成评论 event ID 为 `release-db367df0e71a-fifth-round-ops-completed`。
+- 第六轮线上证据：`release-08bdfeded196-sixth-round` 覆盖 Health API `fba6218b`、GU `e20349c5`、MCP `986e55e2`、Ops `5afd53b5`；七轮完成，R2 summary 为 `healthy_reported`、无回滚；实例于 2026-10-24T10:47:20Z 完成。Issue #169 通知因本机 `gh` 认证失效未复核。
 
 ## 第五轮修复
 
@@ -37,6 +38,13 @@
 - rollback step 使用共享 `STEP` 有界重试；响应失败后独立读取 active version，已切回 previous version 的服务不再误报为失败。
 - `observer` 与 `operations` 共同使用 `step-options.mjs`，避免 ESM 循环依赖。
 - CLI 变更触发 MCP CI；Health 不再重复构建；公开 GitHub Release 备份通道在现行索引中明确退役。
+
+## 第六轮修复
+
+- PR #190（`e88f1a3`）：Health `aggregatePeriod` 多 metric 改为单次 D1 batch；GU 指纹资产使用 `private, max-age=31536000, immutable`，HTML/API/404 保持 `no-store`；`packages/shared/mcp` 变更纳入 Web `BlogMcp` 检查；MCP deadline 测试改用 mock timers；GitHub 通知请求增加 30s 超时、`redirect: manual` 与错误详情上限。
+- PR #191（`08bdfed`）：恢复 Health `deploy-api.mjs` 中被 PR #186 删除的 `installedCrons` 定义。该缺陷让每次完整发布在切流成功后抛出 `ReferenceError`，并误报“生产仍是旧版本”；同时修正切流后失败的提示与回滚命令。
+- 线上验收：`check:api`、GU `check-pages`、MCP `check:live` 和生产巡检全部通过；GU 指纹 JS/CSS 线上返回 immutable，`/login` 与 404 资产保持 `no-store`。
+- 发布注意：Ops/MCP 巡检按累计改动判定漂移；只改测试的 MCP 也需随 shared 改动重发以消除版本漂移告警。
 
 ## 未执行项
 
