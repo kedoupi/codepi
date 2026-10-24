@@ -192,9 +192,9 @@ async function fetchCollection(
     );
     if (page.data?.length) out.push(...page.data);
     next = page.next_token ?? null;
-    if (!next) break;
+    if (!next) return out;
   }
-  return out;
+  throw new ApiError("sync_window_too_large", 422);
 }
 
 export async function fetchDailySummaries(args: {

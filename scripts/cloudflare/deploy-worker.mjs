@@ -13,7 +13,14 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 
 // Called inside the release coordinator's lock, after build/migrations.
 // Health API and MCP retain their specialized deployment scripts.
-export function deployWorker(service, sha, { cwd = root, execute = spawnSync } = {}) {
+export function deployWorker(service, sha, {
+  cwd = root, execute = spawnSync, previousVersion,
+  migrationApplied, secretChanged, bindingChanged, externalSideEffects,
+} = {}) {
+  for (const [name, value] of Object.entries({ migrationApplied, secretChanged, bindingChanged, externalSideEffects })) {
+    if (value !== undefined) assert.equal(typeof value, 'boolean', `${name} must be a boolean when provided`);
+  }
+  if (previousVersion !== undefined) assert.match(previousVersion, /^[a-f0-9-]{36}$/i, 'previousVersion must be a Worker version ID');
   assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|gzh|health-web|ops');
   assert.match(sha ?? '', /^[a-f0-9]{40}$/, 'pass the full merged source SHA');
   const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -31,9 +38,12 @@ export function deployWorker(service, sha, { cwd = root, execute = spawnSync } =
   assert.ok(version, 'deployment did not report a Worker version; do not mark the release successful');
   return {
     service, source_sha: sha, version, smoke: 'pending',
-    previous_version: '', new_version: version,
-    migration_applied: true, secret_changed: true,
-    binding_changed: true, external_side_effects: true,
+    ...(previousVersion !== undefined ? { previous_version: previousVersion } : {}),
+    new_version: version,
+    ...(migrationApplied !== undefined ? { migration_applied: migrationApplied } : {}),
+    ...(secretChanged !== undefined ? { secret_changed: secretChanged } : {}),
+    ...(bindingChanged !== undefined ? { binding_changed: bindingChanged } : {}),
+    ...(externalSideEffects !== undefined ? { external_side_effects: externalSideEffects } : {}),
   };
 }
 

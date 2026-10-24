@@ -11,6 +11,24 @@ if (process.argv.includes('--env')) {
   process.exit(1);
 }
 const PREFLIGHT_OUTDIR = '.deploy-preflight';
+const EVIDENCE_ENV = {
+  migrationApplied: 'HEALTH_MIGRATION_APPLIED',
+  secretChanged: 'HEALTH_SECRET_CHANGED',
+  bindingChanged: 'HEALTH_BINDING_CHANGED',
+  externalSideEffects: 'HEALTH_EXTERNAL_SIDE_EFFECTS',
+};
+function evidenceFacts(env = process.env) {
+  const result = {};
+  for (const [key, name] of Object.entries(EVIDENCE_ENV)) {
+    if (env[name] === undefined) continue;
+    if (env[name] !== 'true' && env[name] !== 'false') {
+      throw new Error(`${name} must be true or false when provided`);
+    }
+    result[key] = env[name] === 'true';
+  }
+  return result;
+}
+const evidence = evidenceFacts();
 
 function wrangler(args, extraEnv = {}) {
   const result = spawnSync('pnpm', ['exec', 'wrangler', ...args], {
@@ -143,10 +161,7 @@ async function main() {
       new_version: version,
       version,
       smoke: 'pending',
-      migration_applied: true,
-      secret_changed: true,
-      binding_changed: true,
-      external_side_effects: true,
+      ...evidence,
     }));
   } catch (error) {
     console.error(`\nDeploy stopped at: ${completed}`);

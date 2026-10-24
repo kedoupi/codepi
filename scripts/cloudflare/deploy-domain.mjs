@@ -110,8 +110,13 @@ async function resolveD1(name, { appDir, provisionD1, execute, assertRemote }) {
 }
 
 export async function deployDomain(app, {
-  sha, provisionD1 = false, cwd = root, execute = spawnSync,
+  sha, provisionD1 = false, cwd = root, execute = spawnSync, previousVersion,
+  migrationApplied, secretChanged, bindingChanged, externalSideEffects,
 } = {}) {
+  for (const [name, value] of Object.entries({ migrationApplied, secretChanged, bindingChanged, externalSideEffects })) {
+    if (value !== undefined) assert.equal(typeof value, 'boolean', `${name} must be a boolean when provided`);
+  }
+  if (previousVersion !== undefined) assert.match(previousVersion, /^[a-f0-9-]{36}$/i, 'previousVersion must be a Worker version ID');
   const domain = DOMAINS[app];
   assert.ok(domain, 'expected --app mcp|project|me');
   const appDir = path.join(cwd, domain.appDir);
@@ -169,12 +174,12 @@ export async function deployDomain(app, {
       source_sha: sha,
       version,
       smoke: 'pending',
-      previous_version: '',
+      ...(previousVersion !== undefined ? { previous_version: previousVersion } : {}),
       new_version: version,
-      migration_applied: true,
-      secret_changed: true,
-      binding_changed: true,
-      external_side_effects: true,
+      ...(migrationApplied !== undefined ? { migration_applied: migrationApplied } : {}),
+      ...(secretChanged !== undefined ? { secret_changed: secretChanged } : {}),
+      ...(bindingChanged !== undefined ? { binding_changed: bindingChanged } : {}),
+      ...(externalSideEffects !== undefined ? { external_side_effects: externalSideEffects } : {}),
     };
   } finally {
     await rm(work, { recursive: true, force: true });

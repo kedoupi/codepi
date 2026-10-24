@@ -39,6 +39,42 @@ test('version mismatch is immediately critical and rollback can be blocked', asy
   assert.match([...b.data.values()].join('\n'), /critical_detected/);
 });
 
+test('active version check failure is an observation degradation, not a mismatch or rollback', async () => {
+  const b = bucket();
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step,
+    observability: fakeClient({ invocations: 0, errors: 0, errorRate: 0 }),
+    activeVersionCheck: async () => { throw new Error('control plane unavailable'); },
+    notify: async () => {},
+  });
+  assert.equal(result.state, 'degraded_reported');
+  const poll = JSON.parse(b.data.get('reports/observer/rel-test/poll-0.json'));
+  assert.equal(poll.services[0].version_mismatch, false);
+  assert.equal(poll.services[0].active_version_check_failed, true);
+  assert.equal(poll.services[0].severity, 'degraded');
+});
+
+test('observability query failure is reported as degraded, not healthy', async () => {
+  const b = bucket();
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step,
+    observability: {
+      async queryWorkerMetrics() { throw new Error('telemetry unavailable'); },
+      async listIssues() { return []; },
+    },
+    activeVersionCheck: active,
+    notify: async () => {},
+  });
+  assert.equal(result.state, 'degraded_reported');
+  const poll = JSON.parse(b.data.get('reports/observer/rel-test/poll-0.json'));
+  assert.equal(poll.services[0].observability_failed, true);
+  assert.equal(poll.services[0].severity, 'degraded');
+});
+
 test('persistent degradation is reported from the final poll', async () => {
   const b = bucket();
   const notifications = [];

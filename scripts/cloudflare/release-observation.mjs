@@ -6,6 +6,9 @@ const SERVICE_FIELDS = Object.freeze([
   'new_build_sha', 'smoke', 'migration_applied', 'secret_changed',
   'binding_changed', 'external_side_effects', 'rollback_allowed',
 ]);
+export const OBSERVATION_FACT_FIELDS = Object.freeze([
+  'migration_applied', 'secret_changed', 'binding_changed', 'external_side_effects',
+]);
 const FORBIDDEN_KEYS = /token|password|secret_value|sql|body|business|query/i;
 
 function requiredString(value, name) {
@@ -29,7 +32,7 @@ function serviceEntry(input) {
       entry[key] = requiredString(value, key);
     }
   }
-  for (const key of ['migration_applied', 'secret_changed', 'binding_changed', 'external_side_effects']) {
+  for (const key of OBSERVATION_FACT_FIELDS) {
     if (typeof input[key] !== 'boolean') throw new Error(`${key} must be boolean`);
     entry[key] = input[key];
   }

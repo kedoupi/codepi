@@ -94,6 +94,11 @@ test('deploy-domain supports the required --app form and injects one exact-name 
     assert.equal(result.migrations, 1);
     assert.equal(result.source_sha, f.sha);
     assert.equal(result.version, version);
+    assert.equal(result.previous_version, undefined);
+    assert.equal(result.migration_applied, undefined);
+    assert.equal(result.secret_changed, undefined);
+    assert.equal(result.binding_changed, undefined);
+    assert.equal(result.external_side_effects, undefined);
     assert.match(rendered, new RegExp(`database_id = "${databaseId}"`));
     assert.ok(rendered.includes(`main = ${JSON.stringify(path.join(f.appDir, 'worker/index.ts'))}`));
     assert.match(rendered, /migrations_dir = "[^"]+\/migrations"/);
@@ -107,7 +112,20 @@ test('deploy-domain supports the required --app form and injects one exact-name 
     assert.equal(leftover, '');
   }
 });
-
+test('deploy-domain accepts coordinator evidence facts without inventing defaults', async t => {
+  const f = await fixture(t, 'project');
+  const result = await deployDomain('project', {
+    cwd: f.cwd,
+    execute: executor({ databaseName: 'codepi-project' }).execute,
+    previousVersion: version, migrationApplied: true, secretChanged: false,
+    bindingChanged: true, externalSideEffects: false,
+  });
+  assert.equal(result.previous_version, version);
+  assert.equal(result.migration_applied, true);
+  assert.equal(result.secret_changed, false);
+  assert.equal(result.binding_changed, true);
+  assert.equal(result.external_side_effects, false);
+});
 test('missing D1 remains fail-closed unless the first-deploy command explicitly authorizes exact-name provisioning', async t => {
   const f = await fixture(t, 'project');
   const noProvision = executor({ databaseName: 'codepi-project', existing: [] });
@@ -130,6 +148,10 @@ test('dirty source and duplicate migration prefixes stop before any Wrangler mut
   await assert.rejects(deployDomain('me', { cwd: f.cwd, execute: e.execute }), /duplicate migration prefix/);
   assert.equal(e.calls.length, 0);
   await rm(path.join(f.appDir, 'migrations', '0001_duplicate.sql'));
+  f.git('add', '-A');
+  await assert.rejects(deployDomain('me', { cwd: f.cwd, execute: e.execute }), /clean/);
+  assert.equal(e.calls.length, 0);
+  f.git('reset', '--mixed', 'HEAD');
   await writeFile(path.join(f.appDir, 'unreviewed'), 'dirty\n');
   await assert.rejects(deployDomain('me', { cwd: f.cwd, execute: e.execute }), /clean/);
   assert.equal(e.calls.length, 0);
@@ -138,9 +160,9 @@ test('deploy-domain rechecks remote main after discovery before remote mutation'
   const f = await fixture(t, 'project');
   const e = executor({ databaseName: 'codepi-project' });
   let listed = false;
-  const execute = (command, args, options) => {
-    const result = e.execute(command, args, options);
-    const wrangler = wranglerArgs({ args });
+  const execute = (...args) => {
+    const result = e.execute(...args);
+    const wrangler = args[1][0] === 'exec' && args[1][1] === 'wrangler' ? args[1].slice(2) : args[1];
     if (!listed && wrangler[0] === 'd1' && wrangler[1] === 'list') {
       listed = true;
       f.git('commit', '--allow-empty', '-m', 'remote moved');

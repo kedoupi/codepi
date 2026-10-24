@@ -57,19 +57,24 @@ export async function observeReleaseRound({ manifest, round, observability, core
   try { coreResults = await coreCheck({ env, manifest }); } catch (error) { coreResults = [{ name: 'core contract', ok: false, detail: error.message }]; }
   for (const item of manifest.services) {
     const script = item.script;
-    let active = null, versionMismatch = false;
-    try { active = await activeVersionCheck(script, { env }); versionMismatch = active !== item.new_version; } catch (error) { versionMismatch = true; }
-    let metrics = null, issues = [];
+    let active = null, versionMismatch = false, activeVersionCheckFailed = false;
+    try { active = await activeVersionCheck(script, { env }); versionMismatch = active !== item.new_version; } catch (error) { activeVersionCheckFailed = true; }
+    let metrics = null, issues = [], observabilityFailed = false;
     try {
       metrics = await observability.queryWorkerMetrics({ scriptName: script, versionId: item.new_version, sinceMinutes: 5 });
       issues = await observability.listIssues({ scriptName: script, sinceMinutes: 5 });
-    } catch (error) { issues = [{ title: 'observability unavailable', message: error.message }]; }
+    } catch (error) { observabilityFailed = true; issues = [{ title: 'observability unavailable', message: error.message }]; }
     const hardFailure = coreResults.some(result => result && result.ok === false);
     const highCritical = (number(metrics?.invocations) ?? 0) >= 20 && (number(metrics?.errorRate) ?? 0) >= 0.20 && (number(metrics?.errors) ?? 0) >= 20;
     const previousCritical = priorCritical.get(script) ?? 0;
     const severity = classifySeverity({ metrics: metrics ?? {}, baseline: item.baseline ?? {}, hardFailure, versionMismatch, criticalRounds: previousCritical });
-    if (highCritical || hardFailure) priorCritical.set(script, previousCritical + 1); else priorCritical.set(script, 0);
-    services.push({ service: serviceName(item), script, active_version: active, expected_version: item.new_version, version_mismatch: versionMismatch, metrics, issues: safeValue(issues), hard_failure: hardFailure, severity });
+    if (activeVersionCheckFailed || observabilityFailed) {
+      // An unavailable control-plane check is evidence that observation is incomplete,
+      // not evidence of a bad release. Never turn a transient API failure into rollback.
+      priorCritical.set(script, 0);
+    } else if (highCritical || hardFailure) priorCritical.set(script, previousCritical + 1); else priorCritical.set(script, 0);
+    const conservativeSeverity = (activeVersionCheckFailed || observabilityFailed) ? 'degraded' : severity;
+    services.push({ service: serviceName(item), script, active_version: active, expected_version: item.new_version, version_mismatch: versionMismatch, active_version_check_failed: activeVersionCheckFailed, metrics, observability_failed: observabilityFailed, issues: safeValue(issues), hard_failure: hardFailure, severity: conservativeSeverity });
   }
   return safeValue({ round, services, core: coreResults, criticalRounds: Object.fromEntries(priorCritical) });
 }
