@@ -47,6 +47,25 @@ test('workspace-only changes trigger validation of all consumers', async () => {
   }
 });
 
+test('local check and governance paths trigger platform validation', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  const triggers = workflow.split('\npermissions:')[0];
+  const governancePaths = [
+    'docs/development/**',
+    '.agents/**',
+    '.claude/**',
+    '.cursor/**',
+    '.github/copilot-instructions.md',
+    'CLAUDE.md',
+    'GEMINI.md',
+    '.gitignore',
+  ];
+  for (const file of governancePaths) {
+    assert.equal(triggers.split(`      - '${file}'`).length - 1, 1,
+      `pull_request must include local check/governance path ${file}`);
+  }
+});
+
 test('changes to the platform workflow trigger pull request validation', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
   assert.equal(workflow.split("      - '.github/workflows/deploy-platform.yml'").length - 1, 1,

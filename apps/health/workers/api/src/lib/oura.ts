@@ -4,7 +4,7 @@
  *       https://cloud.ouraring.com/v2/docs
  */
 
-import { ApiError, upstreamFetch, upstreamRequest } from "./errors.ts";
+import { ApiError, ouraResourceError, upstreamRequest } from "./errors.ts";
 export const OURA_AUTH_URL = "https://cloud.ouraring.com/oauth/authorize";
 export const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 export const OURA_API_BASE = "https://api.ouraring.com/v2/usercollection";
@@ -155,14 +155,15 @@ export async function refreshAccessToken(args: {
 }
 
 async function ouraGet<T>(accessToken: string, path: string): Promise<T> {
-  const res = await upstreamFetch(`${OURA_API_BASE}${path}`, {
+  const res = await upstreamRequest(`${OURA_API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const text = await res.text();
   if (!res.ok) {
-    throw new Error("upstream_unavailable");
+    // Keep provider HTTP status semantics reachable: 401 triggers the
+    // single refresh path, while 429 remains eligible for backoff.
+    throw ouraResourceError(res.status);
   }
-  return JSON.parse(text) as T;
+  return JSON.parse(await res.text()) as T;
 }
 
 export async function fetchPersonalInfo(

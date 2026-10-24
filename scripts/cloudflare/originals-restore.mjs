@@ -192,6 +192,8 @@ export async function restoreOriginals({ backupDir, privateKeyFile, databaseIds,
       `recovery ${definition.database} index has a missing or mismatched original`);
       indexed.add(row.object_key);
     }
+    assert.ok(indexed.size >= Math.min(collection.through, entries.size),
+      `recovery ${definition.database} index is missing exported originals`);
     indexes.set(collection.source, { entries, indexed });
   }
 

@@ -48,6 +48,20 @@ describe("otp + session", () => {
     expect(late.status).toBe(400);
   });
 
+  it("enforces the five-attempt limit when invalid verifications race", async () => {
+    const req = await requestOtp(ALLOWED, "7.7.7.7");
+    const issued = (await req.json()) as { dev_otp?: string };
+    expect(issued.dev_otp).toMatch(/^\d{6}$/);
+
+    const failures = await Promise.all(
+      Array.from({ length: 8 }, () => verifyOtp(ALLOWED, "000000")),
+    );
+    expect(failures.every((response) => response.status === 400)).toBe(true);
+
+    const late = await verifyOtp(ALLOWED, issued.dev_otp!);
+    expect(late.status).toBe(400);
+  });
+
   it("rate-limits a second OTP within 60 seconds for the same email", async () => {
     const first = await requestOtp(ALLOWED, "4.4.4.4");
     const firstBody = (await first.json()) as { dev_otp?: string };

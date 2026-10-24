@@ -3,6 +3,7 @@ import { resolveEncryptionKey, oauthConfigured } from "./config.ts";
 import { DecryptError } from "./crypto.ts";
 import { ApiError } from "./errors.ts";
 import { refreshAccessToken } from "./oura.ts";
+import { withD1Retry } from "./d1-retry.ts";
 import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens.ts";
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
@@ -25,7 +26,7 @@ export async function ouraAccessToken(
       clientId: env.OURA_CLIENT_ID!,
       clientSecret: env.OURA_CLIENT_SECRET!,
     }));
-    await upsertEncryptedTokens(env, userId, key, stored, record.revision);
+    await withD1Retry(() => upsertEncryptedTokens(env, userId, key, stored, record.revision));
   }
   return stored.access_token;
 }

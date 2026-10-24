@@ -78,6 +78,8 @@ export async function restoreMaterials({ backupDir, privateKeyFile, databaseId, 
     'recovery D1 index has a missing or mismatched original');
     indexed.add(row.object_key);
   }
+  assert.ok(indexed.size >= Math.min(materials.through, entries.size),
+    'recovery D1 index is missing exported originals');
 
   const parent = await realpath(path.dirname(path.resolve(outDir)));
   const git = spawnSync('git', ['-C', parent, 'rev-parse', '--show-toplevel'],
