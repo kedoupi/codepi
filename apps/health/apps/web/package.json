@@ -8,13 +8,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json --tsgo && tsc --noEmit -p tsconfig.worker.json",
-    "test:assets": "node --test scripts/assets.test.mjs"
+    "test:assets": "node --test scripts/assets.test.mjs",
+    "test:status": "node --test test/report-status.test.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@typescript/native": "npm:typescript@7.0.2",
+    "jsdom": "^26.1.0",
     "svelte": "^5.38.6",
     "svelte-check": "^4.7.7",
     "typescript": "~6.0.3",

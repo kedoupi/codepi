@@ -56,7 +56,9 @@ export default {
     if (url.pathname === "/sitemap-blog.xml" && request.method === "GET") return sitemap(request, env);
     if (request.method === "GET" && (url.pathname === "/blog/" || /^\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname))) {
       const slug = url.pathname === "/blog/" ? undefined : url.pathname.slice(6, -1);
-      const key = new Request(url.toString(), request);
+      const cacheUrl = new URL(url);
+      cacheUrl.search = "";
+      const key = new Request(cacheUrl.toString(), request);
       const cached = await caches.default.match(key); if (cached) return cached;
       const response = await blogPage(request, env, slug);
       if (response.ok) await caches.default.put(key, response.clone());

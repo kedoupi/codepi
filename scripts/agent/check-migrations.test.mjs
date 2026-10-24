@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  numericPrefix, findDuplicatePrefixes, findModifiedBaseline, sha256,
+  numericPrefix, findDuplicatePrefixes, findModifiedBaseline, findUnbaselined, sha256,
 } from './check-migrations.mjs';
 
 test('numericPrefix extracts the leading sequence', () => {
@@ -54,11 +54,26 @@ test('baseline drift detects modified and deleted migrations', () => {
   );
 });
 
-test('baseline drift ignores brand-new migrations', () => {
+test('unbaselined migrations fail closed', () => {
   const baseline = { 'apps/web/migrations/0001_a.sql': sha256('original') };
   const entries = [
     { rel: 'apps/web/migrations/0001_a.sql', hash: sha256('original') },
     { rel: 'apps/web/migrations/0002_new.sql', hash: sha256('new file') },
   ];
-  assert.deepEqual(findModifiedBaseline(entries, baseline), []);
+  assert.deepEqual(
+    findUnbaselined(entries, baseline),
+    [{ rel: 'apps/web/migrations/0002_new.sql', kind: 'unbaselined' }],
+  );
+});
+
+test('explicit not-applied migrations are allowlisted', () => {
+  const baseline = { 'apps/web/migrations/0001_a.sql': sha256('original') };
+  const entries = [
+    { rel: 'apps/web/migrations/0001_a.sql', hash: sha256('original') },
+    { rel: 'apps/web/migrations/0002_new.sql', hash: sha256('new file') },
+  ];
+  assert.deepEqual(
+    findUnbaselined(entries, baseline, ['apps/web/migrations/0002_new.sql']),
+    [],
+  );
 });

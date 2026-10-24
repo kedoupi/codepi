@@ -2,7 +2,8 @@ import { calendarDay } from "../../../../shared/dates.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRuntime, login, migrate } from './runtime.mjs';
-
+import worker from './node-worker.mjs';
+import { failingDb } from './failing-db.mjs';
 const origin = 'https://oura.example';
 const today = calendarDay();
 
@@ -44,6 +45,43 @@ for (const route of ['daily', 'health']) {
     assert.equal((await (await f.me()).json()).authenticated, true);
   });
 }
+
+test('rotated refresh tokens are not lost when their D1 write hits the quota', async t => {
+  const runtime = createRuntime();
+  t.after(() => runtime.dispose());
+  await migrate(runtime);
+  const cookie = await login(runtime);
+  const bindings = await runtime.getBindings();
+  const before = await bindings.DB.prepare('SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id=?')
+    .bind('test-user').first();
+  let exchanges = 0;
+  t.mock.method(globalThis, 'fetch', async input => {
+    const url = new URL(input);
+    if (url.pathname === '/oauth/token') {
+      exchanges++;
+      return Response.json({
+        access_token: 'rotated-access', refresh_token: 'rotated-refresh', expires_in: 86400,
+      });
+    }
+    if (/\/daily_(sleep|readiness|activity)$/.test(url.pathname)) return new Response('', { status: 401 });
+    throw new Error(`Unexpected provider request: ${url.pathname}`);
+  });
+  const env = {
+    ...bindings,
+    DB: failingDb(bindings.DB, sql => /^\s*UPDATE encrypted_tokens/i.test(sql)),
+  };
+  const response = await worker.fetch(new Request(`${origin}/api/me/daily`, {
+    headers: { Cookie: cookie },
+  }), env);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error, 'sync_storage_failed');
+  assert.equal(exchanges, 1, 'a failed persistence must not retry provider refresh');
+  assert.deepEqual(
+    await bindings.DB.prepare('SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id=?').bind('test-user').first(),
+    before,
+    'the old grant remains intact when the rotated grant cannot be stored',
+  );
+});
 
 test('a bad collection request does not tell the user their authorization expired', async t => {
   const f = await fixture(t, url => {

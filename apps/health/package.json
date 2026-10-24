@@ -18,7 +18,7 @@
     "test:browser:ego": "pnpm build && node scripts/run-browser-smoke.mjs --ego",
     "test:assets": "pnpm --filter @health-kdp/web test:assets",
     "typecheck": "pnpm --filter @health-kdp/web --filter @health-kdp/api -r typecheck",
-    "test": "node --test scripts/tests/*.test.mjs && node --experimental-strip-types --test apps/web/test/*.test.mjs && pnpm --filter @health-kdp/api test && pnpm --filter @health-kdp/api test:integration"
+    "test": "node --test scripts/tests/*.test.mjs && node --experimental-strip-types --test apps/web/test/*.test.mjs && pnpm --filter @health-kdp/web test:status && pnpm --filter @health-kdp/api test && pnpm --filter @health-kdp/api test:integration"
   },
   "engines": {
     "node": ">=24"

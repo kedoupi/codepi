@@ -153,7 +153,7 @@
         <small>{text("对照", "vs")} {shortDate(ranges.previous.from)} — {shortDate(ranges.previous.to)} · {text("北京时间", "Asia/Shanghai")}</small>
       </div>
     </header>
-    {#if status}<div class="status" class:err={statusErr}>{status}</div>{/if}
+    {#if status}<div class="status" class:err={statusErr} role={statusErr ? "alert" : "status"} aria-live={statusErr ? "assertive" : "polite"}>{status}</div>{/if}
     {#if statusErr}<button class="ai-btn" onclick={load}>{text("重试", "Retry")}</button>{#if needsReconnect}<a class="ai-btn" href="/api/auth/oura/start">{text("重新连接 Oura", "Reconnect Oura")}</a>{/if}{/if}
 
     {#if payload?.summaries?.length}
@@ -197,7 +197,7 @@
         <section class="panel weekly-summary"><h2>{text("这一周的记录摘要", "This week's record summary")}</h2><ul class="insight-lines">{#each payload.summaries as line}<li>{line}</li>{/each}</ul></section><p class="hint">{text("当前账号可查看摘要；完整建议需要个人账号权限。", "Summaries are available. Full advice requires personal access.")}</p>
       {/if}
       <footer class="report-source"><span>{text("基于 Oura 已保存记录 · 缺失不计为 0 · 供个人观察，不用于诊断", "Saved Oura records · gaps are not zero · for personal observation, not diagnosis")}</span></footer>
-    {:else if !loading && !statusErr}<p class="status">{t(locale, "weeklyEmpty")}</p>{/if}
+    {:else if !loading && !statusErr}<p class="status" role="status">{t(locale, "weeklyEmpty")}</p>{/if}
   </main>
 </div>
 

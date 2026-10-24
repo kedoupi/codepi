@@ -82,6 +82,13 @@ export function findModifiedBaseline(entries, baseline) {
   return problems;
 }
 
+export function findUnbaselined(entries, baseline, notApplied = []) {
+  const allowlist = new Set(notApplied);
+  return entries
+    .filter(({ rel }) => !Object.hasOwn(baseline, rel) && !allowlist.has(rel))
+    .map(({ rel }) => ({ rel, kind: 'unbaselined' }));
+}
+
 export function main(args = process.argv.slice(2), cwd = root) {
   const entries = scanMigrations(cwd);
   assert.ok(entries.length > 0, 'no migrations found; refusing to validate an empty tree');
@@ -91,12 +98,14 @@ export function main(args = process.argv.slice(2), cwd = root) {
     console.error(`Duplicate migration prefix ${key}:\n  ${files.join('\n  ')}`);
   }
 
-  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')).files;
+  const baselineDocument = JSON.parse(readFileSync(baselinePath, 'utf8'));
+  const baseline = baselineDocument.files;
   const drift = findModifiedBaseline(entries, baseline);
-  for (const { rel, kind } of drift) console.error(`Baseline migration ${kind}: ${rel}`);
+  const unbaselined = findUnbaselined(entries, baseline, baselineDocument.notApplied);
+  for (const { rel, kind } of [...drift, ...unbaselined]) console.error(`Baseline migration ${kind}: ${rel}`);
 
-  if (duplicates.length || drift.length) {
-    console.error(`${duplicates.length} duplicate prefix(es), ${drift.length} baseline drift(s). Migrations are append-only.`);
+  if (duplicates.length || drift.length || unbaselined.length) {
+    console.error(`${duplicates.length} duplicate prefix(es), ${drift.length} baseline drift(s), ${unbaselined.length} unbaselined migration(s). Migrations are append-only.`);
     return 1;
   }
   console.log(`${entries.length} migration files OK (GU duplicate-0002 baseline preserved).`);

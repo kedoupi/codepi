@@ -5,6 +5,36 @@ import { ApiError } from "./errors.ts";
 import { refreshAccessToken } from "./oura.ts";
 import { withD1Retry } from "./d1-retry.ts";
 import { loadEncryptedTokenRecord, tokensFromOura, upsertEncryptedTokens } from "./tokens.ts";
+import type { StoredTokens } from "./tokens.ts";
+
+async function persistRefreshedTokens(
+  env: Env, userId: string, key: string, refreshed: StoredTokens,
+  originalRevision: string,
+): Promise<void> {
+  try {
+    await withD1Retry(() => upsertEncryptedTokens(env, userId, key, refreshed, originalRevision));
+    return;
+  } catch {
+    // A provider refresh may rotate the refresh token. Never return the new
+    // access token until its replacement grant is durably stored. A failed D1
+    // write can still have committed, so inspect the row before compensating.
+    const latest = await loadEncryptedTokenRecord(env, userId, key).catch(() => null);
+    if (!latest) throw new ApiError("sync_storage_failed", 503);
+    if (latest.tokens.refresh_token === refreshed.refresh_token
+      && latest.tokens.access_token === refreshed.access_token) return;
+    if (latest.revision !== originalRevision) {
+      // Fresh consent (or another fenced writer) won the row while refresh
+      // was in flight; do not overwrite it with the provider response.
+      throw new ApiError("sync_in_progress", 409);
+    }
+    try {
+      await withD1Retry(() => upsertEncryptedTokens(env, userId, key, refreshed, latest.revision));
+    } catch (retryError) {
+      if (retryError instanceof ApiError && retryError.code === "sync_in_progress") throw retryError;
+      throw new ApiError("sync_storage_failed", 503);
+    }
+  }
+}
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
 export async function ouraAccessToken(
@@ -26,7 +56,7 @@ export async function ouraAccessToken(
       clientId: env.OURA_CLIENT_ID!,
       clientSecret: env.OURA_CLIENT_SECRET!,
     }));
-    await withD1Retry(() => upsertEncryptedTokens(env, userId, key, stored, record.revision));
+    await persistRefreshedTokens(env, userId, key, stored, record.revision);
   }
   return stored.access_token;
 }

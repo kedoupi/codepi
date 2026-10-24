@@ -137,6 +137,24 @@ test('sitemap and cache follow publish and unpublish', async t => {
   const sitemapFinal = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.doesNotMatch(sitemapFinal, /cached-post/);
 });
+test('tracked query URLs are purged across publish and unpublish', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  await seedDraft(f, 'tracked-post');
+  const worker = await f.runtime.getWorker('desk');
+  const query = '?utm_source=tracked';
+  const preheated = await worker.fetch(`http://localhost:8804/blog/${query}`);
+  assert.equal(preheated.status, 200);
+  assert.doesNotMatch(await preheated.text(), /tracked-post/);
+  await f.call('/api/blog/drafts/tracked-post/publish', cookie, {});
+  const publishedList = await worker.fetch(`http://localhost:8804/blog/${query}`);
+  assert.match(await publishedList.text(), /tracked-post/);
+  const publishedArticle = await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`);
+  assert.equal(publishedArticle.status, 200);
+  await f.call('/api/blog/posts/tracked-post/unpublish', cookie, {});
+  assert.equal((await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`)).status, 404);
+  await f.call('/api/blog/drafts/tracked-post/publish', cookie, {});
+  assert.equal((await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`)).status, 200);
+});
 
 test('blog summary reports publication and review counts', async t => {
   const f = await deskFixture(t);

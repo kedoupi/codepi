@@ -48,6 +48,9 @@ node scripts/agent/check-migrations.mjs
 git diff --check
 ```
 
+迁移检查还会校验每个已扫描迁移都存在于 `scripts/agent/check-migrations-baseline.json`；
+只有明确列入该文件 `notApplied` 列表的未应用迁移可暂不纳入基线，默认缺失即失败。
+
 如果多个服务基线不同，检查范围取能覆盖所有待发布改动的基线。
 PR 前的检查若与合并后树完全一致，可保留证据并只重跑受新变动影响的检查；
 存在组合变动或合并冲突时重新运行。CI 未分配 runner 要记录为“未执行”，不能写成通过；
