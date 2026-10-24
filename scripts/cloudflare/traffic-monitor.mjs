@@ -12,6 +12,7 @@ export const TRAFFIC_THRESHOLDS = Object.freeze({ threats: Object.freeze({ absol
 const ZONE_TAG = '268a0acf9bae4e2e2cbc4d8a0ba2c342';
 const KEY = 'reports/traffic/samples.json';
 const HOUR = 3600000, WEEK = 7 * 24 * HOUR;
+export const TRAFFIC_INGESTION_GRACE_MS = 30 * 60 * 1000;
 const names = { threats: 'zone traffic threats exceed threshold', requests: 'zone traffic requests surge' };
 
 function isoHour(value) {
@@ -34,8 +35,12 @@ function validateBaseline(value) {
   return { version: 1, samples };
 }
 
+function trafficWindow(now) {
+  const endDate = new Date(Math.floor((now - TRAFFIC_INGESTION_GRACE_MS) / HOUR) * HOUR);
+  return { endDate, latest: new Date(endDate - HOUR) };
+}
 export async function queryTrafficSamples(env, { now = Date.now(), request = fetch, zoneTag = env.CLOUDFLARE_ZONE_TAG || ZONE_TAG } = {}) {
-  const endDate = new Date(Math.floor(now / HOUR) * HOUR), startDate = new Date(endDate - 2 * HOUR);
+  const { endDate, latest } = trafficWindow(now), startDate = new Date(endDate - 2 * HOUR);
   const start = startDate.toISOString().replace('.000Z', 'Z'), end = endDate.toISOString().replace('.000Z', 'Z');
   const data = await graphqlApi(TRAFFIC_QUERY, { zoneTag, start, end }, { env, request });
   const zones = data?.viewer?.zones;
@@ -44,8 +49,8 @@ export async function queryTrafficSamples(env, { now = Date.now(), request = fet
   assert.ok(Array.isArray(rows), 'Cloudflare GraphQL traffic rows are missing');
   const samples = rows.map(row => validateSample({ hour: row?.dimensions?.datetime, requests: row?.sum?.requests, threats: row?.sum?.threats, bytes: row?.sum?.bytes, uniques: row?.uniq?.uniques }));
   assert.equal(new Set(samples.map(sample => sample.hour)).size, samples.length, 'Cloudflare returned duplicate traffic hours');
-  const latest = new Date(endDate - HOUR).toISOString().replace('.000Z', 'Z');
-  assert.ok(samples.some(sample => sample.hour === latest), 'latest complete traffic hour is missing');
+  const latestHour = latest.toISOString().replace('.000Z', 'Z');
+  assert.ok(samples.some(sample => sample.hour === latestHour), 'latest complete traffic hour is missing');
   assert.ok(samples.every(sample => sample.hour >= start && sample.hour < end), 'traffic hour is outside query window');
   return samples;
 }
@@ -60,7 +65,8 @@ export async function mergeTrafficBaseline(bucket, samples, { now = Date.now(), 
     const baseline = object ? validateBaseline(await object.json()) : { version: 1, samples: [] };
     const merged = new Map(baseline.samples.map(sample => [sample.hour, sample]));
     for (const sample of incoming) merged.set(sample.hour, sample);
-    const cutoff = new Date(Math.floor(now / HOUR) * HOUR - WEEK).toISOString().replace('.000Z', 'Z');
+    const { endDate } = trafficWindow(now);
+    const cutoff = new Date(endDate - WEEK).toISOString().replace('.000Z', 'Z');
     const result = { version: 1, samples: [...merged.values()].filter(sample => sample.hour > cutoff).sort((a, b) => a.hour.localeCompare(b.hour)) };
     const options = { httpMetadata: { contentType: 'application/json' } };
     if (object?.etag) options.onlyIf = { etagMatches: object.etag };
@@ -71,7 +77,8 @@ export async function mergeTrafficBaseline(bucket, samples, { now = Date.now(), 
 }
 function result(name, ok, detail) { return detail ? { name, ok, detail } : { name, ok }; }
 export function evaluateTrafficAlerts(samples, { now = Date.now(), thresholds = TRAFFIC_THRESHOLDS } = {}) {
-  const currentHour = new Date(Math.floor(now / HOUR) * HOUR - HOUR).toISOString().replace('.000Z', 'Z');
+  const { latest } = trafficWindow(now);
+  const currentHour = latest.toISOString().replace('.000Z', 'Z');
   const current = samples.find(sample => sample.hour === currentHour); assert.ok(current, 'latest complete traffic hour is missing');
   const currentTime = Date.parse(current.hour), history = samples.filter(sample => sample.hour !== current.hour && Date.parse(sample.hour) < currentTime && currentTime - Date.parse(sample.hour) <= WEEK);
   const cold = new Set(history.map(sample => sample.hour)).size < 24;

@@ -36,6 +36,11 @@ async function session(env: Env, id: string, actor: Actor): Promise<Session> {
 function status(row: Session) {
   return { import_id: row.id, status: row.status, next_index: row.next_index, item_count: row.item_count, bytes: row.bytes };
 }
+async function failFinishingImport(env: Env, id: string, error: AppError): Promise<never> {
+  await env.DB.prepare("UPDATE import_sessions SET status='failed',updated_at=? WHERE id=? AND status='finishing'")
+    .bind(isoNow(), id).run();
+  throw error;
+}
 
 async function sessionForRequest(env: Env, actor: Actor, requestId: string | null) {
   if (!requestId) return null;
@@ -157,7 +162,7 @@ export async function finishImport(env: Env, actor: Actor, input: unknown) {
   const raw = `{"chunks":[${chunks.results.map(row => row.payload).join(",")}],"version":1}`;
   const bytes = encoder.encode(raw);
   if (bytes.length !== current.bytes || bytes.length > MAX_IMPORT_BYTES || chunks.results.length !== current.chunk_count) {
-    throw new AppError("import_integrity_error", 503);
+    return failFinishingImport(env, id, new AppError("import_integrity_error", 503));
   }
   const sha256 = await sha256Hex(bytes);
   const key = `imports/${id}`;
@@ -168,7 +173,7 @@ export async function finishImport(env: Env, actor: Actor, input: unknown) {
   });
   const original = await env.IMPORTS.get(key);
   if (!original || original.size !== bytes.length || await sha256Hex(await original.arrayBuffer()) !== sha256) {
-    throw new AppError("import_original_mismatch", 503);
+    return failFinishingImport(env, id, new AppError("import_original_mismatch", 503));
   }
   const now = isoNow();
   const statements: D1PreparedStatement[] = [
@@ -182,7 +187,7 @@ export async function finishImport(env: Env, actor: Actor, input: unknown) {
   let itemIndex = 0;
   for (const chunk of chunks.results) {
     if (await sha256Hex(canonicalJson(JSON.parse(chunk.payload).items)) !== chunk.digest) {
-      throw new AppError("import_integrity_error", 503);
+      return failFinishingImport(env, id, new AppError("import_integrity_error", 503));
     }
     const parsed = JSON.parse(chunk.payload) as { items: { text: string; kind?: MemoryKind; tags?: string[] }[] };
     for (const rawItem of parsed.items) {
@@ -195,7 +200,9 @@ export async function finishImport(env: Env, actor: Actor, input: unknown) {
         .bind(ulid(), item.kind, item.text, JSON.stringify(item.tags), itemIndex++, now, now, id, id));
     }
   }
-  if (itemIndex !== current.item_count) throw new AppError("import_integrity_error", 503);
+  if (itemIndex !== current.item_count) {
+    return failFinishingImport(env, id, new AppError("import_integrity_error", 503));
+  }
   statements.push(env.DB.prepare(`UPDATE import_sessions SET status='finished',finished_at=?,updated_at=?
     WHERE id=? AND status='finishing' AND EXISTS (SELECT 1 FROM imports WHERE id=?)`)
     .bind(now, now, id, id));

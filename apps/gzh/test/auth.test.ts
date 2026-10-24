@@ -2,7 +2,7 @@ import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { handleRequestOtp } from "../worker/auth";
 import { api } from "../worker/app";
-import { sameOrigin as checkSameOrigin } from "../worker/lib";
+import { shanghaiDate, sameOrigin as checkSameOrigin } from "../worker/lib";
 import { ALLOWED, loginAsAllowlisted, requestOtp, verifyOtp } from "./helpers";
 
 describe("otp + session", () => {
@@ -197,5 +197,20 @@ describe("page gate", () => {
       headers: { Cookie: cookie },
     });
     expect(res.status).toBe(200);
+  });
+  it("does not run the board GET handler for an authenticated HEAD", async () => {
+    const cookie = await loginAsAllowlisted();
+    const date = shanghaiDate();
+    const beforePosts = await env.DB.prepare("SELECT id, publish_date FROM posts ORDER BY id").all();
+    const beforeMeta = await env.DB.prepare("SELECT key, value FROM desk_meta ORDER BY key").all();
+
+    const res = await SELF.fetch(`https://gzh.codepi.app/api/board?date=${date}`, {
+      method: "HEAD",
+      headers: { Cookie: cookie },
+    });
+
+    expect(res.status).toBe(404);
+    expect(await env.DB.prepare("SELECT id, publish_date FROM posts ORDER BY id").all()).toEqual(beforePosts);
+    expect(await env.DB.prepare("SELECT key, value FROM desk_meta ORDER BY key").all()).toEqual(beforeMeta);
   });
 });

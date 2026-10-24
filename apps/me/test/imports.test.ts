@@ -67,6 +67,25 @@ it("enforces actor isolation and successful-finish-only lock when R2 fails", asy
   expect(await count("memories")).toBe(1);
 });
 
+it("fails the import permanently after detecting a corrupted R2 original", async () => {
+  const id = await start("corrupt-original");
+  await chunk(id);
+  const corruptBucket = Object.create(env.IMPORTS) as R2Bucket;
+  corruptBucket.put = env.IMPORTS.put.bind(env.IMPORTS);
+  corruptBucket.get = async (key: string): Promise<R2ObjectBody | null> => {
+    const original = await env.IMPORTS.get(key);
+    if (!original) return null;
+    return Object.assign(original, {
+      arrayBuffer: async () => encoder.encode("x".repeat(original.size)).buffer,
+    }) as unknown as R2ObjectBody;
+  };
+  const corrupt = { ...env, IMPORTS: corruptBucket };
+  await expect(finishImport(corrupt, actor, { import_id: id })).rejects.toThrow("import_original_mismatch");
+  expect(await env.DB.prepare("SELECT status FROM import_sessions WHERE id=?").bind(id).first<{ status: string }>())
+    .toMatchObject({ status: "failed" });
+  expect(await finish(id)).toMatchObject({ error: "import_failed", status: 409 });
+});
+
 it("isolates concurrent request ids instead of handing both the same active batch", async () => {
   const results = await Promise.all([
     call("memory.import.start", { request_id: "concurrent-long" }),

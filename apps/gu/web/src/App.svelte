@@ -269,8 +269,8 @@
         {session.notice}
       </p>
       <main id="content" tabindex="-1" aria-busy={session.loading}>
-        {#if session.auth === "authenticated" && (session.online || session.workspaceOpen || ["workspace", "transactions", "rules", "materials"].includes(parsed.page))}
-          <Workspace page={parsed.page} />
+        {#if session.auth === "authenticated" && (session.online || (!session.loading && (session.workspaceOpen || ["workspace", "transactions", "rules", "materials"].includes(parsed.page))))}
+          <Workspace page={parsed.page} initial={session.online ?? undefined} />
         {:else if !session.snapshot}
           <div class="empty">
             <span class="seal"

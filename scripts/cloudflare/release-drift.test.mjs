@@ -39,11 +39,12 @@ test('release scope separates Health Workers, includes shared dependencies, and 
   assert.deepEqual(affectedWorkers(['apps/health/apps/web/src/main.ts']), ['health-web']);
   assert.deepEqual(affectedWorkers(['apps/health/workers/api/src/app.ts']), ['health-api', 'mcp']);
   assert.deepEqual(affectedWorkers(['apps/health/shared/date.ts']), ['health-api', 'health-web', 'mcp']);
-  assert.deepEqual(affectedWorkers(['packages/shared/mcp/contract.ts']), ['health-api', 'mcp', 'gu', 'project', 'me']);
-  assert.deepEqual(affectedWorkers(['apps/project/worker/index.ts']), ['project']);
-  assert.deepEqual(affectedWorkers(['apps/me/migrations/0001_init.sql']), ['me']);
-  assert.deepEqual(affectedWorkers(['apps/web/src/pages/about.md']), ['web']);
-  assert.deepEqual(affectedWorkers(['apps/web/src/pages/docs/example.md']), ['web']);
+  assert.deepEqual(affectedWorkers(['packages/shared/mcp/contract.ts']), ['health-api', 'mcp', 'gu', 'project', 'me', 'web']);
+  assert.deepEqual(affectedWorkers(['apps/project/worker/index.ts']), ['project', 'mcp']);
+  assert.deepEqual(affectedWorkers(['apps/me/migrations/0001_init.sql']), ['me', 'mcp']);
+  assert.deepEqual(affectedWorkers(['apps/web/src/pages/about.md']), ['web', 'mcp']);
+  assert.deepEqual(affectedWorkers(['apps/web/src/pages/docs/example.md']), ['web', 'mcp']);
+  assert.deepEqual(affectedWorkers(['apps/gu/worker/index.ts']), ['gu', 'mcp']);
   assert.deepEqual(affectedWorkers(['services/auth/scripts/build.mjs']).sort(), Object.keys(WORKERS).sort());
   for (const file of ['services/ops/src/operations.mjs', 'scripts/cloudflare/traffic-monitor.mjs',
     'scripts/cloudflare/observability-api.mjs', 'scripts/cloudflare/rollback-worker.mjs',
@@ -86,7 +87,7 @@ test('real history accepts docs-only gaps and catches multi-commit, reverted and
   f.git('-c', 'core.hooksPath=/dev/null', 'commit', '-m', 'remove');
   const main = await f.commit('docs/release.md', 'updated\n');
   assert.equal(compareBuild('gu', f.base, main, f.cwd).current, false);
-  assert.equal(compareBuild('mcp', f.base, main, f.cwd).current, true);
+  assert.equal(compareBuild('mcp', f.base, main, f.cwd).current, false);
   assert.equal(compareBuild('gu', changed, main, f.cwd).current, false);
   assert.equal(compareBuild('gu', main, main, f.cwd).current, true);
 });

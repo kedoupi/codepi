@@ -61,6 +61,13 @@ async function ready() {
   await screen.findByDisplayValue("合成在线账户");
   await vi.waitFor(() => expect(document.querySelector("fieldset")?.disabled).toBe(false));
 }
+it("reuses the dashboard workspace without refetching it", async () => {
+  const backend = stub();
+  await mountApp("#workspace");
+  await ready();
+  expect(backend.mock.mock.calls.filter(([url]) => url === "/api/workspace")).toHaveLength(0);
+});
+
 
   it("loads the next materials page and appends it", async () => {
     const first = Array.from({ length: 500 }, (_, i) => ({

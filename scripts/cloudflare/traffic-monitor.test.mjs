@@ -6,6 +6,29 @@ const row = (hour, requests = 10, threats = 1) => ({ dimensions: { datetime: hou
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 function bucket(initial) { let value = initial; return { async get() { return value === undefined ? null : { etag: 'etag', async json() { return JSON.parse(value); } }; }, async put(_key, body) { value = body; return {}; }, value: () => value }; }
 test('query sends fixed hourly GraphQL request and maps rows', async () => { let captured; const samples = await queryTrafficSamples(env, { now, request: async (url, init) => { captured = { url, init, body: JSON.parse(init.body) }; return response({ data: { viewer: { zones: [{ httpRequests1hGroups: [row('2026-10-22T09:00:00Z', 12, 3)] }] } } }); } }); assert.equal(captured.url, 'https://api.cloudflare.com/client/v4/graphql'); assert.equal(captured.init.headers.authorization, 'Bearer secret-token'); assert.deepEqual(captured.body.variables, { zoneTag: 'zone', start: '2026-10-22T08:00:00Z', end: '2026-10-22T10:00:00Z' }); assert.deepEqual(samples[0], { hour: '2026-10-22T09:00:00Z', requests: 12, threats: 3, bytes: 100, uniques: 2 }); });
+test('30-minute ingestion grace delays the expected complete hour at the boundary', async () => {
+  const boundaryNow = Date.parse('2026-10-22T10:00:00Z');
+  let captured;
+  const passing = await checkTraffic({
+    env,
+    bucket: bucket(),
+    now: boundaryNow,
+    request: async (url, init) => {
+      captured = JSON.parse(init.body).variables;
+      return response({ data: { viewer: { zones: [{ httpRequests1hGroups: [row('2026-10-22T08:00:00Z')] }] } } });
+    },
+  });
+  assert.deepEqual(captured, { zoneTag: 'zone', start: '2026-10-22T07:00:00Z', end: '2026-10-22T09:00:00Z' });
+  assert.ok(passing.every(result => result.ok));
+
+  const failing = await checkTraffic({
+    env,
+    bucket: bucket(),
+    now,
+    request: async () => response({ data: { viewer: { zones: [{ httpRequests1hGroups: [row('2026-10-22T08:00:00Z')] }] } } }),
+  });
+  assert.ok(failing.every(result => !result.ok));
+});
 test('GraphQL errors and malformed zones fail closed without leaking secrets', async () => {
   for (const request of [
     async () => response({ errors: [{ message: 'private provider details', extensions: { code: 9109 } }] }),

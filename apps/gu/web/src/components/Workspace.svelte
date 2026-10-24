@@ -8,7 +8,7 @@
   import type { Page } from "../lib/router.svelte";
   import "./workspace.css";
 
-  let { page }: { page: Page } = $props();
+  let { page, initial }: { page: Page; initial?: WorkspaceView } = $props();
   let draft = $state<WorkspaceData>(emptyWorkspace());
   let baseline = $state("");
   let revision = $state(0);
@@ -71,8 +71,8 @@
     }
   }
 
-  async function read() {
-    const view = await api("/api/workspace") as unknown as WorkspaceView;
+  async function read(initialView?: WorkspaceView) {
+    const view = initialView ?? await api("/api/workspace") as unknown as WorkspaceView;
     install(view);
     const [files, history] = await Promise.all([api("/api/materials"), api("/api/workspace/history")]);
     materials = files.materials as Material[];
@@ -234,7 +234,7 @@
   }
 
   onMount(() => {
-    void run(read);
+    void run(() => read(initial));
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (dirty) { event.preventDefault(); event.returnValue = ""; }
     };
