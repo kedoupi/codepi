@@ -63,7 +63,7 @@ test('preflight tolerates comments and multiline schedules without selecting env
   assert.deepEqual(parseWranglerConfig(text).crons, ['*/2 * * * *']);
 });
 
-async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false, fullDeploy = false, scheduleMismatch = false } = {}) {
+async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false, fullDeploy = false, scheduleMismatch = false, installedCron = '*/2 * * * *' } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'health-deploy-preflight-'));
   const requests = [];
   let schedulePut = false;
@@ -75,7 +75,7 @@ async function fixture(t, { dryRunFails = false, credentialsDenied = false, depl
     const deployments = req.method === 'GET' && req.url === `${prefix}/deployments`;
     const ok = !credentialsDenied && (schedules || (deployments && !deploymentsFail));
     const result = schedules
-      ? { schedules: [{ cron: scheduleMismatch && schedulePut ? '*/5 * * * *' : '*/2 * * * *' }] }
+      ? { schedules: [{ cron: scheduleMismatch && schedulePut ? '*/5 * * * *' : (schedulePut ? '*/2 * * * *' : installedCron) }] }
       : { deployments: [{ versions: [{ version_id: activeVersion, percentage: 100 }] }] };
     res.writeHead(ok ? 200 : 403, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(ok
@@ -169,6 +169,15 @@ test('a full deploy reports success after verifying the unchanged Cron schedule'
   assert.deepEqual(run.commands.map(args => args.slice(2, 4)), [
     ['deploy', '--dry-run'], ['d1', 'migrations'], ['versions', 'upload'], ['versions', 'deploy'],
   ]);
+});
+
+test('a full deploy keeps preflight Cron state for change evidence', async t => {
+  const f = await fixture(t, { fullDeploy: true, installedCron: '0 0 * * *' });
+  const run = await f.run({ GITHUB_SHA: 'a'.repeat(40) }, []);
+  assert.equal(run.status, 0, run.output);
+  assert.match(run.output, /Note: Cron schedule changed from \[0 0 \* \* \*\] to \[\*\/2 \* \* \* \*\]/);
+  const evidence = JSON.parse(run.output.trim().split('\n').at(-1));
+  assert.equal(evidence.new_version, '00000000-0000-4000-8000-000000000002');
 });
 
 test('a post-switch failure says the new version is serving traffic', async t => {

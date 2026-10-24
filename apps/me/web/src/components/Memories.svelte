@@ -17,7 +17,7 @@
       ...(which === "pending" ? { status: "pending" } : filters), limit: 10,
       offset: append ? current.next_offset : 0,
     })}`);
-    if (which === "records" && requestVersion !== version) return;
+    if (requestVersion !== version) return;
     const next = { ...result, items: append ? [...current.items, ...result.items] : result.items };
     if (which === "pending") pending = next; else records = next;
   }

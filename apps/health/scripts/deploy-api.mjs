@@ -96,7 +96,7 @@ async function main() {
   // token verification alone does not prove its resource permissions.
   let previousVersion = process.env.HEALTH_PREVIOUS_VERSION || '';
   const before = await cloudflare(schedulesUrl);
-  const installedCrons = (before.schedules || []).map(row => row.cron).sort();
+  const installedCrons = (before?.schedules ?? []).map(({ cron }) => cron).sort();
   if (!previousVersion) {
     const deployments = await cloudflare(`${script}/deployments`);
     const versions = deployments?.deployments?.[0]?.versions ?? [];

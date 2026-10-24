@@ -45,8 +45,10 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   const revision = (existing?.revision ?? 0) + 1;
   const clientId = text(input.client_id, 200) ? input.client_id : "mcp";
   const clientName = text(input.client_name, 200) ? input.client_name : null;
-  await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,published_at=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at`).bind(slug,title,summary,tag ?? null,body,bodyHtml,"pending",clientId,clientName,revision,requestId,null,timestamp,timestamp).run();
+  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,published_at=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at
+    WHERE blog_drafts.status <> 'published' AND blog_drafts.revision = ?`).bind(slug,title,summary,tag ?? null,body,bodyHtml,"pending",clientId,clientName,revision,requestId,null,timestamp,timestamp,existing?.revision ?? 0).run();
+  if (!result.meta.changes) throw invalid("revision_conflict");
   return { slug, revision, status: "draft", submitted_at: timestamp };
 }
 export async function retractDraft(db: D1Database, slug: string) {
@@ -66,10 +68,14 @@ export async function getPost(db: D1Database, slug: string) { return row(await d
 export async function publishDraft(db: D1Database, slug: string, origin?: string) {
   const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");
   const at = now();
-  await db.batch([
-    db.prepare(`INSERT INTO blog_posts (slug,title,summary,tag,body_html,revision,published_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_html=excluded.body_html,revision=excluded.revision,published_at=excluded.published_at,updated_at=excluded.updated_at`).bind(draft.slug,draft.title,draft.summary,draft.tag,draft.body_html,draft.revision,at,at),
-    db.prepare("UPDATE blog_drafts SET status='published', published_at=?, updated_at=? WHERE slug=? AND status='pending'").bind(at,at,slug),
+  const [postResult] = await db.batch([
+    db.prepare(`INSERT INTO blog_posts (slug,title,summary,tag,body_html,revision,published_at,updated_at)
+      SELECT slug,title,summary,tag,body_html,revision,?,? FROM blog_drafts
+      WHERE slug=? AND status='pending' AND revision=?
+      ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_html=excluded.body_html,revision=excluded.revision,published_at=excluded.published_at,updated_at=excluded.updated_at`).bind(at,at,slug,draft.revision),
+    db.prepare("UPDATE blog_drafts SET status='published', published_at=?, updated_at=? WHERE slug=? AND status='pending' AND revision=?").bind(at,at,slug,draft.revision),
   ]);
+  if (!postResult.meta.changes) throw invalid("not_found");
   await purgeBlogCaches(slug, origin);
   return { slug, status: "published", revision: draft.revision, published_at: at };
 }

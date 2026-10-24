@@ -127,7 +127,7 @@ function recordId(row: RecordData, spec: Collection): string {
   throw new ApiError("invalid_upstream_record", 502);
 }
 
-async function fetchRecords(token: string, w: Window, signal: AbortSignal): Promise<RecordData[]> {
+async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
   const url = new URL(`${OURA_API_BASE}/${w.spec.name}`);
   const exclusiveEnd = new Date(Date.parse(w.to) + DAY).toISOString();
   if (w.spec.mode === "date") {
@@ -139,9 +139,12 @@ async function fetchRecords(token: string, w: Window, signal: AbortSignal): Prom
   }
   const rows: RecordData[] = [];
   const seen = new Set<string>();
-  // Bound both subrequests and wall time; never silently accept truncated pagination.
+  // Bound each provider subrequest; pagination remains capped at 20 pages.
   for (let page = 0; page < 20; page++) {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) {
       throw await ouraResponseError(res);
     }
@@ -205,9 +208,8 @@ export async function syncHealthWindow(request: Request, env: Env, userId: strin
     // lease acquisition. Recheck under the same lease that serializes access.
     const paused = (await deniedHealthCollections(env, userId)).find(row => row.collection === w.spec.name);
     if (paused) throw new ApiError(paused.code, 403);
-    const signal = AbortSignal.timeout(20_000);
     providerStarted = true;
-    const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w, signal), lease);
+    const records = await withOuraAccess(request, env, userId, token => fetchRecords(token, w), lease);
     const fetchedAt = new Date().toISOString();
     const unique = new Map<string, { day: string; payload: string }>();
     let totalBytes = 0;

@@ -86,6 +86,28 @@ test('a thousand time-series samples import without per-row SQL statements or lo
     await db.prepare("DELETE FROM health_sync_windows WHERE collection='heartrate'").run();
   }
 });
+test('multi-page imports allow each provider page its own timeout window', async () => {
+  let pageCalls = 0;
+  handler = url => {
+    if (!url.pathname.endsWith('/heartrate')) return undefined;
+    pageCalls++;
+    const page = url.searchParams.get('next_token');
+    return page
+      ? response([{ timestamp: `${today}T02:00:00Z`, bpm: 62, source: 'rest' }])
+      : response([{ timestamp: `${today}T01:00:00Z`, bpm: 60, source: 'rest' }], 'page-2');
+  };
+  try {
+    assert.equal((await records('heartrate', { method: 'POST' })).status, 200);
+    assert.equal(pageCalls, 2);
+    const saved = await (await records('heartrate')).json();
+    assert.equal(saved.total, 2);
+  } finally {
+    handler = () => undefined;
+    await db.prepare("DELETE FROM health_records WHERE collection='heartrate'").run();
+    await db.prepare("DELETE FROM health_sync_windows WHERE collection='heartrate'").run();
+  }
+});
+
 
 test('daily retries resolve an oversized parent only after its entire window is covered', async () => {
   const date = back => new Date(Date.parse(today) - back * 86400000).toISOString().slice(0, 10);

@@ -16,7 +16,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const post = slug ? (preview ? await getDraft(env.BLOG, slug) : await getPost(env.BLOG, slug)) : null;
   if (slug && !post) return notFound();
   const listing = slug ? null : await listPublished(env.BLOG, 0, 100);
-  const shell = await env.ASSETS.fetch(new Request(new URL("/blog/", request.url), request));
+  const shell = await env.ASSETS.fetch(new Request(new URL("/blog/", request.url), { method: "GET", headers: request.headers }));
   if (!shell.ok) return shell;
   const title = post ? `${post.title} · 博客` : "博客";
   const description = post?.summary ?? "整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。";
@@ -54,15 +54,16 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) return handleDeskRequest(request, env);
     if (url.pathname === "/sitemap-blog.xml" && request.method === "GET") return sitemap(request, env);
-    if (request.method === "GET" && (url.pathname === "/blog/" || /^\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname))) {
+    if ((request.method === "GET" || request.method === "HEAD") && (url.pathname === "/blog/" || /^\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname))) {
       const slug = url.pathname === "/blog/" ? undefined : url.pathname.slice(6, -1);
       const cacheUrl = new URL(url);
       cacheUrl.search = "";
-      const key = new Request(cacheUrl.toString(), request);
-      const cached = await caches.default.match(key); if (cached) return cached;
+      const key = request.method === "GET" ? new Request(cacheUrl.toString(), request) : new Request(cacheUrl.toString(), { method: "GET" });
+      const cached = await caches.default.match(key);
+      if (cached) return request.method === "HEAD" ? new Response(null, cached) : cached;
       const response = await blogPage(request, env, slug);
-      if (response.ok) await caches.default.put(key, response.clone());
-      return response;
+      if (request.method === "GET" && response.ok) await caches.default.put(key, response.clone());
+      return request.method === "HEAD" ? new Response(null, response) : response;
     }
     if (request.method === "GET" && /^\/blog\/preview\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname)) return blogPage(request, env, url.pathname.slice("/blog/preview/".length, -1), true);
     const desk = url.pathname === "/desk" || url.pathname.startsWith("/desk/");

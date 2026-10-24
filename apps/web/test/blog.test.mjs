@@ -91,6 +91,28 @@ test('desk review publish reject and unpublish flow', async t => {
   assert.equal((await f.call('/api/blog/drafts/absent/publish', cookie, {})).status, 404);
 });
 
+test('publish and submit are compare-and-swap operations', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  await seedDraft(f, 'race');
+  const [published, submitted] = await Promise.all([
+    f.call('/api/blog/drafts/race/publish', cookie, {}),
+    submit(f, draft({ slug: 'race', request_id: 'race-submit', title: 'Concurrent' })),
+  ]);
+  assert.equal([published.status === 200, submitted.ok].filter(Boolean).length, 1);
+  const state = (await f.blog.prepare('SELECT status, revision FROM blog_drafts WHERE slug=?').bind('race').all()).results[0];
+  const posts = (await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('race').all()).results[0].c;
+  assert.equal(state.status, published.status === 200 ? 'published' : 'pending');
+  assert.equal(posts, published.status === 200 ? 1 : 0);
+});
+
+test('a rejected draft cannot be published', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  await seedDraft(f, 'rejected-publish');
+  assert.equal((await f.call('/api/blog/drafts/rejected-publish/reject', cookie, { note: 'No' })).status, 200);
+  assert.equal((await f.call('/api/blog/drafts/rejected-publish/publish', cookie, {})).status, 404);
+  assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('rejected-publish').all()).results[0].c, 0);
+});
+
 test('public routes render published only, preview shows drafts to the owner', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedPost(f); await seedDraft(f, 'public-post');
@@ -117,6 +139,20 @@ test('public routes render published only, preview shows drafts to the owner', a
   const previewHtml = await preview.text();
   assert.match(previewHtml, /Draft body/);
   assert.doesNotMatch(previewHtml, /Public body/);
+});
+test('HEAD blog routes match GET metadata and never return a body', async t => {
+  const f = await deskFixture(t);
+  await seedPost(f, 'head-post');
+  const worker = await f.runtime.getWorker('desk');
+  for (const path of ['/blog/', '/blog/head-post/']) {
+    const get = await worker.fetch(`http://localhost:8804${path}`);
+    const head = await worker.fetch(`http://localhost:8804${path}`, { method: 'HEAD' });
+    assert.equal(head.status, get.status);
+    assert.equal(head.headers.get('Content-Type'), get.headers.get('Content-Type'));
+    assert.equal(head.headers.get('Cache-Control'), get.headers.get('Cache-Control'));
+    assert.equal(head.headers.get('X-Asset-Method'), 'GET');
+    assert.equal(await head.text(), '');
+  }
 });
 
 test('sitemap and cache follow publish and unpublish', async t => {

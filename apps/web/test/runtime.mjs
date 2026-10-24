@@ -65,8 +65,8 @@ export async function deskFixture(t, options = {}) {
     serviceBindings: { desk: { ASSETS: 'blog-assets' } },
     extraWorkers: [{
       name: 'blog-assets', modules: true, compatibilityDate: '2026-10-15',
-      script: `export default { async fetch() { globalThis.__assetFetches = (globalThis.__assetFetches || 0) + 1;
-        return new Response('<html><head><title>博客 | kedoupi（codepi）</title><meta name="description" content="博客"><link rel="canonical" href="https://codepi.app/blog/"></head><body><header class="blog-header"><h1 class="blog-title">真实想法</h1></header><main><section id="blog-list-mount" class="blog-list" hidden></section><section class="blog-empty-pavilion">正在整理</section></main></body></html>', { headers: { 'Content-Type': 'text/html; charset=utf-8', 'X-Asset-Fetch-Count': String(globalThis.__assetFetches) } }) } };`,
+      script: `export default { async fetch(req) { globalThis.__assetFetches = (globalThis.__assetFetches || 0) + 1;
+        return new Response('<html><head><title>博客 | kedoupi（codepi）</title><meta name="description" content="博客"><link rel="canonical" href="https://codepi.app/blog/"></head><body><header class="blog-header"><h1 class="blog-title">真实想法</h1></header><main><section id="blog-list-mount" class="blog-list" hidden></section><section class="blog-empty-pavilion">正在整理</section></main></body></html>', { headers: { 'Content-Type': 'text/html; charset=utf-8', 'X-Asset-Fetch-Count': String(globalThis.__assetFetches), 'X-Asset-Method': req.method } }) } };`,
     }, {
       name: 'blog-rpc', modules: true, compatibilityDate: '2026-10-15',
       serviceBindings: { BLOG_RPC: { name: 'desk', entrypoint: 'BlogMcp' } },
