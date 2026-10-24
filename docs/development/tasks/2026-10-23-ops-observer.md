@@ -3,13 +3,13 @@
 - 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
-- worktree / 分支：第七至十轮候选依次叠加到 `codex/round10-integration`，均未合并 main（`08bdfed`）
+- worktree / 分支：第七至十一轮候选依次叠加到 `codex/round11-integration`，均未合并 main（`08bdfed`）
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：第十轮候选分支 `codex/round10-integration`（基于第九轮 `31f27c7`）；尚未合并 main
-- 实施：第七至九轮见前次记录。第十轮新增 Project Web 路由 revision 防旧响应覆盖、GU 材料 API/Web 分页、GZH OTP 原子消费、gu-build 补齐 `check:deploy`、备份 freshness 校验 manifest 存在
-- 本地验证：第十轮各修复均有失败→通过回归；Project race、GU 两页与失败保留、GZH 并发 OTP、CI workflow、备份缺失 manifest 均覆盖；按 `origin/main` 对四轮组合运行 `check.mjs --run`，41 项全部通过，governance 与 diff check 通过
-- 审查：第十轮最终 diff 已审查；GU 同时完成 API 与 Web 加载更多，未停留在仅 API 可用。待 PR CI 与合并审查
-- 合并 / 推送 / 部署：候选分支已推送；PR 创建因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。最终只评审 `codex/round10-integration` 一个 PR（第七至十轮），合并后按 release-scope 发布受影响服务
+- 当前交付 SHA：第十一轮候选 `4762ffcfe4c5ed4dbb86aa62fe668f806fcbd6be`；尚未合并 main
+- 实施：第七至十轮见前次记录。第十一轮新增 MCP 信封放宽到 blog 域允许负载的有界 4 倍、GZH 五个 JSON 写端点 256 KiB 流式 body 上限、Me README 修正 `pnpm run deploy`、所有 GitHub Actions 固定官方 commit SHA、MCP browser 失败产物保留 7 天
+- 本地验证：MCP 41 passed/typecheck/build/browser built 通过；GZH 113 passed/typecheck/build 通过；deploy workflow 13 passed；Cloudflare tests 178 passed；governance 通过；按 `origin/main` 运行 41 项组合检查全部通过；Me 文档 diff check 通过
+- 审查：第十一轮集成 diff 已审查，workflow SHA 由官方 tag 解引用核对；待 PR CI 与合并审查
+- 合并 / 推送 / 部署：候选分支 `codex/round11-integration` 已推送；PR 创建因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。最终只评审该分支一个 PR（包含第七至十一轮），合并后按 release-scope 发布受影响服务
 - 实际流程验收：第五轮 observe session `cf_28eb7d963c4f9b104cc0b71fc7f1e215eda7d09b78cd7aafc911b9159d23e081` 七轮完成，R2 summary 为 `healthy_reported`；Issue #169 开始与完成通知均已核对
 - 协调者 / 执行者 / 审查者 / 集成者：主会话（OMP）顺序协调
 - 允许修改的路径：`docs/development/agent-workflow.md`、`local-release.md`、`cloudflare-operations.md`、`cloudflare-governance.md`、`cloudflare-resource-registry.md`、本任务记录与索引
