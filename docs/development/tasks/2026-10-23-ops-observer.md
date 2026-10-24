@@ -3,13 +3,13 @@
 - 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
-- worktree / 分支：第七至十五轮候选依次叠加到 `codex/round15-integration`，均未合并 main（`08bdfed`）
+- worktree / 分支：第七至十六轮候选依次叠加到 `codex/round16-integration`，均未合并 main（`08bdfed`）
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：第十五轮候选 `0f9ca31edce82effcaf69efcee85f391624f99fd`；尚未合并 main
-- 实施：第七至十四轮见前次记录。第十五轮新增 Blog publish/reject/submit 原子状态转换、Blog HEAD 与 GET 状态头一致、Oura 分页每页独立 10 秒超时、Me pending 请求版本守卫、Health deploy-api 成功证据恢复
-- 本地验证：Web blog 13、Health Oura integration 15、Health deploy-preflight 14、Me pending 1 项通过；按 `origin/main` 组合运行 `check.mjs --run`，43 项全部通过；diff check 通过
-- 审查：第十五轮集成 diff 已审查；blog-publish 与 blog-head 的重叠测试已合并，未互相覆盖。待 PR CI 与合并审查
-- 合并 / 推送 / 部署：候选分支 `codex/round15-integration` 已推送；PR 创建仍因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。主 checkout 的 `main` 仍落后且有用户未提交改动，按要求未执行 `git pull --ff-only`；最终只评审该分支一个 PR（第七至十五轮），合并后按 release-scope 发布受影响服务
+- 当前交付 SHA：第十六轮候选 `57eb93c04b3b122e464b895bbcd99da8618e88ac`；尚未合并 main
+- 实施：第七至十五轮见前次记录。第十六轮新增 Project 卡片基线原子写入、GitHub commits/issues 同步 cursor 早停、GZH 静态资源条件请求/Range 透传、HandoffForm 防重复提交、deployment-evidence 缺 `--file` 时拒绝
+- 本地验证：Project 52 tests、GZH 117 tests、deployment-evidence/governance 54 tests 通过；首次组合检查因 HEAD 测试比较 D1 duration 元数据偶发失败，已改为只比较查询结果后重跑；按 `origin/main` 运行 `check.mjs --run`，43 项全部通过；diff check 通过
+- 审查：第十六轮集成 diff 已审查；GZH worker 曾误改主 checkout，补丁已保存并正向恢复主工作区，最终实现只存在于独立候选。待 PR CI 与合并审查
+- 合并 / 推送 / 部署：候选分支 `codex/round16-integration` 已推送；PR 创建仍因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。主 checkout 的 `main` 当前为 `1d7e242`、落后 `origin/main` 18 个提交且有 34 个未提交文件，按要求未执行 `git pull --ff-only`；最终只评审该分支一个 PR（第七至十六轮），合并后按 release-scope 发布受影响服务
 - 实际流程验收：第五轮 observe session `cf_28eb7d963c4f9b104cc0b71fc7f1e215eda7d09b78cd7aafc911b9159d23e081` 七轮完成，R2 summary 为 `healthy_reported`；Issue #169 开始与完成通知均已核对
 - 协调者 / 执行者 / 审查者 / 集成者：主会话（OMP）顺序协调
 - 允许修改的路径：`docs/development/agent-workflow.md`、`local-release.md`、`cloudflare-operations.md`、`cloudflare-governance.md`、`cloudflare-resource-registry.md`、本任务记录与索引
