@@ -62,7 +62,7 @@ export function isHttps(request: Request): boolean {
 
 export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("Origin");
-  if (!origin) return true;
+  if (!origin) return false;
   return origin === new URL(request.url).origin;
 }
 

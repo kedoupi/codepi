@@ -500,4 +500,111 @@ describe("board + review", () => {
       created_at: "2026-03-01T00:00:00.000Z",
     });
   });
+  it("does not update copy when a PATCH slug rename clashes", async () => {
+    const cookie = await loginAsAllowlisted();
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "rename-source",
+        title: "原始标题",
+        slot: "早",
+        publish_date: "2026-12-10",
+        preview_path: "/previews/rename-source/",
+        note: "原始备注",
+      }),
+    });
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "rename-occupied",
+        title: "占用 slug",
+        slot: "中",
+        publish_date: "2026-12-10",
+        preview_path: "/previews/rename-occupied/",
+      }),
+    });
+
+    const clash = await authed(cookie, "/api/posts/rename-source", {
+      method: "PATCH",
+      body: JSON.stringify({
+        title: "不应保存",
+        note: "不应保存备注",
+        new_slug: "rename-occupied",
+      }),
+    });
+    expect(clash.status).toBe(409);
+
+    const original = await authed(cookie, "/api/posts/rename-source");
+    const body = (await original.json()) as {
+      post: { title: string; note: string | null; slug: string };
+    };
+    expect(original.status).toBe(200);
+    expect(body.post).toMatchObject({
+      slug: "rename-source",
+      title: "原始标题",
+      note: "原始备注",
+    });
+  });
+
+  it("does not delete a demo occupant when upsert is rejected for boxed post", async () => {
+    const cookie = await loginAsAllowlisted();
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "demo-occupant",
+        title: "演示稿",
+        slot: "早",
+        publish_date: "2026-12-11",
+        preview_path: "/previews/demo-occupant/",
+      }),
+    });
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE posts SET is_demo = 1 WHERE id = ?`).bind("demo-occupant"),
+      env.DB.prepare(
+        `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
+         VALUES (?, ?, 'acc_owner_kdp', '要改', 'draft', '需改', ?, ?)`,
+      ).bind("demo-review", "demo-occupant", "保留意见", "2026-12-11T00:00:00.000Z"),
+      env.DB.prepare(
+        `INSERT INTO desk_meta (key, value, updated_at) VALUES (?, 'released', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      ).bind("skip_auto_demo:2026-12-11", "2026-12-11T00:00:00.000Z"),
+    ]);
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "boxed-source",
+        title: "已进箱稿",
+        slot: "中",
+        publish_date: "2026-12-12",
+        preview_path: "/previews/boxed-source/",
+      }),
+    });
+    await env.DB.prepare(`UPDATE posts SET status = '已进箱' WHERE id = ?`).bind("boxed-source").run();
+
+    const rejected = await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        from_slug: "boxed-source",
+        new_slug: "boxed-source",
+        title: "不应保存",
+        slot: "早",
+        publish_date: "2026-12-11",
+        preview_path: "/previews/boxed-source/",
+      }),
+    });
+    expect(rejected.status).toBe(409);
+
+    const demo = await env.DB.prepare(`SELECT id, title, is_demo FROM posts WHERE id = ?`)
+      .bind("demo-occupant")
+      .first<{ id: string; title: string; is_demo: number }>();
+    const review = await env.DB.prepare(`SELECT id FROM reviews WHERE post_id = ?`)
+      .bind("demo-occupant")
+      .first<{ id: string }>();
+    const skip = await env.DB.prepare(`SELECT value FROM desk_meta WHERE key = ?`)
+      .bind("skip_auto_demo:2026-12-11")
+      .first<{ value: string }>();
+    expect(demo).toMatchObject({ id: "demo-occupant", title: "演示稿", is_demo: 1 });
+    expect(review?.id).toBe("demo-review");
+    expect(skip?.value).toBe("released");
+  });
 });

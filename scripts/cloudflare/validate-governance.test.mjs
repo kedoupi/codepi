@@ -283,6 +283,32 @@ function webWorkerConfig() {
     .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk')
     + '\n[[d1_databases]]\nbinding = "BLOG"\ndatabase_name = "codepi-blog"\n';
 }
+test('all non-allowlisted R2 and Workflow bindings are rejected across TOML and JSONC', () => {
+  const files = legalFiles({
+    files: {
+      'services/auth/wrangler.jsonc': JSON.stringify({
+        ...JSON.parse(authConfig()),
+        r2_buckets: [{ binding: 'EXTRA_R2', bucket_name: 'unregistered-auth-bucket' }],
+        workflows: [{ binding: 'EXTRA_WORKFLOW', name: 'unregistered-auth-workflow', class_name: 'UnexpectedWorkflow' }],
+      }),
+      'apps/gzh/wrangler.toml': `${privateWorkerConfig({ app: 'gzh' })}
+[[r2_buckets]]
+binding = "EXTRA_R2"
+bucket_name = "unregistered-gzh-bucket"
+[[workflows]]
+binding = "EXTRA_WORKFLOW"
+name = "unregistered-gzh-workflow"
+class_name = "UnexpectedWorkflow"
+`,
+    },
+  });
+  const violations = run(files);
+  assert.ok(violations.some(v => v.startsWith('auth:') && v.includes('R2')));
+  assert.ok(violations.some(v => v.startsWith('auth:') && v.includes('Workflow')));
+  assert.ok(violations.some(v => v.startsWith('gzh:') && v.includes('R2')));
+  assert.ok(violations.some(v => v.startsWith('gzh:') && v.includes('Workflow')));
+});
+
 
 test('GU materials has an exact managed bucket', () => {
   for (const config of [

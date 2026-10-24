@@ -147,13 +147,19 @@ function parseTomlEnv(root, tables, prefix) {
   const routes = tomlRoutes(section);
   const crons = tomlCrons(tables, `[${p}triggers]`);
   const duplicate = (all, field) => [...new Set(all.map(item => item[field]).filter((value, i, values) => value && values.indexOf(value) !== i))];
+  const r2All = tomlTableBodies(tables, `[[${p}r2_buckets]]`)
+    .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'bucket_name') }));
+  const workflowsAll = tomlTableBodies(tables, `[[${p}workflows]]`)
+    .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'name'), className: tomlString(body, 'class_name') }));
+  const r2Malformed = r2All.some(bucket => !bucket.binding || !bucket.name);
+  const workflowsMalformed = workflowsAll.some(workflow => !workflow.binding || !workflow.name || !workflow.className);
+  const r2DuplicateBindings = duplicate(r2All, 'binding');
+  const duplicateWorkflowBindings = duplicate(workflowsAll, 'binding');
   return {
     workersDev: tomlBoolean(section, 'workers_dev'),
     previewUrls: tomlBoolean(section, 'preview_urls'),
-    r2All: tomlTableBodies(tables, `[[${p}r2_buckets]]`)
-      .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'bucket_name') })),
-    workflowsAll: tomlTableBodies(tables, `[[${p}workflows]]`)
-      .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'name'), className: tomlString(body, 'class_name') })),
+    r2All, r2Malformed, duplicateR2Bindings: r2DuplicateBindings,
+    workflowsAll, workflowsMalformed, duplicateWorkflowBindings,
     logsEnabled: tomlBoolean(observability, 'enabled') === true && tomlBoolean(logs, 'enabled') === true,
     redactQuery: tomlBoolean(observability, 'redact_query_string'),
     persistLogs: tomlBoolean(logs, 'persist'),
@@ -196,6 +202,12 @@ function normalizeJsoncService(text) {
     const d1 = normalizeBindings(Array.isArray(src.d1_databases)
       ? src.d1_databases.map(database => ({ binding: database?.binding, name: database?.database_name, id: database?.database_id }))
       : src.d1_databases, ['binding', 'name', 'id']);
+    const r2 = normalizeBindings(Array.isArray(src.r2_buckets)
+      ? src.r2_buckets.map(bucket => ({ binding: bucket?.binding, name: bucket?.bucket_name }))
+      : src.r2_buckets, ['binding', 'name']);
+    const workflows = normalizeBindings(Array.isArray(src.workflows)
+      ? src.workflows.map(workflow => ({ binding: workflow?.binding, name: workflow?.name, className: workflow?.class_name }))
+      : src.workflows, ['binding', 'name', 'className']);
     const services = normalizeBindings(src.services, ['binding', 'service']);
     const routeEntries = Array.isArray(src.routes)
       ? src.routes.map(route => ({ pattern: route?.pattern, customDomain: route?.custom_domain }))
@@ -214,6 +226,9 @@ function normalizeJsoncService(text) {
       frontendOrigins: src.vars?.FRONTEND_ORIGINS, ouraRedirect: src.vars?.OURA_REDIRECT_URI,
       autoSync: src.vars?.AUTO_SYNC_ENABLED, allowDevLogin: src.vars?.ALLOW_DEV_LOGIN,
       d1All: d1.all, d1Malformed: d1.malformed, duplicateD1Bindings: duplicate(d1.all, 'binding'),
+      r2All: r2.all, r2Malformed: r2.malformed, duplicateR2Bindings: duplicate(r2.all, 'binding'),
+      workflowsAll: workflows.all, workflowsMalformed: workflows.malformed,
+      duplicateWorkflowBindings: duplicate(workflows.all, 'binding'),
       servicesAll: services.all, servicesMalformed: services.malformed, duplicateServiceBindings: duplicate(services.all, 'binding'),
       routePatterns: routeEntries.map(route => route?.pattern).filter(Boolean), routeEntries,
       routeCount: src.routes === undefined ? 0 : 1,
@@ -378,6 +393,19 @@ function checkService(spec, cfg, index, violations) {
       checkD1(d1, envName, allowPlannedD1);
     }
   };
+  const checkR2AndWorkflows = (env, envName) => {
+    if (env.r2Malformed) at(`${envName} has malformed R2 binding declaration`);
+    for (const binding of env.duplicateR2Bindings) at(`${envName} has duplicate R2 binding "${binding}"`);
+    if (env.workflowsMalformed) at(`${envName} has malformed Workflow binding declaration`);
+    for (const binding of env.duplicateWorkflowBindings) at(`${envName} has duplicate Workflow binding "${binding}"`);
+    if (!['ops', 'gu', 'me'].includes(spec.id)) {
+      for (const { binding } of env.r2All) at(`${envName} has unexpected R2 binding "${binding}"`);
+    }
+    if (spec.id !== 'ops') {
+      for (const { binding } of env.workflowsAll) at(`${envName} has unexpected Workflow binding "${binding}"`);
+    }
+  };
+
 
   for (const [envName, env] of environments) {
     if (!env.logsEnabled || env.persistLogs !== true || env.invocationLogs !== true) {
@@ -395,6 +423,7 @@ function checkService(spec, cfg, index, violations) {
   if (!spec.noVars && prod.environment !== 'production') at(`production ENVIRONMENT must be "production", got ${prod.environment}`);
 
   for (const [envName, env] of environments) {
+    checkR2AndWorkflows(env, envName);
     checkD1s(env, envName);
     checkServices(env, envName);
     if (spec.noVars) {

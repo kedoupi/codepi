@@ -73,6 +73,40 @@ test('backup writes only encrypted files and a portable manifest; refuses missin
   assert.equal(manifest.databases[0].file, 'synthetic.sql.enc');
   await assert.rejects(runBackup({ outDir: dir, env: {} }), /credentials/);
 });
+test('rejects oversized exports before writing ciphertext or manifest', async t => {
+  const cases = [
+    {
+      name: 'content-length',
+      response: new Response('too large', { headers: { 'content-length': '11' } }),
+    },
+    {
+      name: 'stream',
+      response: new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(7));
+          controller.enqueue(new Uint8Array(5));
+          controller.close();
+        },
+      })),
+    },
+  ];
+  for (const scenario of cases) {
+    const dir = await mkdtemp(path.join(os.tmpdir(), `codepi-backup-limit-${scenario.name}-`));
+    t.after(() => rm(dir, { recursive: true, force: true }));
+    await assert.rejects(runBackup({
+      outDir: dir,
+      publicKey: keys.publicKey,
+      maxExportBytes: 10,
+      env: { CLOUDFLARE_ACCOUNT_ID: 'acct', CLOUDFLARE_API_TOKEN: 'synthetic' },
+      databases: { synthetic: 'db' },
+      request: async url => url.includes('api.cloudflare.com')
+        ? ok({ success: true, status: 'complete', result: { signed_url: 'https://export.r2.cloudflarestorage.com/sql' } })
+        : scenario.response,
+    }), /size limit|too large|exceeds/i);
+    assert.deepEqual(await readdir(dir), [], `${scenario.name} must not leave backup files`);
+  }
+});
+
 
 test('manual backup defaults to the full dynamic D1 inventory instead of silently keeping the legacy six', async t => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'codepi-backup-inventory-'));

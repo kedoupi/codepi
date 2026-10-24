@@ -3,13 +3,13 @@
 - 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
-- worktree / 分支：第七、八轮候选依次叠加在 `codex/round7-integration` → `codex/round8-integration`，均未合并 main（`08bdfed`）
+- worktree / 分支：第七至九轮候选依次叠加在 `codex/round7-integration` → `codex/round8-integration` → `codex/round9-integration`，均未合并 main（`08bdfed`）
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：第八轮候选分支 `codex/round8-integration`（基于第七轮 `32ced94`）；尚未合并 main
-- 实施：第七轮并行化 Health 记录读取、修复 GZH OTP 发送超时与失败码失效、Me browser smoke 动态端口、`.claude` 与 Ops bundled scripts 的 release scope。第八轮：GZH `/api/board` 最新 review 由逐稿 N+1 改为单次查询；GZH 写请求缺 `Origin` 时 fail-closed（与 me/gu/project 一致）；新增首批 Me Web 测试（不可信文本转义、401 过期）；workspace `engines.node` 统一为 `>=24` 并与 `check.mjs` 共用常量；project/me 对齐 wrangler 4.151 / vite 8 / plugin-svelte 7，lockfile 移除 vite 6
-- 本地验证：第七轮完整受影响检查 22 项通过；第八轮各项均有修复前失败→修复后通过证据（GZH 两项在旧实现上 2 failed/24 passed，新实现 26/26），`check.mjs --base origin/codex/round7-integration --run` 41 项通过，governance 通过
-- 审查：两轮集成 diff 已审查；待 PR CI 与合并审查
-- 合并 / 推送 / 部署：候选分支已推送；PR 创建因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。合并后需发布 Health API、GZH、Me（及按 release-scope 判定的 Ops/MCP）
+- 当前交付 SHA：第九轮候选分支 `codex/round9-integration`（基于第八轮 `94b04e7`）；尚未合并 main
+- 实施：第七轮 Health 并行读、GZH OTP、Me smoke 动态端口、release scope；第八轮 GZH board 单查询与 Origin fail-closed、Me Web 测试、Node engines 与工具链对齐；第九轮 Project buildCard 并行查询、GZH 写入前完成 slug/demo 校验、手动 D1 备份下载 1GiB 上限、所有 Worker 的 R2/Workflow 绑定统一 fail-closed
+- 本地验证：各修复均有失败→通过回归；第九轮针对本轮 17 项检查通过；按 `origin/main` 对三轮组合运行 `check.mjs --run`，41 项全部通过；GZH desk/auth 28/28，governance 通过
+- 审查：集成时发现第八轮提交漏含 `apps/gzh/worker/desk.ts`、`lib.ts` 的实现（只提交了测试），以及 writes worker 曾回退 board 优化；两项均已在第九轮候选修正。待 PR CI 与合并审查
+- 合并 / 推送 / 部署：候选分支已推送；PR 创建因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。最终应只评审 `codex/round9-integration` 一个 PR（包含第七至九轮），合并后按 release-scope 发布 Health API、Project、GZH、Me 及判定的支撑服务
 - 实际流程验收：第五轮 observe session `cf_28eb7d963c4f9b104cc0b71fc7f1e215eda7d09b78cd7aafc911b9159d23e081` 七轮完成，R2 summary 为 `healthy_reported`；Issue #169 开始与完成通知均已核对
 - 协调者 / 执行者 / 审查者 / 集成者：主会话（OMP）顺序协调
 - 允许修改的路径：`docs/development/agent-workflow.md`、`local-release.md`、`cloudflare-operations.md`、`cloudflare-governance.md`、`cloudflare-resource-registry.md`、本任务记录与索引

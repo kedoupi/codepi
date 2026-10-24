@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProjectCard } from "../worker/types";
 import { buildCard, projectGetPage } from "../worker/card";
 import { saveHandoff } from "../worker/handoffs";
 import { jsonBytes } from "../worker/lib";
@@ -66,6 +67,61 @@ describe("project card", () => {
     expect(card.open_prs[0]).toMatchObject({ ref: "12", state: "open" });
     expect(card.recent_commits[0].sha).toBe("abc1234");
     expect(card.sync.commits.last_ok_at).toBe("2026-10-20T03:00:00Z");
+  });
+
+  it("runs independent card queries concurrently without changing the query count", async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let queryCount = 0;
+    const project = await seedProjectRow();
+    const prepare = env.DB.prepare.bind(env.DB);
+    const wrap = (statement: D1PreparedStatement): D1PreparedStatement =>
+      new Proxy(statement, {
+        get(target, property, receiver) {
+          const value = Reflect.get(target, property, receiver);
+          if (property === "bind") {
+            return (...args: unknown[]) =>
+              wrap((value as (...bindArgs: unknown[]) => D1PreparedStatement).apply(target, args));
+          }
+          if (property !== "all" && property !== "first") return value;
+          return async (...args: unknown[]) => {
+            queryCount++;
+            inFlight++;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await Promise.resolve();
+            try {
+              return await (value as (...queryArgs: unknown[]) => Promise<unknown>).apply(target, args);
+            } finally {
+              inFlight--;
+            }
+          };
+        },
+      });
+    const prepareSpy = vi.spyOn(env.DB, "prepare").mockImplementation(query => wrap(prepare(query)));
+    let card: ProjectCard;
+    try {
+      card = await buildCard(env, project, { handoffs: 20 });
+    } finally {
+      prepareSpy.mockRestore();
+    }
+
+    expect(queryCount).toBe(10);
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(card).toMatchObject({
+      project: { id: "kedoupi-codepi" },
+      goal: expect.any(Object),
+      scope: expect.any(Object),
+      conventions: expect.any(Object),
+      pitfalls: expect.any(Object),
+      task_progress: expect.any(Array),
+      recent_handoffs: expect.any(Array),
+      recent_commits: expect.any(Array),
+      open_prs: expect.any(Array),
+      recently_merged: expect.any(Array),
+      open_issues: expect.any(Array),
+      active_tasks: expect.any(Array),
+      sync: expect.any(Object),
+    });
   });
 
   it("selects recently merged PRs by merged_at instead of comment activity", async () => {

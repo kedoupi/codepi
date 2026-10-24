@@ -62,40 +62,51 @@ export async function buildCard(
   opts: { handoffs?: number; taskId?: string } = {},
 ): Promise<ProjectCard> {
   const handoffLimit = opts.handoffs ?? 5;
-  const fields = (await env.DB.prepare(
-    "SELECT * FROM card_fields WHERE project_id=?",
-  ).bind(project.id).all<CardFieldRow>()).results;
-  const progress = await latestHandoff(env, project.id, opts.taskId);
-  const taskProgress = (await latestPerTask(env, project.id))
+  const mergedSince = new Date(Date.now() - 14 * 86400_000).toISOString();
+  const [fieldsResult, progress, taskProgressRows, commitsResult, openPrsResult, mergedPrsResult, openIssuesResult, taskRowsResult, syncRowsResult] =
+    await Promise.all([
+      env.DB.prepare(
+        "SELECT * FROM card_fields WHERE project_id=?",
+      ).bind(project.id).all<CardFieldRow>(),
+      latestHandoff(env, project.id, opts.taskId),
+      latestPerTask(env, project.id),
+      env.DB.prepare(`SELECT * FROM repo_events
+        WHERE project_id=? AND kind='commit' ORDER BY happened_at DESC, ref DESC LIMIT 10`)
+        .bind(project.id).all<RepoEventRow>(),
+      env.DB.prepare(`SELECT * FROM repo_events
+        WHERE project_id=? AND kind='pr' AND state='open'
+        ORDER BY happened_at DESC, ref DESC LIMIT 10`)
+        .bind(project.id).all<RepoEventRow>(),
+      env.DB.prepare(`SELECT * FROM repo_events
+        WHERE project_id=? AND kind='pr' AND state='merged'
+          AND merged_at IS NOT NULL AND merged_at>=?
+        ORDER BY merged_at DESC, ref DESC LIMIT 5`)
+        .bind(project.id, mergedSince).all<RepoEventRow>(),
+      env.DB.prepare(`SELECT * FROM repo_events
+        WHERE project_id=? AND kind='issue' AND state='open'
+        ORDER BY happened_at DESC, ref DESC LIMIT 10`)
+        .bind(project.id).all<RepoEventRow>(),
+      env.DB.prepare(`SELECT * FROM task_notes
+        WHERE project_id=? ORDER BY updated_at DESC, path DESC LIMIT 30`)
+        .bind(project.id).all<TaskNoteRow>(),
+      env.DB.prepare(
+        "SELECT * FROM sync_state WHERE project_id=?",
+      ).bind(project.id).all<SyncStateRow>(),
+    ]);
+  const fields = fieldsResult.results;
+  const taskProgress = taskProgressRows
     .filter(item => opts.taskId === undefined || item.task_id === opts.taskId);
   const handoffs = await recentHandoffs(
     env, project.id, handoffLimit, progress?.id, opts.taskId,
   );
-  const commits = (await env.DB.prepare(`SELECT * FROM repo_events
-    WHERE project_id=? AND kind='commit' ORDER BY happened_at DESC, ref DESC LIMIT 10`)
-    .bind(project.id).all<RepoEventRow>()).results;
-  const openPrs = (await env.DB.prepare(`SELECT * FROM repo_events
-    WHERE project_id=? AND kind='pr' AND state='open'
-    ORDER BY happened_at DESC, ref DESC LIMIT 10`)
-    .bind(project.id).all<RepoEventRow>()).results;
-  const mergedSince = new Date(Date.now() - 14 * 86400_000).toISOString();
-  const mergedPrs = (await env.DB.prepare(`SELECT * FROM repo_events
-    WHERE project_id=? AND kind='pr' AND state='merged'
-      AND merged_at IS NOT NULL AND merged_at>=?
-    ORDER BY merged_at DESC, ref DESC LIMIT 5`)
-    .bind(project.id, mergedSince).all<RepoEventRow>()).results;
-  const openIssues = (await env.DB.prepare(`SELECT * FROM repo_events
-    WHERE project_id=? AND kind='issue' AND state='open'
-    ORDER BY happened_at DESC, ref DESC LIMIT 10`)
-    .bind(project.id).all<RepoEventRow>()).results;
-  const tasks = (await env.DB.prepare(`SELECT * FROM task_notes
-    WHERE project_id=? ORDER BY updated_at DESC, path DESC LIMIT 30`)
-    .bind(project.id).all<TaskNoteRow>()).results
+  const commits = commitsResult.results;
+  const openPrs = openPrsResult.results;
+  const mergedPrs = mergedPrsResult.results;
+  const openIssues = openIssuesResult.results;
+  const tasks = taskRowsResult.results
     .filter(row => row.status !== "done")
     .slice(0, 10);
-  const syncRows = (await env.DB.prepare(
-    "SELECT * FROM sync_state WHERE project_id=?",
-  ).bind(project.id).all<SyncStateRow>()).results;
+  const syncRows = syncRowsResult.results;
   const sync = Object.fromEntries(SOURCES.map(source => {
     const row = syncRows.find(item => item.source === source);
     return [source, { last_ok_at: row?.last_ok_at ?? null, error: row?.last_error ?? null }];

@@ -37,15 +37,18 @@ interface BoardPost {
   can_withdraw: boolean;
 }
 
-async function lastReview(env: Env, postId: string) {
-  return env.DB.prepare(
-    `SELECT action, note, created_at FROM reviews WHERE post_id = ? ORDER BY created_at DESC LIMIT 1`,
-  )
-    .bind(postId)
-    .first<{ action: ReviewAction; note: string | null; created_at: string }>();
+function lastReview(
+  reviews: Map<string, { action: ReviewAction; note: string | null; created_at: string }>,
+  postId: string,
+) {
+  return reviews.get(postId) ?? null;
 }
 
-async function toBoardPost(env: Env, row: PostRow): Promise<BoardPost> {
+async function toBoardPost(
+  env: Env,
+  row: PostRow,
+  reviews?: Map<string, { action: ReviewAction; note: string | null; created_at: string }>,
+): Promise<BoardPost> {
   return {
     slug: row.id,
     title: row.title,
@@ -55,7 +58,9 @@ async function toBoardPost(env: Env, row: PostRow): Promise<BoardPost> {
     preview_path: row.preview_path,
     note: row.note,
     digest: row.digest,
-    last_review: (await lastReview(env, row.id)) ?? null,
+    last_review: reviews ? lastReview(reviews, row.id) : ((await env.DB.prepare(
+      `SELECT action, note, created_at FROM reviews WHERE post_id = ? ORDER BY created_at DESC LIMIT 1`,
+    ).bind(row.id).first<{ action: ReviewAction; note: string | null; created_at: string }>()) ?? null),
     is_demo: demoFlag(row),
     can_withdraw: canWithdraw(row.status),
   };
@@ -84,15 +89,6 @@ export async function handleBoard(request: Request, env: Env): Promise<Response>
     if (row.slot) bySlot.set(row.slot, row);
   }
 
-  const slots = [];
-  for (const slot of SLOTS) {
-    const row = bySlot.get(slot);
-    slots.push({
-      slot,
-      post: row ? await toBoardPost(env, row) : null,
-    });
-  }
-
   const pending = (
     await env.DB.prepare(
       `SELECT ${POST_COLUMNS} FROM posts
@@ -102,9 +98,41 @@ export async function handleBoard(request: Request, env: Env): Promise<Response>
     ).all<PostRow>()
   ).results;
 
+  const reviewRows = (
+    await env.DB.prepare(
+      `SELECT post_id, action, note, created_at
+       FROM reviews
+       WHERE post_id IN (
+         SELECT id FROM posts WHERE publish_date = ? OR status = '待审'
+       )
+       ORDER BY created_at DESC`,
+    )
+      .bind(date)
+      .all<{ post_id: string; action: ReviewAction; note: string | null; created_at: string }>()
+  ).results;
+  const reviews = new Map<string, { action: ReviewAction; note: string | null; created_at: string }>();
+  for (const review of reviewRows) {
+    if (!reviews.has(review.post_id)) {
+      reviews.set(review.post_id, {
+        action: review.action,
+        note: review.note,
+        created_at: review.created_at,
+      });
+    }
+  }
+
+  const slots = [];
+  for (const slot of SLOTS) {
+    const row = bySlot.get(slot);
+    slots.push({
+      slot,
+      post: row ? await toBoardPost(env, row, reviews) : null,
+    });
+  }
+
   const queue = [];
   for (const row of pending) {
-    queue.push(await toBoardPost(env, row));
+    queue.push(await toBoardPost(env, row, reviews));
   }
 
   return json({
@@ -188,20 +216,18 @@ export async function handleUpsertPost(
 
   const existing = await loadPost(env, lookupSlug);
 
+  if (persistSlug !== lookupSlug) {
+    const renameError = await checkPostIdAvailable(env, persistSlug);
+    if (renameError) return json({ ok: false, error: renameError.error }, renameError.status);
+  }
+
   const occupant = await env.DB.prepare(
     `SELECT ${POST_COLUMNS} FROM posts WHERE publish_date = ? AND slot = ? AND id != ?`,
   )
     .bind(publishDate, slot, lookupSlug)
     .first<PostRow>();
-  if (occupant) {
-    if (!demoFlag(occupant)) {
-      return json({ ok: false, error: "该日期档位已有稿件" }, 409);
-    }
-    await env.DB.batch([
-      env.DB.prepare(`DELETE FROM reviews WHERE post_id = ?`).bind(occupant.id),
-      env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(occupant.id),
-    ]);
-    await markSkipAutoDemo(env, publishDate);
+  if (occupant && !demoFlag(occupant)) {
+    return json({ ok: false, error: "该日期档位已有稿件" }, 409);
   }
 
   if (existing && !canEditCopy(existing.status)) {
@@ -218,6 +244,14 @@ export async function handleUpsertPost(
 
   if (submit && existing && !canSubmit(existing.status) && existing.status !== "待审") {
     return json({ ok: false, error: "当前状态不能再交待审" }, 409);
+  }
+
+  if (occupant) {
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM reviews WHERE post_id = ?`).bind(occupant.id),
+      env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(occupant.id),
+    ]);
+    await markSkipAutoDemo(env, publishDate);
   }
 
   const preview = previewPath || existing?.preview_path || `/p/${persistSlug}/`;
@@ -350,6 +384,11 @@ export async function handlePatchPost(
       ? 1
       : 0;
 
+  if (persistSlug !== post.id) {
+    const renameError = await checkPostIdAvailable(env, persistSlug);
+    if (renameError) return json({ ok: false, error: renameError.error }, renameError.status);
+  }
+
   await env.DB.prepare(
     `UPDATE posts
      SET title = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
@@ -457,6 +496,15 @@ async function loadPost(env: Env, slug: string): Promise<PostRow | null> {
   return env.DB.prepare(`SELECT ${POST_COLUMNS} FROM posts WHERE id = ?`).bind(slug).first<PostRow>();
 }
 
+async function checkPostIdAvailable(
+  env: Env,
+  slug: string,
+): Promise<{ error?: string; status: number } | null> {
+  if (!isSlug(slug)) return { error: "slug 无效", status: 400 };
+  const clash = await env.DB.prepare(`SELECT id FROM posts WHERE id = ?`).bind(slug).first<{ id: string }>();
+  return clash ? { error: "slug 已被占用", status: 409 } : null;
+}
+
 async function renamePostId(
   env: Env,
   from: string,
@@ -468,8 +516,8 @@ async function renamePostId(
   const source = await loadPost(env, from);
   if (!source) return { error: "稿件不存在", status: 404 };
 
-  const clash = await env.DB.prepare(`SELECT id FROM posts WHERE id = ?`).bind(to).first<{ id: string }>();
-  if (clash) return { error: "slug 已被占用", status: 409 };
+  const renameError = await checkPostIdAvailable(env, to);
+  if (renameError) return renameError;
 
   const stamp = nowIso();
   await env.DB.batch([
