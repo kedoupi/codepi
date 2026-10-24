@@ -134,3 +134,23 @@ test('dirty source and duplicate migration prefixes stop before any Wrangler mut
   await assert.rejects(deployDomain('me', { cwd: f.cwd, execute: e.execute }), /clean/);
   assert.equal(e.calls.length, 0);
 });
+test('deploy-domain rechecks remote main after discovery before remote mutation', async t => {
+  const f = await fixture(t, 'project');
+  const e = executor({ databaseName: 'codepi-project' });
+  let listed = false;
+  const execute = (command, args, options) => {
+    const result = e.execute(command, args, options);
+    const wrangler = wranglerArgs({ args });
+    if (!listed && wrangler[0] === 'd1' && wrangler[1] === 'list') {
+      listed = true;
+      f.git('commit', '--allow-empty', '-m', 'remote moved');
+    }
+    return result;
+  };
+  await assert.rejects(
+    deployDomain('project', { cwd: f.cwd, execute }),
+    /immediately before remote mutation/,
+  );
+  assert.equal(e.calls.filter(call => ['create', 'migrations', 'deploy'].includes(wranglerArgs(call)[1]
+    ?? wranglerArgs(call)[0])).length, 0);
+});

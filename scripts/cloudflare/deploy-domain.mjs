@@ -75,7 +75,7 @@ function renderConfig(source, appDir, databaseId) {
   };
 }
 
-async function resolveD1(name, { appDir, provisionD1, execute }) {
+async function resolveD1(name, { appDir, provisionD1, execute, assertRemote }) {
   const run = (args, capture = false) => {
     const result = execute('pnpm', ['exec', 'wrangler', ...args], {
       cwd: appDir,
@@ -99,6 +99,7 @@ async function resolveD1(name, { appDir, provisionD1, execute }) {
   };
   let matches = list();
   if (!matches.length && provisionD1) {
+    assertRemote();
     run(['d1', 'create', name, '--update-config=false']);
     matches = list();
   }
@@ -120,6 +121,9 @@ export async function deployDomain(app, {
   assert.equal(head, sha, 'source does not match HEAD');
   assert.equal(git(cwd, ['status', '--porcelain']), '', 'release source must be clean');
   assert.equal(remoteMain(cwd), sha, 'release source must equal current remote main');
+  const assertRemote = () => assert.equal(
+    remoteMain(cwd), sha, 'source must equal current remote main immediately before remote mutation',
+  );
   const source = await readFile(path.join(appDir, 'wrangler.toml'), 'utf8');
   assert.ok(new RegExp(`^name\\s*=\\s*"${domain.worker}"$`, 'm').test(source),
     `Wrangler config does not identify ${domain.worker}`);
@@ -127,7 +131,7 @@ export async function deployDomain(app, {
     `Wrangler config does not reserve ${domain.database}`);
   const migrationDirectory = path.join(appDir, 'migrations');
   const migrations = await checkMigrations(migrationDirectory);
-  const databaseId = await resolveD1(domain.database, { appDir, provisionD1, execute });
+  const databaseId = await resolveD1(domain.database, { appDir, provisionD1, execute, assertRemote });
   const config = renderConfig(source, appDir, databaseId);
   await mkdir(path.join(appDir, '.wrangler'), { recursive: true });
   const work = await mkdtemp(path.join(appDir, '.wrangler', 'release-'));
@@ -150,7 +154,9 @@ export async function deployDomain(app, {
         `Wrangler ${args[0]} failed; release stopped before claiming success`);
       return result.stdout ?? '';
     };
+    assertRemote();
     run(['d1', 'migrations', 'apply', domain.database, '--remote', '--config', configFile]);
+    assertRemote();
     const output = run(['deploy', '--config', configFile, '--var', `BUILD_SHA:${sha.slice(0, 12)}`]);
     const version = extractWorkerVersion(output);
     assert.ok(version, 'deployment did not report a Worker version');

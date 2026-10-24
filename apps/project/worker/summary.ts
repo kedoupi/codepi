@@ -1,7 +1,8 @@
 import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import type { SourceSummary } from "@kedoupi/shared/mcp/contract";
 import { jsonBytes, maxIso, projectUrl } from "./lib";
-import { latestHandoff } from "./handoffs";
+import { handoffFromRow } from "./handoffs";
+import { latestHandoffs } from "./projects";
 import type { Env } from "./types";
 
 function shorten(value: string, limit: number) {
@@ -40,41 +41,59 @@ export async function buildSummary(env: Env, subject: string): Promise<SourceSum
     };
   }
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
-  const recent = await env.DB.prepare(
-    "SELECT COUNT(*) AS n FROM handoffs WHERE created_at>=?",
-  ).bind(since).first<{ n: number }>();
+  const projectIds = projects.map(project => project.id);
+  const placeholders = projectIds.map(() => "?").join(",");
+  const [recent, syncRows, latestByProject, openPrRows] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS n FROM handoffs WHERE created_at>=?")
+      .bind(since).first<{ n: number }>(),
+    env.DB.prepare(`SELECT s.*, p.name FROM sync_state s
+      JOIN projects p ON p.id=s.project_id`).all<{
+        project_id: string;
+        name: string;
+        source: string;
+        last_ok_at: string | null;
+        last_error: string | null;
+      }>(),
+    latestHandoffs(env, projectIds),
+    env.DB.prepare(`SELECT project_id,ref,title FROM repo_events
+      WHERE kind='pr' AND state='open' AND project_id IN (${placeholders})
+      ORDER BY happened_at DESC`).bind(...projectIds).all<{
+        project_id: string;
+        ref: string;
+        title: string;
+      }>(),
+  ]);
+  const openPrsByProject = new Map<string, { ref: string; title: string }[]>();
+  for (const row of openPrRows.results) {
+    const pulls = openPrsByProject.get(row.project_id) || [];
+    if (pulls.length < 5) pulls.push({ ref: row.ref, title: row.title });
+    openPrsByProject.set(row.project_id, pulls);
+  }
+  const syncRowsByProject = new Map<string, typeof syncRows.results>();
+  for (const row of syncRows.results) {
+    const rows = syncRowsByProject.get(row.project_id) || [];
+    rows.push(row);
+    syncRowsByProject.set(row.project_id, rows);
+  }
   const facts: string[] = [];
   const attention: SourceSummary["attention"] = [];
-  const syncRows = (await env.DB.prepare(`SELECT s.*, p.name FROM sync_state s
-    JOIN projects p ON p.id=s.project_id`).all<{
-      project_id: string;
-      name: string;
-      source: string;
-      last_ok_at: string | null;
-      last_error: string | null;
-    }>()).results;
   let latestAt: string | null = null;
   let lastSync: string | null = null;
   let stale = false;
   for (const project of projects) {
-    const handoff = await latestHandoff(env, project.id);
+    const latestRow = latestByProject.get(project.id);
+    const handoff = latestRow ? handoffFromRow(latestRow) : null;
     latestAt = maxIso(latestAt, handoff?.at);
     facts.push(handoff
       ? `${project.name}：${handoff.at} 由 ${handoff.client} 交接，下一步：${shorten(handoff.next, 80)}`
       : `${project.name}：尚无交接记录。`);
-    const openPrs = (await env.DB.prepare(`SELECT ref,title FROM repo_events
-      WHERE project_id=? AND kind='pr' AND state='open'
-      ORDER BY happened_at DESC LIMIT 5`).bind(project.id).all<{
-        ref: string;
-        title: string;
-      }>()).results;
-    for (const pull of openPrs) {
+    for (const pull of openPrsByProject.get(project.id) || []) {
       attention.push({
         label: shorten(`${project.name} · PR #${pull.ref}：${pull.title}`, 160),
         href: projectUrl(env, project.id),
       });
     }
-    const rows = syncRows.filter(row => row.project_id === project.id);
+    const rows = syncRowsByProject.get(project.id) || [];
     if (!rows.length) stale = true;
     for (const row of rows) {
       lastSync = maxIso(lastSync, row.last_ok_at);

@@ -3,14 +3,14 @@ import { runMonitor } from '../../../scripts/cloudflare/monitor-core.mjs';
 import { activeWorkerVersion } from '../../../scripts/cloudflare/worker-api.mjs';
 import { notifyGithub } from '../../../scripts/cloudflare/github-notify.mjs';
 
-export const OBSERVATION_STATES = new Set(['created', 'notified', 'observing', 'awaiting_user_confirmation', 'healthy_reported', 'degraded_notified', 'critical_detected', 'rollback_pending', 'rolled_back', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
-const TERMINAL = new Set(['healthy_reported', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
+export const OBSERVATION_STATES = new Set(['created', 'notified', 'observing', 'awaiting_user_confirmation', 'healthy_reported', 'degraded_notified', 'degraded_reported', 'critical_detected', 'rollback_pending', 'rolled_back', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
+const TERMINAL = new Set(['healthy_reported', 'degraded_reported', 'rollback_verified', 'rollback_blocked', 'observation_failed', 'superseded']);
 
 const transitions = {
   created: new Set(['notified', 'observing', 'observation_failed', 'superseded']),
   notified: new Set(['observing', 'observation_failed', 'superseded']),
-  observing: new Set(['degraded_notified', 'critical_detected', 'healthy_reported', 'observation_failed', 'superseded']),
-  degraded_notified: new Set(['observing', 'critical_detected', 'observation_failed', 'superseded']),
+  observing: new Set(['degraded_notified', 'degraded_reported', 'critical_detected', 'healthy_reported', 'observation_failed', 'superseded']),
+  degraded_notified: new Set(['observing', 'degraded_reported', 'critical_detected', 'observation_failed', 'superseded']),
   critical_detected: new Set(['rollback_pending', 'rollback_blocked', 'observation_failed', 'superseded']),
   rollback_pending: new Set(['rolled_back', 'rollback_blocked', 'observation_failed']),
   rolled_back: new Set(['rollback_verified', 'rollback_blocked', 'observation_failed']),
@@ -81,6 +81,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   let state = 'created';
   const seen = new Set();
   const criticalRounds = new Map();
+  let lastPoll = null;
   const events = [];
   const emit = async (type, detail = {}) => {
     const eventId = `${releaseId}-${events.length}-${type}`;
@@ -103,6 +104,7 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   for (let i = 0; i < offsets.length; i++) {
     if (i > 0 && step?.sleep) await step.sleep(`observer wait ${i}`, `${offsets[i] - offsets[i - 1]} minutes`);
     const poll = await (step?.do ? step.do(`observer poll ${i}`, async () => observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds })) : observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds }));
+    lastPoll = poll;
     await bucket.put(`reports/observer/${releaseId}/poll-${i}.json`, JSON.stringify(safeValue(poll)), { httpMetadata: { contentType: 'application/json' } });
     const critical = poll.services.some(item => item.severity === 'critical');
     const degraded = poll.services.some(item => item.severity === 'degraded');
@@ -117,7 +119,14 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
       await emit('degraded_observation_continued', { nextState: 'observing' });
     }
   }
-  if (state === 'observing') await emit('healthy_reported', { nextState: 'healthy_reported' });
+  if (state === 'observing') {
+    const lastSeverity = lastPoll?.services.some(item => item.severity === 'degraded') ? 'degraded' : 'healthy';
+    if (lastSeverity === 'degraded') {
+      await emit('degraded_reported', { nextState: 'degraded_reported', services: lastPoll.services.filter(item => item.severity === 'degraded').map(item => item.service) });
+    } else {
+      await emit('healthy_reported', { nextState: 'healthy_reported' });
+    }
+  }
   const summary = safeValue({ release_id: releaseId, state, completed_at: now(), events: events.length, manifest: { release_id: releaseId, services: manifest.services.map(item => ({ service: item.service, script: item.script, new_version: item.new_version })) } });
   await bucket.put(`reports/observer/${releaseId}/summary.json`, JSON.stringify(summary), { httpMetadata: { contentType: 'application/json' } });
   try {
