@@ -309,7 +309,8 @@ async function syncCommits(
       since: state?.cursor || sinceDefault(30),
       per_page: "50",
     }).toString();
-  while (url) {
+  let reachedCursor = false;
+  while (url && !reachedCursor) {
     let current = url;
     let result: GitHubPage<GitHubCommit[]>;
     try {
@@ -320,14 +321,22 @@ async function syncCommits(
       throw new SyncFailure("github_unavailable", current);
     }
     if (!Array.isArray(result.data)) throw new SyncFailure("github_unavailable", current);
-    const statements = result.data.map(commit => env.DB.prepare(`INSERT INTO repo_events
-      (project_id,kind,ref,title,state,author,url,happened_at) VALUES (?,?,?,?,?,?,?,?)
-      ON CONFLICT(project_id,kind,ref) DO UPDATE SET title=excluded.title,
-        state=excluded.state, author=excluded.author, url=excluded.url,
-        happened_at=excluded.happened_at`)
-      .bind(project.id, "commit", commit.sha, title(commit.commit.message),
-        null, commit.author?.login || commit.commit.author?.name || null,
-        commit.html_url, commit.commit.author?.date || commit.commit.committer?.date || at));
+    const statements: D1PreparedStatement[] = [];
+    for (const commit of result.data) {
+      const happenedAt = commit.commit.author?.date || commit.commit.committer?.date || at;
+      if (state?.cursor && happenedAt <= state.cursor) {
+        reachedCursor = true;
+        break;
+      }
+      statements.push(env.DB.prepare(`INSERT INTO repo_events
+        (project_id,kind,ref,title,state,author,url,happened_at) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(project_id,kind,ref) DO UPDATE SET title=excluded.title,
+          state=excluded.state, author=excluded.author, url=excluded.url,
+          happened_at=excluded.happened_at`)
+        .bind(project.id, "commit", commit.sha, title(commit.commit.message),
+          null, commit.author?.login || commit.commit.author?.name || null,
+          commit.html_url, happenedAt));
+    }
     await writeInChunks(env.DB, statements, guard);
     url = result.next;
   }
@@ -404,7 +413,8 @@ async function syncIssues(
       direction: "desc",
       per_page: "30",
     }).toString();
-  while (url) {
+  let reachedCursor = false;
+  while (url && !reachedCursor) {
     const current = url;
     let result: GitHubPage<GitHubIssue[]>;
     try {
@@ -415,14 +425,21 @@ async function syncIssues(
       throw new SyncFailure("github_unavailable", current);
     }
     if (!Array.isArray(result.data)) throw new SyncFailure("github_unavailable", current);
-    const statements = result.data.filter(issue => !issue.pull_request).map(issue =>
-      env.DB.prepare(`INSERT INTO repo_events
+    const statements: D1PreparedStatement[] = [];
+    for (const issue of result.data) {
+      if (state?.cursor && issue.updated_at <= state.cursor) {
+        reachedCursor = true;
+        break;
+      }
+      if (issue.pull_request) continue;
+      statements.push(env.DB.prepare(`INSERT INTO repo_events
         (project_id,kind,ref,title,state,author,url,happened_at) VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT(project_id,kind,ref) DO UPDATE SET title=excluded.title,
           state=excluded.state, author=excluded.author, url=excluded.url,
           happened_at=excluded.happened_at`)
         .bind(project.id, "issue", String(issue.number), title(issue.title),
           stateFor(issue.state), issue.user?.login || null, issue.html_url, issue.updated_at));
+    }
     await writeInChunks(env.DB, statements, guard);
     url = result.next;
   }

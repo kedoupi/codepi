@@ -2,7 +2,9 @@
 // Pages deployment 匹配与 JSONL 追加。不访问网络。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { appendEntry, buildEntry, extractPagesUrl, extractWorkerVersion, findPagesDeployment, resolveWorkerOrigin } from './deployment-evidence.mjs';
@@ -77,6 +79,25 @@ test('appendEntry 追加 JSONL', () => {
     const lines = readFileSync(file, 'utf8').trim().split('\n');
     assert.equal(lines.length, 2);
     assert.equal(JSON.parse(lines[0]).service, 'auth');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('append CLI rejects missing or flag-like --file values without writing', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'cf-evidence-cli-'));
+  const script = fileURLToPath(new URL('./deployment-evidence.mjs', import.meta.url));
+  try {
+    for (const suffix of [[], ['--file'], ['--file', '--service'], ['--file', '--']]) {
+      const expected = suffix.length > 1 ? path.join(dir, suffix[1]) : null;
+      const result = spawnSync(process.execPath, [script, 'append', ...suffix,
+        '--service', 'auth', '--target', 'production', '--sha', 'abc123',
+        '--provider', 'pages', '--identifier', 'dep', '--smoke', 'pass'], {
+      });
+      assert.notEqual(result.status, 0, `expected rejection for ${suffix.join(' ')}`);
+      assert.equal(result.error, undefined);
+      if (expected) assert.equal(existsSync(expected), false);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

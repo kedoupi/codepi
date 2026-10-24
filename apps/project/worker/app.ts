@@ -127,14 +127,19 @@ app.patch("/api/projects/:id/card", async c => {
       .bind(project.id, field).run();
   } else {
     const value = text(body.value, "invalid_value", { max: 4000 })!;
-    const row = await c.env.DB.prepare(
-      "SELECT auto_sha FROM card_fields WHERE project_id=? AND field=?",
-    ).bind(project.id, field).first<{ auto_sha: string | null }>();
     await c.env.DB.prepare(`INSERT INTO card_fields
-      (project_id,field,edited_value,edited_base_sha,edited_at) VALUES (?,?,?,?,?)
+      (project_id,field,edited_value,edited_base_sha,edited_at) VALUES (?,?,?,
+        (SELECT auto_sha FROM card_fields WHERE project_id=? AND field=?),?)
       ON CONFLICT(project_id,field) DO UPDATE SET edited_value=excluded.edited_value,
         edited_base_sha=excluded.edited_base_sha, edited_at=excluded.edited_at`)
-      .bind(project.id, field, value, row?.auto_sha || null, new Date().toISOString()).run();
+      .bind(
+        project.id,
+        field,
+        value,
+        project.id,
+        field,
+        new Date().toISOString(),
+      ).run();
   }
   return json({ ok: true });
 });

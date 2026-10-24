@@ -170,6 +170,86 @@ apps/
     await syncProject(bindings, await projectRow(), { now: startedAt + 60_000 });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM task_notes").first("n")).toBe(0);
   });
+  it("stops commit and issue pagination at the saved cursor", async () => {
+    await env.DB.prepare(`INSERT INTO sync_state
+      (project_id,source,cursor,last_ok_at) VALUES (?,?,?,?)`)
+      .bind("kedoupi-codepi", "commits", "2026-10-19T00:00:00Z", "2026-10-19T01:00:00Z")
+      .run();
+    await env.DB.prepare(`INSERT INTO sync_state
+      (project_id,source,cursor,last_ok_at) VALUES (?,?,?,?)`)
+      .bind("kedoupi-codepi", "issues", "2026-10-19T00:00:00Z", "2026-10-19T01:00:00Z")
+      .run();
+    const commitNext = "https://api.github.com/repos/kedoupi/codepi/commits?page=2";
+    const issueNext = "https://api.github.com/repos/kedoupi/codepi/issues?page=2";
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      calls.push(request.url);
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/commits")) {
+        if (url.searchParams.get("page") === "2") throw new Error("commit cursor did not stop");
+        return response([
+          {
+            sha: "new-commit",
+            html_url: "https://github.com/kedoupi/codepi/commit/new-commit",
+            commit: {
+              message: "New commit",
+              author: { name: "Owner", date: "2026-10-20T10:00:00Z" },
+            },
+          },
+          {
+            sha: "old-commit",
+            html_url: "https://github.com/kedoupi/codepi/commit/old-commit",
+            commit: {
+              message: "Old commit",
+              author: { name: "Owner", date: "2026-10-18T10:00:00Z" },
+            },
+          },
+        ], { headers: { Link: `<${commitNext}>; rel="next"` } });
+      }
+      if (url.pathname.endsWith("/issues")) {
+        if (url.searchParams.get("page") === "2") throw new Error("issue cursor did not stop");
+        return response([
+          {
+            number: 10,
+            html_url: "https://github.com/kedoupi/codepi/issues/10",
+            title: "New issue",
+            state: "open",
+            updated_at: "2026-10-20T09:00:00Z",
+            user: { login: "owner" },
+          },
+          {
+            number: 11,
+            html_url: "https://github.com/kedoupi/codepi/issues/11",
+            title: "Old issue",
+            state: "closed",
+            updated_at: "2026-10-18T09:00:00Z",
+            user: { login: "owner" },
+          },
+        ], { headers: { Link: `<${issueNext}>; rel="next"` } });
+      }
+      if (url.pathname.endsWith("/contents/AGENTS.md")) return response({}, { status: 404 });
+      const empty = emptyData(url);
+      if (empty) return response(empty);
+      throw new Error(`Unexpected GitHub URL ${request.url}`);
+    });
+
+    const result = await syncProject(
+      { ...env, GITHUB_TOKEN: "synthetic-read-only-token" } as Env,
+      await projectRow(),
+      { now: Date.now() },
+    );
+    expect(result.errors).toEqual({ agents_md: "github_forbidden" });
+    expect(calls).not.toContain(commitNext);
+    expect(calls).not.toContain(issueNext);
+    expect(await env.DB.prepare(
+      "SELECT ref FROM repo_events WHERE kind='commit' ORDER BY ref",
+    ).all()).toEqual({ results: [{ ref: "new-commit" }], success: true, meta: expect.anything() });
+    expect(await env.DB.prepare(
+      "SELECT ref FROM repo_events WHERE kind='issue' ORDER BY ref",
+    ).all()).toEqual({ results: [{ ref: "10" }], success: true, meta: expect.anything() });
+  });
+
 
   it("keeps the completed high-water cursor and resumes from a failed page checkpoint", async () => {
     await env.DB.prepare(`INSERT INTO sync_state

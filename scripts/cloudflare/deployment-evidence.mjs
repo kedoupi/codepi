@@ -113,8 +113,9 @@ export async function resolveWorkerOrigin(script, requiredSecrets, api) {
 async function main(args = process.argv.slice(2)) {
   const command = args[0];
   if (command === 'append') {
-    const file = args[args.indexOf('--file') + 1];
-    if (!file) throw new Error('append requires --file');
+    const fileIndex = args.indexOf('--file');
+    const file = fileIndex >= 0 ? args[fileIndex + 1] : undefined;
+    if (!file || file.startsWith('--')) throw new Error('append requires --file path');
     const fields = {};
     for (const key of ['service', 'target', 'sha', 'provider', 'identifier', 'smoke',
       'previousVersion', 'newVersion', 'migrationApplied', 'secretChanged',

@@ -4,13 +4,23 @@ import { handleSsoCallback, handleSsoLogin, requireAccount } from "./auth";
 import { ssoErrorResponse } from "@kedoupi/shared/auth/client";
 import { isCanonicalPath, isSpaPath, needsSession } from "./gate";
 
-async function fetchStatic(env: Env, url: URL): Promise<Response> {
-  let res = await env.ASSETS!.fetch(new Request(url, { method: "GET" }));
+function staticRequestHeaders(request: Request, includeRange: boolean): Headers {
+  const headers = new Headers();
+  for (const name of ["If-None-Match", "If-Modified-Since", "Range", "Accept", "Accept-Encoding"]) {
+    if (!includeRange && name === "Range") continue;
+    const value = request.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  return headers;
+}
+
+async function fetchStatic(env: Env, url: URL, headers: Headers): Promise<Response> {
+  let res = await env.ASSETS!.fetch(new Request(url, { method: "GET", headers }));
   // Static Assets 的 pretty-URL 重定向需在 binding 内解析，避免绕过会话门。
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("Location");
     if (location) {
-      res = await env.ASSETS!.fetch(new Request(new URL(location, url), { method: "GET" }));
+      res = await env.ASSETS!.fetch(new Request(new URL(location, url), { method: "GET", headers }));
     }
   }
   return res;
@@ -21,9 +31,9 @@ async function serveAsset(request: Request, env: Env, pathname: string): Promise
     return new Response("not found", { status: 404 });
   }
   if (isSpaPath(pathname)) {
-    return fetchStatic(env, new URL("/", request.url));
+    return fetchStatic(env, new URL("/", request.url), staticRequestHeaders(request, false));
   }
-  return fetchStatic(env, new URL(request.url));
+  return fetchStatic(env, new URL(request.url), staticRequestHeaders(request, true));
 }
 
 export default {

@@ -35,6 +35,7 @@
   }
 
   async function submit(event: SubmitEvent) {
+    if (submitting) return;
     event.preventDefault();
     error = "";
     if (!/^[0-9a-f]{40}$/.test(baseSha.trim())) {
@@ -79,7 +80,8 @@
     </div>
     <span class="append-label">只追加</span>
   </header>
-  <form class="handoff-form" onsubmit={submit}>
+  <form class="handoff-form" onsubmit={submit} aria-busy={submitting}>
+    <fieldset class="handoff-form-fields" disabled={submitting}>
     <div class="form-grid">
       <label>
         <span>任务 ID</span>
@@ -135,5 +137,15 @@
     </div>
     {#if error}<p class="form-error" role="alert">{error}</p>{/if}
     {#if message}<p class="form-success" role="status">{message}</p>{/if}
+    </fieldset>
   </form>
 </section>
+
+<style>
+  .handoff-form-fields {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+</style>

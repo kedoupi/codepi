@@ -177,6 +177,86 @@ describe("Project HTTP boundary", () => {
     expect(body.handoffs[0].summary).toContain("<script>");
   });
 
+  it("keeps the edited base at the interleaved sync SHA", async () => {
+    await env.DB.prepare(`INSERT INTO card_fields
+      (project_id,field,auto_value,auto_sha) VALUES (?,?,?,?)`)
+      .bind("kedoupi-codepi", "goal", "Automatic goal", "old-sha").run();
+    const sso = setup();
+    const cookie = await sso.login();
+    const originalPrepare = env.DB.prepare.bind(env.DB);
+    const prepareSpy = vi.spyOn(env.DB, "prepare");
+    prepareSpy.mockImplementation(((query: string) => {
+      const statement = originalPrepare(query);
+      const interleave = async () => {
+        await originalPrepare(
+          "UPDATE card_fields SET auto_sha=? WHERE project_id=? AND field=?",
+        ).bind("new-sha", "kedoupi-codepi", "goal").run();
+      };
+      if (query.includes("SELECT auto_sha") && !query.includes("edited_base_sha")) {
+        return new Proxy(statement, {
+          get(target, property, receiver) {
+            if (property !== "bind") return Reflect.get(target, property, receiver);
+            return (...args: unknown[]) => {
+              const bound = target.bind(...args);
+              return new Proxy(bound, {
+                get(boundTarget, boundProperty, boundReceiver) {
+                  if (boundProperty !== "first") {
+                    return Reflect.get(boundTarget, boundProperty, boundReceiver);
+                  }
+                  return async () => {
+                    const row = await boundTarget.first();
+                    await interleave();
+                    return row;
+                  };
+                },
+              });
+            };
+          },
+        });
+      }
+      if (query.includes("edited_base_sha")) {
+        return new Proxy(statement, {
+          get(target, property, receiver) {
+            if (property !== "bind") return Reflect.get(target, property, receiver);
+            return (...args: unknown[]) => {
+              const bound = target.bind(...args);
+              return new Proxy(bound, {
+                get(boundTarget, boundProperty, boundReceiver) {
+                  if (boundProperty !== "run") {
+                    return Reflect.get(boundTarget, boundProperty, boundReceiver);
+                  }
+                  return async () => {
+                    await interleave();
+                    return boundTarget.run();
+                  };
+                },
+              });
+            };
+          },
+        });
+      }
+      return statement;
+    }) as typeof env.DB.prepare);
+    try {
+      const response = await sso.call(request("/api/projects/kedoupi-codepi/card", {
+        method: "PATCH",
+        cookie,
+        body: { field: "goal", value: "Owner-edited goal" },
+      }));
+      expect(response.status).toBe(200);
+      const selectAutoShaQueries = prepareSpy.mock.calls.filter(([sql]) =>
+        sql.trimStart().startsWith("SELECT auto_sha"),
+      );
+      const row = await originalPrepare(
+        "SELECT auto_sha,edited_base_sha FROM card_fields WHERE project_id=? AND field=?",
+      ).bind("kedoupi-codepi", "goal").first<{ auto_sha: string; edited_base_sha: string }>();
+      expect(row).toEqual({ auto_sha: "new-sha", edited_base_sha: "new-sha" });
+      expect(selectAutoShaQueries).toHaveLength(0);
+    } finally {
+      prepareSpy.mockRestore();
+    }
+  });
+
   it("limits manual sync to once per 60 seconds and records provider failure codes", async () => {
     const sso = setup();
     const cookie = await sso.login();

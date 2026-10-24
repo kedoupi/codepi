@@ -210,7 +210,7 @@ describe("page gate", () => {
     });
 
     expect(res.status).toBe(404);
-    expect(await env.DB.prepare("SELECT id, publish_date FROM posts ORDER BY id").all()).toEqual(beforePosts);
-    expect(await env.DB.prepare("SELECT key, value FROM desk_meta ORDER BY key").all()).toEqual(beforeMeta);
+    expect((await env.DB.prepare("SELECT id, publish_date FROM posts ORDER BY id").all()).results).toEqual(beforePosts.results);
+    expect((await env.DB.prepare("SELECT key, value FROM desk_meta ORDER BY key").all()).results).toEqual(beforeMeta.results);
   });
 });
