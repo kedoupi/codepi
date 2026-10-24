@@ -15,10 +15,11 @@ async function reuseMaterial(env: Env, stored: StoredMaterial, bytes: Uint8Array
   return json({ material, duplicate: true });
 }
 
-export async function listMaterials(env: Env) {
-  const rows = await env.DB.prepare("SELECT id,name,content_type,size,sha256,created_at FROM gu_materials ORDER BY created_at DESC,id LIMIT 500")
-    .all<Material>();
-  return json({ enabled: !!env.MATERIALS, materials: rows.results, limit: 500 });
+export async function listMaterials(env: Env, offset = 0) {
+  const rows = await env.DB.prepare("SELECT id,name,content_type,size,sha256,created_at FROM gu_materials ORDER BY created_at DESC,id LIMIT 501 OFFSET ?")
+    .bind(offset).all<Material>();
+  const materials = rows.results.slice(0, 500);
+  return json({ enabled: !!env.MATERIALS, materials, limit: 500, next_offset: rows.results.length > 500 ? offset + 500 : null });
 }
 
 async function boundedBody(request: Request) {

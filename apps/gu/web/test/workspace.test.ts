@@ -11,7 +11,7 @@ function fixture() {
   data.rules.body = "合成测试规则";
   return data;
 }
-function stub(active = true, initial = fixture()) {
+function stub(active = true, initial = fixture(), materialPages: { first: unknown[]; second?: unknown[]; next_offset?: number | null; fail?: boolean } = { first: [] }) {
   let revision = active ? 1 : 0, data = initial, expired = false, conflict = false, loseResponse = false;
   const saved: unknown[] = [];
   const requests = new Map<string, number>();
@@ -43,7 +43,11 @@ function stub(active = true, initial = fixture()) {
       data: JSON.parse(String(init?.body)).data, valuation: view().valuation,
     });
     if (path === "/api/workspace/history") return Response.json({ versions: [{ revision, created_at: "2026-10-01T00:00:00Z" }] });
-    if (path === "/api/materials") return Response.json({ enabled: true, materials: [] });
+    if (path.startsWith("/api/materials")) {
+      const offset = Number(new URL(path, "https://gu.test").searchParams.get("offset") || 0);
+      if (offset && materialPages.fail) return Response.json({ error: "synthetic failure" }, { status: 503 });
+      return Response.json({ enabled: true, materials: offset ? materialPages.second || [] : materialPages.first, next_offset: offset ? null : materialPages.next_offset });
+    }
     throw new Error(`Unhandled request ${path}`);
   });
   vi.stubGlobal("fetch", mock);
@@ -57,6 +61,31 @@ async function ready() {
   await screen.findByDisplayValue("合成在线账户");
   await vi.waitFor(() => expect(document.querySelector("fieldset")?.disabled).toBe(false));
 }
+
+  it("loads the next materials page and appends it", async () => {
+    const first = Array.from({ length: 500 }, (_, i) => ({
+      id: `first-${i}`, name: `第一批 ${i}`, content_type: "text/plain", size: 1, sha256: `${i}`, created_at: "2026-10-01T00:00:00Z",
+    }));
+    const second = [{ id: "second-0", name: "第二批 0", content_type: "text/plain", size: 1, sha256: "second", created_at: "2026-09-01T00:00:00Z" }];
+    const backend = stub(true, fixture(), { first, second, next_offset: 500 });
+    await mountApp("#materials");
+    await screen.findByText("第一批 0");
+    expect(screen.getByText("第一批 0")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "加载更多资料" }));
+    await screen.findByText("第二批 0");
+    expect(screen.getByText("第一批 499")).toBeTruthy();
+    expect(backend.mock).toHaveBeenCalledWith("/api/materials?offset=500", expect.anything());
+  });
+
+  it("keeps existing materials visible when loading the next page fails", async () => {
+    const first = [{ id: "first-0", name: "保留资料", content_type: "text/plain", size: 1, sha256: "first", created_at: "2026-10-01T00:00:00Z" }];
+    stub(true, fixture(), { first, next_offset: 500, fail: true });
+    await mountApp("#materials");
+    await screen.findByText("保留资料");
+    await fireEvent.click(screen.getByRole("button", { name: "加载更多资料" }));
+    await screen.findByRole("alert");
+    expect(screen.getByText("保留资料")).toBeTruthy();
+  });
 
 describe("online workspace journey", () => {
   it("can create the first online account without a legacy dashboard", async () => {

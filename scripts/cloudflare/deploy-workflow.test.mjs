@@ -129,6 +129,13 @@ test('isolated www-build installs cross-product fixture dependencies before Desk
   assert.match(beforeTests, /uses: pnpm\/action-setup@v6/);
   assert.match(beforeTests, /pnpm install --frozen-lockfile/);
 });
+test('GU builds run the deployment check even when SSO validation is skipped', async () => {
+  const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');
+  const gu = workflow.split('\n  gu-build:')[1]?.split('\n  gzh-build:')[0];
+  assert.ok(gu, 'gu-build must exist');
+  assert.match(gu, /- run: npm run check:deploy/);
+});
+
 
 test('Health builds the workspace once and product jobs use current Actions versions', async () => {
   const workflow = await readFile(new URL('.github/workflows/deploy-platform.yml', root), 'utf8');

@@ -51,6 +51,23 @@ describe("otp + session", () => {
     expect(late.status).toBe(400);
   });
 
+  it("allows only one session when the correct OTP is verified concurrently", async () => {
+    await env.DB.prepare("DELETE FROM sessions").run();
+    const req = await requestOtp(ALLOWED, "6.6.6.6");
+    const issued = (await req.json()) as { dev_otp?: string };
+    expect(issued.dev_otp).toMatch(/^\d{6}$/);
+    const before = await env.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>();
+
+    const results = await Promise.all([
+      verifyOtp(ALLOWED, issued.dev_otp!),
+      verifyOtp(ALLOWED, issued.dev_otp!),
+    ]);
+
+    expect(results.map((response) => response.status).sort()).toEqual([200, 400]);
+    const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM sessions").first<{ n: number }>();
+    expect((after?.n ?? 0) - (before?.n ?? 0)).toBe(1);
+  });
+
   it("enforces the five-attempt limit when invalid verifications race", async () => {
     const req = await requestOtp(ALLOWED, "7.7.7.7");
     const issued = (await req.json()) as { dev_otp?: string };

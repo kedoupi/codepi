@@ -29,6 +29,7 @@
   let errorMessage = $state("");
   let returnTo = $state("/");
   let authError = $state(false);
+  let routeRevision = 0;
 
   function safeReturn(value: string | null): string {
     if (!value || !value.startsWith("/") || value.startsWith("//") ||
@@ -53,12 +54,14 @@
   function goHome(list = false) {
     const path = list ? "/?list=1" : "/";
     push(path);
-    void loadRoute();
+    const revision = ++routeRevision;
+    void loadRoute(revision);
   }
 
   function openProject(id: string) {
     push(`/p/${encodeURIComponent(id)}`);
-    void loadDetail(id);
+    const revision = ++routeRevision;
+    void loadRoute(revision);
   }
 
   async function fetchProjects(): Promise<ProjectListResponse> {
@@ -74,7 +77,7 @@
     return response as unknown as HandoffsResponse;
   }
 
-  async function loadDetail(id: string, opts: { keepTimeline?: boolean } = {}) {
+  async function loadDetail(id: string, opts: { keepTimeline?: boolean } = {}, revision = routeRevision) {
     view = "loading";
     errorMessage = "";
     try {
@@ -83,6 +86,7 @@
         api(`/api/projects/${encodeURIComponent(id)}?handoffs=20`),
         opts.keepTimeline ? Promise.resolve(null) : fetchHandoffs(id),
       ]);
+      if (revision !== routeRevision) return;
       projects = list.projects;
       projectsAsOf = list.as_of;
       card = nextCard as unknown as ProjectCard;
@@ -93,49 +97,55 @@
       }
       view = "detail";
     } catch (failure) {
+      if (revision !== routeRevision) return;
       if ((failure as ApiError).status === 401) return;
       errorMessage = (failure as Error).message;
       view = "error";
     }
   }
 
-  async function loadList() {
+  async function loadList(revision = routeRevision) {
     view = "loading";
     errorMessage = "";
     try {
       const list = await fetchProjects();
+      if (revision !== routeRevision) return;
       projects = list.projects;
       projectsAsOf = list.as_of;
       const single = new URLSearchParams(location.search).get("list") !== "1";
       if (list.projects.length === 1 && single) {
         history.replaceState(null, "", `/p/${encodeURIComponent(list.projects[0].id)}`);
-        await loadDetail(list.projects[0].id);
+        await loadDetail(list.projects[0].id, {}, revision);
         return;
       }
       view = "list";
     } catch (failure) {
+      if (revision !== routeRevision) return;
       if ((failure as ApiError).status === 401) return;
       errorMessage = (failure as Error).message;
       view = "error";
     }
   }
 
-  async function loadRoute() {
+  async function loadRoute(revision: number) {
     const id = pathProjectId();
-    if (id) await loadDetail(id);
-    else await loadList();
+    if (id) await loadDetail(id, {}, revision);
+    else await loadList(revision);
   }
 
   async function reloadCard() {
     if (!card) return;
+    const revision = routeRevision;
     const [list, nextCard] = await Promise.all([
       fetchProjects(),
       api(`/api/projects/${encodeURIComponent(card.project.id)}?handoffs=20`),
     ]);
+    if (revision !== routeRevision) return;
     projects = list.projects;
     projectsAsOf = list.as_of;
     card = nextCard as unknown as ProjectCard;
   }
+
 
   async function updateProject(update: { status?: ProjectStatus; name?: string }) {
     if (!card) return;
@@ -169,14 +179,17 @@
 
   async function addHandoff(draft: HandoffDraft) {
     if (!card) return;
+    const revision = routeRevision;
     await api(`/api/projects/${encodeURIComponent(card.project.id)}/handoffs`, {
       method: "POST",
       body: draft,
     });
+    if (revision !== routeRevision) return;
     const id = card.project.id;
     await Promise.all([
       reloadCard(),
       fetchHandoffs(id).then(timeline => {
+        if (revision !== routeRevision) return;
         handoffs = timeline.handoffs;
         nextBefore = timeline.next_before;
         nextBeforeId = timeline.next_before_id;
@@ -186,17 +199,20 @@
 
   async function loadMoreHandoffs() {
     if (!card || !nextBefore || loadingHandoffs) return;
+    const revision = routeRevision;
     loadingHandoffs = true;
     try {
       const page = await fetchHandoffs(card.project.id, nextBefore, nextBeforeId);
+      if (revision !== routeRevision) return;
       const known = new Set(handoffs.map(item => item.id));
       handoffs = [...handoffs, ...page.handoffs.filter(item => !known.has(item.id))];
       nextBefore = page.next_before;
       nextBeforeId = page.next_before_id;
     } finally {
-      loadingHandoffs = false;
+      if (revision === routeRevision) loadingHandoffs = false;
     }
   }
+
 
   async function syncProject(): Promise<{ errors: number }> {
     if (!card) return { errors: 1 };
@@ -221,14 +237,17 @@
 
   async function bootstrap() {
     authError = new URLSearchParams(location.search).has("auth_error");
+    const revision = ++routeRevision;
     try {
       const me = await api("/api/me", { allowUnauthenticated: true });
+      if (revision !== routeRevision) return;
       if (me.authenticated !== true) throw new ApiError("请先登录", 401);
       if (location.pathname === "/login") {
         history.replaceState(null, "", "/");
       }
-      await loadRoute();
+      await loadRoute(revision);
     } catch (failure) {
+      if (revision !== routeRevision) return;
       if ((failure as ApiError).status !== 401) {
         errorMessage = (failure as Error).message;
         view = "error";
@@ -243,7 +262,10 @@
 
   onMount(() => {
     void bootstrap();
-    const onPop = () => void loadRoute();
+    const onPop = () => {
+      const revision = ++routeRevision;
+      void loadRoute(revision);
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   });
@@ -290,7 +312,7 @@
         <span class="eyebrow">READ FAILED</span>
         <h1>项目暂时无法读取</h1>
         <p>{errorMessage || "请稍后重试。"}</p>
-        <button class="primary-button" onclick={() => void loadRoute()}>重新读取</button>
+        <button class="primary-button" onclick={() => { const revision = ++routeRevision; void loadRoute(revision); }}>重新读取</button>
       </div>
     {/if}
   </main>

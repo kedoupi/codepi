@@ -18,6 +18,9 @@
   let failed = $state(false);
   let materialsEnabled = $state(false);
   let materials = $state<Material[]>([]);
+  let materialsNextOffset = $state<number | null>(null);
+  let materialsLoading = $state(false);
+  let materialsError = $state("");
   let versions = $state<{ revision: number; created_at: string }[]>([]);
   let savedValuation = $state<Valuation | null>(null);
   let savedConfirmedOn = $state<string | null>(null);
@@ -73,8 +76,25 @@
     install(view);
     const [files, history] = await Promise.all([api("/api/materials"), api("/api/workspace/history")]);
     materials = files.materials as Material[];
+    materialsNextOffset = (files.next_offset as number | null | undefined) ?? null;
+    materialsError = "";
     versions = history.versions as typeof versions;
   }
+  async function loadMoreMaterials() {
+    if (materialsLoading || materialsNextOffset === null) return;
+    materialsLoading = true;
+    materialsError = "";
+    try {
+      const result = await api(`/api/materials?offset=${materialsNextOffset}`);
+      materials = [...materials, ...(result.materials as Material[])];
+      materialsNextOffset = (result.next_offset as number | null | undefined) ?? null;
+    } catch (error) {
+      materialsError = (error as Error).message;
+    } finally {
+      materialsLoading = false;
+    }
+  }
+
 
   function reload() {
     if (dirty && !confirm("放弃未保存的草稿并重新读取线上版本？可以先导出草稿。")) return;
@@ -163,7 +183,9 @@
     await run(async () => {
       if (file.size > 8 * 1024 * 1024) throw new Error("文件不能超过 8 MB");
       const result = await uploadFile(file);
-      materials = (await api("/api/materials")).materials as Material[];
+      const latest = await api("/api/materials");
+      materials = latest.materials as Material[];
+      materialsNextOffset = (latest.next_offset as number | null | undefined) ?? null;
       message = result.duplicate ? "相同文件已在资料库中，未重复保存。" : "资料已上传。上传不会自动识别内容或修改账户。";
     });
     input.value = "";
@@ -367,10 +389,16 @@
             {#if !materialsEnabled}<p class="notice notice-warning">资料存储尚未配置。账户、规则和报告仍可使用。</p>
             {:else}<label>上传资料 · 每份最多 8 MB<input type="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.md,.csv,.json" onchange={(e) => void addMaterial(e)} /></label>{/if}
             {#if !materials.length}<p class="muted">尚无资料。</p>{/if}
+            {#if materialsError}<p class="notice notice-warning" role="alert">{materialsError}</p>{/if}
             <ul class="online-files">{#each materials as file (file.id)}
               <li><div><strong>{file.name}</strong><p class="fine">{(file.size / 1024).toFixed(1)} KB · {time(file.created_at)}</p></div>
                 <a href="/api/materials/{file.id}" download>下载原件</a></li>
             {/each}</ul>
+            {#if materialsNextOffset !== null}
+              <button type="button" disabled={materialsLoading} onclick={() => void loadMoreMaterials()}>
+                {materialsLoading ? "正在加载…" : "加载更多资料"}
+              </button>
+            {/if}
             <p class="fine">只通过登录后的 GU 下载。工作台 JSON 导出包含资料索引，原件需要单独下载保存。</p>
           </section>
         {:else if section === "reports"}

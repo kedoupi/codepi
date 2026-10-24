@@ -31,6 +31,14 @@ app.notFound(() => new Response("Not found", { status: 404 }));
 function getApi(path: string, handler: Handler<AppEnv>) {
   app.get(path, (c, next) => c.req.method === "GET" ? handler(c, next) : next());
 }
+function materialOffset(request: Request) {
+  const raw = new URL(request.url).searchParams.get("offset");
+  if (raw === null) return 0;
+  if (!/^\d+$/.test(raw)) throw new ValidationError("offset 无效");
+  const offset = Number(raw);
+  if (!Number.isSafeInteger(offset)) throw new ValidationError("offset 无效");
+  return offset;
+}
 
 app.all("/api/internal/desk-summary", c => handleDeskSummary(c.req.raw, c.env));
 
@@ -84,7 +92,7 @@ getApi("/api/workspace/versions/:revision", c => workspaceVersion(c.env, c.req.p
 app.post("/api/workspace/preview", c => previewWorkspace(c.req.raw));
 app.post("/api/workspace/import-legacy", c => previewLegacy(c.env));
 app.put("/api/workspace", c => saveWorkspace(c.req.raw, c.env));
-getApi("/api/materials", c => listMaterials(c.env));
+getApi("/api/materials", c => listMaterials(c.env, materialOffset(c.req.raw)));
 app.post("/api/materials", c => uploadMaterial(c.req.raw, c.env));
 getApi("/api/materials/:id", c => downloadMaterial(c.env, c.req.param("id") || ""));
 

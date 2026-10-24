@@ -48,6 +48,8 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
       const report = await object.json();
       const age = now - Date.parse(report.completed_at);
       assert.ok(Number.isFinite(age) && age >= 0 && age < 30 * 3600000, 'latest complete backup is missing or stale');
+      assert.match(report.prefix ?? '', /^backups\/[a-zA-Z0-9_-]{1,100}$/, 'backup prefix is missing or unsafe');
+      assert.ok(await bucket.head(`${report.prefix}/manifest.json`), 'backup manifest is missing');
       assert.equal(report.databases, DATABASE_NAMES.length, 'backup database coverage is incomplete');
       assert.deepEqual([...(report.database_names ?? [])].sort(), databaseNames,
         'backup database identities are missing or incomplete');

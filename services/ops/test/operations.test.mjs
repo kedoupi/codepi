@@ -131,8 +131,10 @@ test('monitor preserves failures and appends traffic results in its private repo
 });
 test('advisory threat alerts remain in the report without failing the monitor', async () => {
   const env = { BACKUPS: bucketFixture(), BUILD_SHA: 'synthetic' };
+  await env.BACKUPS.put('backups/advisory-synthetic/manifest.json', '{}');
   await env.BACKUPS.put('reports/backup/r2-success.json', JSON.stringify({
-    completed_at: new Date().toISOString(), databases: DATABASE_NAMES.length, database_names: DATABASE_NAMES,
+    completed_at: new Date().toISOString(), prefix: 'backups/advisory-synthetic',
+    databases: DATABASE_NAMES.length, database_names: DATABASE_NAMES,
     materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
   }));
   const traffic = [
@@ -150,10 +152,11 @@ test('advisory threat alerts remain in the report without failing the monitor', 
   assert.deepEqual(report.results.filter(result => result.name.startsWith('zone traffic')), traffic);
 });
 
-test('freshness rejects stale and incomplete backups', async () => {
+test('freshness rejects stale and incomplete backups and requires its manifest', async () => {
   const bucket = bucketFixture();
   const complete = {
     completed_at: new Date().toISOString(),
+    prefix: 'backups/freshness-synthetic',
     databases: DATABASE_NAMES.length,
     database_names: DATABASE_NAMES,
     materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
@@ -168,7 +171,17 @@ test('freshness rejects stale and incomplete backups', async () => {
     assert.equal((await backupFreshness(bucket))[0].ok, false);
   }
   await bucket.put('reports/backup/r2-success.json', JSON.stringify(complete));
+  assert.equal((await backupFreshness(bucket))[0].ok, false);
+  await bucket.put('backups/freshness-synthetic/manifest.json', '{}');
   assert.equal((await backupFreshness(bucket))[0].ok, true);
+
+  for (const prefix of [undefined, 'backups/../secrets', 'backups/valid/extra']) {
+    const report = { ...complete };
+    if (prefix === undefined) delete report.prefix;
+    else report.prefix = prefix;
+    await bucket.put('reports/backup/r2-success.json', JSON.stringify(report));
+    assert.equal((await backupFreshness(bucket))[0].ok, false);
+  }
 });
 
 test('missing, corrupted or interrupted GU originals cannot publish a complete manifest', async () => {

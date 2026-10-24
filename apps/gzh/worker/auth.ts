@@ -250,9 +250,14 @@ export async function handleVerifyOtp(request: Request, env: Env): Promise<Respo
     return json({ ok: false, error: "验证失败" }, 400);
   }
 
-  await env.DB.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ? AND used_at IS NULL`)
+  const consumed = await env.DB.prepare(
+    `UPDATE otp_codes SET used_at = ? WHERE id = ? AND used_at IS NULL RETURNING id`,
+  )
     .bind(now, row.id)
-    .run();
+    .first<{ id: string }>();
+  if (!consumed) {
+    return json({ ok: false, error: "验证失败" }, 400);
+  }
 
   let account = await findAccountByEmail(env, email);
   if (!account) {

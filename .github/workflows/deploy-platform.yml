@@ -241,6 +241,7 @@ jobs:
       - run: npm run test:scripts
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run check:deploy
 
   gzh-build:
     needs: [affected]

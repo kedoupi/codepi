@@ -288,6 +288,28 @@ describe("private materials and API gates", () => {
     expect((await env.MATERIALS!.list()).objects).toHaveLength(1);
     expect((await call(`/api/materials/${bodies[0].material.id}`)).status).toBe(200);
   });
+  it("paginates materials beyond the first 500 records", async () => {
+    for (let i = 0; i < 501; i++) {
+      const id = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+      await env.DB.prepare("INSERT INTO gu_materials(id,object_key,name,content_type,size,sha256,created_at) VALUES(?,?,?,?,?,?,?)")
+        .bind(id, `materials/${id}`, `material-${i}.txt`, "text/plain", 1, `${String(i).padStart(64, "0")}`, `2026-10-${String((i % 28) + 1).padStart(2, "0")}T00:00:00Z`).run();
+    }
+    const first = await call("/api/materials");
+    expect(first.status).toBe(200);
+    const firstBody = await first.json() as { materials: { id: string }[]; next_offset?: number | null };
+    expect(firstBody.materials).toHaveLength(500);
+    expect(firstBody.next_offset).toBe(500);
+    const second = await call("/api/materials?offset=500");
+    expect(second.status).toBe(200);
+    const secondBody = await second.json() as { materials: { id: string }[]; next_offset?: number | null };
+    expect(secondBody.materials).toHaveLength(1);
+    expect(secondBody.next_offset).toBeNull();
+    expect(new Set([...firstBody.materials, ...secondBody.materials]).size).toBe(501);
+  });
+  it.each(["-1", "1.5", "abc", "", "9007199254740992"])("rejects invalid material offsets: %s", async offset => {
+    const response = await call(`/api/materials?offset=${encodeURIComponent(offset)}`);
+    expect(response.status).toBe(400);
+  });
   it("rejects executable extensions, misleading file signatures, oversize and unconfigured storage", async () => {
     for (const name of ["test.html", "test.svg", "test.pdf", "test.png", "test.jpg"])
       expect((await upload(name)).status).toBe(400);
