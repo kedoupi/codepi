@@ -30,6 +30,7 @@
   }
 
   async function send() {
+    if (sending || cooldownSeconds > 0) return;
     sending = true;
     message = "";
     try {

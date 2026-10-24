@@ -265,6 +265,12 @@ describe("private materials and API gates", () => {
     expect((await env.MATERIALS!.list()).objects).toHaveLength(1);
     expect(await (await call("/api/workspace")).json()).toMatchObject({ active: false });
   });
+  it("reuses one object when D1 remains unavailable across retries", async () => {
+    const broken = uncertainInsert(false);
+    expect((await upload("synthetic.md", "# Synthetic material", broken)).status).toBe(503);
+    expect((await upload("synthetic.md", "# Synthetic material", broken)).status).toBe(503);
+    expect((await env.MATERIALS!.list()).objects).toHaveLength(1);
+  });
   it("repairs a missing original by concurrent reuploads without changing its identity", async () => {
     const first = await (await upload()).json() as { material: { id: string } };
     const key = await env.DB.prepare("SELECT object_key FROM gu_materials WHERE id=?").bind(first.material.id).first<string>("object_key");

@@ -3,13 +3,13 @@
 - 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
-- worktree / 分支：第七至十七轮候选依次叠加到 `codex/round17-integration`，均未合并 main（`08bdfed`）
+- worktree / 分支：第七至十八轮候选依次叠加到 `codex/round18-integration`，均未合并 main（`08bdfed`）
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：第十七轮候选 `9c9cdc9e3ab30372be32d4200ea40ae4b06ed214`；尚未合并 main
-- 实施：第七至十六轮见前次记录。第十七轮新增 Auth OTP 登录原子 batch、Web Desk 初始化单飞、GU/Project/Me JSON Content-Type 大小写兼容、Me Timeline 详情请求版本守卫、deployment-evidence 布尔值严格校验
-- 本地验证：Auth 25、Web 23、GU 263、Project 55、Me 25、deployment-evidence/governance 55 项通过；按 `origin/main` 运行 `check.mjs --run`，43 项全部通过；diff check 通过
-- 审查：第十七轮集成 diff 已审查；证据 worker 曾误改主 checkout，已导出 HEAD 并正向恢复，最终实现只存在于独立候选。待 PR CI 与合并审查
-- 合并 / 推送 / 部署：候选分支 `codex/round17-integration` 已推送；PR 创建仍因本机 GitHub CLI token 无效（HTTP 401）阻塞，未执行合并、生产发布或线上观察。主 checkout 的 `main` 当前为 `1d7e242`、落后 `origin/main` 且有 36 个未提交文件，按要求未执行 `git pull --ff-only`；最终只评审该分支一个 PR（第七至十七轮），合并后按 release-scope 发布受影响服务
+- 当前交付 SHA：第十八轮候选（提交后回填）；尚未合并 main
+- 实施：第七至十七轮见前次记录。第十八轮新增 observe manifest 运行时校验、Health sync window 覆盖查询索引、GU 材料内容哈希对象键、GU OTP 发送重入保护、Health probe 仅允许 GET
+- 本地验证：`check.mjs --base f5f19b1 --run` 23 项全部通过；GU 265、Health API 130、Cloudflare 181 项测试通过；GU 实际浏览器连续点击只产生 1 次 OTP 请求并进入冷却；migration guard 29 个文件通过
+- 审查：第十八轮 diff 已审查；主 checkout 未提交改动未被覆盖，真实生产发布和线上观察未执行
+- 合并 / 推送 / 部署：候选分支 `codex/round18-integration` 待推送；GitHub CLI token 无效仍阻塞 PR 创建。主 checkout 的 `main` 为 `1d7e242`、落后 `origin/main` 且有 41 个未提交文件，按要求未执行 `git pull --ff-only`；合并后按 release-scope 发布受影响服务
 - 实际流程验收：第五轮 observe session `cf_28eb7d963c4f9b104cc0b71fc7f1e215eda7d09b78cd7aafc911b9159d23e081` 七轮完成，R2 summary 为 `healthy_reported`；Issue #169 开始与完成通知均已核对
 - 协调者 / 执行者 / 审查者 / 集成者：主会话（OMP）顺序协调
 - 允许修改的路径：`docs/development/agent-workflow.md`、`local-release.md`、`cloudflare-operations.md`、`cloudflare-governance.md`、`cloudflare-resource-registry.md`、本任务记录与索引

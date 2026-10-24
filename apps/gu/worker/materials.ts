@@ -72,8 +72,8 @@ export async function uploadMaterial(request: Request, env: Env) {
   const existing = await env.DB.prepare(`SELECT ${materialColumns} FROM gu_materials WHERE sha256=?`)
     .bind(sha).first<StoredMaterial>();
   if (existing) return reuseMaterial(env, existing, bytes);
-  const id = crypto.randomUUID(), key = `materials/${id}`, now = new Date().toISOString();
-  await env.MATERIALS.put(key, bytes, { httpMetadata: { contentType: type } });
+  const id = crypto.randomUUID(), key = `materials/by-sha256/${sha}`, now = new Date().toISOString();
+  if (!await env.MATERIALS.head(key)) await env.MATERIALS.put(key, bytes, { httpMetadata: { contentType: type } });
   let inserted: boolean;
   try {
     const result = await env.DB.prepare(`INSERT OR IGNORE INTO gu_materials(id,object_key,name,content_type,size,sha256,created_at)

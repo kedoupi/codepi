@@ -354,3 +354,17 @@ test('observe marks critical findings rollback_blocked when the manifest disallo
   assert.equal(summary.state, 'rollback_blocked');
   assert.ok(notifications.some(item => item.severity === 'critical'));
 });
+
+test('observe rejects a manifest whose rollback flag contradicts its facts', async () => {
+  const manifest = buildReleaseManifest({
+    sourceSha: 'a'.repeat(40), startedAt: new Date().toISOString(), nonce: 'synthetic',
+    services: [{
+      service: 'auth', script: 'codepi-auth', previous_version: 'prev-v', new_version: 'new-v',
+      previous_build_sha: 'b'.repeat(40), new_build_sha: 'a'.repeat(40), smoke: 'pass',
+      migration_applied: true, secret_changed: false, binding_changed: false, external_side_effects: false,
+    }],
+  });
+  manifest.services[0].rollback_allowed = true;
+  await assert.rejects(() => observeOperation(baseEnv, stepFixture(),
+    { payload: { kind: 'observe', manifest } }), /rollback_allowed is inconsistent/);
+});

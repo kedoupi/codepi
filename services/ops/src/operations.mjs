@@ -6,6 +6,7 @@ import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
 import { backupDatabase, verifyBackupObject } from './backup.mjs';
 import { createObservabilityClient } from '../../../scripts/cloudflare/observability-api.mjs';
 import { runObserver } from './observer.mjs';
+import { validateReleaseManifest } from '../../../scripts/cloudflare/release-observation.mjs';
 import { STEP } from './step-options.mjs';
 export { STEP } from './step-options.mjs';
 import {
@@ -88,6 +89,7 @@ export async function observeOperation(env, step, event, {
 } = {}) {
   const manifest = event.payload?.manifest ?? event.payload?.release_manifest;
   assert.ok(manifest?.release_id && Array.isArray(manifest.services), 'observe payload requires a release manifest');
+  validateReleaseManifest(manifest);
   return runObserver({ manifest, bucket: env.BACKUPS, step, env, observability, notify, coreCheck, activeVersionCheck });
 }
 

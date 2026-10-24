@@ -79,16 +79,21 @@ all("/api/me/health-records/automatic", c => handleHealthRecords(c.req.raw, c.en
 all("/api/me/ai", c => handleMeAi(c.req.raw, c.env));
 all("/api/me/insights/weekly", c => handleWeeklyInsights(c.req.raw, c.env));
 all("/api/me/insights/compare", c => handleCompareInsights(c.req.raw, c.env));
-all("/api/health", c => Response.json({
-  ok: true,
-  service: "codepi-health-api",
-  allowDevLogin: allowDevLogin(c.req.raw, c.env),
-  oauthConfigured: oauthConfigured(c.env),
-  ssoEnabled: ssoEnabled(c.env),
-  apiContract: API_CONTRACT,
-  release: RELEASE,
-  build: c.env.BUILD_SHA ?? "local",
-}));
+all("/api/health", c => {
+  if (c.req.method !== "GET") {
+    return Response.json({ error: "method_not_allowed" }, { status: 405 });
+  }
+  return Response.json({
+    ok: true,
+    service: "codepi-health-api",
+    allowDevLogin: allowDevLogin(c.req.raw, c.env),
+    oauthConfigured: oauthConfigured(c.env),
+    ssoEnabled: ssoEnabled(c.env),
+    apiContract: API_CONTRACT,
+    release: RELEASE,
+    build: c.env.BUILD_SHA ?? "local",
+  });
+});
 
 app.notFound(() => Response.json({ error: "not found" }, { status: 404 }));
 
