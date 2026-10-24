@@ -197,11 +197,12 @@ async function query(env: Env, userId: string, args: Record<string, unknown>, no
 const NUMERIC = (path: string) => `CASE WHEN json_type(payload,'$.${path}') IN ('integer','real')
   THEN json_extract(payload,'$.${path}') END`;
 
-async function aggregatePeriod(env: Env, userId: string, name: string, selected: Range,
+export async function aggregatePeriod(env: Env, userId: string, name: string, selected: Range,
   metrics: string[], operations: string[], interval: string) {
   const spec = collection(name);
   const definitions = HEALTH_METRICS[name] ?? [];
   const result: Record<string, unknown>[] = [];
+  const statements = [];
   // Only fixed allowlisted paths, grouping expressions and operations enter SQL.
   // Everything supplied by the caller is a bound value or validated against that list.
   for (const field of metrics) {
@@ -215,7 +216,7 @@ async function aggregatePeriod(env: Env, userId: string, name: string, selected:
         : `AVG(${value})`;
     const group = interval === "day" ? "day" : interval === "week" ? "date(day,'weekday 0','-6 days')"
       : interval === "month" ? "substr(day,1,7)||'-01'" : "'period'";
-    const rows = await env.DB.prepare(`WITH daily AS (
+    statements.push(env.DB.prepare(`WITH daily AS (
       SELECT day, ${daily} AS value,
         SUM(CASE WHEN ${value} IS NOT NULL ${definition.daily === "weighted_sleep_mean" ? `AND ${weight}>0` : ""} THEN 1 ELSE 0 END) AS samples
       FROM ${name === "daily_metrics"
@@ -224,14 +225,20 @@ async function aggregatePeriod(env: Env, userId: string, name: string, selected:
     ) SELECT ${group} AS bucket, COUNT(value) AS count, SUM(samples) AS sample_count,
       AVG(value) AS mean, MIN(value) AS min, MAX(value) AS max, SUM(value) AS sum
       FROM daily GROUP BY ${group} ORDER BY bucket`)
-      .bind(userId, name, selected.from, selected.to)
-      .all<Record<string, unknown>>();
-    result.push({ metric: field, unit: definition.unit, daily_rule: definition.daily,
-      buckets: rows.results.length ? rows.results.map(row => ({
-        bucket: row.bucket, valid_days: row.count, valid_records: row.sample_count,
-        ...Object.fromEntries(operations.map(op => [op, row[op] ?? null])),
-      })) : [{ bucket: interval === "period" ? "period" : null, valid_days: 0, valid_records: 0,
-        ...Object.fromEntries(operations.map(op => [op, op === "count" ? 0 : null])) }] });
+      .bind(userId, name, selected.from, selected.to));
+  }
+  if (statements.length) {
+    const responses = await env.DB.batch(statements) as Array<{ results: Record<string, unknown>[] }>;
+    for (const [index, field] of metrics.entries()) {
+      const definition = definitions.find(m => m.field === field)!;
+      const rows = responses[index];
+      result.push({ metric: field, unit: definition.unit, daily_rule: definition.daily,
+        buckets: rows.results.length ? rows.results.map(row => ({
+          bucket: row.bucket, valid_days: row.count, valid_records: row.sample_count,
+          ...Object.fromEntries(operations.map(op => [op, row[op] ?? null])),
+        })) : [{ bucket: interval === "period" ? "period" : null, valid_days: 0, valid_records: 0,
+          ...Object.fromEntries(operations.map(op => [op, op === "count" ? 0 : null])) }] });
+    }
   }
   return { ...selected, date_basis: spec.mode === "time" ? "UTC" : "Oura assigned day", metrics: result };
 }

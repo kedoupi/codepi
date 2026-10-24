@@ -104,6 +104,12 @@ app.on(["GET", "HEAD"], ["/", "/login"], async c => {
   return c.env.ASSETS.fetch(new Request(`${origin}/`, { method: c.req.method }));
 });
 
+export const PUBLIC_ASSET_PATH = /^\/assets\/(?<name>[a-zA-Z0-9_.-]+?)(?<hash>-[A-Za-z0-9_]{8,})?\.(?:js|css|svg|woff2)$/;
+
+export function isCacheableAssetPath(path: string) {
+  return PUBLIC_ASSET_PATH.exec(path)?.groups?.hash !== undefined;
+}
+
 const PUBLIC_BRAND_ASSETS = new Set([
   "/favicon.ico",
   "/favicon-16.png",
@@ -116,7 +122,7 @@ const PUBLIC_BRAND_ASSETS = new Set([
 
 app.get("*", c => {
   // Only compiled public assets are reachable. Investment data never enters dist/.
-  if (/^\/assets\/[a-zA-Z0-9_.-]+\.(?:js|css|svg|woff2)$/.test(c.req.path) || PUBLIC_BRAND_ASSETS.has(c.req.path)) {
+  if (PUBLIC_ASSET_PATH.test(c.req.path) || PUBLIC_BRAND_ASSETS.has(c.req.path)) {
     return c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.notFound();
   }
   return c.notFound();

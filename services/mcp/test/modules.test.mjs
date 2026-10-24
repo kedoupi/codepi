@@ -47,13 +47,23 @@ test('context whitelist and UTF-8 budget prevent large or private summary fields
   assert.deepEqual(focus.sources, []);
 });
 
-test('one hanging or failed source cannot delay other summaries beyond the deadline', async () => {
+test('one hanging or failed source cannot delay other summaries beyond the deadline', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const env = { HEALTH: { summary: () => new Promise(() => {}) },
     PROJECT: { summary: async () => summary('project') },
     ME: { summary: async () => { throw Error('unavailable'); } } };
-  const started = performance.now();
-  const result = await callTool(env, ctx('context.read health.read projects.read me.read'), 'get_context', {});
-  assert.ok(performance.now() - started < 3000);
+  let completed = false;
+  const pending = callTool(env, ctx('context.read health.read projects.read me.read'), 'get_context', {})
+    .then(result => { completed = true; return result; });
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(completed, false);
+  t.mock.timers.tick(1999);
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(completed, false);
+  t.mock.timers.tick(1);
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  assert.equal(completed, true);
+  const result = await pending;
   assert.equal(result.sources.find(s => s.id === 'health').summary.status, 'unavailable');
   assert.equal(result.sources.find(s => s.id === 'project').summary.status, 'ok');
   assert.equal(result.sources.find(s => s.id === 'me').summary.status, 'unavailable');

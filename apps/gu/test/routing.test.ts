@@ -22,6 +22,19 @@ function expectSecure(response: Response) {
   expect(response.headers.get("Content-Security-Policy")).toContain("style-src 'self'");
 }
 
+function expectImmutableAsset(response: Response) {
+  expect(response.headers.get("Cache-Control")).toBe("private, max-age=31536000, immutable");
+  expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+  expect(response.headers.get("X-Frame-Options")).toBe("DENY");
+  expect(response.headers.get("Referrer-Policy")).toBe("no-referrer");
+  expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+  expect(response.headers.get("Content-Security-Policy")).toContain("style-src 'self'");
+}
+
+function expectAssetSecurity(response: Response, hashed: boolean) {
+  (hashed ? expectImmutableAsset : expectSecure)(response);
+}
+
 beforeEach(async () => {
   await env.DB.exec("DELETE FROM sessions; DELETE FROM otp_codes; DELETE FROM kdp_sso_transactions; DELETE FROM dashboard_current; DELETE FROM dashboard_batches;");
   await env.DB.prepare("INSERT INTO sessions (id, expires_at) VALUES (?, ?)")
@@ -30,7 +43,7 @@ beforeEach(async () => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("transport and route precedence", () => {
-  it.each(["/api/health", "/api/auth/login", "/api/sync", "/login", "/assets/app.js"])(
+  it.each(["/api/health", "/api/auth/login", "/api/sync", "/login", "/assets/app-L8jSaS6_.js"])(
     "requires HTTPS before handling %s",
     async path => {
       const response = await worker.fetch(new Request(`http://remote.test${path}`), env);
@@ -184,10 +197,10 @@ describe("page and asset gates", () => {
 
   it("serves only the existing public asset allowlist", async () => {
     const { fetch, bindings } = assets();
-    for (const path of ["/assets/app.js", "/assets/app.css", "/assets/icon.svg", "/assets/font.woff2", "/favicon-16.png", "/favicon-32.png", "/favicon.ico", "/apple-touch-icon.png", "/brand/codepi-symbol.png", "/brand/codepi-symbol.webp"]) {
+    for (const path of ["/assets/app-L8jSaS6_.js", "/assets/app-BbNBdaMt.css", "/assets/icon-A1b2C3d4.svg", "/assets/font-A1b2C3d4.woff2", "/assets/app.js", "/favicon-16.png", "/favicon-32.png", "/favicon.ico", "/apple-touch-icon.png", "/brand/codepi-symbol.png", "/brand/codepi-symbol.webp"]) {
       const response = await worker.fetch(request(path), bindings);
       expect(response.status).toBe(200);
-      expectSecure(response);
+      expectAssetSecurity(response, path.startsWith("/assets/") && path !== "/assets/app.js");
     }
     const count = fetch.mock.calls.length;
     for (const path of ["/assets/private.json", "/assets/nested/app.js", "/assets/%61pp.js", "/dashboard/account.json", "/login/", "/%6Cogin"]) {
@@ -201,10 +214,18 @@ describe("page and asset gates", () => {
     expect(fetch).toHaveBeenCalledTimes(count);
   });
 
+  it("keeps missing hashed assets uncacheable", async () => {
+    const { fetch, bindings } = assets();
+    fetch.mockResolvedValueOnce(new Response("Not found", { status: 404 }));
+    const response = await worker.fetch(request("/assets/app-L8jSaS6_.js"), bindings);
+    expect(response.status).toBe(404);
+    expectSecure(response);
+  });
+
   it("keeps asset failure and unsupported-method responses", async () => {
     expect((await worker.fetch(request("/login"), env)).status).toBe(503);
     expect((await worker.fetch(request("/", { headers: sessionHeaders }), env)).status).toBe(503);
-    expect((await worker.fetch(request("/assets/app.js"), env)).status).toBe(404);
+    expect((await worker.fetch(request("/assets/app-L8jSaS6_.js"), env)).status).toBe(404);
     for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
       const response = await worker.fetch(request("/login", { method, headers: { Origin: origin } }), env);
       expect(response.status).toBe(405);
