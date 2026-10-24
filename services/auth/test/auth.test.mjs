@@ -146,6 +146,30 @@ test('OTP is single-use under concurrent verification, wrong browser and expired
   await f.db.prepare('UPDATE auth_transactions SET otp_expires_at=0').run();
   assert.equal((await f.call('/api/auth/verify-otp', next.txCookie, { code: nextData.dev_otp })).status, 400);
 });
+test('OTP verification rolls back consumption and session when auth code insertion fails', async t => {
+  const f = await fixture(t);
+  const tx = await f.begin();
+  const { dev_otp: code } = await (await f.call('/api/auth/request-otp', tx.txCookie, {})).json();
+  const { default: handler } = await import('../dist/index.js');
+  const env = await f.runtime.getBindings('auth');
+  const db = env.DB;
+  env.DB = new Proxy(db, {
+    get(target, property) {
+      if (property === 'batch') return statements => target.batch(statements.map((statement, index) =>
+        index === 2 ? target.prepare('INSERT INTO missing_table VALUES (1)') : statement));
+      return Reflect.get(target, property);
+    },
+  });
+  const response = await handler.fetch(new Request(authOrigin + '/api/auth/verify-otp', {
+    method: 'POST',
+    headers: { Cookie: tx.txCookie, Origin: authOrigin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  }), env);
+  assert.equal(response.status, 503);
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM auth_sessions').first()).n, 0);
+  assert.equal((await f.db.prepare('SELECT consumed_at FROM auth_transactions').first()).consumed_at, null);
+  assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM auth_codes').first()).n, 0);
+});
 
 test('five failed OTP attempts lock the challenge, including concurrent requests', async t => {
   const f = await fixture(t);

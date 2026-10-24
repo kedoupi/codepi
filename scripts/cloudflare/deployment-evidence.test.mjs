@@ -57,6 +57,33 @@ test('buildEntry rejects invalid explicit observation facts without inventing de
     }), /must be boolean/);
   }
 });
+test('append CLI rejects invalid, misspelled, and missing boolean values without writing', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'cf-evidence-bool-'));
+  const file = path.join(dir, 'evidence.jsonl');
+  const script = fileURLToPath(new URL('./deployment-evidence.mjs', import.meta.url));
+  const base = [
+    script, 'append', '--file', file, '--service', 'health', '--target', 'production',
+    '--sha', 'abc123', '--provider', 'worker', '--identifier', 'v1', '--smoke', 'pass',
+  ];
+  try {
+    for (const args of [
+      ['--migrationApplied', 'tru'],
+      ['--secretChanged', 'yes'],
+      ['--bindingChanged', '1'],
+      ['--externalSideEffects', 'falsehood'],
+      ['--migrationApplied'],
+      ['--secretChanged', '--provider', 'worker'],
+      ['--migrationApplie', 'true'],
+    ]) {
+      const result = spawnSync(process.execPath, [...base, ...args], { encoding: 'utf8' });
+      assert.notEqual(result.status, 0, `expected rejection for ${args.join(' ')}`);
+      assert.equal(existsSync(file), false, `invalid append wrote a file for ${args.join(' ')}`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 
 test('findPagesDeployment 按 URL/alias 匹配', () => {
   const deployments = [

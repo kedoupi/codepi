@@ -40,7 +40,7 @@ export function object(value: unknown): value is Record<string, unknown> {
 }
 
 export async function bodyJson(request: Request, limit = MAX_BODY): Promise<Record<string, unknown>> {
-  if (!request.headers.get("Content-Type")?.startsWith("application/json")) {
+  if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
     throw new AppError("json_required", 400);
   }
   if (Number(request.headers.get("Content-Length")) > limit) {

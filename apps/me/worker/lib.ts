@@ -54,7 +54,7 @@ export function json(body: unknown, status = 200, headers: HeadersInit = {}) {
 }
 
 export async function bodyJson(request: Request, limit = 64 * 1024): Promise<unknown> {
-  if (!request.headers.get("Content-Type")?.startsWith("application/json")) {
+  if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
     throw new ValidationError("需要 JSON 请求");
   }
   if (Number(request.headers.get("Content-Length")) > limit) throw new ValidationError("请求过大", "body_too_large");

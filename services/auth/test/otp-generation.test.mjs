@@ -28,6 +28,9 @@ function pauseAfterAttempt(db) {
           },
         };
       },
+      batch(statements) {
+        return db.batch(statements);
+      },
     },
   };
 }

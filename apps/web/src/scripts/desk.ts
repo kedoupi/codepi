@@ -7,6 +7,7 @@ const product = (id: DeskSource) => products.find(item => item.id === id)!;
 const controllers = new Set<AbortController>();
 let generation = 0;
 let active = false;
+let initializePromise: Promise<void> | null = null;
 let summaryVersion = 0;
 const emptyOutput = el("desk-summary-output").cloneNode(true) as HTMLElement;
 
@@ -158,27 +159,36 @@ async function refresh() {
     }
   }
 }
-async function initialize() {
-  clearPrivate();
-  const current = generation;
-  el("desk-login").hidden = true;
-  el("desk-status").dataset.loading = "true";
-  el("desk-status").textContent = "正在确认登录状态…";
-  try {
-    await api("/api/desk/me");
-    if (current !== generation) return;
-    active = true;
-    el("desk-private").hidden = false;
-    el("desk-actions").hidden = false;
-    await refresh();
-    await loadReview();
-  } catch (error) {
-    if (current === generation && !(error instanceof SessionExpired)) {
-      showLogin("工作台连接暂不可用。若首次部署尚未完成，请稍后重新检查连接。");
+function initialize() {
+  if (initializePromise) return initializePromise;
+  const task = (async () => {
+    clearPrivate();
+    const current = generation;
+    el("desk-login").hidden = true;
+    el("desk-status").dataset.loading = "true";
+    el("desk-status").textContent = "正在确认登录状态…";
+    try {
+      await api("/api/desk/me");
+      if (current !== generation) return;
+      active = true;
+      el("desk-private").hidden = false;
+      el("desk-actions").hidden = false;
+      await refresh();
+      await loadReview();
+    } catch (error) {
+      if (current === generation && !(error instanceof SessionExpired)) {
+        showLogin("工作台连接暂不可用。若首次部署尚未完成，请稍后重新检查连接。");
+      }
+      el("desk-status").dataset.loading = "false";
+      el("desk-status").textContent = "";
     }
-    el("desk-status").dataset.loading = "false";
-    el("desk-status").textContent = "";
-  }
+  })();
+  initializePromise = task;
+  void task.then(
+    () => { if (initializePromise === task) initializePromise = null; },
+    () => { if (initializePromise === task) initializePromise = null; },
+  );
+  return task;
 }
 el<HTMLFormElement>("desk-summary-form").addEventListener("submit", async event => {
   event.preventDefault();

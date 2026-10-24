@@ -7,6 +7,7 @@
   let pending = $state<Page<TimelineView>>({ items: [], next_offset: null }), records = $state<Page<TimelineView>>({ items: [], next_offset: null });
   let editing = $state<TimelineDetail | null>(null), adding = $state(false);
   let expanded = $state<TimelineDetail | null>(null);
+  let openRevision = 0;
   let busy = $state(false), loading = $state(true), error = $state(""), message = $state("");
   let query = $state(""), kind = $state(""), from = $state(""), to = $state(""), status = $state("active");
   let filters: Record<string, string> = { status: "active" };
@@ -32,10 +33,14 @@
     finally { busy = false; }
   }
   async function open(item: TimelineView, edit: boolean) {
+    const revision = ++openRevision;
     try {
       const data = await api<TimelineDetail>(`/api/timeline/${item.id}`);
+      if (revision !== openRevision) return;
       if (edit) { editing = data; adding = false; } else expanded = data;
-    } catch (e) { error = (e as Error).message; }
+    } catch (e) {
+      if (revision === openRevision) error = (e as Error).message;
+    }
   }
   async function save(input: Record<string, string>) {
     const item = editing;

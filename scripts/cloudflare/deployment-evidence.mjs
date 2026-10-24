@@ -110,23 +110,48 @@ export async function resolveWorkerOrigin(script, requiredSecrets, api) {
   return `https://${script}.${accountRoute.subdomain}.workers.dev`;
 }
 
+const APPEND_FIELDS = new Set([
+  'file', 'service', 'target', 'sha', 'provider', 'identifier', 'smoke',
+  'previousVersion', 'newVersion', 'migrationApplied', 'secretChanged',
+  'bindingChanged', 'externalSideEffects',
+]);
+const BOOLEAN_APPEND_FIELDS = new Set([
+  'migrationApplied', 'secretChanged', 'bindingChanged', 'externalSideEffects',
+]);
+
+export function parseAppendArgs(args) {
+  const fields = {};
+  for (let i = 0; i < args.length; i += 2) {
+    const flag = args[i];
+    if (typeof flag !== 'string' || !flag.startsWith('--')) {
+      throw new Error(`append received unexpected argument: ${flag ?? '(missing)'}`);
+    }
+    const key = flag.slice(2);
+    if (!APPEND_FIELDS.has(key)) throw new Error(`append received unknown option: ${flag}`);
+    if (Object.hasOwn(fields, key)) throw new Error(`append received duplicate option: ${flag}`);
+    const value = args[i + 1];
+    if (value === undefined || (typeof value === 'string' && value.startsWith('--'))) {
+      throw new Error(`append option requires a value: ${flag}`);
+    }
+    if (BOOLEAN_APPEND_FIELDS.has(key)) {
+      if (value !== 'true' && value !== 'false') {
+        throw new Error(`append option ${flag} must be exactly true or false`);
+      }
+      fields[key] = value === 'true';
+    } else {
+      fields[key] = value;
+    }
+  }
+  return fields;
+}
+
 async function main(args = process.argv.slice(2)) {
   const command = args[0];
   if (command === 'append') {
-    const fileIndex = args.indexOf('--file');
-    const file = fileIndex >= 0 ? args[fileIndex + 1] : undefined;
-    if (!file || file.startsWith('--')) throw new Error('append requires --file path');
-    const fields = {};
-    for (const key of ['service', 'target', 'sha', 'provider', 'identifier', 'smoke',
-      'previousVersion', 'newVersion', 'migrationApplied', 'secretChanged',
-      'bindingChanged', 'externalSideEffects']) {
-      const i = args.indexOf(`--${key}`);
-      if (i !== -1 && args[i + 1]) {
-        const value = args[i + 1];
-        fields[key] = ['migrationApplied', 'secretChanged', 'bindingChanged', 'externalSideEffects']
-          .includes(key) ? value === 'true' : value;
-      }
-    }
+    const fields = parseAppendArgs(args.slice(1));
+    const file = fields.file;
+    delete fields.file;
+    if (!file) throw new Error('append requires --file path');
     appendEntry(file, buildEntry(fields));
     return 0;
   }

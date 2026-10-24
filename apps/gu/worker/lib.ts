@@ -54,7 +54,7 @@ export function cookie(request: Request, name: string, value: string, seconds: n
 }
 
 export async function bodyJson(request: Request, limit = MAX_BODY): Promise<unknown> {
-  if (!request.headers.get("Content-Type")?.startsWith("application/json")) throw new ValidationError("需要 JSON 请求");
+  if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) throw new ValidationError("需要 JSON 请求");
   if (Number(request.headers.get("Content-Length")) > limit) throw new ValidationError("请求过大");
   const reader = request.body?.getReader();
   if (!reader) throw new ValidationError("请求为空");

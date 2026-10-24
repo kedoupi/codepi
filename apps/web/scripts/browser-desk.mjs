@@ -15,6 +15,7 @@ const servers = [];
 let browser;
 let failure;
 let testOtp;
+let deskMeRequests = 0;
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const origins = { desk: 'http://localhost:8804', auth: 'http://localhost:8795' };
 try {
@@ -50,6 +51,7 @@ try {
         }
         const chunks = [];
         for await (const chunk of req) chunks.push(chunk);
+        if (id === 'desk' && url.pathname === '/api/desk/me') deskMeRequests++;
         const response = await worker.fetch(url, {
           method: req.method, headers: req.headers, redirect: 'manual',
           ...(!['GET', 'HEAD'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
@@ -86,6 +88,14 @@ try {
   await page.click('#submit');
   await page.waitForURL(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
+  const initialDeskMeRequests = deskMeRequests;
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.querySelector('#desk-retry').click();
+  });
+  await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
+  assert.equal(deskMeRequests, initialDeskMeRequests + 1, 'concurrent initialize triggers share one me request');
   const appearance = await page.evaluate(() => ({
     font: getComputedStyle(document.body).fontFamily,
     canvas: getComputedStyle(document.documentElement).getPropertyValue('--kdp-canvas').trim(),

@@ -238,14 +238,27 @@ async function verifyOtp(request: Request, env: Env): Promise<Response> {
   if (!await equal(attempt.otp_hash, await hash(env.OTP_PEPPER, `${tx.id}:${data.code}`))) throw new Failure("invalid_code");
   // A resend may replace the OTP after the attempt is reserved. Consume only
   // the exact OTP generation whose attempt budget this request decremented.
-  const consumed = await env.DB.prepare(`UPDATE auth_transactions SET consumed_at=?
-    WHERE id=? AND consumed_at IS NULL AND expires_at>? AND otp_expires_at=? AND otp_hash=? RETURNING id`)
-    .bind(now, tx.id, now, attempt.otp_expires_at, attempt.otp_hash).first();
-  if (!consumed) throw new Failure("invalid_code");
   const raw = random(), session = { id: await hash(env.SESSION_SECRET, raw), expires_at: now + 30 * DAY };
-  await env.DB.prepare("INSERT INTO auth_sessions (id,created_at,expires_at) VALUES (?,?,?)")
-    .bind(session.id, now, session.expires_at).run();
-  const redirect = await issueCode(env, session, tx);
+  const code = random();
+  const [consumedResult, sessionResult, codeResult] = await env.DB.batch([
+    env.DB.prepare(`UPDATE auth_transactions SET consumed_at=?
+      WHERE id=? AND consumed_at IS NULL AND expires_at>? AND otp_expires_at=? AND otp_hash=?`)
+      .bind(now, tx.id, now, attempt.otp_expires_at, attempt.otp_hash),
+    env.DB.prepare(`INSERT INTO auth_sessions (id,created_at,expires_at)
+      SELECT ?,?,? WHERE EXISTS (
+        SELECT 1 FROM auth_transactions
+        WHERE id=? AND consumed_at=? AND expires_at>? AND otp_expires_at=? AND otp_hash=?)`)
+      .bind(session.id, now, session.expires_at, tx.id, now, now, attempt.otp_expires_at, attempt.otp_hash),
+    env.DB.prepare(`INSERT INTO auth_codes (id,session_id,client_id,redirect_uri,challenge,expires_at)
+      SELECT ?,id,?,?,?,? FROM auth_sessions WHERE id=? AND revoked_at IS NULL AND expires_at>?`)
+      .bind(await hash(env.SESSION_SECRET, code), tx.client_id, tx.redirect_uri, tx.challenge,
+        Math.min(now + 60_000, session.expires_at), session.id, now),
+  ]);
+  if (consumedResult.meta.changes !== 1) throw new Failure("invalid_code");
+  if (sessionResult.meta.changes !== 1 || codeResult.meta.changes !== 1) {
+    throw new Failure("invalid_transaction");
+  }
+  const redirect = destination(tx, code);
   const headers = new Headers({ "Content-Type": "application/json" });
   headers.append("Set-Cookie", cookie(request, "session", raw, 30 * 86400));
   headers.append("Set-Cookie", cookie(request, "transaction", "", 0));
