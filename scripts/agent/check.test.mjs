@@ -5,10 +5,28 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, renameSync, readFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { changedFiles, makePlan, staticApps, privateApps, allowedTopLevelDirs, unexpectedTopLevelDirs, main } from './check.mjs';
+import { changedFiles, makePlan, staticApps, privateApps, allowedTopLevelDirs, unexpectedTopLevelDirs, main, minimumNodeMajor } from './check.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const script = fileURLToPath(new URL('./check.mjs', import.meta.url));
+
+test('workspace Node engines meet the selected check runtime requirement', () => {
+  assert.equal(minimumNodeMajor, 24);
+  const manifests = ['package.json', 'apps/web/package.json', 'apps/gu/package.json', 'apps/gzh/package.json', 'apps/health/package.json', 'apps/project/package.json', 'apps/me/package.json', 'packages/cli/package.json'];
+  for (const manifest of manifests) {
+    const packageJson = JSON.parse(readFileSync(path.join(repo, manifest), 'utf8'));
+    assert.match(packageJson.engines?.node ?? '', new RegExp(`^>=${minimumNodeMajor}(?:\\.|$)`), manifest);
+  }
+});
+
+test('lockfile keeps toolchain packages within the achieved major-version sets', () => {
+  const lockfile = readFileSync(path.join(repo, 'pnpm-lock.yaml'), 'utf8');
+  const majors = packageName => [...lockfile.matchAll(new RegExp(`^  ${packageName}@(\\d+)\\.`, 'gm'))]
+    .map(match => Number(match[1])).filter((major, index, values) => values.indexOf(major) === index).sort((a, b) => a - b);
+  assert.deepEqual(majors('wrangler'), [4]);
+  assert.deepEqual(majors('vite'), [7, 8]);
+  assert.deepEqual(majors('vitest'), [3, 4]);
+});
 
 function fixture(t) {
   const cwd = mkdtempSync(path.join(tmpdir(), 'kdp-agent-check-'));

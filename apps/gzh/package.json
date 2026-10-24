@@ -15,7 +15,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply codepi-gzh --remote"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "dependencies": {
     "hono": "^4.9.8"

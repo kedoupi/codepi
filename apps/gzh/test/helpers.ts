@@ -7,6 +7,7 @@ export async function requestOtp(email: string, ip = "1.1.1.1") {
     method: "POST",
     headers: {
       "content-type": "application/json",
+      Origin: "https://gzh.codepi.app",
       "CF-Connecting-IP": ip,
     },
     body: JSON.stringify({ email }),
@@ -16,7 +17,7 @@ export async function requestOtp(email: string, ip = "1.1.1.1") {
 export async function verifyOtp(email: string, code: string) {
   return SELF.fetch("https://gzh.codepi.app/api/auth/verify-otp", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", Origin: "https://gzh.codepi.app" },
     body: JSON.stringify({ email, code }),
   });
 }
@@ -36,6 +37,7 @@ export async function loginAsAllowlisted() {
 export function authed(cookie: string, path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("Cookie", cookie);
+  headers.set("Origin", "https://gzh.codepi.app");
   if (init.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }

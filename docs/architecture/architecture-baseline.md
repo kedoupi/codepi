@@ -22,7 +22,7 @@
 
 ### 1.2 技术栈与输出
 
-- 保留 Astro 6、Tailwind CSS 3、`@astrojs/sitemap`、Node.js `>=22.12.0`。
+- 保留 Astro 6、Tailwind CSS 3、`@astrojs/sitemap`、Node.js `>=24`。
 - 保留 `output: 'static'`、目录式输出和 `trailingSlash: 'always'`。
 - 继续使用浏览器本地计算和静态页面，不为静态工具引入后端。
 - 保留 Node 原生 `node:test`，不引入新的测试框架作为架构前提。

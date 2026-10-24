@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { env } from "cloudflare:test";
 import { authed, loginAsAllowlisted } from "./helpers";
 
 describe("board + review", () => {
@@ -440,5 +441,63 @@ describe("board + review", () => {
     expect(updatedBody.post.slug).toBe("kdp-0922-zao");
     expect(updatedBody.post.title).toBe("早档真稿");
     expect(updatedBody.post.is_demo).toBe(false);
+  });
+  it("loads all board reviews with one query and keeps each post's latest review", async () => {
+    const cookie = await loginAsAllowlisted();
+    for (const [slug, slot, publishDate] of [
+      ["board-bulk-zao", "早", "2026-12-01"],
+      ["board-bulk-zhong", "中", "2026-12-01"],
+      ["board-bulk-wan", "晚", "2026-12-01"],
+      ["board-bulk-queue", "早", "2026-12-02"],
+    ] as const) {
+      const created = await authed(cookie, "/api/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          slug,
+          title: slug,
+          slot,
+          publish_date: publishDate,
+          preview_path: `/previews/${slug}/`,
+          submit: true,
+        }),
+      });
+      expect(created.status).toBe(200);
+    }
+
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
+         VALUES (?, ?, 'acc_owner_kdp', ?, '待审', '需改', ?, ?)`,
+      ).bind("review-bulk-zao-old", "board-bulk-zao", "要改", "旧意见", "2026-01-01T00:00:00.000Z"),
+      env.DB.prepare(
+        `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
+         VALUES (?, ?, 'acc_owner_kdp', ?, '待审', '可推箱', ?, ?)`,
+      ).bind("review-bulk-zao-new", "board-bulk-zao", "过", null, "2026-02-01T00:00:00.000Z"),
+      env.DB.prepare(
+        `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
+         VALUES (?, ?, 'acc_owner_kdp', ?, '待审', '需改', ?, ?)`,
+      ).bind("review-bulk-queue", "board-bulk-queue", "要改", "队列意见", "2026-03-01T00:00:00.000Z"),
+    ]);
+
+    const prepare = vi.spyOn(env.DB, "prepare");
+    const response = await authed(cookie, "/api/board?date=2026-12-01");
+    const body = (await response.json()) as {
+      slots: { slot: string; post: { slug: string; last_review: unknown } | null }[];
+      queue: { slug: string; last_review: unknown }[];
+    };
+    const reviewQueries = prepare.mock.calls.filter(([query]) => /\bFROM reviews\b/i.test(query.toString()));
+    expect(reviewQueries).toHaveLength(1);
+    expect(body.slots.find((slot) => slot.slot === "早")?.post?.last_review).toEqual({
+      action: "过",
+      note: null,
+      created_at: "2026-02-01T00:00:00.000Z",
+    });
+    expect(body.slots.find((slot) => slot.slot === "中")?.post?.last_review).toBeNull();
+    expect(body.slots.find((slot) => slot.slot === "晚")?.post?.last_review).toBeNull();
+    expect(body.queue.find((post) => post.slug === "board-bulk-queue")?.last_review).toEqual({
+      action: "要改",
+      note: "队列意见",
+      created_at: "2026-03-01T00:00:00.000Z",
+    });
   });
 });

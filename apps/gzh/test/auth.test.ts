@@ -1,6 +1,8 @@
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { handleRequestOtp } from "../worker/auth";
+import { api } from "../worker/app";
+import { sameOrigin as checkSameOrigin } from "../worker/lib";
 import { ALLOWED, loginAsAllowlisted, requestOtp, verifyOtp } from "./helpers";
 
 describe("otp + session", () => {
@@ -94,6 +96,46 @@ describe("otp + session", () => {
       .bind(ALLOWED)
       .first<{ used_at: string | null }>();
     expect(row?.used_at).not.toBeNull();
+  });
+});
+
+describe("write origin gate", () => {
+  it("rejects authenticated writes without Origin while preserving same-origin and GET access", async () => {
+    const noOriginRequest = { headers: { get: () => null }, url: "https://gzh.codepi.app/posts" } as unknown as Request;
+    expect(checkSameOrigin(noOriginRequest)).toBe(false);
+    const cookie = await loginAsAllowlisted();
+    const callApi = (path: string, init: RequestInit = {}) => {
+      const request = new Request(`https://gzh.codepi.app${path}`, init);
+      if (!new Headers(init.headers).has("Origin")) request.headers.set("Origin", "");
+      return api.fetch(request, env);
+    };
+    const noOriginPost = await callApi("/posts", {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: "", "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(noOriginPost.status).toBe(403);
+    const noOriginPatch = await callApi("/posts/missing", {
+      method: "PATCH",
+      headers: { Cookie: cookie, Origin: "", "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(noOriginPatch.status).toBe(403);
+    const noOriginLogout = await callApi("/auth/logout", {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: "" },
+    });
+    expect(noOriginLogout.status).toBe(403);
+    const sameOriginResponse = await callApi("/board?date=2026-09-17", {
+      headers: { Cookie: cookie, Origin: "https://gzh.codepi.app" },
+    });
+    expect(sameOriginResponse.status).toBe(200);
+    const crossOrigin = await callApi("/posts", {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: "https://evil.example", "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    expect(crossOrigin.status).toBe(403);
   });
 });
 

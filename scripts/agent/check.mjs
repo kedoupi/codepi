@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
+export const minimumNodeMajor = 24;
 export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp', ops: 'services/ops', project: 'apps/project', me: 'apps/me', cli: 'packages/cli' };
 export const staticApps = ['web'];
 export const privateApps = ['auth', 'gu', 'gzh', 'health', 'project', 'me', 'mcp', 'ops', 'cli'];
@@ -218,7 +219,7 @@ export function main(args = process.argv.slice(2), cwd = root) {
     console.log('No automated checks selected; this is not an acceptance result.');
     return 0;
   }
-  if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Use Node 24 or newer for the selected checks.');
+  if (Number(process.versions.node.split('.')[0]) < minimumNodeMajor) throw new Error(`Use Node ${minimumNodeMajor} or newer for the selected checks.`);
   for (const { cwd: directory, argv } of plan.checks) {
     console.log(`\nRunning [${directory}] ${argv.join(' ')}`);
     const result = spawnSync(argv[0], argv.slice(1), {

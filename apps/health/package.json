@@ -21,6 +21,6 @@
     "test": "node --test scripts/tests/*.test.mjs && node --experimental-strip-types --test apps/web/test/*.test.mjs && pnpm --filter @health-kdp/api test && pnpm --filter @health-kdp/api test:integration"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }
