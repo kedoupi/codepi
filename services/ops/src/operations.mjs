@@ -6,6 +6,8 @@ import { checkTraffic } from '../../../scripts/cloudflare/traffic-monitor.mjs';
 import { backupDatabase, verifyBackupObject } from './backup.mjs';
 import { createObservabilityClient } from '../../../scripts/cloudflare/observability-api.mjs';
 import { runObserver } from './observer.mjs';
+import { STEP } from './step-options.mjs';
+export { STEP } from './step-options.mjs';
 import {
   assertCollectionBinding,
   backupCollectionMaterial,
@@ -13,7 +15,6 @@ import {
   ORIGINAL_COLLECTIONS,
 } from './materials.mjs';
 
-export const STEP = { retries: { limit: 2, delay: '30 seconds', backoff: 'exponential' }, timeout: '12 minutes' };
 
 // Workflows returns RPC-backed objects from step.do(). Copy the durable value into
 // this isolate, then release the RPC result immediately instead of retaining stubs.
