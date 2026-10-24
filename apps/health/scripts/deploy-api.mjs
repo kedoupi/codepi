@@ -96,6 +96,7 @@ async function main() {
   // token verification alone does not prove its resource permissions.
   let previousVersion = process.env.HEALTH_PREVIOUS_VERSION || '';
   const before = await cloudflare(schedulesUrl);
+  const installedCrons = (before.schedules || []).map(row => row.cron).sort();
   if (!previousVersion) {
     const deployments = await cloudflare(`${script}/deployments`);
     const versions = deployments?.deployments?.[0]?.versions ?? [];
@@ -171,7 +172,7 @@ async function main() {
     }));
   } catch (error) {
     console.error(`\nDeploy stopped at: ${completed}`);
-    if (completed.includes('serving 100%')) {
+    if (completed.includes('serving 100%') || completed.includes('live with a verified Cron schedule')) {
       console.error('The new version is serving traffic but the deploy did not finish.');
       console.error(previousVersion
         ? `Roll back with: pnpm exec wrangler versions deploy ${previousVersion}@100% --yes  (from apps/health/workers/api)`
