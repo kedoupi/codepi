@@ -59,6 +59,9 @@ export async function backupFreshness(bucket, { now = Date.now() } = {}) {
   }
   return results;
 }
+export function isBlockingMonitorResult(result) {
+  return result.advisory !== true && (!result.ok || Boolean(result.skipped));
+}
 
 export async function monitorOperation(env, step, event, { monitor = runMonitor, trafficCheck = checkTraffic } = {}) {
   const report = await settledStepResult(step.do('production monitor', STEP, async () => {
@@ -66,9 +69,9 @@ export async function monitorOperation(env, step, event, { monitor = runMonitor,
     results.push(...await backupFreshness(env.BACKUPS));
     results.push(...await trafficCheck({ env, bucket: env.BACKUPS }));
     const report = { instance_id: event.instanceId, kind: 'monitor', completed_at: new Date().toISOString(),
-      build: env.BUILD_SHA, ok: results.every(result => result.ok && !result.skipped), results };
+      build: env.BUILD_SHA, ok: !results.some(isBlockingMonitorResult), results };
     await saveReport(env.BACKUPS, 'monitor', report);
-    if (!report.ok) throw new Error(`${results.filter(result => !result.ok || result.skipped).length} production checks failed; inspect the private R2 monitor report`);
+    if (!report.ok) throw new Error(`${results.filter(isBlockingMonitorResult).length} production checks failed; inspect the private R2 monitor report`);
     return report;
   }));
   return { ok: true, checks: report.results.length };

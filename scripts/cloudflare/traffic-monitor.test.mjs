@@ -6,8 +6,29 @@ const row = (hour, requests = 10, threats = 1) => ({ dimensions: { datetime: hou
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 function bucket(initial) { let value = initial; return { async get() { return value === undefined ? null : { etag: 'etag', async json() { return JSON.parse(value); } }; }, async put(_key, body) { value = body; return {}; }, value: () => value }; }
 test('query sends fixed hourly GraphQL request and maps rows', async () => { let captured; const samples = await queryTrafficSamples(env, { now, request: async (url, init) => { captured = { url, init, body: JSON.parse(init.body) }; return response({ data: { viewer: { zones: [{ httpRequests1hGroups: [row('2026-10-22T09:00:00Z', 12, 3)] }] } } }); } }); assert.equal(captured.url, 'https://api.cloudflare.com/client/v4/graphql'); assert.equal(captured.init.headers.authorization, 'Bearer secret-token'); assert.deepEqual(captured.body.variables, { zoneTag: 'zone', start: '2026-10-22T08:00:00Z', end: '2026-10-22T10:00:00Z' }); assert.deepEqual(samples[0], { hour: '2026-10-22T09:00:00Z', requests: 12, threats: 3, bytes: 100, uniques: 2 }); });
-test('GraphQL errors and malformed zones fail closed without leaking secrets', async () => { for (const request of [async () => response({ errors: [{ message: 'private provider details', extensions: { code: 9109 } }] }), async () => response({ data: { viewer: { zones: [] } } })]) { const results = await checkTraffic({ env, bucket: bucket(), now, request }); assert.equal(results.length, 2); assert.ok(results.every(result => !result.ok && !('skipped' in result) && !result.detail.includes('secret-token') && !result.detail.includes('private provider'))); } });
+test('GraphQL errors and malformed zones fail closed without leaking secrets', async () => {
+  for (const request of [
+    async () => response({ errors: [{ message: 'private provider details', extensions: { code: 9109 } }] }),
+    async () => response({ data: { viewer: { zones: [] } } }),
+  ]) {
+    const results = await checkTraffic({ env, bucket: bucket(), now, request });
+    assert.equal(results.length, 2);
+    assert.ok(results.every(result => !result.ok && !('advisory' in result) && !('skipped' in result)
+      && !result.detail.includes('secret-token') && !result.detail.includes('private provider')));
+  }
+});
 test('baseline initializes, upserts and truncates', async () => { const store = bucket(); assert.deepEqual(await readTrafficBaseline(store), { version: 1, samples: [] }); const old = { hour: '2026-10-15T10:00:00Z', requests: 1, threats: 1, bytes: 1, uniques: 1 }, current = { hour: '2026-10-22T09:00:00Z', requests: 5, threats: 1, bytes: 1, uniques: 1 }; await mergeTrafficBaseline(store, [old, current], { now }); await mergeTrafficBaseline(store, [{ ...current, requests: 7 }], { now }); const baseline = await readTrafficBaseline(store); assert.equal(baseline.samples.length, 1); assert.equal(baseline.samples[0].requests, 7); });
-test('thresholds use cold-start absolute limits and strict boundaries', () => { const current = { hour: '2026-10-22T09:00:00Z', requests: 1000, threats: 25, bytes: 0, uniques: 0 }; assert.ok(evaluateTrafficAlerts([current], { now }).every(result => result.ok)); assert.ok(evaluateTrafficAlerts([{ ...current, requests: 1001, threats: 26 }], { now }).every(result => !result.ok)); assert.deepEqual(TRAFFIC_THRESHOLDS.requests, { absoluteMinimum: 1000, multiplier: 4 }); });
+test('thresholds use cold-start absolute limits and strict boundaries', () => {
+  const current = { hour: '2026-10-22T09:00:00Z', requests: 1000, threats: 25, bytes: 0, uniques: 0 };
+  const atLimit = evaluateTrafficAlerts([current], { now });
+  assert.equal(atLimit[0].advisory, true);
+  assert.equal(atLimit[1].advisory, undefined);
+  assert.ok(atLimit.every(result => result.ok));
+  const overLimit = evaluateTrafficAlerts([{ ...current, requests: 1001, threats: 26 }], { now });
+  assert.equal(overLimit[0].advisory, true);
+  assert.equal(overLimit[1].advisory, undefined);
+  assert.ok(overLimit.every(result => !result.ok));
+  assert.deepEqual(TRAFFIC_THRESHOLDS.requests, { absoluteMinimum: 1000, multiplier: 4 });
+});
 test('historical same-slot multiplier applies after 24 samples', () => { const samples = []; for (let i = 1; i <= 24; i++) { const date = new Date(Date.parse('2026-10-22T09:00:00Z') - i * 3600000); samples.push({ hour: date.toISOString().replace('.000Z', 'Z'), requests: 300, threats: 10, bytes: 1, uniques: 1 }); } samples.push({ hour: '2026-10-22T09:00:00Z', requests: 1201, threats: 41, bytes: 1, uniques: 1 }); assert.ok(evaluateTrafficAlerts(samples, { now }).every(result => !result.ok)); });
 test('missing latest row and corrupted baseline fail closed', async () => { const missing = await checkTraffic({ env, bucket: bucket(), now, request: async () => response({ data: { viewer: { zones: [{ httpRequests1hGroups: [] }] } } }) }); assert.ok(missing.every(result => !result.ok)); const failed = await checkTraffic({ env, bucket: bucket('{"version":1,"samples":"bad"}'), now, request: async () => response({ data: { viewer: { zones: [{ httpRequests1hGroups: [row('2026-10-22T09:00:00Z')] }] } } }) }); assert.ok(failed.every(result => !result.ok)); });
