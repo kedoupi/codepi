@@ -63,17 +63,19 @@ test('preflight tolerates comments and multiline schedules without selecting env
   assert.deepEqual(parseWranglerConfig(text).crons, ['*/2 * * * *']);
 });
 
-async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false } = {}) {
+async function fixture(t, { dryRunFails = false, credentialsDenied = false, deploymentsFail = false, fullDeploy = false, scheduleMismatch = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'health-deploy-preflight-'));
   const requests = [];
+  let schedulePut = false;
   const server = createServer((req, res) => {
     requests.push({ method: req.method, path: req.url });
+    if (req.method === 'PUT') schedulePut = true;
     const prefix = '/client/v4/accounts/test-account/workers/scripts/test-worker';
-    const schedules = req.method === 'GET' && req.url === `${prefix}/schedules`;
+    const schedules = req.url === `${prefix}/schedules` && (req.method === 'GET' || (fullDeploy && req.method === 'PUT'));
     const deployments = req.method === 'GET' && req.url === `${prefix}/deployments`;
     const ok = !credentialsDenied && (schedules || (deployments && !deploymentsFail));
     const result = schedules
-      ? { schedules: [{ cron: '*/2 * * * *' }] }
+      ? { schedules: [{ cron: scheduleMismatch && schedulePut ? '*/5 * * * *' : '*/2 * * * *' }] }
       : { deployments: [{ versions: [{ version_id: activeVersion, percentage: 100 }] }] };
     res.writeHead(ok ? 200 : 403, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(ok
@@ -100,10 +102,14 @@ async function fixture(t, { dryRunFails = false, credentialsDenied = false, depl
 const fs = require('node:fs');
 const args = process.argv.slice(2);
 fs.appendFileSync(process.env.PREFLIGHT_COMMAND_LOG, JSON.stringify(args) + '\\n');
-if (JSON.stringify(args) !== JSON.stringify(['exec', 'wrangler', 'deploy', '--dry-run', '--outdir=.deploy-preflight'])) {
+const allowed = ${fullDeploy}
+  ? ['deploy', 'd1', 'versions'].includes(args[2])
+  : JSON.stringify(args) === JSON.stringify(['exec', 'wrangler', 'deploy', '--dry-run', '--outdir=.deploy-preflight']);
+if (!allowed) {
   console.error('Unexpected mutating command'); process.exit(90);
 }
-fs.mkdirSync('.deploy-preflight', { recursive: true });
+if (args[2] === 'deploy') fs.mkdirSync('.deploy-preflight', { recursive: true });
+if (args[2] === 'versions' && args[3] === 'upload') console.log('Worker Version ID: 00000000-0000-4000-8000-000000000002');
 process.exit(${dryRunFails ? 1 : 0});
 `),
   ]);
@@ -111,9 +117,9 @@ process.exit(${dryRunFails ? 1 : 0});
 
   return {
     requests, root,
-    async run(overrides = {}) {
+    async run(overrides = {}, args = ['--preflight-only']) {
       const output = [];
-      const child = spawn(process.execPath, [join(root, 'scripts/deploy-api.mjs'), '--preflight-only'], {
+      const child = spawn(process.execPath, [join(root, 'scripts/deploy-api.mjs'), ...args], {
         cwd: root,
         env: {
           ...process.env,
@@ -150,6 +156,28 @@ test('--preflight-only validates locally and reads the active version without pr
     { method: 'GET', path: '/client/v4/accounts/test-account/workers/scripts/test-worker/deployments' },
   ]);
   await assert.rejects(stat(join(f.root, 'workers/api/.deploy-preflight')), { code: 'ENOENT' });
+});
+
+test('a full deploy reports success after verifying the unchanged Cron schedule', async t => {
+  const f = await fixture(t, { fullDeploy: true });
+  const run = await f.run({ GITHUB_SHA: 'a'.repeat(40) }, []);
+  assert.equal(run.status, 0, run.output);
+  assert.doesNotMatch(run.output, /Deploy stopped|Production is still on the previous Worker version/);
+  const evidence = JSON.parse(run.output.trim().split('\n').at(-1));
+  assert.equal(evidence.previous_version, activeVersion);
+  assert.equal(evidence.new_version, '00000000-0000-4000-8000-000000000002');
+  assert.deepEqual(run.commands.map(args => args.slice(2, 4)), [
+    ['deploy', '--dry-run'], ['d1', 'migrations'], ['versions', 'upload'], ['versions', 'deploy'],
+  ]);
+});
+
+test('a post-switch failure says the new version is serving traffic', async t => {
+  const f = await fixture(t, { fullDeploy: true, scheduleMismatch: true });
+  const run = await f.run({ GITHUB_SHA: 'a'.repeat(40) }, []);
+  assert.equal(run.status, 1, run.output);
+  assert.match(run.output, /new version is serving traffic/);
+  assert.match(run.output, new RegExp(`versions deploy ${activeVersion}@100%`));
+  assert.doesNotMatch(run.output, /Production is still on the previous Worker version/);
 });
 test('release evidence facts are optional and invalid caller facts fail closed', async t => {
   const source = await readFile(new URL('../deploy-api.mjs', import.meta.url), 'utf8');
