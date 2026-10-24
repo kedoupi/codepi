@@ -3,14 +3,14 @@
 - 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
-- worktree / 分支：历史实现来自独立 Observer worktree；后续修复经 PR #164/#165/#174/#175 合并到 main
+- worktree / 分支：历史实现来自独立 Observer worktree；第五轮经 PR #186/#188 集成到 main
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：Observer 相关当前 main `805af3fc3a6f`
-- 实施：已完成；Observer 运行时、指标、Issues 过滤、GitHub User-Agent 和服务名显示问题均已修复
-- 本地验证：Observer、manifest、rollback、GitHub notification 与 Operations Workflow 测试通过；受影响 CI 通过
-- 审查：PR #164、#165、#174、#175 的 CI 与受影响检查通过
-- 合并 / 推送 / 部署：已完成；Ops 当前版本以 Cloudflare 控制面为准
-- 实际流程验收：已完成；30 分钟 observe session、R2 summary、GitHub Issue comment、healthy_reported 和 rollback_blocked 均已实测
+- 当前交付 SHA：`db367df0e71adf2b886afb2c5792f1a6e9945c20`
+- 实施：第五轮补齐缺失错误率推导、GitHub 通知跨页去重与逐轮事件 ID、回滚重试及 active-version 对账；同时修正 CLI→MCP CI 依赖、Health 重复构建和退役备份通道文档
+- 本地验证：第五轮 focused tests 35/35、`node scripts/agent/check.mjs --base origin/main --run` 41 项通过；合并后以 `0658fd4` 为基线再次通过完整受影响检查、governance 和 migrations 检查
+- 审查：PR #186、#188 的 CI 与集成 diff 已检查
+- 合并 / 推送 / 部署：PR #188 已合并；2026-10-24 Ops 100% 版本 `245e8c98-c174-44fe-ac6d-a476f41233c4`，生产巡检全部通过
+- 实际流程验收：第五轮 observe session `cf_28eb7d963c4f9b104cc0b71fc7f1e215eda7d09b78cd7aafc911b9159d23e081` 七轮完成，R2 summary 为 `healthy_reported`；Issue #169 开始与完成通知均已核对
 - 协调者 / 执行者 / 审查者 / 集成者：主会话（OMP）顺序协调
 - 允许修改的路径：`docs/development/agent-workflow.md`、`local-release.md`、`cloudflare-operations.md`、`cloudflare-governance.md`、`cloudflare-resource-registry.md`、本任务记录与索引
 
@@ -28,6 +28,15 @@
 - 已实现并测试通过：Observer、manifest、rollback、GitHub notification 与 Operations Workflow 的本地合成测试。
 - 线上证据：`release-c97ae7a7fa7b-uafix` 7 轮观察完成，状态 `healthy_reported`；R2 summary 已写入；Issue #169 收到开始、critical/blocked 历史事件和完成评论。后续 `release-805af3fc3a6f-namesfix` 的通知显示 `services: ops`。
 - 生产巡检和备份：`reports/monitor/latest.json` 为 `ok=true`；`reports/backup/latest.json` 为 9 个 D1、114 个 GU/Me 原件对象、`ok=true`、`r2=complete`。
+- 第五轮线上证据：`release-db367df0e71a-fifth-round-ops` 的 active/expected version 七轮一致，无 Issues 或核心检查失败；实例于 2026-10-24T09:30:02Z 完成，完成评论 event ID 为 `release-db367df0e71a-fifth-round-ops-completed`。
+
+## 第五轮修复
+
+- `errorRate` 缺失且存在调用计数时，由 `errors / invocations` 推导；真实有限比率优先，保留低流量阈值。
+- GitHub Issue 和 comments 按最新顺序有界分页，避免超过 100 条后幂等检查失效；degraded/critical 使用逐轮稳定事件 ID。
+- rollback step 使用共享 `STEP` 有界重试；响应失败后独立读取 active version，已切回 previous version 的服务不再误报为失败。
+- `observer` 与 `operations` 共同使用 `step-options.mjs`，避免 ESM 循环依赖。
+- CLI 变更触发 MCP CI；Health 不再重复构建；公开 GitHub Release 备份通道在现行索引中明确退役。
 
 ## 未执行项
 
