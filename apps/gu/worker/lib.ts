@@ -77,9 +77,9 @@ export function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function secureResponse(response: Response) {
+export function secureResponse(response: Response, immutableAsset = false) {
   const headers = new Headers(response.headers);
-  headers.set("Cache-Control", "no-store");
+  headers.set("Cache-Control", immutableAsset ? "private, max-age=31536000, immutable" : "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("X-Frame-Options", "DENY");
   headers.set("Referrer-Policy", "no-referrer");

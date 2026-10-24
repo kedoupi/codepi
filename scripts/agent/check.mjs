@@ -105,7 +105,7 @@ export function makePlan(files) {
       addAll();
       workflow = true;
     } else if (file.startsWith('packages/shared/mcp/')) {
-      add(['health', 'gu', 'project', 'me', 'mcp', 'cli']);
+      add(['web', 'health', 'gu', 'project', 'me', 'mcp', 'cli']);
     } else if (file.startsWith('services/auth/') || file.startsWith('packages/shared/auth/')) {
       add(['web', ...privateApps]);
       sharedAuth = true;

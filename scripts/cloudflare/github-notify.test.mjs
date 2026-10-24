@@ -11,6 +11,21 @@ test('finds the long-lived observation issue and appends a safe comment', async 
   assert.match(calls[0].url, /repos\/kedoupi\/codepi\/issues/);
   assert.equal(calls.filter(call => call.options.method === 'POST').length, 1);
   assert.doesNotMatch(calls.at(-1).options.body, /secret/);
+  assert.ok(calls.every(call => call.options.signal instanceof AbortSignal));
+  assert.ok(calls.every(call => call.options.redirect === 'manual'));
+});
+
+test('aborts a hanging GitHub request', { timeout: 200 }, async () => {
+  await assert.rejects(
+    notifyGithub({ releaseId: 'rel-timeout' }, {
+      env: { GITHUB_TOKEN: 'synthetic' },
+      requestTimeoutMs: 1,
+      fetchImpl: async (_url, options) => new Promise((_, reject) => {
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+      }),
+    }),
+    /aborted|timed out/i,
+  );
 });
 
 test('accepts plain service names from the observer manifest', async () => {

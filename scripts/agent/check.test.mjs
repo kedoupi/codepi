@@ -309,6 +309,13 @@ test('MCP protocol and Health backend changes select the connector integration t
   }
 });
 
+test('shared MCP contract changes validate the web BlogMcp consumer', () => {
+  const plan = makePlan(['packages/shared/mcp/contract.ts']);
+  assert.ok(plan.apps.includes('web'));
+  assert.ok(plan.checks.some(check => check.cwd === 'apps/web' && check.argv.join(' ') === 'npm test'));
+  assert.ok(plan.checks.some(check => check.cwd === 'apps/web' && check.argv.join(' ') === 'npm run typecheck:desk'));
+});
+
 test('new domain contracts, storage and CLI select their consumers', () => {
   const contract = makePlan(['packages/shared/mcp/contract.ts']);
   for (const app of ['health', 'gu', 'project', 'me', 'mcp', 'cli']) assert.ok(contract.apps.includes(app));
