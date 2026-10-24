@@ -5,7 +5,7 @@
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
 - worktree / 分支：第七至十八轮候选依次叠加到 `codex/round18-integration`，均未合并 main（`08bdfed`）
 - 起始 SHA / 审查基线：`436c19b7e85ee67c56b8c13a4e45b9a3441a520b`
-- 当前交付 SHA：第十八轮候选（提交后回填）；尚未合并 main
+- 当前交付 SHA：第十八轮候选 `ea0f1b1dd7adfe4da563131c8e5dba532166085f`；尚未合并 main
 - 实施：第七至十七轮见前次记录。第十八轮新增 observe manifest 运行时校验、Health sync window 覆盖查询索引、GU 材料内容哈希对象键、GU OTP 发送重入保护、Health probe 仅允许 GET
 - 本地验证：`check.mjs --base f5f19b1 --run` 23 项全部通过；GU 265、Health API 130、Cloudflare 181 项测试通过；GU 实际浏览器连续点击只产生 1 次 OTP 请求并进入冷却；migration guard 29 个文件通过
 - 审查：第十八轮 diff 已审查；主 checkout 未提交改动未被覆盖，真实生产发布和线上观察未执行
