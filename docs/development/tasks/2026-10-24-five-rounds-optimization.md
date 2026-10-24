@@ -29,8 +29,13 @@
    - agent lint 增加 Markdown 相对路径和 GitHub anchor 检查，忽略 fenced code 与外链。
    - 修正 Project/Me 产品状态、六产品口径和 Observer/rollback registry 的过时事实。
 
-## 验证
+## 最终复核补充
 
+- 发布后 Observer 7 轮完成，状态 `healthy_reported`；应用、MCP、Health、Web/GU/GZH smoke 全部通过。
+- 随后的真实 Cron monitor 发现独立的 zone 请求峰值：最新完整小时 `requests=2829`，阈值 `1000`，因此 monitor 正确保持失败；同期 threats=120 仅为 `advisory`。这不是应用回归，需按流量运营事件处理，未通过调高阈值或吞掉错误来掩盖。
+- 该小时的 Cloudflare Analytics 只读复核受当前 CLI token 的 Zone Analytics 权限限制，Ops 自身仍能写出流量报告并执行告警；应用健康检查继续通过。
+
+## 验证
 - Observer 测试：6/6。
 - Project：46 tests、typecheck、production build 通过。
 - Health API：68 tests 通过。
