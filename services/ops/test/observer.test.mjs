@@ -10,7 +10,17 @@ const twoServiceManifest = {
     { service: 'worker', script: 'worker', previous_version: 'old-worker', new_version: 'new-worker', rollback_allowed: true },
   ],
 };
-function bucket() { const data = new Map(); return { data, async put(key, value) { data.set(key, String(value)); } }; }
+function bucket() {
+  const data = new Map();
+  return {
+    data,
+    async put(key, value) { data.set(key, String(value)); },
+    async get(key) {
+      const value = data.get(key);
+      return value === undefined ? null : { async json() { return JSON.parse(value); } };
+    },
+  };
+}
 function fakeClient(metrics) { return { async queryWorkerMetrics() { return metrics; }, async listIssues() { return []; } }; }
 const active = async () => 'new';
 // Mirrors the Workflows contract: sleep(name, duration) and do(name, [options], fn).
@@ -226,6 +236,31 @@ test('waits between the seven polls with uniquely named Workflow sleeps', async 
   assert.equal(new Set(sleeps.map(([name]) => name)).size, 6);
   assert.ok(sleeps.every(([, duration]) => duration === '5 minutes'));
 });
+test('escalates a sustained error rate when each poll step runs in a fresh isolate', async () => {
+  const b = bucket();
+  const calls = [];
+  let checks = 0;
+  // A Workflow step.do is replayed from scratch, so nothing captured by its closure survives.
+  const replayingStep = {
+    ...step,
+    async do(_name, options, fn) { fn ??= options; return fn(); },
+  };
+  const result = await runObserver({
+    manifest,
+    bucket: b,
+    step: replayingStep,
+    observability: fakeClient({ invocations: 20, errors: 20, errorRate: .20 }),
+    activeVersionCheck: async () => (++checks <= 2 ? 'new' : 'old'),
+    rollbackWorker: async args => { calls.push(args); return { script: args.script, active_version: args.targetVersion }; },
+    rollbackApi: async () => {},
+    notify: async () => {},
+  });
+  assert.equal(result.state, 'rollback_verified');
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(b.data.get('reports/observer/rel-test/poll-0.json')).services[0].severity, 'degraded');
+  assert.equal(JSON.parse(b.data.get('reports/observer/rel-test/poll-1.json')).services[0].severity, 'critical');
+});
+
 test('rolls back every critical service and verifies the previous versions', async () => {
   const b = bucket();
   const calls = [];
