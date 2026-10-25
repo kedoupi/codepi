@@ -1,8 +1,27 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { rollbackWorker } from './rollback-worker.mjs';
+import { cloudflareApi, rollbackWorker } from './rollback-worker.mjs';
 
 const deployment = version => ({ deployments: [{ versions: [{ version_id: version, percentage: 100 }] }] });
+
+test('rejects redirects without following or leaking provider content', async () => {
+  let calls = 0;
+  const api = cloudflareApi({
+    env: { CLOUDFLARE_ACCOUNT_ID: 'synthetic-account', CLOUDFLARE_ROLLBACK_TOKEN: 'synthetic-rollback-token' },
+    request: async (url, init) => {
+      calls++;
+      assert.equal(init.redirect, 'manual');
+      return Response.json({ success: false, errors: [{ message: 'private-provider-content' }] },
+        { status: 302, headers: { location: 'https://other.synthetic/' } });
+    },
+  });
+  await assert.rejects(api('/workers/scripts/codepi-ops/deployments'), error => {
+    assert.match(error.message, /HTTP 302/);
+    assert.doesNotMatch(error.message, /private-provider-content|synthetic-rollback-token/);
+    return true;
+  });
+  assert.equal(calls, 1);
+});
 
 function fakeApi(sequence) {
   const calls = [];
