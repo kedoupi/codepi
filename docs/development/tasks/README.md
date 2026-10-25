@@ -9,8 +9,8 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
-| 仓库公开与全量重发 | 已改名 `kedoupi/codepi` 并公开；备份 Release/tag 已删除；十个 Worker 已重发；通知、备份、巡检、MCP 授权修复和浏览器验收均已通过 | [任务记录](2026-10-23-public-rename-redeploy.md)：本机 main 待 `git pull --ff-only`；真实邮件 OTP、Oura 重授权和 MCP 客户端重连待所有者操作 |
-| Ops Observer 正式工作流 | 第七至十八轮统一候选为 `codex/round18-integration`，组合 23 项检查通过；新增 observe manifest 校验、Health 窗口索引、GU 材料哈希对象键、OTP 重入保护、Health 方法限制。尚未合并或发布，GitHub CLI token 无效阻塞 PR/CI；本地 main 落后且有未提交改动，按要求未 pull | [任务记录](2026-10-23-ops-observer.md)：恢复 `gh` 认证且处理本地 main 后，只创建该分支一个 PR，CI 后合并并按 release-scope 发布受影响服务 |
+| 仓库公开与全量重发 | 已改名 `kedoupi/codepi` 并公开；备份 Release/tag 已删除；十个 Worker 已重发；通知、备份、巡检、MCP 授权修复和浏览器验收均已通过 | [任务记录](2026-10-23-public-rename-redeploy.md)：真实邮件 OTP、Oura 重授权和 MCP 客户端重连待所有者操作 |
+| Ops Observer 正式工作流 | 第七至十九轮候选（含 GZH 状态迁移 CAS 与 Project 任务同步修复）于 2026-10-25 经本地验证 fast-forward 合并 main；第六轮线上证据已补录。尚未发布 | [任务记录](2026-10-23-ops-observer.md)：按 release-scope 发布受影响服务并做七轮观察；`gh` 重新认证后复核 Issue 通知；发布后自动触发和真实安全回滚演练仍待补 |
 | Cloudflare 告警优化 | 已闭环：WAF 边缘拦截（含编码变体与 credentials.json）、incident 策略删除、MCP 403+warn（PR #145/#149）、巡检 423 修复（PR #151）、全部漂移 Worker 重发、codepi-blog 纳入九库备份（手动实例已回执）、monitor 连续 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：开发活跃期合并共享代码即产生漂移告警，需随合并节奏发布 |
 | Workers Issues 自动告警 | 十个生产 Worker 的 20 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
 | Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
