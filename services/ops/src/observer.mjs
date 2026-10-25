@@ -73,6 +73,20 @@ function safeValue(value) {
   return value;
 }
 
+// The consecutive-round counter must cross Workflow step boundaries. A step.do callback
+// is replayed in a fresh isolate, so an in-memory Map always reads zero and a sustained
+// failure can never escalate. The previous round's poll report is the durable record.
+async function loadPriorCritical(bucket, releaseId, round) {
+  const prior = new Map();
+  if (!bucket || round < 1) return prior;
+  const object = await bucket.get(`reports/observer/${releaseId}/poll-${round - 1}.json`);
+  const report = object ? await object.json() : null;
+  for (const [script, count] of Object.entries(report?.criticalRounds ?? {})) {
+    if (Number.isSafeInteger(count) && count >= 0) prior.set(script, count);
+  }
+  return prior;
+}
+
 export async function observeReleaseRound({ manifest, round, observability, coreCheck = async () => [], activeVersionCheck = activeWorkerVersion, env = {}, priorCritical = new Map() }) {
   assert.ok(observability && typeof observability.listIssues === 'function' && typeof observability.queryWorkerMetrics === 'function', 'observability client is required');
   const services = [];
@@ -110,7 +124,6 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   const releaseId = manifest.release_id;
   let state = 'created';
   const seen = new Set();
-  const criticalRounds = new Map();
   let rollbackSummary = null;
   let lastPoll = null;
   const events = [];
@@ -134,7 +147,9 @@ export async function runObserver({ manifest, bucket, step, env = {}, observabil
   const offsets = [0, 5, 10, 15, 20, 25, 30];
   for (let i = 0; i < offsets.length; i++) {
     if (i > 0 && step?.sleep) await step.sleep(`observer wait ${i}`, `${offsets[i] - offsets[i - 1]} minutes`);
-    const poll = await (step?.do ? step.do(`observer poll ${i}`, async () => observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds })) : observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: criticalRounds }));
+    // Read the counter inside the step so a replayed step sees the report the previous
+    // step already committed, instead of a counter that only exists in this isolate.
+    const poll = await (step?.do ? step.do(`observer poll ${i}`, async () => observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: await loadPriorCritical(bucket, releaseId, i) })) : observeReleaseRound({ manifest, round: i, observability, coreCheck, activeVersionCheck, env, priorCritical: await loadPriorCritical(bucket, releaseId, i) }));
     lastPoll = poll;
     await bucket.put(`reports/observer/${releaseId}/poll-${i}.json`, JSON.stringify(safeValue(poll)), { httpMetadata: { contentType: 'application/json' } });
     const critical = poll.services.some(item => item.severity === 'critical');
