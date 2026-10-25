@@ -19,7 +19,7 @@
 | GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：原资料、生产数据、正式密文保留；GitHub 自动复制已验收，自动研究与 GU MCP 为后续阶段 |
 | 工程文档与 Agent 规范整理 | 本地整理、链接核对与受影响检查完成，经 PR #106 交付 | [本轮记录](2026-10-19-engineering-docs.md)：入口、规则、skills 与历史标记已校正；主干状态以 PR 为准，后续新任务从包含规范的 main 开始 |
 | Cloudflare 定时运维 | 私有 R2 v3 备份为现行通道，覆盖九库及 GU/Me 原件；GitHub Release 自动复制已退役，仅保留历史验收记录 | [R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[公开与重发记录](2026-10-23-public-rename-redeploy.md)：每日 Cron 以实际回执为准，异机私钥取回为 TODO |
-| 统一 MCP / Health | 已上线；所有者确认 Claude 手机端已连接并使用 | [使用确认与验收范围](2026-10-18-unified-mcp.md#2026-10-19-claude-手机端使用确认)：按使用反馈改进，其他客户端及刷新/撤销等专项检查按需补齐 |
+| 统一 MCP / Health | 已上线；所有者确认 Claude 手机端已连接并使用。Agent 兼容扩展仍在本地工作区，未部署 | [使用确认与验收范围](2026-10-18-unified-mcp.md#2026-10-19-claude-手机端使用确认)、[接入兼容](2026-10-25-mcp-agent-compat.md)：真实客户端验收仍待所有者 |
 | Desk 真实使用验收 | Worker、D1 和所需 secret 名称已有后续发布证据；不能继续仅凭最初 P6 记录判断“未部署” | [首页迁移](2026-10-17-web-static-assets.md)、[资源登记表](../cloudflare-resource-registry.md)、[应用说明](../../../apps/web/README.md)：如继续此产品，核对登录后的三来源摘要，不因旧 TODO 重建资源或轮换凭证 |
 | 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标，未覆盖 Desk/MCP | 本轮仅记录：[Auth 使用限制](../../../services/auth/README.md#validation)。后续先更新目标和覆盖范围，再按授权执行真实邮件验收；不影响现行发布探针 |
 

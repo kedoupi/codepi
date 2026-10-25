@@ -13,7 +13,7 @@ test('official SDK client initializes and calls tools across independent HTTP re
   await client.connect(new StreamableHTTPClientTransport(new URL(ORIGIN + '/mcp'), {
     fetch: f.fetch, requestInit: { headers: { Authorization: 'Bearer ' + grant.access_token } },
   }));
-  assert.equal((await client.listTools()).tools.length, 5);
+  assert.equal((await client.listTools()).tools.length, 6);
   const result = await client.callTool({ name: 'list_data_sources', arguments: {} });
   assert.equal(result.structuredContent.sources[0].id, 'health');
 });
@@ -32,7 +32,7 @@ test('SSO, resource bound OAuth, SDK transport and private Health RPC work toget
   });
   assert.equal(init.body.result.serverInfo.name, 'codepi');
   const listed = await f.rpc(grant.access_token, 'tools/list');
-  assert.equal(listed.body.result.tools.length, 5);
+  assert.equal(listed.body.result.tools.length, 6);
   assert.equal(listed.body.result.tools.find(t => t.name === 'health_query_records').annotations.readOnlyHint, false);
   const directory = await f.tool(grant.access_token, 'list_data_sources');
   assert.deepEqual(directory.structuredContent.sources.map(s => s.id), ['health']);
@@ -60,8 +60,27 @@ test('rotation replay retires only its family, wrong audience and expired access
   assert.equal(response.status, 200);
   const pair = await response.json();
   assert.notEqual(pair.refresh_token, grant.refresh_token);
-  assert.equal((await f.post('/oauth/token', refresh)).status, 400);
-  assert.equal((await f.rpc(pair.access_token, 'tools/list')).status, 401);
+  // A retry after a lost response, within the grace window, keeps the connection alive.
+  const retry = await f.post('/oauth/token', refresh);
+  assert.equal(retry.status, 200);
+  const retried = await retry.json();
+  assert.notEqual(retried.refresh_token, pair.refresh_token);
+  assert.equal((await f.rpc(pair.access_token, 'tools/list')).status, 200, 'the first successor stays valid');
+  assert.equal((await f.rpc(retried.access_token, 'tools/list')).status, 200);
+  // The window issues a bounded number of live pairs; further reuse is a leak and closes the family.
+  assert.equal((await f.post('/oauth/token', refresh)).status, 200);
+  assert.equal((await f.post('/oauth/token', refresh)).status, 200);
+  assert.equal((await f.post('/oauth/token', refresh)).status, 400, 'a fifth live pair is never minted');
+  assert.equal((await f.rpc(retried.access_token, 'tools/list')).status, 401);
+  const capped = await f.grant(), cappedRefresh = { ...refresh, client_id: capped.client.client_id, refresh_token: capped.refresh_token };
+  const cappedPair = await (await f.post('/oauth/token', cappedRefresh)).json();
+  assert.equal((await f.post('/oauth/token', cappedRefresh)).status, 200);
+  // Outside the window the same token is a leak and retires the whole family.
+  await f.db.prepare('UPDATE mcp_tokens SET rotated_at=rotated_at-120000 WHERE token_hash=?')
+    .bind(await hash(capped.refresh_token)).run();
+  assert.equal((await f.post('/oauth/token', cappedRefresh)).status, 400);
+  assert.equal((await f.rpc(cappedPair.access_token, 'tools/list')).status, 401);
+  assert.equal((await f.post('/oauth/token', { ...cappedRefresh, refresh_token: cappedPair.refresh_token })).status, 400);
   const another = await f.grant();
   await f.db.prepare('UPDATE mcp_tokens SET resource=? WHERE token_hash=?')
     .bind('https://wrong.example/mcp', await hash(another.access_token)).run();
@@ -325,7 +344,7 @@ test('anonymous release smoke fails when the MCP SSO credential has not been pai
   assert.equal((await paired.at('/api/health')).status, 503);
 });
 
-test('concurrent code and refresh redemptions issue at most one token pair', async t => {
+test('concurrent code redemptions issue one pair; racing refreshes both keep the connection', async t => {
   const f = await fixture(t), grant = await f.grant({ exchange: false });
   const codes = await Promise.all([f.post('/oauth/token', grant.tokenForm), f.post('/oauth/token', grant.tokenForm)]);
   assert.deepEqual(codes.map(r => r.status).sort(), [200, 400]);
@@ -333,9 +352,15 @@ test('concurrent code and refresh redemptions issue at most one token pair', asy
   assert.equal((await f.rpc(first.access_token, 'tools/list')).status, 200);
   const request = { grant_type: 'refresh_token', client_id: grant.client.client_id, refresh_token: first.refresh_token };
   const rotated = await Promise.all([f.post('/oauth/token', request), f.post('/oauth/token', request)]);
-  assert.deepEqual(rotated.map(r => r.status).sort(), [200, 400]);
-  const winner = await rotated.find(r => r.status === 200).json();
-  assert.equal((await f.rpc(winner.access_token, 'tools/list')).status, 401, 'the losing refresh replay revokes this family');
+  assert.deepEqual(rotated.map(r => r.status), [200, 200], 'two processes sharing one credential must not disconnect it');
+  for (const response of rotated) {
+    assert.equal((await f.rpc((await response.json()).access_token, 'tools/list')).status, 200);
+  }
+  // Explicit revocation is not a rotation: a revoked token gets no grace.
+  const another = await f.grant();
+  await f.post('/oauth/revoke', { client_id: another.client.client_id, token: another.refresh_token });
+  assert.equal((await f.post('/oauth/token', { grant_type: 'refresh_token', client_id: another.client.client_id,
+    refresh_token: another.refresh_token })).status, 400);
 });
 
 test('protocol bounds bodies, validates media type and rejects unsafe client redirects', async t => {

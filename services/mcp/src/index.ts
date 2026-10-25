@@ -2,6 +2,8 @@ import { beginLogin, finishLogin, logoutSso, ssoReady, SsoError } from "@kedoupi
 import type { Env } from "./env.ts";
 import { authorize, connections, discovery, register, revoke, token } from "./oauth.ts";
 import { mcp } from "./protocol.ts";
+import { legacySse } from "./legacy-sse.ts";
+export { LegacySse } from "./legacy-sse.ts";
 import { HttpError, json } from "./http.ts";
 import { contentSecurityPolicy, page } from "./pages.ts";
 
@@ -9,6 +11,9 @@ function allowedMcpOrigin(origin: string, env: Env) {
   return origin === env.MCP_ORIGIN
     || (env.MCP_ALLOWED_ORIGINS ?? "").split(",").map(value => value.trim()).includes(origin);
 }
+
+// Users often paste the endpoint with a trailing slash; serve it as the same resource.
+const mcpPath = (pathname: string) => pathname === "/mcp/" ? "/mcp" : pathname;
 
 async function ready(env: Env) {
   if (!env.AUTH_CLIENT_SECRET || env.AUTH_CLIENT_SECRET.length < 32 || !env.AUTH || !env.HEALTH
@@ -27,20 +32,22 @@ async function route(request: Request, env: Env, requestId: string) {
     console.warn(JSON.stringify({ event: "mcp_rejected_origin", request_id: requestId, origin: url.origin }));
     return json({ error: "canonical_origin_required" }, 403);
   }
-  const path = url.pathname, method = request.method;
-  const bearer = path === "/mcp" || path.startsWith("/.well-known/") || ["/oauth/register", "/oauth/token", "/oauth/revoke"].includes(path);
+  const path = mcpPath(url.pathname), method = request.method;
+  const transport = ["/mcp", "/sse", "/messages"].includes(path);
+  const bearer = transport || path.startsWith("/.well-known/") || ["/oauth/register", "/oauth/token", "/oauth/revoke"].includes(path);
   const origin = request.headers.get("Origin");
   if (origin && origin !== url.origin && !bearer) throw new HttpError("origin_not_allowed", 403);
-  if (path === "/mcp" && origin && !allowedMcpOrigin(origin, env)) throw new HttpError("origin_not_allowed", 403);
+  if (transport && origin && !allowedMcpOrigin(origin, env)) throw new HttpError("origin_not_allowed", 403);
   if (method === "OPTIONS" && bearer) {
     return new Response(null, { status: 204, headers: {
-      "Access-Control-Allow-Origin": path === "/mcp" ? origin ?? url.origin : "*",
+      "Access-Control-Allow-Origin": transport ? origin ?? url.origin : "*",
       "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version, MCP-Session-Id",
       "Access-Control-Expose-Headers": "WWW-Authenticate, MCP-Protocol-Version",
     } });
   }
   if (path === "/mcp") return mcp(request, env);
+  if (["/sse", "/messages"].includes(path)) return legacySse(request, env);
   if (path.startsWith("/.well-known/") && method === "GET") {
     if (["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp"].includes(path)) return discovery(env, true);
     if (["/.well-known/oauth-authorization-server", "/.well-known/oauth-authorization-server/mcp"].includes(path)) return discovery(env, false);
@@ -52,7 +59,7 @@ async function route(request: Request, env: Env, requestId: string) {
   if (path === "/api/auth/login" && method === "GET") return beginLogin(request, env);
   if (path === "/api/auth/callback" && method === "GET") return finishLogin(request, env, { userId: "kdp-owner", ttlSeconds: 30 * 86400 });
   if (path === "/api/auth/logout" && method === "POST") return logoutSso(request, env);
-  if (path === "/connections" && ["GET", "POST"].includes(method)) return connections(request, env);
+  if (["/connections", "/connections/tokens", "/connections/clients"].includes(path) && ["GET", "POST"].includes(method)) return connections(request, env);
   if (path === "/api/health" && method === "GET") {
     const configured = await ready(env);
     return json({ ok: configured, service: "codepi-mcp", build: env.BUILD_SHA ?? "local" }, configured ? 200 : 503);
@@ -82,8 +89,8 @@ export default {
     headers.set("Referrer-Policy", "same-origin");
     headers.set("X-Content-Type-Options", "nosniff");
     if (!headers.has("Content-Security-Policy")) headers.set("Content-Security-Policy", contentSecurityPolicy());
-    const path = new URL(request.url).pathname, origin = request.headers.get("Origin");
-    if (path === "/mcp") {
+    const path = mcpPath(new URL(request.url).pathname), origin = request.headers.get("Origin");
+    if (["/mcp", "/sse", "/messages"].includes(path)) {
       headers.set("Vary", "Origin");
       if (origin && allowedMcpOrigin(origin, env)) headers.set("Access-Control-Allow-Origin", origin);
       headers.set("Access-Control-Expose-Headers", "WWW-Authenticate, MCP-Protocol-Version");

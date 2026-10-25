@@ -23,6 +23,11 @@ export const hasScope = (granted: string, scope: Scope) => granted.split(" ").in
 export const resource = (env: Env) => `${env.MCP_ORIGIN}/mcp`;
 export const ACCESS_TTL_SECONDS = 60 * 60;
 export const REFRESH_TTL_SECONDS = 60 * 60 * 24 * 30;
+// A client whose refresh response was lost, or whose processes raced, may present the
+// just-rotated token again. Within this window it gets a fresh pair instead of losing the connection.
+export const REFRESH_REUSE_GRACE_MS = 60 * 1000;
+// Retries and racing processes need a handful of pairs; a leaked rotated token cannot mint more.
+const REFRESH_REUSE_MAX_LIVE = 4;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
 // Each authorization has its own refresh-token rotation family.
@@ -43,32 +48,50 @@ export async function sha256Base64Url(value: string): Promise<string> {
   return base64Url(new Uint8Array(digest));
 }
 
+export const CLIENT_AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"] as const;
+export type ClientAuthMethod = typeof CLIENT_AUTH_METHODS[number];
+
 export type OAuthClient = {
   client_id: string;
   client_name: string | null;
   redirect_uris: string; // JSON array
+  token_endpoint_auth_method: ClientAuthMethod;
+  client_secret_hash: string | null;
 };
 
 export async function createClient(
   env: Env,
   name: string | null,
   redirectUris: string[],
-): Promise<OAuthClient> {
+  authMethod: ClientAuthMethod = "none",
+): Promise<OAuthClient & { client_secret?: string }> {
+  // Confidential registrations still use PKCE; the secret is an additional check, stored as a hash.
+  const secret = authMethod === "none" ? undefined : randomToken(32);
   const client: OAuthClient = {
     client_id: `mcp_${randomToken(16)}`,
     client_name: name,
     redirect_uris: JSON.stringify(redirectUris),
+    token_endpoint_auth_method: authMethod,
+    client_secret_hash: secret ? await sha256Base64Url(secret) : null,
   };
   await env.DB.prepare(
-    "INSERT INTO oauth_clients (client_id, client_name, redirect_uris) VALUES (?, ?, ?)",
-  ).bind(client.client_id, client.client_name, client.redirect_uris).run();
-  return client;
+    `INSERT INTO oauth_clients (client_id, client_name, redirect_uris, token_endpoint_auth_method, client_secret_hash)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).bind(client.client_id, client.client_name, client.redirect_uris, authMethod, client.client_secret_hash).run();
+  return secret ? { ...client, client_secret: secret } : client;
 }
 
 export async function getClient(env: Env, clientId: string): Promise<OAuthClient | null> {
   return env.DB.prepare(
-    "SELECT client_id, client_name, redirect_uris FROM oauth_clients WHERE client_id = ?",
+    `SELECT client_id, client_name, redirect_uris, token_endpoint_auth_method, client_secret_hash
+     FROM oauth_clients WHERE client_id = ?`,
   ).bind(clientId).first<OAuthClient>();
+}
+
+/** Public clients pass; confidential clients must present their registered secret. */
+export async function clientSecretMatches(client: OAuthClient, secret: string | null): Promise<boolean> {
+  if (client.token_endpoint_auth_method === "none") return true;
+  return Boolean(client.client_secret_hash) && secret !== null && await sha256Base64Url(secret) === client.client_secret_hash;
 }
 
 export function clientRedirects(client: OAuthClient): string[] {
@@ -78,6 +101,22 @@ export function clientRedirects(client: OAuthClient): string[] {
   } catch {
     return [];
   }
+}
+
+const UNSAFE_SCHEMES = new Set(["javascript:", "data:", "file:", "vbscript:", "about:", "blob:", "ws:", "wss:", "ftp:"]);
+
+/**
+ * Exact HTTPS, HTTP loopback or an RFC 8252 private-use scheme (cursor://, vscode://, com.example.app:/).
+ * PKCE protects every flow, so an app-claimed scheme cannot redeem a code it did not start.
+ */
+export function registrableRedirect(uri: unknown): boolean {
+  if (typeof uri !== "string" || uri.length > 2048) return false;
+  let u: URL;
+  try { u = new URL(uri); } catch { return false; }
+  if (u.hash || u.username || u.password) return false;
+  if (u.protocol === "https:") return true;
+  if (u.protocol === "http:") return ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+  return /^[a-z][a-z0-9+.-]*:$/.test(u.protocol) && !UNSAFE_SCHEMES.has(u.protocol);
 }
 
 /** RFC 8252: only an HTTP loopback IP's port may vary; all other bytes match. */
@@ -281,7 +320,8 @@ export type RefreshExchange =
  * concurrent redemptions of the same token mutually exclusive: only the
  * request that really inserted the successor may retire the old row.
  *
- * A replayed (already rotated) refresh token is treated as a leak: the whole
+ * A rotated token presented again within a short grace window is treated as a
+ * client retry. After that window a replay is treated as a leak: the whole
  * family is revoked, per OAuth 2.1 refresh-token reuse detection.
  */
 export async function exchangeRefreshToken(
@@ -311,12 +351,12 @@ export async function exchangeRefreshToken(
          AND expires_at > ? AND client_id = ? AND resource = ? AND scope = ?`,
     ).bind(successorHash, nextScope, now + REFRESH_TTL_SECONDS * 1000, oldHash, now, clientId, resource(env), previous?.scope ?? ""),
     // 2. Retire the presented token only if this batch issued its successor.
-    //    A failed exchange is checked separately for authenticated replay.
+    //    A failed exchange is checked separately for retry grace or replay.
     env.DB.prepare(
-      `UPDATE mcp_tokens SET revoked_at = ?
+      `UPDATE mcp_tokens SET revoked_at = ?, rotated_at = ?
        WHERE token_hash = ? AND revoked_at IS NULL
          AND EXISTS (SELECT 1 FROM mcp_tokens WHERE token_hash = ?)`,
-    ).bind(now, oldHash, successorHash),
+    ).bind(now, now, oldHash, successorHash),
     // 3. The paired access token, gated on the successor existing.
     env.DB.prepare(
       `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
@@ -332,6 +372,8 @@ export async function exchangeRefreshToken(
     | { user_id: string; client_id: string; scope: string }
     | undefined;
   if (!granted) {
+    const retried = await graceRefresh(env, oldHash, clientId, nextScope, now);
+    if (retried) return retried;
     const replayed = await env.DB.prepare(
       `SELECT ${TOKEN_FAMILY_SQL} AS family_id FROM mcp_tokens
        WHERE token_hash = ? AND client_id = ? AND kind = 'refresh' AND revoked_at IS NOT NULL`,
@@ -352,6 +394,44 @@ export async function exchangeRefreshToken(
       expires_in: ACCESS_TTL_SECONDS, scope,
     },
   };
+}
+
+/**
+ * A token rotated within REFRESH_REUSE_GRACE_MS, whose family still holds a live refresh
+ * token, is a lost-response retry or a racing process rather than a leak. Issue another
+ * pair in the same family without retiring the earlier successor, which its winner still holds.
+ * An explicitly revoked or replay-revoked family has no live refresh token and stays closed.
+ */
+async function graceRefresh(
+  env: Env, oldHash: string, clientId: string, scope: string, now: number,
+): Promise<RefreshExchange | null> {
+  const access = randomToken(32), refresh = randomToken(32);
+  const refreshHash = await sha256Base64Url(refresh);
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, o.user_id, o.client_id, 'refresh', ?, ?, o.${TOKEN_FAMILY_SQL}, o.resource
+       FROM mcp_tokens o
+       WHERE o.token_hash = ? AND o.kind = 'refresh' AND o.client_id = ? AND o.resource = ?
+         AND o.rotated_at IS NOT NULL AND o.rotated_at >= ?
+         AND EXISTS (SELECT 1 FROM mcp_tokens l WHERE l.${TOKEN_FAMILY_SQL} = o.${TOKEN_FAMILY_SQL}
+           AND l.client_id = o.client_id AND l.kind = 'refresh' AND l.revoked_at IS NULL AND l.expires_at > ?)
+         AND (SELECT COUNT(*) FROM mcp_tokens l WHERE l.${TOKEN_FAMILY_SQL} = o.${TOKEN_FAMILY_SQL}
+           AND l.client_id = o.client_id AND l.kind = 'refresh' AND l.revoked_at IS NULL) < ?`,
+    ).bind(refreshHash, scope, now + REFRESH_TTL_SECONDS * 1000, oldHash, clientId, resource(env),
+      now - REFRESH_REUSE_GRACE_MS, now, REFRESH_REUSE_MAX_LIVE),
+    env.DB.prepare(
+      `INSERT INTO mcp_tokens (token_hash, user_id, client_id, kind, scope, expires_at, family_id, resource)
+       SELECT ?, user_id, client_id, 'access', scope, ?, family_id, resource
+       FROM mcp_tokens WHERE token_hash = ?`,
+    ).bind(await sha256Base64Url(access), now + ACCESS_TTL_SECONDS * 1000, refreshHash),
+    env.DB.prepare(`SELECT user_id, client_id, scope FROM mcp_tokens WHERE token_hash = ?`).bind(refreshHash),
+  ]);
+  const granted = results.at(-1)?.results?.[0] as { user_id: string; client_id: string; scope: string } | undefined;
+  if (!granted) return null;
+  return { ok: true, userId: granted.user_id, clientId: granted.client_id, tokens: {
+    access_token: access, refresh_token: refresh, token_type: "Bearer", expires_in: ACCESS_TTL_SECONDS, scope: granted.scope,
+  } };
 }
 
 /** Retires every live token that belongs to one rotation family. */

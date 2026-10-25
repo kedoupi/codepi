@@ -2,7 +2,8 @@
 
 One remote MCP entry at `https://mcp.codepi.app/mcp`. Domain tools cover Health, Project, Me, GU and Blog;
 this is a support service. New domains remain undeployed until the task records real release evidence. The official SDK handles stateless
-Streamable HTTP. No standalone SSE endpoint or Durable Object is required.
+Streamable HTTP at `/mcp`. Legacy HTTP+SSE clients use `/sse` plus its advertised
+`/messages` endpoint; one `LegacySse` Durable Object holds each ephemeral connection.
 
 Current scopes, limits, CLI and rollout: [domain architecture](../../docs/architecture/mcp-domains.md).
 
@@ -27,6 +28,30 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
   follow the original arguments and `pagination.next_cursor`, concatenate chunks
   and parse only after `complete=true`. SHA-256 checks reject changed data instead
   of mixing pages. Health aggregation still uses all saved input rows.
+- Agent compatibility: requested scopes never block the fixed grant, equivalent
+  `resource` spellings are accepted, confidential DCR clients authenticate by
+  Basic or body secret (PKCE still required), private-use scheme callbacks register,
+  `/mcp` replies with JSON whatever the `Accept` header, and a rotated refresh token
+  retried within 60 seconds keeps its connection. Contract: [unified MCP](../../docs/architecture/unified-mcp.md).
+
+## Agent connection options
+
+- Streamable HTTP + OAuth: `https://mcp.codepi.app/mcp`; discovery and DCR remain supported.
+- OAuth without DCR: an owner can pre-register client credentials at `/connections/clients`.
+- Client ID Metadata Document: public clients use a validated HTTPS metadata URL as `client_id`.
+- Fixed Bearer credential: the owner creates a PAT at `/connections/tokens`, chooses scopes and
+  7/30/90-day expiry. The plaintext appears once; only its hash is stored. Revocation is independent
+  of OAuth connections and provider access. Never put credentials in URL query parameters.
+- Legacy HTTP+SSE: connect to `/sse` with the same OAuth or PAT Bearer header and use the
+  announced endpoint. The routing session ID does not authorize requests.
+- Large Health/Project replies: `read_document` assembles up to 512 KiB in memory and returns
+  complete values, array pages or Unicode text ranges using JSON Pointer paths. Array pages keep
+  the response `coverage`. `digest` hashes the assembled data without page clocks (`as_of`,
+  `generated_at`, `pagination`); pass it back as `expected_digest` to reject a changed snapshot.
+  Original fragment tools remain available.
+
+These options describe implementation, not real-client acceptance. Deployment and client checks
+are tracked in [the task](../../docs/development/tasks/2026-10-25-mcp-agent-compat.md).
 
 ## Local checks
 

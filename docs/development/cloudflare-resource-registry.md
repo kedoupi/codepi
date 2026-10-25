@@ -446,6 +446,7 @@ secret 值、个人数据或 OAuth refresh token。
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
 | ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | managed | 2026-10-25 PR #192/#193 已发布 Ops 22741311（source 896023a）；七轮生产观察 healthy_reported，隔离真实自动回滚 rollback_verified；Issue #169 通知已核对，临时资源清理完成，详见 Observer 任务记录 |
 | secret-ops-rollback-token | production | worker-secret | CLOUDFLARE_ROLLBACK_TOKEN（值不登记） | kedoupi | Observer 严重故障的受控 Worker 回滚 | credential-metadata | rollback-worker.mjs、worker-ops | - | scripts/cloudflare/provision-ops.mjs rollback-credential | managed | 2026-10-23 任务证据记录已创建 codepi-ops-rollback，权限为 Workers Scripts Write；凭证值永不写入登记表 |
+| do-mcp-legacy-sse | production | durable-object | codepi-mcp#LegacySse | kedoupi | 旧版 MCP HTTP+SSE 短期连接 | auth-session-data(metadata only) | worker-mcp LEGACY_SSE | 无独立域名，经 /sse、/messages | services/mcp/wrangler.toml | planned | 2026-10-25 本地兼容实现；namespace 尚未上线，发布须记录 binding/migration 变更 |
 <!-- registry-table:end -->
 
 ## 2026-10-25 Observer 隔离回滚演练资源

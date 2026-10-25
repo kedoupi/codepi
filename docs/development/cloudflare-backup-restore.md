@@ -157,8 +157,9 @@ Actions 调度。实际 Time Travel 可回溯窗口以账户套餐和控制面�
 
 MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或授权码消费。
 恢复到临时库后、任何生产 binding 切换之前，必须清除恢复库中的 `mcp_tokens`、
-`oauth_auth_codes`、`oauth_consent_requests`、`kdp_sso_sessions` 和
-`kdp_sso_transactions`，保留客户端注册 `oauth_clients`，让客户端重新授权；
+`oauth_auth_codes`、`oauth_consent_requests`、`kdp_sso_sessions`、
+`kdp_sso_transactions` 和 `mcp_personal_tokens`（该表迁移已应用时），保留客户端注册
+`oauth_clients`，让客户端重新授权或重新创建个人令牌；
 不得把历史 token 的“未撤销”状态直接恢复到线上。此清理属于事故恢复中的显式步骤，
 通用 restore 脚本不会自动修改生产库。授权备份仍按敏感数据加密保管。
 

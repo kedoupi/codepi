@@ -10,8 +10,10 @@
   to downstream providers. Source/coverage/sync metadata is part of the tool contract.
 - Checks: build Health API first, then `pnpm test`, `pnpm typecheck`, `pnpm build`.
 - Large Health responses and Project cards have UTF-8 JSON fragment pagination.
-  Preserve the original query, follow the cursor, and reject changed snapshots;
-  do not truncate aggregation input or persist business snapshots in MCP D1.
+  `read_document` may assemble those fragments in memory and page the result;
+  it does not replace the original protocol. Preserve the original query, follow
+  the cursor, and reject changed snapshots; do not truncate aggregation input
+  or persist business snapshots in MCP D1.
 - The user chose a direct cutover: the old Health MCP implementation is removed,
   and clients must authorize this service anew. Keep historical migrations and
   data; deleting code does not authorize deleting Health records or Oura credentials.
