@@ -97,6 +97,14 @@
 12. **TLS/SSL 加固（用户 Dashboard）**：Minimum TLS Version 1.2、加密模式 Full (Strict)、
     Always Use HTTPS 均经控制面复读生效。
 
+## 2026-10-25 MCP 程序客户端的 1010 误拦修复
+
+- 用户报告 Manus 接入 MCP 被 Cloudflare 按 User-Agent 拦截，并明确授权配置调通。复现：相同出口、相同 `/.well-known/oauth-authorization-server`，`Python-urllib/3.11` 稳定返回 403 HTML、Cloudflare 1010（browser signature denied）；`Mozilla/5.0` 为 200 JSON。未拿到 Manus 实际 User-Agent，不把复现头当作 Manus 请求证据。
+- 控制面确认域级 Browser Integrity Check 为 on，自定义 WAF 仅拦扫描路径。API token 读取 Configuration Rules/Page Rules 返回 403，未扩大权限；通过已登录 Dashboard 创建规则 **MCP clients - disable Browser Integrity Check**，ID `50dcf60c758e4757a1924d9ca160ee9d`，表达式 `(http.host eq "mcp.codepi.app")`，唯一设置为 Browser Integrity Check off，列表确认活动。未修改应用、OAuth 或生产凭证。
+- 2026-10-25 05:56 UTC 部署后，`Python-urllib/3.11`、`Manus`、`python-httpx/0.28.1` 和空 User-Agent：OAuth authorization-server 与 protected-resource/mcp 元数据均 200 JSON；匿名 POST `/mcp` 均 401 JSON 且带 `WWW-Authenticate`，证明到达应用并保留 OAuth。MCP 与主站的 `/.git/config` 仍 403；主站 urllib 请求仍为 1010，域级 `browser_check=on` 再读一致，例外仅作用于 MCP。
+- 真实 Python 标准库 `urllib.request`（默认 User-Agent）重复验证两份发现文档 200 JSON、匿名 MCP 401 challenge；`pnpm --dir services/mcp check:live` 五项全部通过，包括 Auth 配对 readiness、发现、匿名拒绝与连接管理登录要求。文档受影响四项检查通过（Cloudflare 187、agent 35 项测试、治理、lint），`git diff --check` 通过。
+- 验证边界：已排除复现的边缘误拦；Manus 客户端实际连接、用户授权与 tool 调用尚待客户端重试确认。回退只需禁用上述精确规则，不关闭域级或全站 WAF。
+
 ## 剩余风险
 
 - Always Use HTTPS 已开启（2026-10-22 08:02 UTC，用户 Dashboard 操作；控制面 `always_use_https=on` 与边缘 301 均已复读），明文探测不再到达 Worker。
