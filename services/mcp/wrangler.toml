@@ -31,6 +31,14 @@ invocation_logs = true
 persist = true
 head_sampling_rate = 1
 
+[[durable_objects.bindings]]
+name = "LEGACY_SSE"
+class_name = "LegacySse"
+
+[[migrations]]
+tag = "legacy-sse-v1"
+new_sqlite_classes = ["LegacySse"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "codepi-mcp"

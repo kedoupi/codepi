@@ -33,7 +33,7 @@ async function domains() {
 }
 
 export async function fixture(t, options = {}) {
-  const { mcpBindings = {}, healthBindings = {}, origin = ORIGIN } = options;
+  const { mcpBindings = {}, healthBindings = {}, origin = ORIGIN, metadata = {}, bundle = null } = options;
   const refs = new Map();
   const state = { subject: 'kdp-owner', providerCalls: 0, authUnavailable: false };
   const values = object => Object.fromEntries(Object.entries(object).map(([k, value]) => [k, { type: 'json', value }]));
@@ -42,8 +42,14 @@ export async function fixture(t, options = {}) {
       config: {
         name: 'mcp', compatibilityDate: '2026-10-18', compatibilityFlags: ['nodejs_compat'],
         triggers: [{ type: 'fetch', pattern: 'mcp.example/*' }],
-        manifest: manifest(new URL('../dist/', import.meta.url)),
+        manifest: bundle ? {
+          ...manifest(new URL('../dist/', import.meta.url)),
+          modules: { ...manifest(new URL('../dist/', import.meta.url)).modules,
+            'index.js': { type: 'esm', contents: readFileSync(bundle, 'utf8') } },
+        } : manifest(new URL('../dist/', import.meta.url)),
+        exports: { LegacySse: { type: 'durable-object', storage: 'sqlite' } },
         env: {
+          LEGACY_SSE: { type: 'durable-object', worker: 'mcp', exportName: 'LegacySse' },
           DB: { type: 'd1', name: 'mcp-db' },
           HEALTH: { type: 'worker', worker: 'health', exportName: 'HealthMcp' },
           PROJECT: { type: 'worker', worker: 'project', exportName: 'ProjectMcp' },
@@ -70,6 +76,10 @@ export async function fixture(t, options = {}) {
           } },
         },
       },
+      dev: { outboundService: { type: 'fetcher', handler(request) {
+        if (Object.hasOwn(metadata, request.url)) return Response.json(metadata[request.url]);
+        throw Error('MCP may only fetch synthetic client metadata in tests: ' + request.url);
+      } } },
     }, {
       config: {
         name: 'health', compatibilityDate: '2025-01-01',
@@ -157,10 +167,10 @@ export async function fixture(t, options = {}) {
     body: new URLSearchParams(data).toString() });
   const allScopes = 'context.read projects.read projects.write health.read health.sync me.read me.write invest.read blog.read blog.write';
   async function grant({ exchange = true, scope = 'health.read health.sync', client: existingClient,
-    registeredRedirect = REDIRECT, redirectUri = REDIRECT, consentOnly = false } = {}) {
+    registeredRedirect = REDIRECT, redirectUri = REDIRECT, consentOnly = false, registration = {} } = {}) {
     const cookie = await login();
     const client = existingClient ?? await (await at('/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_name: 'Synthetic client', redirect_uris: [registeredRedirect] }) })).json();
+      body: JSON.stringify({ client_name: 'Synthetic client', redirect_uris: [registeredRedirect], ...registration }) })).json();
     const verifier = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
     const challenge = await hash(verifier);
     const params = { client_id: client.client_id, redirect_uri: redirectUri, response_type: 'code',
@@ -191,7 +201,8 @@ export async function fixture(t, options = {}) {
     await db.prepare('UPDATE oauth_auth_codes SET scope=? WHERE code_hash=?')
       .bind(scope, await hash(code)).run();
     const tokenForm = { grant_type: 'authorization_code', code, client_id: client.client_id,
-      redirect_uri: redirectUri, code_verifier: verifier, resource: origin + '/mcp' };
+      redirect_uri: redirectUri, code_verifier: verifier, resource: origin + '/mcp',
+      ...(client.client_secret ? { client_secret: client.client_secret } : {}) };
     if (!exchange) return { client, cookie, approval, tokenForm };
     const exchanged = await post('/oauth/token', tokenForm);
     if (exchanged.status !== 200) throw new Error('Token exchange failed: ' + await exchanged.text());

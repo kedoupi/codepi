@@ -105,6 +105,28 @@ try {
   await page.click('loc=css:form[action="/connections"] button');
   await page.waitForFunction(() => document.body.textContent.includes('还没有已授权客户端'));
   assert.equal((await f.rpc(pair.access_token, 'tools/list')).status, 401, 'browser revocation retires the client grant');
+  await page.goto(origin + '/connections/tokens');
+  assert.equal(await fits(), true);
+  await page.evaluate(() => { document.querySelector('input[name="name"]').value = 'Browser PAT'; });
+  await page.click('loc=css:button[type="submit"]');
+  await page.waitForFunction(() => Boolean(document.querySelector('textarea[aria-label="新令牌"]')));
+  const pat = await page.evaluate(() => document.querySelector('textarea[aria-label="新令牌"]').value);
+  assert.equal((await f.rpc(pat, 'tools/list')).status, 200);
+  // Never capture the one-time credential display in screenshots or diagnostics.
+  await page.goto(origin + '/connections/tokens');
+  assert.equal(await page.evaluate(() => Boolean(document.querySelector('textarea[aria-label="新令牌"]'))), false);
+  await page.screenshot({ path: 'tokens-mobile.png' });
+  await page.click('loc=css:article button');
+  await page.waitForFunction(() => document.body.textContent.includes('没有有效令牌'));
+  assert.equal((await f.rpc(pat, 'tools/list')).status, 401);
+  await page.goto(origin + '/connections/clients');
+  assert.equal(await fits(), true);
+  await page.evaluate(() => {
+    document.querySelector('input[name="name"]').value = 'Browser manual client';
+    document.querySelector('textarea[name="redirect_uris"]').value = 'https://agent.example/callback';
+  });
+  await page.click('loc=css:button');
+  await page.waitForFunction(() => document.body.textContent.includes('客户端已注册'));
   await page.goto(authorize);
   await page.click('loc=css:button[value="deny"]');
   await page.waitForFunction(() => location.pathname === '/connected');

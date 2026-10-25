@@ -2,16 +2,23 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Env } from "./env.ts";
-import { findAccessToken, normalizeScope } from "./oauth-store.ts";
+import { findAccessToken, normalizeScope, type TokenRow } from "./oauth-store.ts";
+import { personalToken } from "./personal-tokens.ts";
 import { callTool, tools, instructions } from "./modules.ts";
 import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { boundedText, HttpError, json } from "./http.ts";
 
 const MCP_REQUEST_LIMIT = MCP_LIMITS.blogBody * 4;
 
+export async function authenticate(request: Request, env: Env): Promise<TokenRow | null> {
+  const bearer = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]+)$/i)?.[1];
+  if (!bearer) return null;
+  if (/^kdp_pat_[A-Za-z0-9_-]{43}$/.test(bearer)) return personalToken(env, bearer);
+  return /^[A-Za-z0-9_-]{43}$/.test(bearer) ? findAccessToken(env, bearer) : null;
+}
+
 export async function mcp(request: Request, env: Env) {
-  const auth = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]{43})$/i);
-  const grant = auth ? await findAccessToken(env, auth[1]) : null;
+  const grant = await authenticate(request, env);
   if (!grant || grant.user_id !== "kdp-owner") {
     const response = json({ error: "invalid_token" }, 401);
     response.headers.set("WWW-Authenticate",
@@ -25,7 +32,14 @@ export async function mcp(request: Request, env: Env) {
     return json({ error: "unsupported_media_type" }, 415);
   }
   const body = await boundedText(request, MCP_REQUEST_LIMIT);
-  const incoming = new Request(request.url, { method: "POST", headers: request.headers, body });
+  // Replies are always plain JSON (enableJsonResponse), so a client that only lists
+  // application/json or */* is served the same response instead of an SDK 406.
+  const headers = new Headers(request.headers);
+  const accept = headers.get("Accept") ?? "";
+  if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
+    headers.set("Accept", "application/json, text/event-stream");
+  }
+  const incoming = new Request(request.url, { method: "POST", headers, body });
   const server = new Server({ name: "codepi", version: "1.0.0" }, {
     capabilities: { tools: {} },
     instructions: instructions(grant.scope),

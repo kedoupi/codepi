@@ -3,10 +3,13 @@ import type { Env } from "./env.ts";
 import { HttpError, boundedText, escapeHtml, form, json, sameOrigin } from "./http.ts";
 import { hidden, page } from "./pages.ts";
 import { MODULES } from "./modules.ts";
+import { tokenManagement } from "./personal-tokens.ts";
+import { resolveMetadataClient } from "./client-metadata.ts";
 import {
-  SUPPORTED_SCOPES, normalizeScope, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
+  SUPPORTED_SCOPES, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
   takeConsentRequest, createAuthCode, lookupAuthCode, exchangeAuthCode, exchangeRefreshToken, hasLiveGrant, sha256Base64Url,
-  revokeToken, revokeClient, listConnections,
+  revokeToken, revokeClient, listConnections, registrableRedirect, clientSecretMatches, CLIENT_AUTH_METHODS,
+  type ClientAuthMethod, type OAuthClient,
 } from "./oauth-store.ts";
 
 const OWNER = "kdp-owner";
@@ -18,7 +21,36 @@ function oauthError(error: string, description: string, status = 400) {
 
 function validateResource(value: string | null, env: Env) {
   // Omission means this server's sole resource, never an arbitrary downstream API.
-  if (value !== null && value !== resource(env)) throw new HttpError("invalid_target");
+  // Clients differ on whether they name the origin or the endpoint, with or without a trailing slash.
+  if (value === null) return;
+  const canonical = resource(env);
+  if (![canonical, `${canonical}/`, env.MCP_ORIGIN, `${env.MCP_ORIGIN}/`].includes(value)) throw new HttpError("invalid_target");
+}
+
+/** RFC 6749 §2.3.1: credentials arrive in a Basic header (form-urlencoded parts) or in the body. */
+function clientCredentials(request: Request, fields: URLSearchParams) {
+  const header = request.headers.get("Authorization")?.match(/^Basic\s+([A-Za-z0-9+/=]+)$/i);
+  if (header) {
+    try {
+      const decoded = atob(header[1]), separator = decoded.indexOf(":");
+      if (separator > 0) {
+        const decode = (part: string) => decodeURIComponent(part.replace(/\+/g, " "));
+        return { clientId: decode(decoded.slice(0, separator)), secret: decode(decoded.slice(separator + 1)) };
+      }
+    } catch { /* fall through to body credentials */ }
+  }
+  return { clientId: fields.get("client_id") ?? "", secret: fields.get("client_secret") };
+}
+
+async function resolveClient(env: Env, clientId: string): Promise<OAuthClient | null> {
+  if (!clientId.startsWith("https://")) return getClient(env, clientId);
+  return resolveMetadataClient(clientId);
+}
+
+async function authenticatedClient(request: Request, fields: URLSearchParams, env: Env): Promise<OAuthClient | null> {
+  const { clientId, secret } = clientCredentials(request, fields);
+  const client = await resolveClient(env, clientId);
+  return client && await clientSecretMatches(client, secret ?? null) ? client : null;
 }
 
 export function discovery(env: Env, protectedResource: boolean) {
@@ -29,9 +61,11 @@ export function discovery(env: Env, protectedResource: boolean) {
   } : {
     issuer: base, authorization_endpoint: `${base}/oauth/authorize`, token_endpoint: `${base}/oauth/token`,
     registration_endpoint: `${base}/oauth/register`, revocation_endpoint: `${base}/oauth/revoke`,
-    scopes_supported: scopes, response_types_supported: ["code"],
+    scopes_supported: scopes, response_types_supported: ["code"], response_modes_supported: ["query"],
     grant_types_supported: ["authorization_code", "refresh_token"],
-    code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"],
+    code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: [...CLIENT_AUTH_METHODS],
+    client_id_metadata_document_supported: true,
+    revocation_endpoint_auth_methods_supported: [...CLIENT_AUTH_METHODS],
   });
 }
 
@@ -44,21 +78,20 @@ export async function register(request: Request, env: Env) {
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
   } catch { return oauthError("invalid_client_metadata", "Body must be an object"); }
   const uris = body.redirect_uris;
-  if (!Array.isArray(uris) || !uris.length || uris.length > 10 || uris.some(uri => {
-    if (typeof uri !== "string" || uri.length > 2048) return true;
-    try {
-      const u = new URL(uri);
-      return u.protocol !== "https:" && !(u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname))
-        || Boolean(u.hash || u.username || u.password);
-    } catch { return true; }
-  })) return oauthError("invalid_redirect_uri", "Register exact HTTPS or loopback redirect URIs");
-  if (body.token_endpoint_auth_method !== undefined && body.token_endpoint_auth_method !== "none") {
-    return oauthError("invalid_client_metadata", "Public clients use PKCE and token_endpoint_auth_method=none");
+  if (!Array.isArray(uris) || !uris.length || uris.length > 10 || !uris.every(registrableRedirect)) {
+    return oauthError("invalid_redirect_uri", "Register exact HTTPS, loopback or private-use scheme redirect URIs");
   }
-  const client = await createClient(env, typeof body.client_name === "string" ? body.client_name.slice(0, 120) : null, uris);
-  return json({ client_id: client.client_id, client_name: client.client_name, redirect_uris: uris,
-    token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"],
-    response_types: ["code"], scope: scopes.join(" ") }, 201);
+  const method = body.token_endpoint_auth_method ?? "none";
+  if (!(CLIENT_AUTH_METHODS as readonly unknown[]).includes(method)) {
+    return oauthError("invalid_client_metadata", `token_endpoint_auth_method must be one of ${CLIENT_AUTH_METHODS.join(", ")}`);
+  }
+  const client = await createClient(env, typeof body.client_name === "string" ? body.client_name.slice(0, 120) : null,
+    uris as string[], method as ClientAuthMethod);
+  return json({ client_id: client.client_id, client_id_issued_at: Math.floor(Date.now() / 1000),
+    ...(client.client_secret ? { client_secret: client.client_secret, client_secret_expires_at: 0 } : {}),
+    client_name: client.client_name, redirect_uris: uris,
+    token_endpoint_auth_method: method, grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"], scope: grantedScope }, 201);
 }
 
 const callbackUrl = (uri: string, params: Record<string, string>) => {
@@ -100,10 +133,11 @@ async function owner(request: Request, env: Env) {
   return session;
 }
 
-function consentPage(clientName: string, fields: Record<string, string>) {
+function consentPage(clientName: string, fields: Record<string, string>, redirectUri: string, clientId: string) {
   const item = (scope: string, label: string, sensitive: boolean) =>
     `<li>${escapeHtml(label)} <code>${scope}</code>${sensitive ? " · 敏感数据" : ""}</li>`;
   return page("连接 CodePi MCP", `<p>连接 <strong>${escapeHtml(clientName)}</strong> 将获得 CodePi MCP 当前支持的全部权限。敏感数据只能由已登录的所有者授权访问，不会向客户端提供第三方凭证。</p>
+<p>返回地址：<code>${escapeHtml(redirectUri)}</code>${clientId.startsWith("https:") ? `<br>客户端元数据：<code>${escapeHtml(clientId)}</code>` : ""}</p>
 <form method="POST" action="/oauth/authorize">${hidden(fields)}
 <fieldset><legend>授权范围</legend><ul>
 ${item("context.read", "读取已授权领域的简短概览", false)}
@@ -117,7 +151,7 @@ ${MODULES.map(m => Object.entries(m.consent).map(([s, label]) => item(s, label, 
 export async function authorize(request: Request, env: Env) {
   if (request.method === "POST") return consent(request, env);
   const params = new URL(request.url).searchParams;
-  const client = await getClient(env, params.get("client_id") ?? "");
+  const client = await resolveClient(env, params.get("client_id") ?? "");
   if (!client) return oauthError("invalid_client", "Unknown client_id");
   const uri = params.get("redirect_uri") ?? "";
   if (!redirectAllowed(client, uri)) return oauthError("invalid_redirect_uri", "URI is not registered");
@@ -129,8 +163,8 @@ export async function authorize(request: Request, env: Env) {
   }
   if (params.getAll("resource").length > 1) return deny("invalid_target");
   try { validateResource(params.get("resource"), env); } catch { return deny("invalid_target"); }
-  const requested = params.has("scope") ? normalizeScope(params.get("scope")) : scopes.join(" ");
-  if (!requested) return deny("invalid_scope");
+  // The owner always grants the full supported set, so requested scopes (including
+  // offline_access/openid/profile or another server's names) never narrow or block it.
   const session = await owner(request, env);
   if (!session) {
     const target = new URL("/api/auth/login", env.MCP_ORIGIN);
@@ -140,7 +174,7 @@ export async function authorize(request: Request, env: Env) {
   // A client with a live grant was already approved by the owner for the fixed
   // full-scope set; re-authorization skips the consent screen. Revoking the
   // connection in the manager removes the grant and restores manual consent.
-  if (await hasLiveGrant(env, client.client_id)) {
+  if (!client.client_id.startsWith("https://") && await hasLiveGrant(env, client.client_id)) {
     const code = await createAuthCode(env, { clientId: client.client_id, userId: session.userId,
       redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
     return redirect(uri, { code, ...(state ? { state } : {}) });
@@ -149,7 +183,7 @@ export async function authorize(request: Request, env: Env) {
     redirectUri: uri, codeChallenge: params.get("code_challenge")!, scope: grantedScope });
   const signed = `${tx.consentId}.${await sign(env, `${tx.consentId}:${state}`)}`;
   return consentPage(client.client_name ?? client.client_id, { client_id: client.client_id, state,
-    consent_id: signed, csrf_token: tx.csrfToken });
+    consent_id: signed, csrf_token: tx.csrfToken }, uri, client.client_id);
 }
 
 async function consent(request: Request, env: Env) {
@@ -173,7 +207,11 @@ async function consent(request: Request, env: Env) {
   }
   const tx = await takeConsentRequest(env, id);
   if (!tx) return oauthError("invalid_request", "Consent is expired or used", 403);
-  const clientName = (await getClient(env, tx.client_id))?.client_name ?? tx.client_id;
+  const metadataClient = tx.client_id.startsWith("https://") ? await resolveClient(env, tx.client_id) : null;
+  if (tx.client_id.startsWith("https://") && (!metadataClient || !redirectAllowed(metadataClient, tx.redirect_uri))) {
+    return oauthError("invalid_client", "Client metadata changed during authorization");
+  }
+  const clientName = metadataClient?.client_name ?? (await getClient(env, tx.client_id))?.client_name ?? tx.client_id;
   if (fields.get("decision") === "deny") {
     return handoffPage(clientName, callbackUrl(tx.redirect_uri, { error: "access_denied", ...(state ? { state } : {}) }));
   }
@@ -188,14 +226,15 @@ export async function token(request: Request, env: Env) {
     if (fields.getAll("resource").length > 1) throw new HttpError("invalid_target");
     validateResource(fields.get("resource"), env);
   } catch { return oauthError("invalid_target", "Token audience must be the CodePi MCP resource"); }
-  const requested = fields.has("scope") ? normalizeScope(fields.get("scope")) : undefined;
-  if (requested === null) return oauthError("invalid_scope", "Unknown or empty scope");
-  const clientId = fields.get("client_id") ?? "";
-  if (!(await getClient(env, clientId))) return oauthError("invalid_client", "Unknown client_id", 401);
+  // A requested scope never narrows the fixed full grant, so it is not validated here either.
+  const client = await authenticatedClient(request, fields, env);
+  if (!client) return oauthError("invalid_client", "Unknown client_id or invalid client credentials", 401);
+  const clientId = client.client_id;
   if (fields.get("grant_type") === "authorization_code") {
     const code = fields.get("code") ?? "", verifier = fields.get("code_verifier") ?? "";
     const tx = await lookupAuthCode(env, code);
     if (!tx || tx.user_id !== OWNER || tx.client_id !== clientId || tx.redirect_uri !== fields.get("redirect_uri")
+      || !redirectAllowed(client, tx.redirect_uri)
       || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)
       || await sha256Base64Url(verifier) !== tx.code_challenge) return oauthError("invalid_grant", "Invalid authorization code or PKCE");
     const pair = await exchangeAuthCode(env, code, tx);
@@ -210,15 +249,40 @@ export async function token(request: Request, env: Env) {
 
 export async function revoke(request: Request, env: Env) {
   const fields = await form(request);
-  if (!fields.get("token") || !fields.get("client_id")) return oauthError("invalid_request", "token and client_id are required");
-  await revokeToken(env, fields.get("token")!, fields.get("client_id")!);
+  if (!fields.get("token")) return oauthError("invalid_request", "token is required");
+  const client = await authenticatedClient(request, fields, env);
+  if (!client) return oauthError("invalid_client", "Unknown client_id or invalid client credentials", 401);
+  await revokeToken(env, fields.get("token")!, client.client_id);
   return json({ ok: true });
 }
 
 export async function connections(request: Request, env: Env) {
   const session = await owner(request, env);
   if (!session) {
-    return new Response(null, { status: 302, headers: { Location: "/api/auth/login?return=%2Fconnections" } });
+    const target = encodeURIComponent(new URL(request.url).pathname);
+    return new Response(null, { status: 302, headers: { Location: `/api/auth/login?return=${target}` } });
+  }
+  if (new URL(request.url).pathname === "/connections/tokens") {
+    return tokenManagement(request, env, session.userId, await sign(env, `tokens:${session.id}`));
+  }
+  if (new URL(request.url).pathname === "/connections/clients") {
+    const csrf = await sign(env, `clients:${session.id}`);
+    if (request.method === "POST") {
+      sameOrigin(request);
+      const fields = await form(request);
+      if (fields.get("csrf_token") !== csrf) throw new HttpError("invalid_csrf", 403);
+      const uris = (fields.get("redirect_uris") ?? "").split(/\s+/).filter(Boolean);
+      if (!uris.length || uris.length > 10 || !uris.every(registrableRedirect)) throw new HttpError("invalid_redirect_uri");
+      const method = fields.get("method") ?? "none";
+      if (!(CLIENT_AUTH_METHODS as readonly string[]).includes(method)) throw new HttpError("invalid_client_metadata");
+      const client = await createClient(env, (fields.get("name") ?? "AI client").slice(0, 120), uris, method as ClientAuthMethod);
+      return page("客户端已注册", `<p>将以下信息填写到客户端，再完成 OAuth 授权。</p><p>Client ID：<code>${escapeHtml(client.client_id)}</code></p>
+${client.client_secret ? `<p>Client secret 仅显示一次：</p><textarea readonly aria-label="Client secret">${escapeHtml(client.client_secret)}</textarea>` : ""}
+<p>授权地址：<code>${env.MCP_ORIGIN}/oauth/authorize</code></p><p>Token 地址：<code>${env.MCP_ORIGIN}/oauth/token</code></p><p><a href="/connections">返回连接管理</a></p>`);
+    }
+    return page("注册 AI 客户端", `<p>用于不能自动注册、需要手动填写 Client ID 的客户端。</p><form method="POST">${hidden({ csrf_token: csrf })}
+<label>名称 <input name="name" required maxlength="120"></label><label>回调地址（每行一个）<textarea name="redirect_uris" required></textarea></label>
+<label>认证方式 <select name="method">${CLIENT_AUTH_METHODS.map(m => `<option>${m}</option>`).join("")}</select></label><button>注册客户端</button></form><p><a href="/connections">返回连接管理</a></p>`);
   }
   if (request.method === "POST") {
     sameOrigin(request);
@@ -232,6 +296,7 @@ export async function connections(request: Request, env: Env) {
   const rows = await listConnections(env, session.userId);
   const csrf = await sign(env, `connections:${session.id}`);
   return page("已授权的 AI 客户端", `<p>撤销只会断开该客户端；不会断开 Oura 或退出网站登录。</p>
+<p><a href="/connections/tokens">个人访问令牌</a> · <a href="/connections/clients">手动注册客户端</a></p>
 ${rows.length ? `<ul>${rows.map(row => `<li><strong>${escapeHtml(row.client_name ?? row.client_id)}</strong>
 <p><code>${escapeHtml(row.scope)}</code> · ${MODULES.filter(m => Object.keys(m.consent).some(s => row.scope.split(" ").includes(s))).map(m => escapeHtml(m.title)).join("、")} · 有效至 ${escapeHtml(new Date(row.expires_at).toISOString())}</p>
 <form action="/connections" method="POST">${hidden({ client_id: row.client_id, csrf_token: csrf })}

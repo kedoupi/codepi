@@ -38,7 +38,17 @@ MCP 不绑定 Health 数据库，不保存 Oura 凭证，不把客户端 token �
 
 AI 客户端通过 OAuth discovery 和动态注册接入；当前按[领域扩展](mcp-domains.md)
 一次授予全部已支持 scope。PKCE 只接受 S256；授权码一次使用，access token 一小时，
-refresh token 30 天并轮换；已轮换的 refresh token 被重放时撤销对应授权族。
+refresh token 30 天并轮换。已轮换的 refresh token 在 60 秒内再次出示（响应丢失重试、
+多进程竞争刷新）时，同一授权族另发一对 token，先前的后继仍有效；同一授权族最多同时保留
+4 个有效 refresh token，超出、超过 60 秒或已撤销的授权族被重放时撤销整个授权族。
+显式撤销不享有该宽限。
+
+为兼容不同 AI Agent：请求的 scope（含 `offline_access`、`openid` 等通用名）既不阻塞也不
+缩小固定的全量授权；`resource` 接受 `/mcp`、origin 及末尾斜杠写法，其他 audience 仍拒绝；
+动态注册接受 `none`、`client_secret_post`、`client_secret_basic`，机密客户端仍须 PKCE，
+D1 只存 secret hash；回调接受精确 HTTPS、loopback 与 RFC 8252 私有 scheme（如
+`cursor://`），拒绝 `javascript:`、`data:`、`file:` 等。`/mcp` 总返回 JSON，未声明
+`text/event-stream` 的 `Accept` 也会被服务，`/mcp/` 等同 `/mcp`。
 授权码和 token 在 D1 只保存 hash，并绑定 `https://mcp.codepi.app/mcp` 资源。
 
 `/connections` 展示已授权客户端，撤销需网站 owner 会话、同源 POST 和 CSRF。
@@ -96,8 +106,13 @@ GU、Project、Me 按领域扩展任务接入；GZH/Web 不注册空工具，不
 
 ## 发布和旧入口切换
 
-统一入口使用无状态 Streamable HTTP 和官方 SDK，不新增 Durable Object 或独立 SSE
-服务。具体配置在 `services/mcp/wrangler.toml`，MCP 授权 D1 为独立 `codepi-mcp`。
+统一入口默认使用无状态 Streamable HTTP 和官方 SDK；2026-10-25 接入兼容扩展新增
+`/sse` + `/messages` 旧版传输，由 `LegacySse` Durable Object 保持单连接短期状态。
+不写业务快照，断连或最长 30 分钟后重新建立连接；每个消息重新验证同一客户端的 token。
+个人访问令牌只保存哈希，权限由所有者显式选择，不继承 OAuth 的全量授权。
+Client ID Metadata Document 每次授权重新获取，不写入客户端表，也不能跳过同意页。
+具体配置在 `services/mcp/wrangler.toml`，MCP 授权 D1 为独立 `codepi-mcp`。
+新增 D1 迁移和 DO binding 需要在发布事实中声明，不能承诺自动回滚安全。
 首发脚本从精确、干净的源码 SHA 解析或创建该数据库，用同一份临时配置先迁移再部署；
 不会把 Health/Auth 数据库误绑定进来，也不修改已审查源码。命令必须使用
 `pnpm --dir services/mcp run deploy <SHA>`，避免命中 pnpm 的内置 deploy 命令。

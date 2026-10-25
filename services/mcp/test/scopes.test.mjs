@@ -20,10 +20,8 @@ test('one owner login grants every supported scope without per-scope selection',
 test('refresh upgrades legacy partial grants and connection display unions live families', async t => {
   const f = await fixture(t), grant = await f.grant({ scope: 'context.read projects.read projects.write' });
   const request = { grant_type: 'refresh_token', client_id: grant.client.client_id, refresh_token: grant.refresh_token };
-  const unknown = await f.post('/oauth/token', { ...request, scope: 'unknown.scope' });
-  assert.equal((await unknown.json()).error, 'invalid_scope');
-  const upgraded = await f.post('/oauth/token', { ...request, scope: 'projects.read' });
-  assert.equal(upgraded.status, 200);
+  const upgraded = await f.post('/oauth/token', { ...request, scope: 'projects.read unknown.scope offline_access' });
+  assert.equal(upgraded.status, 200, 'requested scopes never block or narrow the fixed full grant');
   const pair = await upgraded.json();
   assert.equal(pair.scope, f.allScopes);
   const names = (await f.rpc(pair.access_token, 'tools/list')).body.result.tools.map(t => t.name);
@@ -51,13 +49,12 @@ test('loopback port variation is allowed but authorization code binds the actual
   }
 });
 
-test('normalizeScope accepts blog scopes and still rejects unknown scopes', async t => {
+test('generic OAuth scopes such as offline_access and openid still reach the full-scope consent', async t => {
   const f = await fixture(t);
-  const grant = await f.grant({ scope: 'blog.read' });
-  assert.equal((await f.rpc(grant.access_token, 'tools/list')).body.result.tools.map(t => t.name).includes('blog_list'), true);
-  const denied = await f.post('/oauth/token', { grant_type: 'refresh_token', client_id: grant.client.client_id,
-    refresh_token: grant.refresh_token, scope: 'blog.read unknown.scope' });
-  assert.equal((await denied.json()).error, 'invalid_scope');
+  const pending = await f.grant({ scope: 'openid profile offline_access', consentOnly: true });
+  for (const scope of f.allScopes.split(' ')) assert.ok(pending.html.includes(scope), scope);
+  const blog = await f.grant({ scope: 'blog.read' });
+  assert.equal((await f.rpc(blog.access_token, 'tools/list')).body.result.tools.map(t => t.name).includes('blog_list'), true);
 });
 
 test('context-only clients see no domain data and legacy Health grants still work', async t => {
@@ -66,6 +63,6 @@ test('context-only clients see no domain data and legacy Health grants still wor
     ['list_data_sources', 'get_context']);
   assert.deepEqual((await f.tool(context.access_token, 'get_context')).structuredContent.sources, []);
   const legacy = await f.grant();
-  assert.equal((await f.rpc(legacy.access_token, 'tools/list')).body.result.tools.length, 5);
+  assert.equal((await f.rpc(legacy.access_token, 'tools/list')).body.result.tools.length, 6);
   assert.equal((await f.tool(legacy.access_token, 'health_get_catalog')).isError, undefined);
 });
