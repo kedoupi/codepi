@@ -444,17 +444,18 @@ secret 值、个人数据或 OAuth refresh token。
 | workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检、traffic samples 与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS；每 30 分钟写入 `reports/traffic/samples.json` | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 已有备份验收；traffic 代码尚未部署 |
 | r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文、运维报告与 `reports/traffic/samples.json` 流量基线 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问核验；traffic 前缀尚未有生产写入证据 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
-| ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | managed | 2026-10-25 PR #192 已接入发布观察 CLI；Ops a4af1cbb 已持久化连续异常计数，隔离演练实际进入回滚步骤但因 Workerd redirect 不兼容失败；修复待发布重验，详见 Observer 任务记录 |
+| ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | managed | 2026-10-25 PR #192/#193 已发布 Ops 22741311（source 896023a）；七轮生产观察 healthy_reported，隔离真实自动回滚 rollback_verified；Issue #169 通知已核对，临时资源清理完成，详见 Observer 任务记录 |
 | secret-ops-rollback-token | production | worker-secret | CLOUDFLARE_ROLLBACK_TOKEN（值不登记） | kedoupi | Observer 严重故障的受控 Worker 回滚 | credential-metadata | rollback-worker.mjs、worker-ops | - | scripts/cloudflare/provision-ops.mjs rollback-credential | managed | 2026-10-23 任务证据记录已创建 codepi-ops-rollback，权限为 Workers Scripts Write；凭证值永不写入登记表 |
 <!-- registry-table:end -->
 
 ## 2026-10-25 Observer 隔离回滚演练资源
 
-只用于无业务数据的合成异常演练，无生产消费者。两次观察均已结束，R2 轮询与 summary 报告保留；第二次实际尝试回滚但受 Workerd redirect 不兼容阻断，不能记作自动回滚成功。详见[任务记录](tasks/2026-10-23-ops-observer.md#2026-10-25-发布接入与隔离回滚演练)。
+只用于无业务数据的合成异常演练，无生产消费者。三次观察均已结束，R2 轮询与 summary 报告保留；第二次受 Workerd redirect 不兼容阻断，第三次在 PR #193 修复后已通过真实自动回滚，状态为 `rollback_verified`。详见[任务记录](tasks/2026-10-23-ops-observer.md#2026-10-25-发布接入与隔离回滚演练)。
 
 | 类型 | 名称 / ID | 数据与消费者 | last_verified / expires_on | cleanup_evidence |
 | --- | --- | --- | --- | --- |
 | Worker | `codepi-ops-pr-192`；previous `a8db0c95`、故障版 `c7749bc3` | synthetic；无生产 binding/消费者；后续诊断仅含合成 marker secret | 2026-10-25 已删除 | `2026-10-25T05:22:27.999Z` 关闭 workers.dev/preview 后删除，全量列举不存在；十个生产版本一致，发布锁已释放 |
+| Worker | `codepi-ops-pr-193`；previous `251e234c`、故障版 `e3c0c7ba` | synthetic；无 secret/binding/生产消费者；Observer 自动切回 previous 并核对 100% 流量 | 2026-10-25 已删除 | `2026-10-25T06:04:05.331Z` 关闭 workers.dev/preview 后删除，全量列举不存在；十个生产版本保持发布后清单，发布锁释放 |
 
 ## 2026-10-19 临时恢复演练资源
 
