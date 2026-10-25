@@ -432,6 +432,7 @@ secret 值、个人数据或 OAuth refresh token。
 | alert-platform-incident | production | notification-policy | kdp platform incident (11766abf994c4e61adf7d19e7b956697) | kedoupi | Cloudflare 事件告警（走账户邮箱） | n/a | 全部产品 | - | Cloudflare 控制面 API | retired | 2026-10-22 经所有者授权删除：平台事件邮件（约 22 封/周）与账户服务无关，平台故障由 Ops 巡检间接体现；如需恢复在 Dashboard 重建 |
 | alert-workers-observability | production | notification-policy | kdp workers observability issues (68eee86535f549a384704c8e69887244) | kedoupi | Workers 实时问题告警（走账户邮箱） | n/a | 全部生产 Worker | - | Cloudflare 控制面 API | managed | 2026-10-20 20 条 service 自动规则已复读核对，包含 Project/Me；隔离故障自动发送及 Gmail 收件通过 |
 | waf-block-scanner-paths | production | zone-ruleset | codepi.app http_request_firewall_custom `8cc34f9e40d54621aff068b2ee37dd9b` / rule `9d1cf91b6e6e49679e627fd1c3be7d6d` | kedoupi | 边缘 403 拦截已知漏洞扫描路径（.git/.env/.svn/php/wp/profiler/actuator/telescope/debug），消除 Workers Issues 扫描器噪音 | n/a | 全部生产 hostname | - | Cloudflare 控制面 API | managed | 2026-10-22 创建并实测：扫描路径 403、首页与 MCP `/.well-known/*` 200，见[告警优化](tasks/2026-10-22-cloudflare-alert-tuning.md) |
+| config-mcp-browser-integrity | production | zone-ruleset | codepi.app http_config_settings / rule `50dcf60c758e4757a1924d9ca160ee9d` | kedoupi | MCP 程序客户端的 Browser Integrity Check 例外 | n/a | 精确 `http.host eq "mcp.codepi.app"` | mcp.codepi.app | Cloudflare Dashboard Configuration Rules | managed | 2026-10-25 经用户授权部署并确认活动，仅 browser_check=false；域级 browser_check=on，扫描路径 WAF 与 OAuth 保留；urllib 发现 200、匿名 MCP 401，见[验证记录](tasks/2026-10-22-cloudflare-alert-tuning.md#2026-10-25-mcp-程序客户端的-1010-误拦修复) |
 | backup-d1-artifact | production | actions-artifact | kedoupi/codepi: d1-backup-<run-id>-<attempt> | kedoupi | 6 个生产 D1 的公钥封装加密日备，清单已启用、runner 待恢复（14 天到期删除） | encrypted-dump | 恢复 runbook | - | .github/workflows/d1-backup.yml | managed | 2026-10-19 六库本机密文、manifest、sha256、GCM AAD 与私钥内存解密通过；run 39192113905 无 runner/steps/artifact，六库异机 artifact 待验收；2026-10-18 原五库 artifact 12122019076 的下载/解密证据保留，私钥异机托管仍未验证 |
 | dns-proxy001 | production | dns | proxy001.kdp.cool A 47.254.89.111 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy001.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
 | dns-proxy | production | dns | proxy.kdp.cool A 216.132.133.253 | kedoupi | 外部代理（不在本仓库） | unknown | 未审计 | proxy.kdp.cool | Cloudflare 控制面 | unknown | 2026-10-15 |
@@ -443,17 +444,18 @@ secret 值、个人数据或 OAuth refresh token。
 | workflow-ops | production | workflow | codepi-ops | kedoupi | 可重试巡检、traffic samples 与八库/两类原件加密备份 | private-user-data | worker-ops OPERATIONS；每 30 分钟写入 `reports/traffic/samples.json` | 每 30 分钟巡检、UTC 18:00 备份 | services/ops/wrangler.toml | managed | 2026-10-20 已有备份验收；traffic 代码尚未部署 |
 | r2-ops-backups | production | r2 | codepi-ops-backups | kedoupi | 八库/两类原件密文、运维报告与 `reports/traffic/samples.json` 流量基线 | private-user-data | worker-ops BACKUPS | 无公开域名 | services/ops/wrangler.toml | managed | 2026-10-20 私有访问核验；traffic 前缀尚未有生产写入证据 |
 | r2-gu-uploads | production | r2 | codepi-gu-uploads | kedoupi | 投资原件与研究附件 | private-user-data | worker-gu MATERIALS、经 GU RPC 的 Ops | 无公开域名 | apps/gu/wrangler.toml | managed | 2026-10-20 r2.dev 关闭、custom domains 为空；生产 revision 1、资料索引 112 件，生产与隔离恢复的全部鉴权下载摘要一致 |
-| ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | managed | 2026-10-25 PR #192 已接入发布观察 CLI；Ops a4af1cbb 已持久化连续异常计数，隔离演练实际进入回滚步骤但因 Workerd redirect 不兼容失败；修复待发布重验，详见 Observer 任务记录 |
+| ops-observer-capability | production | logical-capability | codepi-ops observe workflow | kedoupi | 发布后 30 分钟版本观察、脱敏报告与状态结论 | private-user-data(metadata only) | workflow-ops、发布经理 | 无公网入口 | services/ops/src/observer.mjs、scripts/cloudflare/release-observation.mjs | managed | 2026-10-25 PR #192/#193 已发布 Ops 22741311（source 896023a）；七轮生产观察 healthy_reported，隔离真实自动回滚 rollback_verified；Issue #169 通知已核对，临时资源清理完成，详见 Observer 任务记录 |
 | secret-ops-rollback-token | production | worker-secret | CLOUDFLARE_ROLLBACK_TOKEN（值不登记） | kedoupi | Observer 严重故障的受控 Worker 回滚 | credential-metadata | rollback-worker.mjs、worker-ops | - | scripts/cloudflare/provision-ops.mjs rollback-credential | managed | 2026-10-23 任务证据记录已创建 codepi-ops-rollback，权限为 Workers Scripts Write；凭证值永不写入登记表 |
 <!-- registry-table:end -->
 
 ## 2026-10-25 Observer 隔离回滚演练资源
 
-只用于无业务数据的合成异常演练，无生产消费者。两次观察均已结束，R2 轮询与 summary 报告保留；第二次实际尝试回滚但受 Workerd redirect 不兼容阻断，不能记作自动回滚成功。详见[任务记录](tasks/2026-10-23-ops-observer.md#2026-10-25-发布接入与隔离回滚演练)。
+只用于无业务数据的合成异常演练，无生产消费者。三次观察均已结束，R2 轮询与 summary 报告保留；第二次受 Workerd redirect 不兼容阻断，第三次在 PR #193 修复后已通过真实自动回滚，状态为 `rollback_verified`。详见[任务记录](tasks/2026-10-23-ops-observer.md#2026-10-25-发布接入与隔离回滚演练)。
 
 | 类型 | 名称 / ID | 数据与消费者 | last_verified / expires_on | cleanup_evidence |
 | --- | --- | --- | --- | --- |
 | Worker | `codepi-ops-pr-192`；previous `a8db0c95`、故障版 `c7749bc3` | synthetic；无生产 binding/消费者；后续诊断仅含合成 marker secret | 2026-10-25 已删除 | `2026-10-25T05:22:27.999Z` 关闭 workers.dev/preview 后删除，全量列举不存在；十个生产版本一致，发布锁已释放 |
+| Worker | `codepi-ops-pr-193`；previous `251e234c`、故障版 `e3c0c7ba` | synthetic；无 secret/binding/生产消费者；Observer 自动切回 previous 并核对 100% 流量 | 2026-10-25 已删除 | `2026-10-25T06:04:05.331Z` 关闭 workers.dev/preview 后删除，全量列举不存在；十个生产版本保持发布后清单，发布锁释放 |
 
 ## 2026-10-19 临时恢复演练资源
 

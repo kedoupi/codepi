@@ -1,6 +1,6 @@
 # Ops Observer 正式工作流
 
-- 状态：发布后观察 CLI 与跨步骤异常计数已合并上线；真实回滚演练发现 Workerd redirect 不兼容，修复待发布及重验
+- 状态：发布后观察 CLI、跨步骤异常计数与 Workerd 回滚修复均已合并上线；30 分钟生产观察及真实安全自动回滚演练通过
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
 - worktree / 分支：第七至十九轮候选依次叠加为 `codex/round19-final`，2026-10-25 fast-forward 合并 main；旧候选分支与 worktree 已清理
@@ -56,10 +56,17 @@
 - 回滚错误为 `Worker rollback API failed (network or invalid JSON)`。本地 Workerd 已复现 `redirect: error` 在发请求前抛错，只支持 `follow/manual`。本轮改为 `manual`，添加真实 Workerd 的 GET → POST → GET 回滚回归与重定向拒绝单测；不是凭证修复。
 - 诊断更正：临时 Worker 中缺少生产 rollback secret，不能据其 `present:false` 判断生产凭证为空；审计日志缺失也不能证明历史从未写入。未轮换或复制任何生产凭证。曾用管理身份手工切回临时版本，仅用于排查，不能计作 Observer 自动回滚成功。
 - 临时 Worker 已于 `2026-10-25T05:22:27.999Z` 关闭 workers.dev/preview 后删除，全量列举确认不存在，十个生产版本与清理前一致；本会话发布锁已释放。演练 R2 报告保留。
-- 本轮本地验证：`pnpm install --frozen-lockfile`、`check.mjs --base 0860fb0 --run` 七项检查全部通过（Cloudflare 187、agent workflow 35、Ops 44 项测试，含构建、治理、lint 与真实 Workerd/R2 回归），migration guard 29 个文件通过，`git diff --check` 通过。线上重验尚未执行。
+- 本轮本地验证：`pnpm install --frozen-lockfile`、`check.mjs --base 0860fb0 --run` 七项检查全部通过（Cloudflare 187、agent workflow 35、Ops 44 项测试，含构建、治理、lint 与真实 Workerd/R2 回归），migration guard 29 个文件通过，`git diff --check` 通过。该次本地验证时线上重验尚未执行；后续结果如下。
+
+### PR #193 发布与最终验收
+
+- PR #193 合入 source `896023a2cca421a04a2193ac01b8dc7b8e41a4b4`，GitHub 相关检查通过；从干净且等于实时远程 main 的独立 checkout 持锁，仅发布 Ops `22741311-4c7c-436d-8dcf-2d6c2af5c9f5`，previous 为 `a4af1cbb`。无 migration、secret 或 binding 变更；其他九个生产 Worker 版本不变，生产巡检通过。
+- 发布 CLI 创建 `release-896023a2cca4-ops193`（实例 `cf_79492ffb4bcd36bc86665500163352774af1ede77a2747cea05aec4a80e827ec`）；七轮完成，R2 summary 于 `2026-10-25T06:03:37.710Z` 为 `healthy_reported`，无回滚。观察期间另经用户授权修复 MCP 的 Browser Integrity Check 例外，未改变 Worker 版本；详见[误拦记录](2026-10-22-cloudflare-alert-tuning.md#2026-10-25-mcp-程序客户端的-1010-误拦修复)。
+- 真正自动回滚：`release-896023a2cca4-drill193`（实例 `cf_9f6e79649036e411a66a45f371758eecb9d05e949cfa5bf5732641359be60aae`），隔离 Worker `codepi-ops-pr-193` 无 secret/binding/业务数据；合成异常在 round-1 degraded、round-2 critical，Observer 使用原有专用凭证自动从 `e3c0c7ba-850e-4591-b2a3-cf90c1e5435e` 切回 `251e234c-5139-4455-9caf-03bc12de4f5a`。R2 summary 于 `2026-10-25T05:43:13.393Z` 为 `rollback_verified`，failed_services 与 lingering 均为空；独立控制面回读旧版 100% 承流。这验证了生产回滚凭证可用，未轮换凭证。
+- Issue #169 已核对两实例开始/完成通知及演练 degraded/critical 通知。完成 comment ID：生产 `6394197079`、演练 `6394036246`。
+- `2026-10-25T06:04:05.331Z` 临时 Worker 关闭 workers.dev/preview 后删除，全量列举确认不存在；十个生产版本与 Ops 发布后清单一致，锁已释放，后台脚本 exit 0。旧 Supervisor 700/701 工作区及已合并修复分支已清理；本机与远程 main 同步至发布 source，后续证据提交不要求业务重发。
 
 ## 未执行项
 
 1. **无人值守编排**：发布 CLI 已接入 runbook；Orca PR Supervisor 的扫描不等于自动发布，完整无人值守发布编排尚未验收。
-2. **真实安全回滚演练**：发布 Workerd redirect 修复，再用独立无迁移、无 secret、无不可逆副作用 Worker 验证 `rollback_verified`；当前第二次演练不能记作成功。
-3. **用户确认**：浏览器与真实 MCP 授权已由本地验收完成；真实邮件 OTP、Oura 重授权和实际客户端重连仍需所有者操作。
+2. **用户确认**：浏览器与真实 MCP 授权已由本地验收完成；真实邮件 OTP、Oura 重授权和实际客户端重连仍需所有者操作。
