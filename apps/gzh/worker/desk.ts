@@ -246,14 +246,6 @@ export async function handleUpsertPost(
     return json({ ok: false, error: "当前状态不能再交待审" }, 409);
   }
 
-  if (occupant) {
-    await env.DB.batch([
-      env.DB.prepare(`DELETE FROM reviews WHERE post_id = ?`).bind(occupant.id),
-      env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(occupant.id),
-    ]);
-    await markSkipAutoDemo(env, publishDate);
-  }
-
   const preview = previewPath || existing?.preview_path || `/p/${persistSlug}/`;
   const stamp = nowIso();
   const nextDemo =
@@ -268,16 +260,28 @@ export async function handleUpsertPost(
     })
       ? 1
       : 0;
+  const sourceReady = existing
+    ? `EXISTS (SELECT 1 FROM posts WHERE id = ? AND status = ? AND updated_at = ?)`
+    : "";
+  const statements: D1PreparedStatement[] = [];
+
+  if (occupant) {
+    statements.push(
+      env.DB.prepare(
+        `UPDATE posts SET slot = NULL WHERE id = ? AND is_demo = 1${existing ? ` AND ${sourceReady}` : ""}`,
+      ).bind(occupant.id, ...(existing ? [existing.id, existing.status, existing.updated_at] : [])),
+    );
+  }
 
   if (existing) {
-    await env.DB.prepare(
-      `UPDATE posts
-       SET title = ?, slot = ?, publish_date = ?, status = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
-       WHERE id = ?`,
-    )
-      .bind(
+    statements.push(
+      env.DB.prepare(
+        `UPDATE posts
+         SET title = ?, slot = ?, publish_date = ?, status = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
+         WHERE id = ? AND status = ? AND updated_at = ?`,
+      ).bind(
         title,
-        slot,
+        persistSlug === existing.id ? slot : null,
         publishDate,
         nextStatus,
         preview,
@@ -286,18 +290,45 @@ export async function handleUpsertPost(
         nextDemo,
         stamp,
         existing.id,
-      )
-      .run();
+        existing.status,
+        existing.updated_at,
+      ),
+    );
     if (persistSlug !== existing.id) {
-      const renamed = await renamePostId(env, existing.id, persistSlug);
-      if (renamed.error) return json({ ok: false, error: renamed.error }, renamed.status);
+      statements.push(
+        env.DB.prepare(
+          `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
+           VALUES (?, (SELECT account_id FROM posts WHERE id = ? AND status = ? AND updated_at = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          persistSlug,
+          existing.id,
+          nextStatus,
+          stamp,
+          title,
+          slot,
+          publishDate,
+          nextStatus,
+          preview,
+          note || null,
+          digest || existing.digest,
+          nextDemo,
+          existing.created_at,
+          stamp,
+        ),
+        env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(persistSlug, existing.id),
+        env.DB.prepare(`DELETE FROM posts WHERE id = ? AND status = ? AND updated_at = ?`).bind(
+          existing.id,
+          nextStatus,
+          stamp,
+        ),
+      );
     }
   } else {
-    await env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-    )
-      .bind(
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      ).bind(
         persistSlug,
         account.id,
         title,
@@ -309,8 +340,27 @@ export async function handleUpsertPost(
         digest || null,
         stamp,
         stamp,
-      )
-      .run();
+      ),
+    );
+  }
+
+  if (occupant) {
+    const persistedId = persistSlug;
+    statements.push(
+      env.DB.prepare(`DELETE FROM reviews WHERE post_id = ? AND EXISTS (SELECT 1 FROM posts WHERE id = ?)`).bind(
+        occupant.id,
+        persistedId,
+      ),
+      env.DB.prepare(`DELETE FROM posts WHERE id = ? AND is_demo = 1 AND slot IS NULL`).bind(occupant.id),
+      env.DB.prepare(`INSERT OR REPLACE INTO desk_meta (key, value, updated_at) VALUES (?, 'released', ?)`).bind(
+        `skip_auto_demo:${publishDate}`,
+        stamp,
+      ),
+    );
+  }
+  const results = await env.DB.batch(statements);
+  if (existing && results[occupant ? 1 : 0]?.meta.changes !== 1) {
+    return json({ ok: false, error: "当前状态不能再交待审" }, 409);
   }
 
   const row = await loadPost(env, persistSlug);
@@ -389,17 +439,57 @@ export async function handlePatchPost(
     if (renameError) return json({ ok: false, error: renameError.error }, renameError.status);
   }
 
-  await env.DB.prepare(
-    `UPDATE posts
-     SET title = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
-     WHERE id = ?`,
-  )
-    .bind(nextTitle, nextPreview, nextNote, nextDigest, nextDemo, nowIso(), post.id)
-    .run();
-
+  const stamp = nowIso();
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `UPDATE posts
+       SET title = ?, slot = ?, preview_path = ?, note = ?, digest = ?, is_demo = ?, updated_at = ?
+       WHERE id = ? AND status = ? AND updated_at = ?`,
+    ).bind(
+      nextTitle,
+      persistSlug === post.id ? post.slot : null,
+      nextPreview,
+      nextNote,
+      nextDigest,
+      nextDemo,
+      stamp,
+      post.id,
+      post.status,
+      post.updated_at,
+    ),
+  ];
   if (persistSlug !== post.id) {
-    const renamed = await renamePostId(env, post.id, persistSlug);
-    if (renamed.error) return json({ ok: false, error: renamed.error }, renamed.status);
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
+         VALUES (?, (SELECT account_id FROM posts WHERE id = ? AND status = ? AND updated_at = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        persistSlug,
+        post.id,
+        post.status,
+        stamp,
+        nextTitle,
+        post.slot,
+        post.publish_date,
+        post.status,
+        nextPreview,
+        nextNote,
+        nextDigest,
+        nextDemo,
+        post.created_at,
+        stamp,
+      ),
+      env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(persistSlug, post.id),
+      env.DB.prepare(`DELETE FROM posts WHERE id = ? AND status = ? AND updated_at = ?`).bind(
+        post.id,
+        post.status,
+        stamp,
+      ),
+    );
+  }
+  const results = await env.DB.batch(statements);
+  if (results[0].meta.changes !== 1) {
+    return json({ ok: false, error: "稿件不存在" }, 404);
   }
 
   const row = await loadPost(env, persistSlug);
@@ -450,15 +540,30 @@ export async function handleReview(
   const stamp = nowIso();
   const reviewNote = note || null;
 
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE posts SET status = ?, note = ?, updated_at = ? WHERE id = ?`,
-    ).bind(toStatus, reviewNote ?? post.note, stamp, slug),
+  const [, transition] = await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(crypto.randomUUID(), slug, account.id, typedAction, post.status, toStatus, reviewNote, stamp),
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM posts WHERE id = ? AND status = ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      slug,
+      account.id,
+      typedAction,
+      post.status,
+      toStatus,
+      reviewNote,
+      stamp,
+      slug,
+      post.status,
+    ),
+    env.DB.prepare(
+      `UPDATE posts SET status = ?, note = ?, updated_at = ? WHERE id = ? AND status = ?`,
+    ).bind(toStatus, reviewNote ?? post.note, stamp, slug, post.status),
   ]);
+  if (transition.meta.changes !== 1) {
+    return json({ ok: false, error: "只有待审稿可以审" }, 409);
+  }
 
   const updated = await loadPost(env, slug);
 
@@ -483,9 +588,14 @@ export async function handleBoxed(
     return json({ ok: false, error: "只有可推箱才能标已进箱" }, 409);
   }
 
-  await env.DB.prepare(`UPDATE posts SET status = '已进箱', updated_at = ? WHERE id = ?`)
-    .bind(nowIso(), slug)
+  const result = await env.DB.prepare(
+    `UPDATE posts SET status = '已进箱', updated_at = ? WHERE id = ? AND status = ?`,
+  )
+    .bind(nowIso(), slug, post.status)
     .run();
+  if (result.meta.changes !== 1) {
+    return json({ ok: false, error: "只有可推箱才能标已进箱" }, 409);
+  }
 
   const row = await loadPost(env, slug);
 
@@ -503,46 +613,6 @@ async function checkPostIdAvailable(
   if (!isSlug(slug)) return { error: "slug 无效", status: 400 };
   const clash = await env.DB.prepare(`SELECT id FROM posts WHERE id = ?`).bind(slug).first<{ id: string }>();
   return clash ? { error: "slug 已被占用", status: 409 } : null;
-}
-
-async function renamePostId(
-  env: Env,
-  from: string,
-  to: string,
-): Promise<{ error?: string; status: number }> {
-  if (from === to) return { status: 200 };
-  if (!isSlug(to)) return { error: "slug 无效", status: 400 };
-
-  const source = await loadPost(env, from);
-  if (!source) return { error: "稿件不存在", status: 404 };
-
-  const renameError = await checkPostIdAvailable(env, to);
-  if (renameError) return renameError;
-
-  const stamp = nowIso();
-  await env.DB.batch([
-    env.DB.prepare(`UPDATE posts SET slot = NULL WHERE id = ?`).bind(from),
-    env.DB.prepare(
-      `INSERT INTO posts (id, account_id, title, slot, publish_date, status, preview_path, note, digest, is_demo, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      to,
-      source.account_id,
-      source.title,
-      source.slot,
-      source.publish_date,
-      source.status,
-      source.preview_path,
-      source.note,
-      source.digest,
-      source.is_demo,
-      source.created_at,
-      stamp,
-    ),
-    env.DB.prepare(`UPDATE reviews SET post_id = ? WHERE post_id = ?`).bind(to, from),
-    env.DB.prepare(`DELETE FROM posts WHERE id = ?`).bind(from),
-  ]);
-  return { status: 200 };
 }
 
 export async function handleWithdraw(
@@ -572,9 +642,14 @@ export async function handleWithdraw(
         ? "演示稿已撤回待审，可再过或换真稿"
         : "编辑撤回待审";
 
-  await env.DB.prepare(`UPDATE posts SET status = '待审', note = ?, updated_at = ? WHERE id = ?`)
-    .bind(note, stamp, slug)
+  const result = await env.DB.prepare(
+    `UPDATE posts SET status = '待审', note = ?, updated_at = ? WHERE id = ? AND status = ?`,
+  )
+    .bind(note, stamp, slug, post.status)
     .run();
+  if (result.meta.changes !== 1) {
+    return json({ ok: false, error: "只有需改、可推箱或已进箱可以撤回待审" }, 409);
+  }
 
   const row = await loadPost(env, slug);
   return json({ ok: true, post: row ? await toBoardPost(env, row) : null });

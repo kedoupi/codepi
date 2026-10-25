@@ -557,16 +557,17 @@ async function syncTasks(
     if (error instanceof SyncFailure) throw new SyncFailure(error.code, url);
     throw new SyncFailure("github_unavailable", url);
   }
-  const current = files
+  const listed = files
     .filter(file => file.type === "file" && file.name.endsWith(".md"))
-    .sort((a, b) => b.name.localeCompare(a.name, "en"))
-    .slice(0, 30);
+    .sort((a, b) => b.name.localeCompare(a.name, "en"));
+  const current = listed.slice(0, 30);
   const currentPaths = new Set(current.map(file => file.path));
+  const listedPaths = new Set(listed.map(file => file.path));
   const existing = (await env.DB.prepare(
     "SELECT path,sha FROM task_notes WHERE project_id=?",
   ).bind(project.id).all<{ path: string; sha: string }>()).results;
   const shas = new Map(existing.map(row => [row.path, row.sha]));
-  const directorySha = `tasks:${current.map(file => `${file.path}:${file.sha}`).join("|")}`;
+  const directorySha = `tasks:${listed.map(file => `${file.path}:${file.sha}`).join("|")}`;
   const checkpoint = parseTaskCheckpoint(state?.checkpoint);
   let pending = checkpoint && checkpoint.tree_sha === directorySha && current.length
     ? checkpoint.pending.filter(path => currentPaths.has(path))
@@ -601,7 +602,7 @@ async function syncTasks(
     pending = pending.filter(path => path !== file.path);
   }
 
-  const stale = existing.filter(row => !currentPaths.has(row.path));
+  const stale = existing.filter(row => !listedPaths.has(row.path));
   await writeInChunks(env.DB, stale.map(row => env.DB.prepare(
     "DELETE FROM task_notes WHERE project_id=? AND path=?",
   ).bind(project.id, row.path)), guard);

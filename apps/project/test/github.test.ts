@@ -170,6 +170,59 @@ apps/
     await syncProject(bindings, await projectRow(), { now: startedAt + 60_000 });
     expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM task_notes").first("n")).toBe(0);
   });
+
+  it("keeps unselected task notes until the full directory listing removes them", async () => {
+    let taskFiles = Array.from({ length: 31 }, (_, index) => {
+      const number = String(index + 1).padStart(2, "0");
+      return {
+        name: `task-${number}.md`,
+        path: `docs/development/tasks/task-${number}.md`,
+        sha: `task-sha-${number}`,
+        type: "file",
+        url: `https://api.github.com/repos/kedoupi/codepi/contents/docs/development/tasks/task-${number}.md?ref=main`,
+      };
+    });
+    await env.DB.batch(taskFiles.map(file => env.DB.prepare(`INSERT INTO task_notes
+      (project_id,path,title,status_line,status,sha,updated_at)
+      VALUES (?,?,?,?,?,?,?)`)
+      .bind("kedoupi-codepi", file.path, file.name, null, "unknown", file.sha, "2026-10-20T00:00:00Z")));
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/commits") || url.pathname.endsWith("/pulls") || url.pathname.endsWith("/issues")) {
+        return response([]);
+      }
+      if (url.pathname.endsWith("/contents/AGENTS.md")) {
+        if (request.headers.get("Accept") === "application/vnd.github.raw") {
+          return new Response("# Repo\n\n## What this repo is\n\nSynthetic.\n");
+        }
+        return response({
+          name: "AGENTS.md",
+          path: "AGENTS.md",
+          sha: "agents-sha",
+          type: "file",
+          url: request.url,
+        });
+      }
+      if (url.pathname.endsWith("/contents/docs/development/tasks")) return response(taskFiles);
+      throw new Error(`Unexpected GitHub URL ${request.url}`);
+    });
+
+    const bindings = { ...env, GITHUB_TOKEN: "synthetic-read-only-token" } as Env;
+    const startedAt = Date.now();
+    await syncProject(bindings, await projectRow(), { now: startedAt });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM task_notes WHERE path=?")
+      .bind("docs/development/tasks/task-01.md").first("n")).toBe(1);
+    expect((await env.DB.prepare("SELECT cursor FROM sync_state WHERE project_id=? AND source='tasks'")
+      .bind("kedoupi-codepi").first<{ cursor: string }>())?.cursor)
+      .toContain("docs/development/tasks/task-01.md:task-sha-01");
+
+    taskFiles = taskFiles.filter(file => file.path !== "docs/development/tasks/task-01.md");
+    await syncProject(bindings, await projectRow(), { now: startedAt + 60_000 });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM task_notes WHERE path=?")
+      .bind("docs/development/tasks/task-01.md").first("n")).toBe(0);
+  });
   it("stops commit and issue pagination at the saved cursor", async () => {
     await env.DB.prepare(`INSERT INTO sync_state
       (project_id,source,cursor,last_ok_at) VALUES (?,?,?,?)`)

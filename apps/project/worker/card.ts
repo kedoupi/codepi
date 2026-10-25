@@ -87,7 +87,7 @@ export async function buildCard(
         ORDER BY happened_at DESC, ref DESC LIMIT 10`)
         .bind(project.id).all<RepoEventRow>(),
       env.DB.prepare(`SELECT * FROM task_notes
-        WHERE project_id=? ORDER BY updated_at DESC, path DESC LIMIT 30`)
+        WHERE project_id=? AND status<>'done' ORDER BY updated_at DESC, path DESC LIMIT 10`)
         .bind(project.id).all<TaskNoteRow>(),
       env.DB.prepare(
         "SELECT * FROM sync_state WHERE project_id=?",
@@ -103,9 +103,7 @@ export async function buildCard(
   const openPrs = openPrsResult.results;
   const mergedPrs = mergedPrsResult.results;
   const openIssues = openIssuesResult.results;
-  const tasks = taskRowsResult.results
-    .filter(row => row.status !== "done")
-    .slice(0, 10);
+  const tasks = taskRowsResult.results;
   const syncRows = syncRowsResult.results;
   const sync = Object.fromEntries(SOURCES.map(source => {
     const row = syncRows.find(item => item.source === source);

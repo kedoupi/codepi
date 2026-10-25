@@ -69,6 +69,56 @@ describe("project card", () => {
     expect(card.sync.commits.last_ok_at).toBe("2026-10-20T03:00:00Z");
   });
 
+  it("returns older active tasks when the newest task notes are done", async () => {
+    const notes = Array.from({ length: 30 }, (_, index) =>
+      env.DB.prepare(`INSERT INTO task_notes
+        (project_id,path,title,status_line,status,sha,updated_at)
+        VALUES (?,?,?,?,?,?,?)`)
+        .bind(
+          "kedoupi-codepi",
+          `docs/development/tasks/done-${String(index).padStart(2, "0")}.md`,
+          `Done ${index}`,
+          "状态：已完成",
+          "done",
+          `done-${index}`,
+          `2026-10-20T03:${String(index).padStart(2, "0")}:00Z`,
+        ));
+    await env.DB.batch([
+      ...notes,
+      env.DB.prepare(`INSERT INTO task_notes
+        (project_id,path,title,status_line,status,sha,updated_at)
+        VALUES (?,?,?,?,?,?,?)`)
+        .bind(
+          "kedoupi-codepi",
+          "docs/development/tasks/in-progress.md",
+          "Older active",
+          "状态：进行中",
+          "in_progress",
+          "active",
+          "2026-10-19T03:00:00Z",
+        ),
+      env.DB.prepare(`INSERT INTO task_notes
+        (project_id,path,title,status_line,status,sha,updated_at)
+        VALUES (?,?,?,?,?,?,?)`)
+        .bind(
+          "kedoupi-codepi",
+          "docs/development/tasks/blocked.md",
+          "Older blocked",
+          "状态：受阻",
+          "blocked",
+          "blocked",
+          "2026-10-19T02:00:00Z",
+        ),
+    ]);
+
+    const card = await buildCard(env, await seedProjectRow());
+
+    expect(card.active_tasks.map(task => [task.title, task.status])).toEqual([
+      ["Older active", "in_progress"],
+      ["Older blocked", "blocked"],
+    ]);
+  });
+
   it("runs independent card queries concurrently without changing the query count", async () => {
     let inFlight = 0;
     let maxInFlight = 0;

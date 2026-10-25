@@ -66,6 +66,34 @@ describe("board + review", () => {
     expect(boxedBody.post.status).toBe("已进箱");
   });
 
+  it("allows only one concurrent review and writes one review record", async () => {
+    const cookie = await loginAsAllowlisted();
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "concurrent-review",
+        title: "并发审核",
+        slot: "中",
+        publish_date: "2026-09-18",
+        preview_path: "/previews/kdp-0917-zhong/",
+        submit: true,
+      }),
+    });
+
+    const responses = await Promise.all(
+      ["过", "要改"].map((action) =>
+        authed(cookie, "/api/review", {
+          method: "POST",
+          body: JSON.stringify({ slug: "concurrent-review", action, note: action === "要改" ? "并发意见" : "" }),
+        }),
+      ),
+    );
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(responses.filter((response) => response.status === 409)).toHaveLength(1);
+    const reviews = await env.DB.prepare(`SELECT id FROM reviews WHERE post_id = ?`).bind("concurrent-review").all();
+    expect(reviews.results).toHaveLength(1);
+  });
+
   it("maps 要改 and 拒 to 需改, then allows resubmit", async () => {
     const cookie = await loginAsAllowlisted();
     await authed(cookie, "/api/posts", {
@@ -217,6 +245,39 @@ describe("board + review", () => {
     });
     const fromNeed = await authed(cookie, "/api/posts/flow-withdraw-need/withdraw", { method: "POST" });
     expect(((await fromNeed.json()) as { post: { status: string } }).post.status).toBe("待审");
+  });
+
+  it("allows only one concurrent boxed or withdraw transition", async () => {
+    const cookie = await loginAsAllowlisted();
+    await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: "concurrent-transition",
+        title: "并发状态迁移",
+        slot: "晚",
+        publish_date: "2026-09-20",
+        preview_path: "/previews/kdp-0917-wan/",
+        submit: true,
+      }),
+    });
+    await authed(cookie, "/api/review", {
+      method: "POST",
+      body: JSON.stringify({ slug: "concurrent-transition", action: "过" }),
+    });
+
+    const boxed = await Promise.all(
+      Array.from({ length: 2 }, () => authed(cookie, "/api/posts/concurrent-transition/boxed", { method: "POST" })),
+    );
+    expect(boxed.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(boxed.filter((response) => response.status === 409)).toHaveLength(1);
+
+    const withdrawn = await Promise.all(
+      Array.from({ length: 2 }, () =>
+        authed(cookie, "/api/posts/concurrent-transition/withdraw", { method: "POST" }),
+      ),
+    );
+    expect(withdrawn.filter((response) => response.status === 200)).toHaveLength(1);
+    expect(withdrawn.filter((response) => response.status === 409)).toHaveLength(1);
   });
 
   it("rejects withdraw from 待审 and marks 0917 seeds as demos", async () => {
@@ -544,6 +605,68 @@ describe("board + review", () => {
       title: "原始标题",
       note: "原始备注",
     });
+  });
+
+  it("keeps demo, source, reviews, and desk metadata unchanged when an upsert rename clashes", async () => {
+    const cookie = await loginAsAllowlisted();
+    for (const [slug, slot, title] of [
+      ["rename-demo", "中", "演示档"],
+      ["rename-source-atomic", "早", "源稿"],
+      ["rename-target-occupied", "晚", "占用 slug"],
+    ] as const) {
+      await authed(cookie, "/api/posts", {
+        method: "POST",
+        body: JSON.stringify({
+          slug,
+          title,
+          slot,
+          publish_date: "2026-12-13",
+          preview_path: `/previews/${slug}/`,
+        }),
+      });
+    }
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE posts SET is_demo = 1 WHERE id = ?`).bind("rename-demo"),
+      env.DB.prepare(
+        `INSERT INTO reviews (id, post_id, actor_account_id, action, from_status, to_status, note, created_at)
+         VALUES ('rename-source-review', ?, 'acc_owner_kdp', '要改', 'draft', '需改', '保留意见', ?)`,
+      ).bind("rename-source-atomic", "2026-12-13T00:00:00.000Z"),
+      env.DB.prepare(`INSERT INTO desk_meta (key, value, updated_at) VALUES (?, 'released', ?)`).bind(
+        "skip_auto_demo:2026-12-13",
+        "2026-12-13T00:00:00.000Z",
+      ),
+    ]);
+    const before = await env.DB.batch([
+      env.DB.prepare(`SELECT id, title, slot, is_demo FROM posts WHERE id IN (?, ?) ORDER BY id`).bind(
+        "rename-demo",
+        "rename-source-atomic",
+      ),
+      env.DB.prepare(`SELECT id, post_id, note FROM reviews WHERE post_id = ?`).bind("rename-source-atomic"),
+      env.DB.prepare(`SELECT key, value, updated_at FROM desk_meta WHERE key = ?`).bind("skip_auto_demo:2026-12-13"),
+    ]);
+
+    const clash = await authed(cookie, "/api/posts", {
+      method: "POST",
+      body: JSON.stringify({
+        from_slug: "rename-source-atomic",
+        new_slug: "rename-target-occupied",
+        title: "不应保存",
+        slot: "中",
+        publish_date: "2026-12-13",
+        preview_path: "/previews/replaced/",
+      }),
+    });
+    expect(clash.status).toBe(409);
+
+    const after = await env.DB.batch([
+      env.DB.prepare(`SELECT id, title, slot, is_demo FROM posts WHERE id IN (?, ?) ORDER BY id`).bind(
+        "rename-demo",
+        "rename-source-atomic",
+      ),
+      env.DB.prepare(`SELECT id, post_id, note FROM reviews WHERE post_id = ?`).bind("rename-source-atomic"),
+      env.DB.prepare(`SELECT key, value, updated_at FROM desk_meta WHERE key = ?`).bind("skip_auto_demo:2026-12-13"),
+    ]);
+    expect(after.map((result) => result.results)).toEqual(before.map((result) => result.results));
   });
 
   it("does not delete a demo occupant when upsert is rejected for boxed post", async () => {
