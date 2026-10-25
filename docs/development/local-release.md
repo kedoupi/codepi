@@ -181,14 +181,16 @@ node scripts/cloudflare/deployment-evidence.mjs append \
 
 只有本节 smoke 与第 4 节线上验收全部通过，才允许结束发布 shell 的发布阶段。随后必须为本次发布生成**单一** release manifest（不得为每个服务分别触发观察），至少包含 `release_id`、source SHA、每个服务的 previous/new version、`migration_applied`、`secret_changed`、`binding_changed`、`external_side_effects`；manifest 会推导 `rollback_allowed`，不能手工放宽。
 
-在 `services/ops/` 使用 workspace 锁定的 Wrangler，将 manifest 作为 payload 触发 observe session：
+在仍持有发布锁的同一 shell 中，从仓库根运行（每个事实标志列出为 true 的服务，没有则写 `none`，不得省略）：
 
 ```bash
-pnpm exec wrangler workflows trigger codepi-ops \
-  '{"kind":"observe","release_id":"<release_id>","manifest":<release-manifest-json>}'
+node scripts/cloudflare/release-observe.mjs --sha "$release_sha" --nonce <短标签> \
+  --services <本次发布的服务,逗号分隔> \
+  --migration-applied <服务或none> --secret-changed <服务或none> \
+  --binding-changed <服务或none> --external-side-effects <服务或none>
 ```
 
-`<release-manifest-json>` 是已生成的 manifest 对象，不是路径字符串或第二份变体。发布开始和观察结论由 GitHub 长驻 Issue comment 通知；Cloudflare Issues 邮件链仍负责失败告警。Observer 固定在 t=0/5/10/15/20/25/30 分钟轮询，结束后从 R2 读取 `reports/observer/<release_id>/summary.json`，核对最终状态与报告，再向用户报告；在线正常必须由用户确认，不能用 Workflow 完成状态代替确认。观察期间不得另起一次发布或手工切换版本。
+脚本从控制面读取每个服务当前 100% 承流的版本，要求其 `BUILD_SHA` 等于本次发布，并把之前最后一个整版承流的版本记为 previous；随后生成单一 manifest、推导 `rollback_allowed`，用 workspace 锁定的 Wrangler 以 `kind: observe` 触发 `codepi-ops`，输出 release_id 与 Workflow 实例 ID。先加 `--dry-run` 只打印 manifest 摘要不触发。发布 SHA 必须是远程 main 的祖先；分流、BUILD_SHA 不符或事实未声明都会拒绝。发布开始和观察结论由 GitHub 长驻 Issue comment 通知；Cloudflare Issues 邮件链仍负责失败告警。Observer 固定在 t=0/5/10/15/20/25/30 分钟轮询，结束后从 R2 读取 `reports/observer/<release_id>/summary.json`，核对最终状态与报告，再向用户报告；在线正常必须由用户确认，不能用 Workflow 完成状态代替确认。观察期间不得另起一次发布或手工切换版本。
 
 ## 5. 失败与日常运行
 
