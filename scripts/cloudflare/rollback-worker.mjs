@@ -36,7 +36,7 @@ export function cloudflareApi({ env = process.env, request = fetch } = {}) {
     let response, payload;
     try {
       response = await request(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(env.CLOUDFLARE_ACCOUNT_ID)}${endpoint}`, {
-        method, redirect: 'error', signal: AbortSignal.timeout(30000),
+        method, redirect: 'manual', signal: AbortSignal.timeout(30000),
         headers: { authorization: `Bearer ${env.CLOUDFLARE_ROLLBACK_TOKEN}`, 'content-type': 'application/json' },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });

@@ -80,6 +80,8 @@ try {
     env: { DB: { type: 'd1', name: `${name}-me-db` }, IMPORTS: { type: 'r2', name: `${name}-imports` } },
   } });
   const exports = [], expected = new Map();
+  const rollbackRequests = [];
+  let rollbackVersion = 'synthetic-new-version';
   const sqlById = new Map([
     [databaseIds['codepi-gu'], guSql],
     [databaseIds['codepi-me'], meSql],
@@ -93,7 +95,8 @@ try {
         exports: { SyntheticWorkflow: { type: 'workflow', name: 'ops-synthetic' } },
         env: {
           ...values({ RECIPIENT: keys.publicKey, CLOUDFLARE_ACCOUNT_ID: 'synthetic-account',
-            CLOUDFLARE_API_TOKEN: 'synthetic-token', D1_DATABASE_IDS: JSON.stringify(databaseIds),
+            CLOUDFLARE_API_TOKEN: 'synthetic-token', CLOUDFLARE_ROLLBACK_TOKEN: 'synthetic-rollback-token',
+            D1_DATABASE_IDS: JSON.stringify(databaseIds),
             BUILD_SHA: 'synthetic' }),
           BACKUPS: { type: 'r2', name: 'ops-synthetic' },
           GU: { type: 'worker', worker: 'gu-source', exportName: 'GuMaterialsBackup' },
@@ -103,6 +106,16 @@ try {
       },
       dev: { outboundService: { type: 'fetcher', async handler(request) {
         const url = new URL(request.url);
+        if (url.hostname === 'api.cloudflare.com' && url.pathname.endsWith('/workers/scripts/codepi-ops-pr-192/deployments')) {
+          assert.equal(request.headers.get('authorization'), 'Bearer synthetic-rollback-token');
+          rollbackRequests.push(request.method);
+          if (request.method === 'POST') {
+            assert.deepEqual(await request.json(), { strategy: 'percentage', versions: [{ version_id: 'synthetic-old-version', percentage: 100 }] });
+            rollbackVersion = 'synthetic-old-version';
+            return Response.json({ success: true, result: {} });
+          }
+          return Response.json({ success: true, result: { deployments: [{ versions: [{ version_id: rollbackVersion, percentage: 100 }] }] } });
+        }
         if (url.hostname === 'api.cloudflare.com' && url.pathname === '/client/v4/graphql') {
           return Response.json({ data: { viewer: { zones: [{ httpRequests1hGroups: [{
             dimensions: { datetime: '2026-10-22T09:00:00Z' }, sum: { requests: 10, threats: 1, bytes: 100 },
@@ -142,6 +155,10 @@ try {
     meWorker('me-source'), meWorker('me-recovery')],
   });
   await runtime.ready;
+  const rollbackResponse = await runtime.dispatchFetch('https://ops.synthetic/rollback');
+  assert.equal(rollbackResponse.status, 200);
+  assert.equal((await rollbackResponse.json()).active_version, 'synthetic-old-version');
+  assert.deepEqual(rollbackRequests, ['GET', 'POST', 'GET']);
   const bucket = await runtime.getR2Bucket('BACKUPS', 'ops-synthetic');
   const guDb = await runtime.getD1Database('DB', 'gu-source');
   const guBucket = await runtime.getR2Bucket('MATERIALS', 'gu-source');

@@ -1,6 +1,6 @@
 # Ops Observer 正式工作流
 
-- 状态：已实现并完成线上验收；自动化接入和真实安全回滚演练仍未完成
+- 状态：发布后观察 CLI 与跨步骤异常计数已合并上线；真实回滚演练发现 Workerd redirect 不兼容，修复待发布及重验
 - 目标与验收：将发布后 Ops Observer 纳入五角色流水线，明确单一 release manifest、30 分钟观察、R2 报告、GitHub Issue 通知、severity 与自动回滚安全门；文档相对链接正确且不记录凭证值。
 - 不在范围内：不改业务代码、Cloudflare 远程资源、生产凭证、OAuth 或发布配置。
 - worktree / 分支：第七至十九轮候选依次叠加为 `codex/round19-final`，2026-10-25 fast-forward 合并 main；旧候选分支与 worktree 已清理
@@ -47,8 +47,19 @@
 - 线上验收：`check:api`、GU `check-pages`、MCP `check:live` 和生产巡检全部通过。
 - 发布注意：Ops/MCP 巡检按累计改动判定漂移；只改测试的 MCP 也需随 shared 改动重发以消除版本漂移告警。
 
+## 2026-10-25 发布接入与隔离回滚演练
+
+- 用户要求继续待办；沿用本会话已授权的合并、发布与临时资源清理。生产凭证轮换不在范围内。本轮修复 worktree 为 `~/.worktrees/codepi/codex/release-ops-0860fb0`，分支 `codex/ops-rollback-runtime`，基线 `0860fb078f267d8275b85ef26a6daf7f9049cec2`；协调、实现与集成由主会话串行负责。
+- PR #192 已合入 `0860fb0`：`release-observe.mjs` 从控制面生成单一 manifest 并触发观察，事实标志不得省略；发布 runbook 已接入。此为发布命令入口，尚无无人值守 Orca 发布编排的验收证据。
+- 首次隔离演练 `release-863e4338f44e-drill192`（实例 `cf_5968d7f5299d0aa6ef18b184d9c975dd645006063df54a927148f1b8d689478e`）暴露内存计数无法跨 Workflow 步骤保留。修复从上一轮 R2 poll 读取计数，已随 PR #192 发布 Ops `a4af1cbb-6ebd-4683-845c-65e198429554`（source `0860fb0`）。
+- 第二次演练 `release-0860fb078f26-drill192b`（实例 `cf_651fc5a4aed8103db093e6e4730e64c897b5f032316334644d592ca2681bc208`）poll-1 degraded、poll-2 critical，实际执行回滚步骤；summary 于 `2026-10-25T05:01:26.548Z` 为 `rollback_blocked`。目标是临时 Worker `codepi-ops-pr-192`，previous `a8db0c95-d256-47b9-aa07-48992c6a830d`、new `c7749bc3-664c-48ea-8a23-b5b7a5c0d0c9`；无迁移、凭证、binding 或业务副作用。
+- 回滚错误为 `Worker rollback API failed (network or invalid JSON)`。本地 Workerd 已复现 `redirect: error` 在发请求前抛错，只支持 `follow/manual`。本轮改为 `manual`，添加真实 Workerd 的 GET → POST → GET 回滚回归与重定向拒绝单测；不是凭证修复。
+- 诊断更正：临时 Worker 中缺少生产 rollback secret，不能据其 `present:false` 判断生产凭证为空；审计日志缺失也不能证明历史从未写入。未轮换或复制任何生产凭证。曾用管理身份手工切回临时版本，仅用于排查，不能计作 Observer 自动回滚成功。
+- 临时 Worker 已于 `2026-10-25T05:22:27.999Z` 关闭 workers.dev/preview 后删除，全量列举确认不存在，十个生产版本与清理前一致；本会话发布锁已释放。演练 R2 报告保留。
+- 本轮本地验证：`pnpm install --frozen-lockfile`、`check.mjs --base 0860fb0 --run` 七项检查全部通过（Cloudflare 187、agent workflow 35、Ops 44 项测试，含构建、治理、lint 与真实 Workerd/R2 回归），migration guard 29 个文件通过，`git diff --check` 通过。线上重验尚未执行。
+
 ## 未执行项
 
-1. **Orca automation**：当前 PR Supervisor 已配置为每 5 分钟扫描超过 10 分钟且没有 review/comment 的 open PR；发布后自动触发 observe session 的完整自动化仍未接入。
-2. **真实安全回滚演练**：本轮验证了 `rollback_blocked` 安全门，没有执行真正的自动切回；需要独立的无迁移、无 secret、无不可逆副作用测试发布。
+1. **无人值守编排**：发布 CLI 已接入 runbook；Orca PR Supervisor 的扫描不等于自动发布，完整无人值守发布编排尚未验收。
+2. **真实安全回滚演练**：发布 Workerd redirect 修复，再用独立无迁移、无 secret、无不可逆副作用 Worker 验证 `rollback_verified`；当前第二次演练不能记作成功。
 3. **用户确认**：浏览器与真实 MCP 授权已由本地验收完成；真实邮件 OTP、Oura 重授权和实际客户端重连仍需所有者操作。

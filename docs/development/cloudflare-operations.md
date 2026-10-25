@@ -24,12 +24,7 @@ v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记
 
 ## 发布后 Ops Observer
 
-发布经理在生产 smoke 通过后生成一个 release manifest，并触发：
-
-```bash
-pnpm exec wrangler workflows trigger codepi-ops \
-  '{"kind":"observe","release_id":"<release_id>","manifest":<release-manifest-json>}'
-```
+发布经理在生产 smoke 通过后，在同一发布锁内运行 `scripts/cloudflare/release-observe.mjs`，从控制面解析 previous/new version、生成单一 manifest 并触发 observe session。命令与必须显式声明的发布事实见[本地发布 §4.1](local-release.md#41-发布后观察)。
 
 `kind: observe` 由 `OperationsWorkflow` 创建观察实例；manifest 必须包含 release_id、previous/new version，以及每个服务的 `migration_applied`、`secret_changed`、`binding_changed`、`external_side_effects`。`rollback_allowed` 由这些字段和 previous version 自动推导。观察固定 30 分钟，在 t=0、5、10、15、20、25、30 分钟轮询。
 
@@ -52,6 +47,8 @@ reports/observer/<release_id>/summary.json
 - `degraded`：`invocations >= 20` 且 error rate `>= 5%`，或 p99 `>=` 基线的 2 倍。
 - `critical`：版本身份不一致立即触发；核心契约硬失败连续 2 轮；或 error rate `>= 20%` 且 errors `>= 20` 连续 2 轮。
 - 否则为 `healthy`。阈值按每个服务计算，低于 invocation 门槛不因比例单独升级。
+
+连续异常计数由下一轮的 `step.do` 从上一轮 R2 poll 报告读取，跨 Workflow isolate 保留；控制面或观测接口不可用时清零并降级，不据此回滚。回滚 HTTP 请求使用 Workerd 支持的 `redirect: manual`，拒绝非成功响应且不跟随重定向。
 
 发布开始、降级/严重事件和观察完成/健康结论写入 GitHub 长驻 Issue **`codepi release observations`** 的 comment，label 为 `codepi-release-observations`；event_id 用于幂等。失败告警继续沿用 Cloudflare Workers Issues 邮件链，不以 GitHub comment 取代。
 
