@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture } from './runtime.mjs';
+import { readFile } from 'node:fs/promises';
 
 test('real named RPC: project handoffs preserve two clients and parallel tasks', async t => {
   const f = await fixture(t);
@@ -73,12 +74,28 @@ test('real named RPC: blog source appears only with a blog.read grant', async t 
   assert.equal(context.isError, undefined, JSON.stringify(context.structuredContent));
   const blog = context.structuredContent.sources.find(s => s.id === 'blog');
   assert.ok(blog, JSON.stringify(context.structuredContent));
-  assert.equal(blog.summary.status, 'empty');
+  assert.equal(blog.summary.status, 'ok');
   const listed = await f.tool(withBlog.access_token, 'blog_list');
   assert.equal(listed.isError, undefined, JSON.stringify(listed.structuredContent));
-  assert.equal(listed.structuredContent.echoed.operation, 'list');
-  assert.equal(listed.structuredContent.echoed.subject, 'kdp-owner');
-  assert.equal(listed.structuredContent.echoed.client, withBlog.client.client_id);
+  assert.deepEqual(listed.structuredContent.posts, []);
+  const uploaded = await f.tool(withBlog.access_token, 'blog_upload_image', {
+    data_base64: (await readFile(new URL('../../../apps/web/public/favicon-32.png', import.meta.url))).toString('base64'), alt: '合成图片',
+  });
+  assert.equal(uploaded.isError, undefined, JSON.stringify(uploaded));
+  const image = uploaded.structuredContent;
+  const saved = await f.tool(withBlog.access_token, 'blog_submit', {
+    slug: 'mcp-image-post', title: '合成文章', summary: '完整 MCP 流程', body_markdown: image.markdown,
+    cover_media_id: image.id, base_revision: 0, request_id: 'first-submit',
+  });
+  assert.equal(saved.isError, undefined, JSON.stringify(saved));
+  assert.equal(saved.structuredContent.status, 'pending');
+  const row = await f.blogDb.prepare('SELECT * FROM blog_drafts WHERE slug=?').bind('mcp-image-post').first();
+  assert.equal(row.client_id, withBlog.client.client_id);
+  const pending = await f.tool(withBlog.access_token, 'blog_get', { slug: row.slug });
+  assert.equal(pending.structuredContent.body_markdown, image.markdown);
+  assert.equal(pending.structuredContent.revision, 1);
+  const focus = await f.tool(withBlog.access_token, 'get_context', { focus: 'blog' });
+  assert.equal(focus.structuredContent.sources[0].summary.attention[0].href, 'https://codepi.app/desk/');
   const noBlog = await f.grant({ scope: 'context.read' });
   assert.equal((await f.tool(noBlog.access_token, 'get_context')).structuredContent.sources.find(s => s.id === 'blog'), undefined);
 });

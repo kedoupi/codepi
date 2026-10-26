@@ -11,11 +11,13 @@ Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代
 
 Project/Me D1 与 Me 导入原文已纳入 v3 生产备份并完成隔离恢复验收。
 必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`；旧库 UUID 固定，新库必须精确名称解析。
-原件集合来自 `ORIGINAL_COLLECTIONS`：GU `gu_materials` 和 Me `imports`，分别通过
-`GuMaterialsBackup` / `MeImportsBackup` 读取，Ops 不直接绑定业务桶。
+原件集合来自 `ORIGINAL_COLLECTIONS`：GU `gu_materials`、Me `imports`，以及计划中的博客
+`blog_media`。前两者通过 `GuMaterialsBackup` / `MeImportsBackup` 读取；博客通过尚未发布的
+`BlogMediaBackup` 读取。Ops 不直接绑定业务桶。
 
-新 v3 manifest 必须包含全部数据库和两组原件；缺少某组（包括空组记录）也不算完整备份。
-v2 仍支持历史恢复，不能用它证明 Me 原文已备份。恢复必须固定同一次 manifest，先恢复
+新写出的 v4 manifest 必须包含全部数据库和这三组原件；缺少某组（包括空组记录）也不算完整备份。
+v3 是已验收的 GU+Me 历史清单，v2 是更早的 GU-only 清单，二者都可恢复，但不能证明博客媒体已备份。
+恢复必须固定同一次 manifest，先恢复
 隔离 D1，按对应索引、大小、SHA-256 校验和恢复隔离 R2，然后用该领域的鉴权流程验收。
 不把恢复的 SSO/MCP 授权状态直接送回生产，私钥继续仅由所有者保管。
 
@@ -37,7 +39,7 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
 - 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部必需库和
-  GU/Me 有索引原件成功后才提交 v3 manifest；R2 manifest 与 success report 是完整备份标准。
+  GU/Me/博客有索引原件成功后才提交 v4 manifest；R2 manifest 与 success report 是完整备份标准。
   GitHub Release 不再是自动备份通道，历史 Release 仅是公开前待清理对象。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read（仅查询
@@ -181,6 +183,26 @@ MCP 恢复额外要求：备份可能早于 token 撤销、refresh rotation 或�
 不要据此推断缺少新版分片。现有恢复工具读取原 manifest 与密文，
 无需知道来源是单 Release、分片 Release 还是 R2。
 
+## v4 原件隔离恢复
+
+本次本地实现写出 v4 清单，生产仍按实际部署版本判断。下载同一个 `manifest.json`、全部相关 D1 密文和三组原件密文到 Git 外目录。
+先用 `d1-restore.mjs` 将 GU、Me、博客 SQL 导入三个全新隔离 D1，再执行：
+
+```bash
+node scripts/cloudflare/originals-restore.mjs \
+  --backup-dir /path/outside-repo/download \
+  --private-key /path/outside-repo/recovery-private-key.pem \
+  --database codepi-gu=<GU-recovery-D1-UUID> \
+  --database codepi-me=<Me-recovery-D1-UUID> \
+  --database codepi-blog=<blog-recovery-D1-UUID> \
+  --out /path/outside-repo/recovered-originals
+```
+
+工具按清单版本要求覆盖：v4 是三组，v3 是 GU/Me，v2 是 GU。
+`--database` 必须且只能覆盖该版本的原件集合。博客输出在
+`codepi-blog/media/<UUID>`。博客桶和 `BlogMediaBackup` 仍是 planned，
+这条命令还没有生产恢复证据。
+
 ## v3 GU 与 Me 原件隔离恢复
 
 下载同一个 v3 `manifest.json`、全部相关 D1 密文和两类原件密文到 Git 外目录。
@@ -197,7 +219,7 @@ node scripts/cloudflare/originals-restore.mjs \
   --out /path/outside-repo/recovered-originals
 ```
 
-`--out` 必须尚不存在且其父目录在 Git 之外。工具校验八库清单与两组原件的覆盖、
+`--out` 必须尚不存在且其父目录在 Git 之外。该历史 v3 工具路径校验当时的八库清单与两组原件的覆盖、
 身份、大小、摘要和 GCM，拒绝生产 UUID、不完整清单及索引不匹配；
 只读取隔离 D1，不修改数据库或上传 R2。输出在
 `codepi-gu/materials/<UUID>` 和 `codepi-me/imports/<ULID>`，按原 object key 组织，
@@ -206,8 +228,8 @@ node scripts/cloudflare/originals-restore.mjs \
 
 恢复验收再将原件上传到两组隔离私有 R2，分别启动 GU/Me：
 核对本人鉴权和索引、拒绝匿名读取、原件字节摘要一致、MCP 无原文下载能力。
-本地 Ops runtime 使用真实 `GuMaterialsBackup`、`MeImportsBackup` 和合成 D1/R2；
-它不替代线上非空 Me 导入、跨账户恢复或真实 SSO 验收。
+本地 Ops runtime 使用真实 `GuMaterialsBackup`、`MeImportsBackup`、`BlogMediaBackup`
+和合成 D1/R2；它不替代线上非空 Me 导入、博客媒体、跨账户恢复或真实 SSO 验收。
 正式流量切换与临时资源/明文清理继续单独授权。
 
 ## 历史 v2 GU 原件隔离恢复与验收

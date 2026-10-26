@@ -398,7 +398,7 @@ function checkService(spec, cfg, index, violations) {
     for (const binding of env.duplicateR2Bindings) at(`${envName} has duplicate R2 binding "${binding}"`);
     if (env.workflowsMalformed) at(`${envName} has malformed Workflow binding declaration`);
     for (const binding of env.duplicateWorkflowBindings) at(`${envName} has duplicate Workflow binding "${binding}"`);
-    if (!['ops', 'gu', 'me'].includes(spec.id)) {
+    if (!['ops', 'gu', 'me', 'www'].includes(spec.id)) {
       for (const { binding } of env.r2All) at(`${envName} has unexpected R2 binding "${binding}"`);
     }
     if (spec.id !== 'ops') {
@@ -503,6 +503,13 @@ function checkService(spec, cfg, index, violations) {
   if (spec.id === 'me') {
     if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'IMPORTS', name: 'codepi-me-imports' }])) {
       at('me must bind only IMPORTS to codepi-me-imports');
+    }
+    for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket',
+      allowPlannedR2.has(bucket.name));
+  }
+  if (spec.id === 'www') {
+    if (JSON.stringify(prod.r2All) !== JSON.stringify([{ binding: 'BLOG_MEDIA', name: 'codepi-blog-uploads' }])) {
+      at('www must bind only BLOG_MEDIA to codepi-blog-uploads');
     }
     for (const bucket of prod.r2All) checkRef(bucket.name, 'production', 'r2', 'R2 bucket',
       allowPlannedR2.has(bucket.name));
@@ -651,9 +658,9 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
   const specs = [
     { id: 'ops', file: 'services/ops/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-ops', envKey: 'staging',
       provisionOnRelease: true, noD1: true, noAuth: true, noRoutes: true, cronsRequired: true,
-      allowPlanned: { services: ['ME'] },
-      serviceBindings: { GU: { production: 'codepi-gu' }, ME: { production: 'codepi-me' } },
-      serviceEntrypoints: { GU: 'GuMaterialsBackup', ME: 'MeImportsBackup' } },
+      allowPlanned: { services: ['ME', 'BLOG'] },
+      serviceBindings: { GU: { production: 'codepi-gu' }, ME: { production: 'codepi-me' }, BLOG: { production: 'codepi-www' } },
+      serviceEntrypoints: { GU: 'GuMaterialsBackup', ME: 'MeImportsBackup', BLOG: 'BlogMediaBackup' } },
     { id: 'mcp', file: 'services/mcp/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-mcp', d1Name: 'codepi-mcp', envKey: 'staging',
       provisionOnRelease: true, routesRequired: true, requiredRoutes: { prod: ['mcp.codepi.app'] },
       allowPlanned: { services: ['PROJECT', 'ME'] },
@@ -674,7 +681,7 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       customDomainRoutes: ['me.codepi.app'],
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', envKey: 'staging',
-      provisionOnRelease: true, allowPlanned: { d1: true },
+      provisionOnRelease: true, allowPlanned: { d1: true, r2: ['codepi-blog-uploads'] },
       d1Bindings: { DB: 'codepi-desk', BLOG: 'codepi-blog' },
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',

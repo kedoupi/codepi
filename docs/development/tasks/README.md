@@ -9,6 +9,7 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
+| Blog Agent 写作与配图 | 本地实现与验证完成：配图上传、稿件修订与审核、响应式阅读、原件备份 | [任务记录](2026-10-26-blog-agent-images.md)：尚未提交或部署，远程资源与实际客户端待验收 |
 | 仓库公开与全量重发 | 已改名 `kedoupi/codepi` 并公开；备份 Release/tag 已删除；十个 Worker 已重发；通知、备份、巡检、MCP 授权修复和浏览器验收均已通过 | [任务记录](2026-10-23-public-rename-redeploy.md)：真实邮件 OTP、Oura 重授权和 MCP 客户端重连待所有者操作 |
 | Ops Observer 正式工作流 | 第七至十九轮候选于 2026-10-25 合并 main 并全量发布十个 Worker（`7d0c814`）；Health 应用 0013/0014 索引迁移；观察 `release-7d0c81416a61-round19` 七轮完成，R2 summary 为 `healthy_reported`、无回滚，Issue #169 通知已核对 | [任务记录](2026-10-23-ops-observer.md)：PR #192/#193 已上线，Ops `22741311` 七轮观察 `healthy_reported`，真实自动回滚 `rollback_verified`；临时资源已清理；无人值守编排及用户实际使用确认仍待验收 |
 | Cloudflare 告警优化 | 已闭环：WAF 边缘拦截（含编码变体与 credentials.json）、incident 策略删除、MCP 403+warn（PR #145/#149）、巡检 423 修复（PR #151）、全部漂移 Worker 重发、codepi-blog 纳入九库备份（手动实例已回执）、monitor 连续 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：开发活跃期合并共享代码即产生漂移告警，需随合并节奏发布 |

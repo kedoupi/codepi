@@ -12,6 +12,7 @@ const keys = generateKeyPairSync('rsa', { modulusLength: 3072,
 const meDatabaseId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const targetGu = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const targetMe = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const targetBlog = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function collection(source, kind, table, objectPrefix, originals, createdAt, idKind) {
@@ -30,7 +31,7 @@ function collection(source, kind, table, objectPrefix, originals, createdAt, idK
   return { definition: { source, kind, table }, entries, index };
 }
 
-async function fixture(t, { version = 3, guCount = 1, meCount = 1 } = {}) {
+async function fixture(t, { version = 4, guCount = 1, meCount = 1, blogCount = 1 } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'originals-restore-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const backupDir = path.join(dir, 'backup'), outDir = path.join(dir, 'recovered');
@@ -42,11 +43,13 @@ async function fixture(t, { version = 3, guCount = 1, meCount = 1 } = {}) {
     Array.from({ length: guCount }, (_, i) => Buffer.from(`Synthetic GU original ${i}`)), created_at, 'uuid');
   const me = collection('codepi-me', 'me-import', 'imports', 'imports',
     Array.from({ length: meCount }, (_, i) => Buffer.from(`Synthetic Me import ${i}`)), created_at, 'ulid');
+  const blog = collection('codepi-blog', 'blog-media', 'blog_media', 'media',
+    Array.from({ length: blogCount }, (_, i) => Buffer.from(`Synthetic blog media ${i}`)), created_at, 'uuid');
   const databaseIds = Object.fromEntries(DATABASE_NAMES.map((name, i) => [name,
     DATABASES[name] ?? (name === 'codepi-me' ? meDatabaseId
       : `99999999-9999-4999-8999-${String(i + 1).padStart(12, '0')}`)]));
   const databases = DATABASE_NAMES
-    .filter(name => version === 3 || Object.hasOwn(DATABASES, name))
+    .filter(name => version >= 3 || Object.hasOwn(DATABASES, name))
     .map(name => ({
       database: name, database_id: databaseIds[name], file: `${name}.sql.enc`, created_at,
     }));
@@ -60,7 +63,7 @@ async function fixture(t, { version = 3, guCount = 1, meCount = 1 } = {}) {
   let materials;
   if (version === 2) {
     materials = { source: 'codepi-gu', through: gu.entries.length, objects: gu.entries.length, entries: gu.entries };
-  } else {
+  } else if (version === 3) {
     materials = {
       objects: gu.entries.length + me.entries.length,
       collections: [
@@ -70,10 +73,22 @@ async function fixture(t, { version = 3, guCount = 1, meCount = 1 } = {}) {
           objects: me.entries.length, entries: me.entries },
       ],
     };
+  } else {
+    materials = {
+      objects: gu.entries.length + me.entries.length + blog.entries.length,
+      collections: [
+        { source: 'codepi-gu', kind: 'gu-material', through: gu.entries.length,
+          objects: gu.entries.length, entries: gu.entries },
+        { source: 'codepi-me', kind: 'me-import', through: me.entries.length,
+          objects: me.entries.length, entries: me.entries },
+        { source: 'codepi-blog', kind: 'blog-media', through: blog.entries.length,
+          objects: blog.entries.length, entries: blog.entries },
+      ],
+    };
   }
   const manifest = { version, created_at, key_id: keyId(keys.publicKey), databases, materials };
-  for (const entry of [...gu.entries, ...me.entries]) {
-    const source = entry.kind === 'gu-material' ? gu : me;
+  for (const entry of [...gu.entries, ...me.entries, ...blog.entries]) {
+    const source = entry.kind === 'gu-material' ? gu : entry.kind === 'me-import' ? me : blog;
     await writeFile(path.join(backupDir, 'materials', entry.file),
       source.index.find(row => row.id === entry.material_id).ciphertext);
   }
@@ -94,36 +109,55 @@ async function fixture(t, { version = 3, guCount = 1, meCount = 1 } = {}) {
       return Response.json({ success: true, result: [{ success: true,
         results: me.index.map(({ ciphertext: _, ...row }) => row) }] });
     }
+    if (url.includes(targetBlog)) {
+      assert.match(body.sql, /\bFROM blog_media\b/);
+      queried.push('codepi-blog');
+      return Response.json({ success: true, result: [{ success: true,
+        results: blog.index.map(({ ciphertext: _, ...row }) => row) }] });
+    }
     throw new Error('unexpected recovery database');
   };
+  const selected = { 'codepi-gu': targetGu };
+  if (version >= 3) selected['codepi-me'] = targetMe;
+  if (version >= 4) selected['codepi-blog'] = targetBlog;
   return {
-    dir, backupDir, outDir, privateKeyFile, manifest, gu, me, save, queried,
-    databaseIds: version === 2 ? { 'codepi-gu': targetGu } : { 'codepi-gu': targetGu, 'codepi-me': targetMe },
+    dir, backupDir, outDir, privateKeyFile, manifest, gu, me, blog, save, queried,
+    databaseIds: selected,
     env: { CLOUDFLARE_ACCOUNT_ID: 'synthetic', CLOUDFLARE_API_TOKEN: 'synthetic' },
     request,
   };
 }
 
-test('new v3 recovery validates both D1 indexes and restores GU plus Me originals byte-for-byte', async t => {
-  const opts = await fixture(t, { guCount: 2, meCount: 2 });
+test('new v4 recovery validates every D1 index and restores GU, Me and blog originals byte-for-byte', async t => {
+  const opts = await fixture(t, { guCount: 2, meCount: 2, blogCount: 2 });
   const report = await restoreOriginals(opts);
-  assert.deepEqual(opts.queried, ['codepi-gu', 'codepi-me']);
+  assert.deepEqual(opts.queried, ['codepi-gu', 'codepi-me', 'codepi-blog']);
   assert.deepEqual(report.collections.map(item => [item.source, item.objects, item.indexed, item.extra_objects]), [
     ['codepi-gu', 2, 2, 0],
     ['codepi-me', 2, 2, 0],
+    ['codepi-blog', 2, 2, 0],
   ]);
-  assert.deepEqual([report.objects, report.indexed, report.extra_objects], [4, 4, 0]);
+  assert.deepEqual([report.objects, report.indexed, report.extra_objects], [6, 6, 0]);
   assert.equal((await stat(opts.outDir)).mode & 0o777, 0o700);
-  for (const [collection, label] of [[opts.gu, 'GU'], [opts.me, 'Me']]) {
+  for (const [collection, label, noun] of [[opts.gu, 'GU', 'original'], [opts.me, 'Me', 'import'], [opts.blog, 'blog', 'media']]) {
     for (const [i, entry] of collection.entries.entries()) {
       const file = path.join(opts.outDir, collection.definition.source, entry.object_key);
-      assert.equal((await readFile(file)).toString(), `Synthetic ${label} ${label === 'GU' ? 'original' : 'import'} ${i}`);
+      assert.equal((await readFile(file)).toString(), `Synthetic ${label} ${noun} ${i}`);
       assert.equal((await stat(file)).mode & 0o777, 0o600);
     }
   }
   const saved = JSON.parse(await readFile(path.join(opts.outDir, 'restore-report.json')));
   assert.equal(saved.ok, true);
   await assert.rejects(restoreOriginals(opts), { code: 'EEXIST' });
+});
+
+test('legacy v3 GU and Me backups remain readable without inventing blog coverage', async t => {
+  const opts = await fixture(t, { version: 3, guCount: 1, meCount: 1 });
+  const report = await restoreOriginals(opts);
+  assert.deepEqual(opts.queried, ['codepi-gu', 'codepi-me']);
+  assert.deepEqual(report.collections.map(item => [item.source, item.objects]), [
+    ['codepi-gu', 1], ['codepi-me', 1],
+  ]);
 });
 
 test('legacy v2 GU-only backups remain readable without inventing Me coverage', async t => {
@@ -144,6 +178,7 @@ test('new originals after the D1 export remain recoverable as extra objects', as
   assert.deepEqual(report.collections.map(item => [item.source, item.indexed, item.extra_objects]), [
     ['codepi-gu', 0, 1],
     ['codepi-me', 1, 0],
+    ['codepi-blog', 1, 0],
   ]);
 });
 
@@ -201,6 +236,41 @@ test('Me corruption, missing coverage and target ambiguity fail before plaintext
         : normal(url, init);
     }
     if (kind === 'production-target') opts.databaseIds['codepi-me'] = meDatabaseId;
+    await assert.rejects(restoreOriginals(opts), kind === 'production-target' ? /production/ : /./);
+    await assert.rejects(access(opts.outDir), { code: 'ENOENT' });
+  }
+});
+
+test('blog corruption, missing coverage and a v3-shaped current manifest fail before plaintext output', async t => {
+  for (const kind of ['missing-original', 'missing-database', 'missing-collection',
+    'v3-shape', 'uuid', 'index', 'production-target']) {
+    const opts = await fixture(t);
+    if (kind === 'missing-original') await rm(path.join(opts.backupDir, 'materials', opts.blog.entries[0].file));
+    if (kind === 'missing-database') {
+      opts.manifest.databases = opts.manifest.databases.filter(database => database.database !== 'codepi-blog');
+      await opts.save();
+    }
+    if (kind === 'missing-collection' || kind === 'v3-shape') {
+      opts.manifest.materials.collections = opts.manifest.materials.collections
+        .filter(collection => collection.source !== 'codepi-blog');
+      opts.manifest.materials.objects -= opts.blog.entries.length;
+      if (kind === 'v3-shape') opts.manifest.version = 3;
+      await opts.save();
+    }
+    if (kind === 'uuid') {
+      opts.manifest.materials.collections.find(collection => collection.source === 'codepi-blog')
+        .entries[0].material_id = '01J00000000000000000000001';
+      await opts.save();
+    }
+    if (kind === 'index') {
+      const normal = opts.request;
+      const row = opts.blog.index[0];
+      opts.request = async (url, init) => url.includes(targetBlog)
+        ? Response.json({ success: true, result: [{ success: true,
+          results: [{ id: row.id, object_key: row.object_key, size: row.size, sha256: '0'.repeat(64) }] }] })
+        : normal(url, init);
+    }
+    if (kind === 'production-target') opts.databaseIds['codepi-blog'] = DATABASES['codepi-blog'];
     await assert.rejects(restoreOriginals(opts), kind === 'production-target' ? /production/ : /./);
     await assert.rejects(access(opts.outDir), { code: 'ENOENT' });
   }

@@ -151,7 +151,7 @@ export async function backupOperation(env, step, event, publicKey, {
       entries: materials,
     });
   }
-  const manifest = { version: 3, created_at: started.created_at, key_id: started.key_id, databases: entries,
+  const manifest = { version: 4, created_at: started.created_at, key_id: started.key_id, databases: entries,
     materials: { objects: materialCount, collections } };
   const success = await settledStepResult(step.do('commit R2 backup manifest', STEP, async () => {
     for (const entry of entries) {

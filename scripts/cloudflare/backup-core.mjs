@@ -30,6 +30,11 @@ export const ORIGINAL_COLLECTIONS = Object.freeze([
     table: 'imports', key_column: 'r2_key', size_column: 'bytes', key_prefix: 'imports',
     id_pattern: '^[0-9A-HJKMNP-TV-Z]{26}$',
   },
+  {
+    source: 'codepi-blog', binding: 'BLOG', kind: 'blog-media', database: 'codepi-blog',
+    table: 'blog_media', key_column: 'object_key', size_column: 'bytes', key_prefix: 'media',
+    id_pattern: '^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+  },
 ]);
 
 export function originalCollection(source) {

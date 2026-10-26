@@ -38,6 +38,10 @@ function clearPrivate() {
   el("desk-actions").hidden = true;
   for (const target of document.querySelectorAll("[data-metrics], [data-note], [data-time], [data-private-metric]")) target.replaceChildren();
   el("desk-attention-list").replaceChildren();
+  el("blog-drafts-list").replaceChildren();
+  el("blog-published-list").replaceChildren();
+  el("blog-review-status").replaceChildren();
+  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
   resetSummary();
   el<HTMLButtonElement>("desk-refresh").disabled = false;
   el<HTMLButtonElement>("desk-generate").disabled = false;
@@ -58,32 +62,136 @@ async function api(path: string, init: RequestInit = {}) {
       showLogin("登录已到期或已退出，请重新登录后继续。");
       throw new SessionExpired();
     }
-    if (!response.ok) throw Error("连接暂不可用，请稍后重试。");
+    if (!response.ok) {
+      if (path.startsWith("/api/blog/")) {
+        if (response.status === 409) throw Error("草稿已有新修订，请重新读取并预览后再审核。");
+        if (response.status === 404) throw Error("这篇文章或草稿的状态已更改，请重新读取审核列表。");
+        if (response.status === 400) throw Error("审核请求未通过校验，请重新读取草稿后重试。");
+        if (response.status === 403) throw Error("当前登录没有执行此操作的权限，请重新登录。");
+      }
+      throw Error("连接暂不可用，请稍后重试。");
+    }
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
-async function loadReview() {
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; client_name?: string | null; review_note?: string | null; updated_at: string; published_at?: string | null; cover_media_id?: string | null };
+let reviewVersion = 0;
+function reviewMessage(message: string, failed = false) {
   const status = el("blog-review-status");
-  try {
-    const drafts = await api("/api/blog/drafts") as { drafts: Array<Record<string, unknown>> };
-    const published = await api("/api/blog/posts") as { posts: Array<Record<string, unknown>> };
-    const render = (item: Record<string, unknown>, publishedItem = false) => {
-      const row = node("article", "", "desk-review-item");
-      row.dataset.slug = String(item.slug);
-      row.append(node("h3", String(item.title)), node("p", `${item.client_name ?? "MCP"} · ${time(String(item.updated_at ?? item.published_at ?? ""))} · 修订 ${item.revision}`), node("p", String(item.summary)));
-      if (publishedItem) { const button = node("button", "下架", "kdp-button kdp-button--secondary"); button.dataset.reviewAction = "unpublish"; row.append(button); }
-      else { const preview = node("a", "预览", "kdp-link"); preview.href = `/blog/preview/${item.slug}/`; const publish = node("button", "发布", "kdp-button"); publish.dataset.reviewAction = "publish"; const reject = node("button", "拒绝", "kdp-button kdp-button--secondary"); reject.dataset.reviewAction = "reject"; row.append(preview, publish, reject); }
-      return row;
-    };
-    const draftList = el("blog-drafts-list");
-    draftList.replaceChildren(...(drafts.drafts.length ? drafts.drafts.map(item => render(item)) : [node("p", "暂无待审核的草稿。AI 客户端通过 MCP 提交的草稿会出现在这里。", "desk-review-empty")]));
-    const publishedList = el("blog-published-list");
-    publishedList.replaceChildren(...(published.posts.length ? published.posts.map(item => render(item, true)) : [node("p", "暂无已发布的文章。", "desk-review-empty")]));
-    status.textContent = "";
-  } catch (error) { if (!(error instanceof SessionExpired)) status.textContent = "博客审核暂时无法读取。"; }
+  status.dataset.tone = failed ? "error" : "";
+  status.textContent = message;
 }
-el("blog-drafts-list").addEventListener("click", async event => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-review-action]"); const row = (event.target as HTMLElement).closest<HTMLElement>("[data-slug]"); if (!button || !row) return; try { await api(button.dataset.reviewAction === "publish" ? `/api/blog/drafts/${row.dataset.slug}/publish` : button.dataset.reviewAction === "reject" ? `/api/blog/drafts/${row.dataset.slug}/reject` : `/api/blog/posts/${row.dataset.slug}/unpublish`, button.dataset.reviewAction === "reject" ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) } : { method: "POST" }); await loadReview(); } catch {} });
-el("blog-published-list").addEventListener("click", async event => { const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-review-action]"); const row = (event.target as HTMLElement).closest<HTMLElement>("[data-slug]"); if (!button || !row) return; try { await api(`/api/blog/posts/${row.dataset.slug}/unpublish`, { method: "POST" }); await loadReview(); } catch {} });
+function reviewError(error: unknown) { return error instanceof Error && error.name !== "AbortError" ? error.message : "请求超时或连接中断，请重试。"; }
+function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number) {
+  const row = node("article", "", "desk-review-item");
+  row.dataset.slug = item.slug;
+  row.dataset.revision = String(item.revision);
+  const content = node("div", "", "desk-review-content");
+  if (item.cover_media_id) {
+    const image = node("img", "", "desk-review-cover");
+    image.src = `/blog/media/${encodeURIComponent(item.cover_media_id)}`;
+    image.alt = "";
+    image.loading = "lazy";
+    row.append(image);
+  }
+  content.append(node("h3", item.title));
+  const state = publishedItem ? "已发布" : item.status === "rejected" ? "已拒绝" : liveRevision !== undefined ? "更新待审核" : "待审核";
+  content.append(node("p", `${state} · 修订 ${item.revision}${!publishedItem ? ` · ${item.client_name ?? "MCP"}` : ""}`, "desk-review-meta"));
+  content.append(node("p", `更新于 ${time(item.updated_at)}（北京时间）`, "desk-review-meta"), node("p", item.summary));
+  if (!publishedItem && liveRevision !== undefined) content.append(node("p", `当前公开版本为修订 ${liveRevision}，发布更新前继续保留。`, "desk-fine"));
+  if (item.review_note) content.append(node("p", `审阅说明：${item.review_note}`, "desk-review-note"));
+  const actions = node("div", "", "desk-review-actions");
+  const preview = node("a", publishedItem ? "查看文章" : "预览草稿", "kdp-link");
+  preview.href = publishedItem ? `/blog/${encodeURIComponent(item.slug)}/` : `/blog/preview/${encodeURIComponent(item.slug)}/`;
+  actions.append(preview);
+  if (!publishedItem && item.status !== "rejected") {
+    const label = node("label", "审阅说明（拒绝时可选）", "desk-review-note-label");
+    const note = node("textarea");
+    note.name = "review-note";
+    note.rows = 2;
+    note.maxLength = 1000;
+    label.append(note);
+    content.append(label);
+    for (const [action, text, className] of [["publish", liveRevision !== undefined ? "发布更新" : "发布", "kdp-button"], ["reject", "拒绝", "kdp-button kdp-button--secondary"]]) {
+      const button = node("button", text, className);
+      button.type = "button";
+      button.dataset.reviewAction = action;
+      actions.append(button);
+    }
+  } else if (publishedItem) {
+    const button = node("button", "下架", "kdp-button kdp-button--secondary");
+    button.type = "button";
+    button.dataset.reviewAction = "unpublish";
+    actions.append(button);
+  }
+  content.append(actions);
+  row.append(content);
+  return row;
+}
+async function loadReview(message = "") {
+  if (!active) return;
+  const current = generation;
+  const version = ++reviewVersion;
+  reviewMessage("正在读取博客审核列表…");
+  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "true");
+  try {
+    const [drafts, published] = await Promise.all([
+      api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
+      api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
+    ]);
+    if (current !== generation || version !== reviewVersion || !active) return;
+    const live = new Map(published.posts.map(item => [item.slug, item.revision]));
+    el("blog-drafts-list").replaceChildren(...(drafts.drafts.length ? drafts.drafts.map(item => renderReview(item, false, live.get(item.slug))) : [node("p", "暂无待审核的草稿。通过 MCP 提交的草稿会出现在这里。", "desk-review-empty")]));
+    el("blog-published-list").replaceChildren(...(published.posts.length ? published.posts.map(item => renderReview(item, true)) : [node("p", "暂无已发布的文章。", "desk-review-empty")]));
+    reviewMessage(message || `${drafts.drafts.filter(item => item.status !== "rejected").length} 篇待审核，${published.total ?? published.posts.length} 篇已发布。`);
+    if (published.total > published.posts.length) el("blog-published-list").append(node("p", `此处显示最近 ${published.posts.length} 篇已发布文章。`, "desk-review-empty"));
+  } catch (error) {
+    if (current === generation && version === reviewVersion && !(error instanceof SessionExpired)) reviewMessage(`博客审核暂时无法读取。${reviewError(error)} 可点击“重新读取”重试。`, true);
+  } finally {
+    if (current === generation && version === reviewVersion) for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
+  }
+}
+async function reviewAction(event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest<HTMLButtonElement>("[data-review-action]");
+  const row = button?.closest<HTMLElement>("[data-slug]");
+  if (!active || !button || !row || button.disabled) return;
+  const action = button.dataset.reviewAction;
+  if (action !== "publish" && action !== "reject" && action !== "unpublish") return;
+  const title = row.querySelector("h3")?.textContent ?? "这篇文章";
+  if (action !== "reject" && !window.confirm(action === "unpublish" ? `下架《${title}》？公开页面将无法访问。` : `发布《${title}》的修订 ${row.dataset.revision}？文章及图片将公开可见。`)) return;
+  const current = generation;
+  const buttons = row.querySelectorAll<HTMLButtonElement>("button");
+  for (const control of buttons) control.disabled = true;
+  row.setAttribute("aria-busy", "true");
+  reviewMessage(action === "publish" ? "正在发布…" : action === "reject" ? "正在拒绝草稿…" : "正在下架…");
+  try {
+    const slug = encodeURIComponent(row.dataset.slug!);
+    const revision = Number(row.dataset.revision);
+    const note = row.querySelector<HTMLTextAreaElement>("textarea")?.value.trim();
+    await api(action === "unpublish" ? `/api/blog/posts/${slug}/unpublish` : `/api/blog/drafts/${slug}/${action}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(action === "reject" ? { revision, note: note || undefined } : { revision }),
+    });
+    if (current !== generation || !active) return;
+    await loadReview(action === "publish" ? "文章已发布。" : action === "reject" ? "草稿已拒绝，审阅说明已保存。" : "文章已下架。");
+  } catch (error) {
+    if (current === generation && active && !(error instanceof SessionExpired)) reviewMessage(`${reviewError(error)} 可点击“重新读取”获取最新状态。`, true);
+  } finally {
+    if (current === generation && active) {
+      row.setAttribute("aria-busy", "false");
+      for (const control of buttons) control.disabled = false;
+    }
+  }
+}
+el("blog-review-status").setAttribute("aria-live", "polite");
+const reviewRetry = node("button", "重新读取", "desk-text-button");
+reviewRetry.type = "button";
+reviewRetry.addEventListener("click", () => { void loadReview(); });
+el("blog-review-status").after(reviewRetry);
+el("blog-drafts-list").addEventListener("click", reviewAction);
+el("blog-published-list").addEventListener("click", reviewAction);
 
 function renderOverview(payload: Payload) {
   for (const data of payload.sources) {

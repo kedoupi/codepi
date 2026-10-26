@@ -389,7 +389,8 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
       summary: 'Long post summary', body_markdown: body },
   });
   assert.equal(accepted.status, 200);
-  assert.equal(accepted.body?.result?.structuredContent?.echoed?.args?.body_markdown?.length, body.length);
+  assert.equal(accepted.body?.result?.structuredContent?.status, 'pending');
+  assert.equal((await f.blogDb.prepare('SELECT body_markdown FROM blog_drafts WHERE slug=?').bind('long-post').first()).body_markdown.length, body.length);
   const envelope = await f.at('/mcp', { method: 'POST', headers,
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) + ' '.repeat(MCP_LIMITS.blogBody * 4 + 1) });
   assert.equal(envelope.status, 413);

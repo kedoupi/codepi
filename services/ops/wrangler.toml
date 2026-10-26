@@ -17,6 +17,11 @@ binding = "ME"
 service = "codepi-me"
 entrypoint = "MeImportsBackup"
 
+[[services]]
+binding = "BLOG"
+service = "codepi-www"
+entrypoint = "BlogMediaBackup"
+
 [vars]
 ENVIRONMENT = "production"
 CLOUDFLARE_ACCOUNT_ID = "69f1de4c8f3c7411593613711207e7b3"

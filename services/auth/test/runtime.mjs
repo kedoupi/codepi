@@ -45,6 +45,7 @@ export async function fixture(t, overrides = {}, options = {}) {
       name: id, modules: true, script: options.scripts?.[id] ?? bundle.outputFiles[0].text,
       compatibilityDate: '2026-10-15', d1Databases: { DB: id + '-test', ...(options.d1Databases?.[id] || {}) },
       serviceBindings: { AUTH: 'auth', ...(options.serviceBindings?.[id] || {}) },
+      ...(options.r2Buckets?.[id] ? { r2Buckets: options.r2Buckets[id] } : {}),
       bindings: { AUTH_CLIENT_ID: id, AUTH_CLIENT_SECRET: clients[id].secret, AUTH_ORIGIN: overrides.AUTH_ORIGIN || authOrigin, SSO_ENABLED: '1', ...options.bindings?.[id] },
       ...(options.outbound?.[id] ? { outboundService: options.outbound[id] } : {}),
     })), ...(options.extraWorkers || [])],

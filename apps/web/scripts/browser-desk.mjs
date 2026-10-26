@@ -7,6 +7,42 @@ import { fileURLToPath } from 'node:url';
 import { launchBrowser } from '../../health/scripts/browser-cdp.mjs';
 import { deskFixture } from '../test/runtime.mjs';
 import { calendarDay, shiftDay } from '@kedoupi/shared/desk/contract';
+import { deflateSync } from 'node:zlib';
+
+function syntheticCover() {
+  const width = 1200, height = 675;
+  const pixels = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      // Flat geometric fields make cropping and image loading visible at any viewport.
+      let color = [244, 231, 208];
+      if (x > 720) color = [92, 128, 119];
+      if ((x - 360) ** 2 + (y - 325) ** 2 < 220 ** 2) color = [216, 108, 65];
+      if (y > 480 && x < 900) color = [69, 77, 83];
+      if (x > 900 && y < 140) color = [234, 190, 91];
+      const offset = y * (width * 3 + 1) + 1 + x * 3;
+      pixels.set(color, offset);
+    }
+  }
+  const chunk = (type, bytes) => {
+    const name = Buffer.from(type);
+    let crc = 0xffffffff;
+    for (const byte of Buffer.concat([name, bytes])) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    const length = Buffer.alloc(4), checksum = Buffer.alloc(4);
+    length.writeUInt32BE(bytes.length);
+    checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0);
+    return Buffer.concat([length, name, bytes, checksum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header[8] = 8;
+  header[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
+}
 
 const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
 await mkdir(artifacts, { recursive: true });
@@ -23,6 +59,18 @@ try {
   assert.match(deskHtml, /name="robots" content="noindex, nofollow"/);
   assert.ok(!(await readFile(join(root, 'sitemap-0.xml'), 'utf8')).includes('/desk/'));
   assert.ok(!deskHtml.includes('synthetic-owner') && !deskHtml.includes('DESK_SUMMARY_TOKEN'));
+  const blogShell = await readFile(join(root, 'blog/index.html'), 'utf8');
+  const image = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', operation: 'media_upload', args: { alt: '本地合成封面：橙色圆形、绿色矩形与深灰横条', data_base64: syntheticCover().toString('base64') } });
+  assert.ok(image.ok);
+  const coverId = image.data.id;
+  const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
+  for (let i = 0; i < 13; i++) {
+    const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId } });
+    assert.ok(result.ok);
+  }
+  // Seed publication snapshots locally; browser review exercises the thirteenth draft.
+  await f.blog.prepare(`INSERT INTO blog_posts(slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at) SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,submitted_at,updated_at FROM blog_drafts WHERE slug <> 'browser-article-12'`).run();
+  await f.blog.prepare("UPDATE blog_drafts SET status='published' WHERE slug <> 'browser-article-12'").run();
   const today = calendarDay();
   const health = f.sources.dbs.health;
   for (let i = 0; i < 7; i++) {
@@ -42,7 +90,7 @@ try {
     const server = createServer(async (req, res) => {
       try {
         const url = new URL(req.url, origin);
-        if (id === 'desk' && !url.pathname.startsWith('/api/')) {
+        if (id === 'desk' && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/blog/')) {
           const path = resolve(root, '.' + decodeURIComponent(url.pathname), url.pathname.endsWith('/') ? 'index.html' : '');
           if (!path.startsWith(root)) { res.writeHead(404); res.end(); return; }
           const body = await readFile(path);
@@ -62,7 +110,16 @@ try {
         res.statusCode = response.status;
         for (const [key, value] of response.headers) if (key !== 'set-cookie') res.setHeader(key, value);
         if (response.headers.getSetCookie().length) res.setHeader('Set-Cookie', response.headers.getSetCookie());
-        res.end(Buffer.from(await response.arrayBuffer()));
+        if (id === 'desk' && url.pathname.startsWith('/blog/') && !url.pathname.startsWith('/blog/media/') && response.ok) {
+          const rendered = await response.text();
+          const mount = rendered.match(/<section id="blog-list-mount"[\s\S]*?<\/section>/)?.[0];
+          assert.ok(mount, 'Worker renders the article or listing mount');
+          let html = blogShell.replace(/<section id="blog-list-mount"[\s\S]*?<\/section>/, mount)
+            .replace(/<section class="blog-empty-pavilion"[\s\S]*?<\/section>/, '');
+          if (url.pathname !== '/blog/') html = html.replace(/<header class="blog-header"[\s\S]*?<\/header>/, '');
+          html = html.replace(/<title>[\s\S]*?<\/title>/, rendered.match(/<title>[\s\S]*?<\/title>/)[0]);
+          res.end(html);
+        } else res.end(Buffer.from(await response.arrayBuffer()));
       } catch { res.writeHead(404); res.end('Fixture unavailable'); }
     });
     await new Promise((resolve, reject) => {
@@ -151,12 +208,52 @@ try {
   await page.click('#desk-generate');
   await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 3);
   await page.screenshot({ path: 'desk-mobile-summary.png' });
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]'));
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.desk-review').scrollIntoView({ behavior: 'instant', block: 'start' }); });
+  await page.screenshot({ path: 'desk-blog-review-desktop.png' });
+  await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已发布'));
+  assert.match(await page.evaluate(() => window.__reviewConfirmation), /修订 1/);
+  assert.equal((await f.blog.prepare("SELECT revision FROM blog_posts WHERE slug='browser-article-12'").first()).revision, 1);
+  await page.goto(origins.desk + '/blog/');
+  await page.waitForSelector('.blog-card');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-card').length), 12);
+  await page.screenshot({ path: 'blog-list-desktop.png' });
+  await page.click('.blog-pagination [rel="next"]');
+  await page.waitForFunction(() => document.querySelectorAll('.blog-card').length === 1);
+  await page.screenshot({ path: 'blog-list-page-two.png' });
+  await page.click('.blog-card');
+  await page.waitForSelector('.blog-article-cover');
+  await page.waitForFunction(() => [...document.images].every(image => image.complete));
+  assert.deepEqual(await page.evaluate(() => { const image = document.querySelector('.blog-article-cover'); return [image.naturalWidth, image.naturalHeight]; }), [1200, 675]);
+  assert.ok(await page.evaluate(() => document.querySelector('figcaption').textContent.length > 0));
+  await page.screenshot({ path: 'blog-article-desktop.png' });
+  for (const width of [320, 375, 768, 1024, 1440]) {
+    await page.cdp('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `article fits ${width}px`);
+  }
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 375, height: 844, deviceScaleFactor: 1, mobile: true });
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: 'blog-article-mobile.png' });
+  await page.evaluate(() => document.querySelector('pre').scrollIntoView());
+  assert.ok(await page.evaluate(() => document.querySelector('pre').scrollWidth > document.querySelector('pre').clientWidth));
+  await page.screenshot({ path: 'blog-article-mobile-code.png' });
+  await page.goto(origins.desk + '/blog/');
+  await page.waitForSelector('.blog-card');
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.screenshot({ path: 'blog-list-mobile.png' });
+  await page.goto(origins.desk + '/desk/');
+  await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
+  await page.waitForFunction(() => document.querySelectorAll('#blog-published-list article').length === 13);
   f.faults.health = async () => { await new Promise(resolve => setTimeout(resolve, 400)); return new Response('', { status: 503 }); };
   await page.click('#desk-generate');
   await page.click('#desk-logout');
   await page.waitForFunction(() => document.querySelector('#desk-login-note').textContent.includes('已退出'));
   assert.equal(await page.evaluate(() => document.querySelector('#desk-private').hidden), true);
   assert.equal(await page.evaluate(() => document.querySelectorAll('.desk-summary-section').length), 0);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#blog-drafts-list article, #blog-published-list article, .desk-review img, .desk-review textarea').length), 0);
   assert.ok(!(await page.evaluate(() => document.body.textContent)).includes('测试稿件'));
   assert.deepEqual(page.diagnostics.filter(event => event.method === 'Runtime.exceptionThrown'), []);
   console.log(`Desk browser checks passed; synthetic-data screenshots: ${artifacts}`);
