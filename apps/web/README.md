@@ -78,6 +78,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 - `blog_create_image_upload({alt,bytes,content_type})`：原文件最多 8 MiB，返回十分钟有效的单次 PUT 地址及专用 headers；Agent 发送原文件字节（不是 multipart），HTTP 返回图片结果。不发送 MCP Bearer。没有 HTTP PUT 能力的 Agent 使用前一种方式。
 - 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 使用图片 id。每稿最多 30 张不同图片（含封面）。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
 - `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`，可选 `tag`、`cover_media_id`。更新前读取 `revision` 并传 `base_revision`；创建可传 `base_revision:0`。重试同一次提交沿用 `request_id`。
+- 图表使用 ` ```mermaid ` 代码块。文章页和草稿预览按需渲染 SVG，并保留可展开的 Mermaid 源码；渲染失败时显示提示和原始代码。已有稿件无需为图表支持重新提交。
 - 提交返回 `pending`、`preview_url`、`review_url`。预览及未发布图片要求本人登录。公开文章采用已审核快照，后续改稿不直接改公开内容。`blog_retract` 仅撤回待审核版本。
 
 图片存储使用私有 `BLOG_MEDIA` R2，每次读取核对是否被正式文章引用。未发布图片本人可读；下架或替换后失去公开引用的图片不再公开，响应均 `no-store`。已经被下载的公开图片无法收回。数据库索引和原件纳入 Ops v4 备份；没有自动删除原件。

@@ -8,5 +8,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src/scripts/desk.ts"]
+  "include": ["src/scripts/desk.ts", "src/scripts/blog.ts"]
 }

@@ -63,7 +63,7 @@ try {
   const image = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', operation: 'media_upload', args: { alt: '本地合成封面：橙色圆形、绿色矩形与深灰横条', data_base64: syntheticCover().toString('base64') } });
   assert.ok(image.ok);
   const coverId = image.data.id;
-  const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
+  const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`mermaid\nflowchart TD\n    U[开发者 / 企业用户] --> A[Codex 或其他 Agent]\n    A --> T[工具执行与权限控制]\n    A --> R[模型路由与调用接口]\n    R --> O[OpenAI 直接服务]\n    R --> G[Google Cloud 模型入口]\n    R --> X[其他模型供应商]\n    T --> L[日志、审计与任务结果]\n    R --> L\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    A[桌面 / Web / IM 入口] --> B[Agent 工作流与任务状态]\n    B --> C[模型路由与统一观测]\n    C --> D[OpenAI]\n    C --> E[Google Cloud]\n    C --> F[其他供应商]\n    B --> G[工具权限 / 审批 / 执行日志]\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    Broken[无效图表\n\`\`\`\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
   for (let i = 0; i < 13; i++) {
     const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId } });
     assert.ok(result.ok);
@@ -219,6 +219,7 @@ try {
   assert.equal((await f.blog.prepare("SELECT revision FROM blog_posts WHERE slug='browser-article-12'").first()).revision, 1);
   await page.goto(origins.desk + '/blog/');
   await page.waitForSelector('.blog-card');
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some(resource => resource.name.includes('mermaid'))), false, 'the listing does not load Mermaid without a chart');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-card').length), 12);
   await page.screenshot({ path: 'blog-list-desktop.png' });
   await page.click('.blog-pagination [rel="next"]');
@@ -238,7 +239,16 @@ try {
   assert.ok(articlePresentation.cover.width > articlePresentation.reading && articlePresentation.cover.width <= 920 && articlePresentation.cover.height <= 680, 'the landscape cover is wider than the text but bounded');
   assert.ok(articlePresentation.content.width <= 680 && articlePresentation.content.height <= 680, 'content images stay within the reading bounds');
   assert.ok(await page.evaluate(() => document.querySelector('figcaption').textContent.length > 0));
+  await page.waitForFunction(() => document.querySelectorAll('.blog-mermaid svg').length === 2);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-mermaid svg').length), 2);
+  assert.match(await page.evaluate(() => document.querySelector('.blog-mermaid').textContent), /模型路由与调用接口/);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-mermaid-source').length), 2);
+  await page.waitForSelector('pre[data-mermaid-state="failed"]');
+  assert.match(await page.evaluate(() => document.querySelector('.blog-mermaid-error').textContent), /已保留 Mermaid 源码/);
+  assert.match(await page.evaluate(() => document.querySelector('pre[data-mermaid-state="failed"]').textContent), /无效图表/);
   await page.screenshot({ path: 'blog-article-desktop.png' });
+  await page.evaluate(() => document.querySelector('.blog-mermaid').scrollIntoView({ behavior: 'instant', block: 'center' }));
+  await page.screenshot({ path: 'blog-article-mermaid-desktop.png' });
   for (const width of [320, 375, 768, 1024, 1440]) {
     await page.cdp('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `article fits ${width}px`);
@@ -246,8 +256,16 @@ try {
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 375, height: 844, deviceScaleFactor: 1, mobile: true });
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: 'blog-article-mobile.png' });
-  await page.evaluate(() => document.querySelector('pre').scrollIntoView());
-  assert.ok(await page.evaluate(() => document.querySelector('pre').scrollWidth > document.querySelector('pre').clientWidth));
+  await page.goto(await page.evaluate(() => location.href));
+  await page.waitForFunction(() => document.querySelectorAll('.blog-mermaid svg').length === 2);
+  await page.evaluate(() => document.querySelector('.blog-mermaid').scrollIntoView({ behavior: 'instant', block: 'center' }));
+  assert.ok(await page.evaluate(() => { const chart = document.querySelector('.blog-mermaid'); return chart.scrollWidth > chart.clientWidth && chart.scrollLeft > 0; }), 'mobile charts center the root inside their own scroll region');
+  await page.screenshot({ path: 'blog-article-mermaid-mobile.png' });
+  await page.evaluate(() => document.querySelector('.blog-mermaid-source summary').click());
+  assert.equal(await page.evaluate(() => document.querySelector('.blog-mermaid-source').open), true);
+  await page.evaluate(() => document.querySelector('.blog-mermaid-source summary').click());
+  await page.evaluate(() => document.querySelector('code.language-js').parentElement.scrollIntoView({ behavior: 'instant', block: 'center' }));
+  assert.ok(await page.evaluate(() => { const pre = document.querySelector('code.language-js').parentElement; return pre.scrollWidth > pre.clientWidth; }));
   await page.screenshot({ path: 'blog-article-mobile-code.png' });
   await page.goto(origins.desk + '/blog/');
   await page.waitForSelector('.blog-card-cover');
