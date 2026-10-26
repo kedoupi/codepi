@@ -11,7 +11,7 @@
 内部公众号工作台，服务微信公众号 **珂抖屁**。一期只做人审：编辑把档位标成待审并附预览 → 老板手机打开 → 过 / 要改 / 拒 → **可推箱** 后编辑在微信后台人工推草稿箱。
 
 - 生产域名：**https://gzh.codepi.app**（Worker 名 `codepi-gzh`）
-- 同主机提供看板、`/p/<slug>/` 预览壳（同域正文内嵌进页，外域才降级 iframe）、预览 HTML、`/api/*`，一条 `gzh_session` HttpOnly Cookie 即可在手机里打通
+- 同主机提供看板、`/p/<slug>/` 预览壳（同域正文内嵌进页，外域才降级 iframe）、预览 HTML、`/api/*`。生产 SSO 使用 shared-auth 的 `__Host-kdp_gzh_session` 会话 Cookie，以及仅供退出的 `__Host-kdp_gzh_logout`；`gzh_session` 仅用于 `SSO_ENABLED=0` 的旧本地 OTP 分支。
 - 生产登录由 `auth.codepi.app` 统一处理，`SSO_ENABLED=1` 时旧本地 OTP 接口关闭。本地测试用合成身份；staging 已退役。
 - 不接微信草稿箱 API；不要改 `gzh-preview` 仓
 

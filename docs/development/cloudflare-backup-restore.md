@@ -1,25 +1,21 @@
 # D1 与私有原件备份恢复 runbook
 
-当前环境为 local + production。D1 Time Travel 用于快速回溯；加密导出用于在
-Cloudflare 账户之外保存一份可恢复副本。工作流文件存在不代表已产生备份，当前调度与
-最新验收见 [Cloudflare 定时运维任务](tasks/2026-10-19-cloudflare-operations.md)。
+当前环境为 local + production。D1 Time Travel 用于快速回溯；当前自动化备份写入私有 R2 v4，
+并以完整 `manifest.json` 与 `reports/backup/r2-success.json` 为成功标准。工作流文件存在不代表已产生备份，
+当前调度与日期化验收见 [Cloudflare 定时运维](cloudflare-operations.md)。
 [平台可靠性任务](tasks/2026-10-18-platform-reliability.md) 和
 [MCP 运维补齐](tasks/2026-10-19-mcp-operations.md) 保留早期实现与故障证据，
 不作为当前调度或待办清单。
 
-## 2026-10-20 新覆盖
+## 当前 v4 覆盖与恢复边界
 
-Project/Me D1 与 Me 导入原文已纳入 v3 生产备份并完成隔离恢复验收。
-必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`；旧库 UUID 固定，新库必须精确名称解析。
-原件集合来自 `ORIGINAL_COLLECTIONS`：GU `gu_materials`、Me `imports`，以及计划中的博客
-`blog_media`。前两者通过 `GuMaterialsBackup` / `MeImportsBackup` 读取；博客通过尚未发布的
-`BlogMediaBackup` 读取。Ops 不直接绑定业务桶。
-
-新写出的 v4 manifest 必须包含全部数据库和这三组原件；缺少某组（包括空组记录）也不算完整备份。
-v3 是已验收的 GU+Me 历史清单，v2 是更早的 GU-only 清单，二者都可恢复，但不能证明博客媒体已备份。
-恢复必须固定同一次 manifest，先恢复
-隔离 D1，按对应索引、大小、SHA-256 校验和恢复隔离 R2，然后用该领域的鉴权流程验收。
-不把恢复的 SSO/MCP 授权状态直接送回生产，私钥继续仅由所有者保管。
+必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`，共九库；原件集合来自
+`ORIGINAL_COLLECTIONS`：GU `gu_materials`、Me `imports`、Blog `blog_media`，分别通过
+`GuMaterialsBackup`、`MeImportsBackup`、`BlogMediaBackup` 只读获取。Ops 不直接绑定业务桶。
+新写出的 v4 manifest 必须包含全部数据库和三组原件；缺少任何一组（包括空组记录）均不完整。
+v3 是 GU+Me、v2 是 GU-only 的历史清单，仍可恢复但不能证明 v4 覆盖。恢复必须固定同一次 manifest，
+先恢复隔离 D1，再按索引、大小、SHA-256 校验和恢复隔离 R2；不把恢复的 SSO/MCP 授权状态直接送回生产。
+现有日期化记录可证明 v4 备份实例与媒体覆盖，不替代新的生产隔离恢复、存储私有性或外部灾备核验。
 
 2026-10-20 生产 v3 实例
 `cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
@@ -38,9 +34,9 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
-- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部必需库和
-  GU/Me/博客有索引原件成功后才提交 v4 manifest；R2 manifest 与 success report 是完整备份标准。
-  GitHub Release 不再是自动备份通道，历史 Release 仅是公开前待清理对象。
+- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部九库和
+  GU/Me/Blog 有索引原件成功后才提交 v4 manifest；R2 manifest 与 success report 是完整备份标准。
+  GitHub Release 仅是历史验收材料，不是自动备份通道。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
   D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read（仅查询
   `codepi.app` zone 的 GraphQL hourly Analytics），不将本机管理 token 放入 Worker。
@@ -200,8 +196,8 @@ node scripts/cloudflare/originals-restore.mjs \
 
 工具按清单版本要求覆盖：v4 是三组，v3 是 GU/Me，v2 是 GU。
 `--database` 必须且只能覆盖该版本的原件集合。博客输出在
-`codepi-blog/media/<UUID>`。博客桶和 `BlogMediaBackup` 仍是 planned，
-这条命令还没有生产恢复证据。
+`codepi-blog/media/<UUID>`。Blog bucket 与 `BlogMediaBackup` 已在当前实现和日期化备份证据范围；
+这条恢复命令本身不构成新的生产隔离恢复证据。
 
 ## v3 GU 与 Me 原件隔离恢复
 

@@ -1,6 +1,6 @@
 # KDP unified login
 
-`codepi-auth` is the first-party login Worker for Health, GU, GZH, the personal desk and CodePi MCP. It accepts no
+`codepi-auth` is the first-party login Worker for Health, GU, GZH, the personal desk, CodePi MCP, Project and Me. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `packages/shared/brand.ts`.
@@ -28,7 +28,8 @@ both sources. Keep synthetic local callbacks separate from production; staging i
 and dated verification evidence are in the [CF resource registry](../../docs/development/cloudflare-resource-registry.md).
 
 Optional per-client secrets `SSO_CLIENT_SECRET_GU`, `SSO_CLIENT_SECRET_OURA`,
-`SSO_CLIENT_SECRET_GZH`, `SSO_CLIENT_SECRET_DESK` and `SSO_CLIENT_SECRET_MCP` override only the matching
+`SSO_CLIENT_SECRET_GZH`, `SSO_CLIENT_SECRET_DESK`, `SSO_CLIENT_SECRET_MCP`,
+`SSO_CLIENT_SECRET_PROJECT` and `SSO_CLIENT_SECRET_ME` override only the matching
 registered client's secret. An absent override retains `SSO_CLIENTS.secret` for
 existing clients; an empty or short override fails closed. Callback registration
 still comes from the registry and `SSO_EXTRA_REDIRECT_URIS`.
@@ -125,9 +126,9 @@ is historical context, not the current resource inventory or release procedure.
 
 ## Project / Me opt-in clients
 
-Public metadata and allowed client IDs live in `packages/shared/auth/clients.ts`.
+Public metadata and allowed client IDs live in `packages/shared/auth/clients.ts`, the single list of all seven clients.
 `SSO_CLIENT_SECRET_PROJECT` / `SSO_CLIENT_SECRET_ME` enable their exact production callbacks;
 missing optional secrets leave existing clients unchanged, explicitly empty/short secrets fail closed.
 Pair each with its own Worker `AUTH_CLIENT_SECRET` only during an authorized initialization/rotation.
-New domain resources and real login acceptance remain tracked in
-`docs/development/tasks/2026-10-20-codepi-mcp-domains.md`.
+Their dated deployment evidence and remaining real-login acceptance are tracked in the
+[task index](../../docs/development/tasks/README.md); local metadata is not production readiness.

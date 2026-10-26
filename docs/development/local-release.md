@@ -84,11 +84,11 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 `codepi-blog` migration 与 `BlogMcp` named RPC）发布并验收，再发布 MCP；MCP
 依赖 `codepi-www#BlogMcp`，不能反向部署。
 
-GU 原件备份首次启用需先完成 GU migration、私有 `MATERIALS` bucket 与 GU 发布，
-再发布绑定 `GuMaterialsBackup` 的 Ops。随后触发完整备份并核验当前清单全部数据库、原件、
-跨平台回执及恢复；新巡检不接受旧的 D1-only 回执。详见[定时运维](cloudflare-operations.md#gu-原件)。
+GU、Me 与 Blog 原件备份首次启用或替代资源时，必须先完成所属应用 migration、私有 bucket 与应用发布，
+再发布对应只读 RPC binding 的 Ops。随后触发完整备份并核验当前 v4 清单的全部九库和三组原件、
+R2 回执及隔离恢复；新巡检不接受旧的 D1-only 回执。外部灾备副本另行授权和记录，详见[定时运维](cloudflare-operations.md#gu-原件)。
 
-六个普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
+普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
 `BUILD_SHA=<SHA前12位>`，输出实际 version ID；smoke 仍须按第 4 节完成。
 此命令在协调者已有发布锁内运行，不代替构建、迁移和完整发布流程。
 Health 前端只增加构建元数据，不恢复 DB、AUTH 或业务 vars；巡检从控制面读取其独立
@@ -102,7 +102,7 @@ MCP 的 Auth `SSO_CLIENT_SECRET_MCP` 与自身 `AUTH_CLIENT_SECRET` 由下方统
 既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
 必须先就绪，MCP 验收通过后才发布展示新地址的 Health 前端。MCP D1 只保存授权状态，
 不复用 Health 数据库；从旧 Health-hosted MCP 切换时旧客户端需改连并重新授权，
-统一 MCP 的现有连接已升级为全量 scope，不再为新增 write scope 重新授权。MCP D1 现纳入六库加密日备，恢复时须避免
+统一 MCP 的现有连接已升级为全量 scope，不再为新增 write scope 重新授权。MCP D1 现纳入九库 v4 加密日备，恢复时须避免
 复活快照后已撤销或已消费的授权，见备份 runbook。2026-10-19 此项取代首发时“不备份授权状态”的决策。
 MCP deploy 现在自动执行精确 build、凭证配对、发现、匿名拒绝和连接管理入口 smoke；
 上传成功但 smoke 失败仍以非零状态退出，后续发布停止。
@@ -200,8 +200,8 @@ node scripts/cloudflare/release-observe.mjs --sha "$release_sha" --nonce <短标
 
 定时巡检与加密日备由 `services/ops` 的 Cloudflare Cron/Workflows 执行，原
 `production-monitor.yml` / `d1-backup.yml` 仅保留手动应急入口。验收须核实真实
-Workflow 实例、R2 当前全库完成清单、跨平台回执和私有访问。GitHub 运行凭证缺失时，
-版本核对和跨平台备份明确失败；详见[定时运维](cloudflare-operations.md)。
+Workflow 实例、R2 当前 v4 完整清单和私有访问；GitHub Release 不是当前自动备份通道，
+外部灾备副本与隔离恢复另行记录。详见[定时运维](cloudflare-operations.md)。
 本地仍可执行 `node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`。
 
 本地巡检要求完整 Git 历史，查询实时远程 main，以各 Worker 当前 100% 承流版本的
@@ -213,10 +213,10 @@ Workflow 实例、R2 当前全库完成清单、跨平台回执和私有访问�
 刷新 checkout 后重跑。历史上的缺 SHA 补发已记录在任务文件中；继续操作时只对
 实时核实缺少标记的服务处理，不照旧记录无条件重发五个 Worker。
 
-## Project / Me / GU MCP 扩展发布
+## Project / Me / GU MCP 扩展首发（归档流程）
 
-本轮只准备本地实现，不授权远程执行。获授权后在干净、已合并 main 上完成受影响验证，
-并在第 1 节同一个发布 shell 中持续持锁。首发依赖顺序如下：
+以下保留首次创建/替代资源的历史流程，不授权远程执行，也不适用于已存在资源的普通更新。
+获授权后在干净、已合并 main 上完成受影响验证，并在第 1 节同一个发布 shell 中持续持锁。首发依赖顺序如下：
 
 1. 先发布并验证 Auth；Project/Me 的 opt-in 客户端此时仍未启用，既有客户端保持可用。
 2. 创建并核验私有 `codepi-me-imports` R2，准备 Project 的 GitHub 只读授权。
@@ -246,7 +246,7 @@ secret 代替；只能通过已授权配置设置。普通更新不重复初始�
 
 Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署配置；审查源码不填假 UUID。
 新桶必须无公开域名、无 r2.dev 公开访问。新增 Worker 要单独建立并验收 Issues 自动规则。
-执行新 Ops 后核对 v3 完整清单、GitHub 跨平台副本、非空 Me 原文隔离恢复；旧 v2 回执不够。
+执行新 Ops 后核对 v4 完整清单、九库、GU/Me/Blog 三组原件和所需隔离恢复；旧 v2/v3 回执不够。GitHub 副本仅是历史验收材料。
 
 旧统一 MCP Health grants 保留，无须强制全部重连；下一次 refresh 自动升级为
 当前全部已支持 scope，授权页不再逐项选择。

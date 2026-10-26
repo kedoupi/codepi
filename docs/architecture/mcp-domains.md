@@ -1,7 +1,7 @@
 # CodePi MCP 领域扩展
 
-本页记录 2026-10-20 确认的实现契约。生产基线仍是已上线的 Health MCP；新代码、检查、
-部署与真实客户端验收分别见[任务记录](../development/tasks/2026-10-20-codepi-mcp-domains.md)。
+本页记录当前实现契约。Health 是首个上线模块；Health、Project、Me、GU、Blog 五个模块的
+实现与日期化发布证据见[任务索引](../development/tasks/README.md)，实际控制面和客户端验收另行核验。
 PDF 使用旧提交和部分已过时模型，不能覆盖以下修正。
 
 ## 领域与数据边界
@@ -15,6 +15,7 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 | Project | `ProjectMcp` | 独立 D1；GitHub 自动提取与追加交接 | projects_list、project_get、project_handoff_save |
 | Me | `MeMcp` | 独立 D1；私有 R2 导入原文 | memory_search/save/import、profile、timeline、proposal |
 | GU | `GuMcp` | `gu_workspace_head` 指向的线上版本 | portfolio、cash、trades、rules、reports |
+| Blog（Web Worker） | `BlogMcp` | Web Worker 自有 Blog D1/R2 | 博客查询、草稿与审核辅助；发布仍需 owner 审核 |
 
 共享层只定义类型、操作枚举和大小常量。HTTP 和 MCP 共用所属应用的业务代码。
 工具参数不接受 user_id/client_id；subject 和客户端名称来自服务端 grant，领域再次核对 owner。
@@ -23,13 +24,13 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 ## 授权与上下文
 
 支持 `context.read`、`projects.read`、`projects.write`、`health.read`、`health.sync`、
-`me.read`、`me.write`、`invest.read`。这是单用户部署，登录并确认连接后一次性授予
+`me.read`、`me.write`、`invest.read`、`blog.read`、`blog.write`。这是单用户部署，登录并确认连接后一次性授予
 当前全部已支持 scope；授权页完整展示范围，但不提供逐项勾选。即使客户端只请求部分
 scope，服务端也返回全量 scope 并在 token 响应中如实声明。已有部分授权在下一次
 refresh 时升级为全量；refresh 忽略客户端的缩小请求，不能把连接降回部分权限。
 需要收缩能力时撤销整个客户端连接，而不是在同一连接上保留部分 scope。
 
-工具逐一检查权限。仅写权限不能读取领域摘要。Health read-only grant 可读保存数据；
+工具逐一检查权限；仅写权限不能读取领域摘要，`blog.write` 也不推出 `blog.read`。Health read-only grant 可读保存数据；
 没有 `health.sync` 时默认不刷新，显式要求 refresh=true 被拒绝。
 连接页合并同一客户端全部活动授权族的 scope，不用 SQL `MAX(scope)` 代替集合并集。
 
@@ -83,17 +84,18 @@ chunk index、digest 去重。重试不能重复插入或越过总量限制；�
 规则正文和报告是可追溯文本，不把自由文本自动解释成风控结果，不新增交易写入能力。
 原有 `GuMaterialsBackup` 与资料鉴权保持。
 
-## 发布与验收
+## 发布与验收边界
 
-新 Worker/D1/域名及 Me R2 先登记 planned；本地构建不证明云端资源就绪。
-从已合并、干净 main 串行发布。先发布 Auth，再初始化 Project/Me 资源并上传各自 Worker，
-随后配对并验证新增 Auth 客户端；未配对时 readiness 返回 503，不标成发布成功。
-领域 Worker 验收完成后发布 MCP，最后 Ops 和受影响公开入口。具体首发与持锁步骤见
-[本地发布操作](../development/local-release.md#project--me--gu-mcp-扩展发布)。
-批次为公共基础、Project+CLI、Me、GU；
-实际分批时，MCP 与 Ops 配置必须只引用当批已经创建、发布的依赖，不能先部署悬空绑定。
+以下是领域首次创建或替代资源时的历史 bootstrap/recovery 顺序；现有资源的常规更新不得重复
+provision。新 Worker/D1/域名及 Me R2 的历史创建记录和日期化发布证据见任务索引，本地构建
+不证明云端资源就绪。
 
-新 D1 与原件必须纳入备份清单、跨平台复制和恢复。巡检包含健康端点、权限配对、
-BUILD_SHA 漂移与备份新鲜度；Workers Issues 策略和实际送达需要上线时单独核验。
-自动检查只用合成数据。真实客户端验收底线是 Claude 手机端、Codex、codepi CLI，
-并包括权限隔离、刷新/撤销和跨客户端任务交接，未经实际操作不能填“通过”。
+首次或替代创建时，从已合并、干净 main 串行发布：先发布 Auth，再初始化 Project/Me 资源并上传各自 Worker，
+随后配对并验证新增 Auth 客户端；未配对时 readiness 返回 503，不标成发布成功。领域 Worker 验收完成后
+发布 MCP，最后 Ops 和受影响公开入口。具体持锁步骤见
+[本地发布操作](../development/local-release.md#project--me--gu-mcp-扩展首发归档流程)。
+
+新 D1 与原件必须纳入备份清单和恢复范围；当前 v4 完整备份覆盖九库及 GU/Me/Blog 三组原件，
+跨平台复制另行记录。巡检包含健康端点、权限配对、BUILD_SHA 漂移与备份新鲜度；Workers Issues
+策略和实际送达需要单独核验。自动检查只用合成数据。真实客户端验收底线是 Claude 手机端、Codex、
+codepi CLI，并包括权限隔离、刷新/撤销和跨客户端任务交接，未经实际操作不能填“通过”。
