@@ -191,7 +191,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
     `IMPORTS → codepi-me-imports`，博客媒体仅允许 `BLOG_MEDIA → codepi-blog-uploads`，
     三者都不与备份桶共用。
 13. Durable Object 目前不在上述自动校验范围内。新增 DO 必须先在资源登记表写明
-    planned/managed 状态、binding 和 migration；MCP 的 `LegacySse` 在发布前保持 planned。
+    planned/managed 状态、binding 和 migration；MCP 的 `LegacySse` 已于 PR #195 发布并核对 namespace。
     GU 上传桶、Me 导入桶和博客媒体桶的首次登记允许 `planned`，不放宽对应 Worker/D1 校验；
     发布前需创建并核验无公开域名、无公开 r2.dev 入口。静态配置不证明存储已就绪。
     原件元数据随各自 D1 备份，原件字节单独加密；全部已登记 D1 与原件均成功才有完整回执，

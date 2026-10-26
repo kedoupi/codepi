@@ -20,16 +20,19 @@
     "apps/health/migrations/0010_shared_sso.sql": "672fb3227bf261f0e6bedd019b8660805830c8011b989ce5b4222f68ac7e5cd4",
     "apps/health/migrations/0011_repair_consent_coverage.sql": "c7065d5d1e15235554595b3ce2e83e4dfdde94ff224e3ce4d4210189b4c21ef1",
     "apps/health/migrations/0012_oura_identity_repair.sql": "554ec9e4c2f0234506b9cc7fae6e9acf597f4a55789bc4309a7114c1c5d6e8cb",
+    "apps/health/migrations/0013_daily_cache_user_day.sql": "fb6ca4422bf005978785e31ca5dd41f603f9626f8914d0bb401ef99fced1a8bf",
     "apps/health/migrations/0014_sync_window_lookup.sql": "1e0f8ec1dacc3d446571cce244be250757acb9fd365275879d2a702bbb61ae6b",
     "apps/me/migrations/0001_init.sql": "d31ffb6ab2937d843a6f33aa798e2b9eb6755ca8763c2aae4ffaf3336002c839",
     "apps/project/migrations/0001_init.sql": "8dd7fdb2402f6d8a2d3791268e8059365ffffdb768466f34d3c79995d98ec9cb",
     "apps/project/migrations/0002_project_sync_fixes.sql": "6a8b29536a15c87fe964a2894dea8430b4ace1be6999257f690f56361775c664",
     "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
     "apps/web/migrations-blog/0001_blog.sql": "1605cca4f1ce5bb4d87e45821a3178dfb95cded9b8dfe49b8467f0dd6c751fd3",
+    "apps/web/migrations-blog/0002_blog_media.sql": "fa237b69fccf8d44602db9052eb1a4a5b5307374793672133c14763db6adad14",
     "services/auth/migrations/0001_auth.sql": "778e2d750a26f2d9ba94bbdc85e8910ae66478fcad4d146146a7c76ea4cf66d6",
-    "services/mcp/migrations/0001_mcp.sql": "0fd5f65c887c3e219820771bbe789f40090c7c7a5dee04ba526125d2382a909c"
+    "services/mcp/migrations/0001_mcp.sql": "0fd5f65c887c3e219820771bbe789f40090c7c7a5dee04ba526125d2382a909c",
+    "services/mcp/migrations/0002_client_auth.sql": "ddd6b70acf6c5e566b37efb9a177ed5c92f166613eb3365fbfc62f0653aad81f",
+    "services/mcp/migrations/0003_personal_tokens.sql": "0e508cc0947e4c53b8fde761d5a334be6cfddc6a3c350936234ac10c6766ec76"
   },
-  "notApplied": ["apps/web/migrations-blog/0002_blog_media.sql","apps/health/migrations/0013_daily_cache_user_day.sql", "apps/health/migrations/0014_sync_window_lookup.sql", "services/mcp/migrations/0002_client_auth.sql", "services/mcp/migrations/0003_personal_tokens.sql"],
   "generated": "2026-10-24",
-  "note": "Frozen SHA-256 for every applied migration; unbaselined files fail closed unless listed in notApplied."
+  "note": "Frozen SHA-256 for every applied migration; unbaselined files fail closed."
 }

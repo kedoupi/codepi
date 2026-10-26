@@ -1,6 +1,6 @@
 # MCP Agent 接入兼容
 
-- 状态：本地实现与验证中；未提交、未部署。
+- 状态：PR #195 已合并，MCP 已发布；生产观察 `healthy_reported`（2026-10-25T16:16:24Z，3 个事件，无回滚），真实客户端验收仍待所有者。
 - 目标：补齐 OAuth 差异兼容、PAT、手动客户端注册、Client ID Metadata Document、旧版 HTTP+SSE 和 Agent 可直接读取的分页。
 - worktree / 分支：`~/.worktrees/codepi/codex/mcp-agent-compat` / `codex/mcp-agent-compat`。
 - 起始 SHA：`81553b8fa993ab5afee8b95d19b1ab5c84caaf4e`；保留此前同任务未提交修改。
@@ -20,5 +20,15 @@
 
 - 前一阶段：8 项受影响检查通过，MCP 46 项测试、typecheck/build、浏览器授权/撤销通过；9 项新测试在旧实现失败。
 - 本阶段定向：PAT（含 20 个上限）、手动注册、元数据授权全流程、`read_document` Unicode/覆盖/digest、PAT+SSE 撤销均通过。
-- 2026-10-25 受影响检查 10/10 通过：Cloudflare 脚本、治理校验、agent lint、迁移守卫、MCP 63 项测试、typecheck、build、浏览器验收。治理校验尚不覆盖 Durable Object，`LegacySse` 仍是登记表中的 planned 项。
-- 未执行：生产迁移/部署、真实 Manus/Claude/ChatGPT/IDE 的客户端验收。
+- 2026-10-25 受影响检查 10/10 通过：Cloudflare 脚本、治理校验、agent lint、迁移守卫、MCP 63 项测试、typecheck、build、浏览器验收。治理校验尚不覆盖 Durable Object，binding 由发布控制面单独核对。
+- 未执行：真实 Manus/Claude/ChatGPT/IDE 的客户端验收。
+
+## 2026-10-25 发布
+
+- 用户授权“提交部署吧”；实现提交 `f182e6e` 经 [PR #195](https://github.com/kedoupi/codepi/pull/195) 合入 main `f6fb328aef50b46338903dfc579997649f25c49a`。合并后的树与本地验证树一致；GitHub 4 项检查通过、8 项跳过。
+- 主会话在本机持 production release lock，从干净且等于远程 main 的源码执行标准 MCP deploy；仅 MCP 自上次 source `7d0c81416a61` 后有运行时差异。
+- previous `dead5910-935a-4c0c-8cc4-1b25d7cf5fd2` → new `78e3b6e7-419d-4a6e-a6c3-64b1b9cdbc04`，100% 承流；`BUILD_SHA=f6fb328aef50`。
+- D1 `73c6ef4e-e2a0-41c2-9bce-ab41c7391caa` 应用 `0002_client_auth.sql`、`0003_personal_tokens.sql`，复查无待应用迁移；冻结两文件 SHA-256。
+- 新增 `LEGACY_SSE → LegacySse`，namespace `63bd0761417044169d4e8b9be97ee4c7`，migration `legacy-sse-v1`。没有轮换 secret 或改变其他 Worker。
+- 线上 smoke：Auth 配对、精确 build、两种发现、匿名 MCP 401、连接管理登录保护通过；匿名 `/sse` 401、未知 SSE session 404，PAT/手动注册管理页均 302 登录。
+- Observer `release-f6fb328aef50-mcp195`，instance `cf_5ebca0db28e8cc4089444184413e0362666bf60ccc07737900e615b145caa39e`；首轮 healthy。明确 `migration_applied=true`、`binding_changed=true`、其余副作用 false，推导 `rollback_allowed=false`。R2 `reports/observer/release-f6fb328aef50-mcp195/summary.json` 最终状态 `healthy_reported`，完成于 2026-10-25T16:16:24.510Z，`rollback=null`。
