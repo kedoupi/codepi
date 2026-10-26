@@ -1,10 +1,11 @@
 # 工程架构与部署模型
 
 本文档记录 kedoupi（codepi）个人数字空间的工程架构和部署决策。
-2026-10-16 起生效，替代此前的多环境双分支方案；2026-10-20 按当前源码补齐 MCP 领域扩展、
-Project/Me 与 CLI。新增能力的本地实现与生产发布分别记录，本文不表示已上线。
+2026-10-16 起生效，替代此前的多环境双分支方案；2026-10-20 起按当前源码补齐 MCP 领域扩展、
+Project/Me 与 CLI，后续 Blog 与 Ops v4 变化见任务记录。本文描述当前实现与配置；
+日期化发布证据、运行时状态和剩余验收见[任务索引](../development/tasks/README.md)，
+不由本文或本地配置推定实时线上状态。
 本文是现行架构入口，旧 `architecture-baseline.md` 是历史记录。
-运行时状态与剩余验收见[任务索引](../development/tasks/README.md)，不是由本文推定。
 
 ## 工程结构
 
@@ -72,22 +73,24 @@ codepi/
 | Health API | Health D1、Oura 授权、同步、查询和统计 | AUTH Service Binding；`HealthMcp` named RPC 供 MCP 调用 |
 | Auth | 中央身份、OTP 和网站会话 D1 | 客户端以 shared/auth/clients.ts 为准 |
 | Project / Me | 各自业务 D1；Me 的导入原文存独立私有 R2 | AUTH Service Binding；仅向 MCP/Ops 提供明确的 named RPC |
-| MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；Health/Project/Me/GU named RPC；不直接绑定业务库或原件 |
-| Ops | 无业务 D1、无公网入口；R2 保存密文和运维元数据 | 扩展后经受限 Cloudflare API 导出完整八库；经 GU/Me named RPC 只读原件；GitHub API 读取版本历史并复制密文 |
+| MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；Health/Project/Me/GU/Blog named RPC；不直接绑定业务库或原件 |
+| Ops | 无业务 D1、无公网入口；私有 R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出九库；经 GU/Me/Blog named RPC 只读原件；GitHub API 仅用于版本监控/通知，不复制备份密文 |
 
 Health 前后端独立部署；各应用各自拥有 D1，统一 workspace 不等于合库。
-Project/Me 和 CLI 的新增边界见[领域扩展](mcp-domains.md)，资源登记区分 planned 与 managed。
+Project/Me、Blog 与 CLI 的新增边界见[领域扩展](mcp-domains.md)和任务记录；资源登记区分
+日期化快照与实时控制面。
 网站 SSO、Oura 授权和 AI 客户端授权保持各自生命周期，不能相互替代或透传 token。
-具体域名、资源 ID 与部署证据由根 README 和资源登记表维护，不在本表复制。
+具体域名、资源 ID 与部署证据由根 README、任务记录和资源登记表维护，不在本表复制。
 
 GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、交易、规则与报告以 GU D1 的确认版本为准，
 原件由 GU 经鉴权访问独立私有 R2；首次确认前可预览旧快照，启用后旧上传不能覆盖账户。
 业务逻辑仍归 GU，不抽到 MCP 或共享层。私有 R2 与 GU → Ops 原件备份 binding 已核验，
 真实投资资料现已迁入 revision 1，外部本机目录保留为迁移来源；
 2026-10-20 已通过真实 GU D1 与 112 份非空资料的隔离恢复和鉴权下载验收。
-原有六库与 GU 原件的 GitHub 跨平台复制已于 2026-10-20 验收；新增 Project/Me 的八库与
-Me 原件范围仍需发布后实际验收。证据见 [GU 线上工作台任务](../development/tasks/2026-10-19-gu-online.md)
-与[跨平台备份任务](../development/tasks/2026-10-20-github-offsite.md)。
+六库与 GU 原件的 GitHub 跨平台复制是 2026-10-20 的历史验收记录，不是当前自动备份链路。
+当前 v4 标准以私有 R2 完整清单、回执及九库、GU/Me/Blog 三组原件为准；实际跨账户灾备与新的
+生产隔离恢复须另行授权和核验。证据见 [Cloudflare 定时运维](../development/cloudflare-operations.md)
+与[备份恢复 runbook](../development/cloudflare-backup-restore.md)。
 
 ## 部署模型
 
@@ -161,7 +164,7 @@ Me 原件范围仍需发布后实际验收。证据见 [GU 线上工作台任务
 
 ## 技术栈方向
 
-当前源码状态（2026-10-20；Project/Me/CLI 尚未发布）：
+当前源码技术栈（部署与验收使用日期化任务证据，不由此推定）：
 
 | 应用 | 前端 | 服务端 | 包管理 |
 |---|---|---|---|
@@ -188,9 +191,9 @@ GU 服务端路由和 Svelte 前端已分批迁移；业务接口在路由迁移
 
 部署载体已统一为 Workers Static Assets：GU、GZH（2026-10-17，`run_worker_first = true`，全部请求先进 Hono 鉴权链）、首页/Desk（2026-10-17，公开资产直出，`/api/*` 与 `/desk` 优先进入 Worker）与 Health 前端（2026-10-18，SPA + WORKER service binding 转发 API，前端不持有 DB/AUTH/Oura 等业务配置，仅由发布脚本注入 `BUILD_SHA` 元数据）均已切换正式域名，旧 Pages 项目全部删除。staging 环境同步于 2026-10-18 全面退役（仓库配置与云端资源均已删除），环境模型收敛为 local + production。实施与切换验收见 [GU](../development/tasks/2026-10-17-gu-static-assets.md)、[GZH](../development/tasks/2026-10-17-gzh-static-assets.md)、[首页](../development/tasks/2026-10-17-web-static-assets.md) 迁移记录及资源登记表。
 
-统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，Health 查询和统计仍由
-Health API 持有。通过 `HealthMcp` named RPC 调用，不直接绑定 Health D1；
-Project、Me、GU 按同一边界接入。AI 写入 Me 只进入待确认区，GU 只读线上工作区。
+统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，领域查询和写入仍由各所属应用持有。
+MCP 通过 Health、Project、Me、GU 与 Blog 的 named RPC 调用，不直接绑定业务 D1/R2；
+AI 写入 Me 只进入待确认区，GU 只读线上工作区，Blog 发布仍受 owner 审核。
 见[统一 MCP 架构](unified-mcp.md)与[领域扩展契约](mcp-domains.md)。
 
 Ops 的调度、凭证、流式备份与恢复边界见[定时运维](../development/cloudflare-operations.md)。

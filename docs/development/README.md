@@ -15,7 +15,7 @@
 | Cloudflare 平台约束 | [CF 治理规范](cloudflare-governance.md) | 命名、环境、密钥、发布门禁与退役条件 |
 | 云资源归属与核验记录 | [CF 资源登记表](cloudflare-resource-registry.md) | 版本化快照，不是实时控制面；关注 last_verified 和未决项 |
 | 本地发布操作 | [本地发布操作](local-release.md) | PR 合并后，从干净且等于远程 main 的源码验证、发布及验收；CI 只做附加验证 |
-| 定时巡检与备份 | [Cloudflare 定时运维](cloudflare-operations.md) | 私有 Cron/Workflows、R2 密文与独立的跨平台备份验收 |
+| 定时巡检与备份 | [Cloudflare 定时运维](cloudflare-operations.md) | 私有 Cron/Workflows、R2 v4 密文与独立的外部灾备/恢复验收 |
 | 各工具如何读取以上内容 | [工具兼容说明](agent-compatibility.md) | 入口只引用，不复制流程；不假定已完成所有客户端验收 |
 | 本地自动检查范围 | [检查脚本](../../scripts/agent/check.mjs)及[回归测试](../../scripts/agent/check.test.mjs) | 预览计划不等于执行成功，脚本不能替代实际流程验收 |
 
@@ -29,8 +29,8 @@
 | Health UI、数据、Oura 同步 | [Health 规则](../../apps/health/AGENTS.md)、[Health README](../../apps/health/README.md) | 日期/覆盖/同步语义；API 或内部数据能力变动还检查 MCP |
 | Project / Me / CLI | [领域契约](../architecture/mcp-domains.md)、各自目录 AGENTS | 任务化交接、确认区、分批导入、OAuth 跨进程刷新；新资源不等于已上线 |
 | 统一登录、shared auth | [Auth 规则](../../services/auth/AGENTS.md)、[SSO 客户端说明](../../packages/shared/auth/README.md) | 客户端以 shared/auth/clients.ts 为准；网站 SSO 与提供方/MCP 授权分开 |
-| MCP transport、授权或工具 | [MCP 规则](../../services/mcp/AGENTS.md)、[MCP README](../../services/mcp/README.md)、[架构](../architecture/unified-mcp.md) | MCP 授权 D1 与业务库分开；通过 named RPC 调用 Health/Project/Me/GU，各工具单独校验 scope |
-| 巡检、备份、运维调度 | [Ops 规则](../../services/ops/AGENTS.md)、[运维流程](cloudflare-operations.md)、[恢复手册](cloudflare-backup-restore.md) | `services/ops/` 与 `scripts/cloudflare/` 共用实现；R2 完整成功与跨平台成功分别记录 |
+| MCP transport、授权或工具 | [MCP 规则](../../services/mcp/AGENTS.md)、[MCP README](../../services/mcp/README.md)、[架构](../architecture/unified-mcp.md) | MCP 授权 D1 与业务库分开；通过 named RPC 调用 Health/Project/Me/GU/Blog，各工具单独校验 scope |
+| 巡检、备份、运维调度 | [Ops 规则](../../services/ops/AGENTS.md)、[Ops README](../../services/ops/README.md)、[运维流程](cloudflare-operations.md)、[恢复手册](cloudflare-backup-restore.md) | `services/ops/` 与 `scripts/cloudflare/` 共用实现；R2 v4 完整成功、外部灾备和隔离恢复分别记录 |
 | 共享样式、品牌、产品和接口 | [shared 规则](../../packages/shared/AGENTS.md)、[CodePi Design System 规范](../architecture/codepi-design-system.md) | 先查 imports 和文件系统读取；公共契约由一个写入者维护 |
 | 发布脚本、CI、资源与域名 | [集成发布](integration-release.md)、[本地发布](local-release.md)、[CF 治理](cloudflare-governance.md) | 检查范围不等于发布范围；多服务发布由一个协调者持锁执行 |
 

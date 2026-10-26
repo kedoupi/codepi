@@ -1,8 +1,8 @@
 # Me 个人记忆与背景
 
-私有 Svelte 看板与 Hono Worker，共用应用自己的 D1。计划域名为
-`https://me.codepi.app`，本地开发端口为 `8796`。新 Worker、D1、R2 和域名仍为
-planned；本地实现与合成验收不代表已上线。
+私有 Svelte 看板与 Hono Worker，共用应用自己的 D1。配置域名为
+`https://me.codepi.app`，本地开发端口为 `8796`。Worker、D1、R2 和域名的日期化发布证据见
+[任务索引](../../docs/development/tasks/README.md)与资源登记表；本地实现或配置不代表当前线上健康、真实 SSO 使用或非空原文恢复验收。
 
 ## 确认与读取
 
@@ -69,7 +69,7 @@ pnpm test:browser
 占位值，不复制生产 `.dev.vars` 或真实数据来测试。
 
 `pnpm run deploy` 是获授权发布时的入口，由通用脚本按精确名称解析 D1、执行迁移和上传；
-首次创建须单独使用 `--provision-d1`，R2 的创建与私有性需另行核验。所有发布必须
+`--provision-d1` 仅用于获授权首次创建、创建替代资源或恢复资源，普通更新不得重复 provision；R2 的创建与私有性需另行核验。所有发布必须
 从已合并、干净且等于远程 main 的源码执行，并按
 [本地发布流程](../../docs/development/local-release.md)持锁及完成线上 smoke。
 普通开发不执行部署或远程迁移。

@@ -75,7 +75,7 @@ git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/remotes
 | GZH | 登录、稿件加载、编辑预览与授权范围内的草稿保存；真实发布另需授权 |
 | Health | 登录与数据加载；Oura 提供方授权和 MCP 授权分别验收，不能用网站 SSO 成功替代 |
 | MCP | Auth 凭证配对、发现、匿名拒绝、Health RPC 和实际客户端使用；刷新/撤销单独记录 |
-| Ops | 无公网入口、Cron/Workflows、六库密文和 manifest；R2、跨平台副本、告警送达分别验收 |
+| Ops | 无公网入口、Cron/Workflows、v4 九库和 GU/Me/Blog 三组原件的 R2 完整清单；外部灾备、隔离恢复与告警送达分别验收 |
 
 UI 变动还检查桌面与移动端。真实邮件、OAuth 重连和会改变外部状态的操作按授权执行；自动测试使用 synthetic 数据，不复制生产私人数据到开发/测试工作区。
 

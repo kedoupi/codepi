@@ -121,7 +121,7 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
   Health 前端允许这一构建元数据，但不恢复业务 vars。MCP deploy 自动执行配对和匿名
   契约 smoke，失败不能进入下一发布阶段。
 - 自动巡检与备份由 `services/ops` 的 Cron/Workflows 调度；原两条 Actions 只保留
-  手动应急入口。真实实例、R2 完整备份和跨平台回执分别验收，见[定时运维](cloudflare-operations.md)。
+  手动应急入口。真实实例与 R2 v4 完整备份分别验收；外部灾备副本须单独授权和记录，见[定时运维](cloudflare-operations.md)。
 - 非 main 紧急发布须有明确例外授权和独立记录；本地执行已是正常路径，不再视为
   break-glass，也不要求日后补一条 Actions 部署。
 
@@ -230,9 +230,10 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
   精确的 GU、Me、博客只读原件 RPC，不直接绑定业务 bucket，不增加需要两侧同步的 secret。
   专用账户 token 仅有 D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read；
   后者只用于 `codepi.app` zone 的 GraphQL Analytics 查询。R2 使用 binding。
-- 备份在内存中公钥加密，R2 按前缀保留 14 天；Cloudflare 之外的密文经 GitHub API
-  存私有 Release，独立记录回执。没有 GitHub 凭证时保留 R2 副本，跨平台状态失败。
-  不把同账户 R2 当成异地恢复保障。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
+- 备份在内存中公钥加密，R2 按前缀保留 14 天；私有 R2 v4 完整清单与回执是当前自动化成功标准。
+- GitHub Release 副本仅保留历史验收材料，不是自动备份通道；R2 备份路径不读取 `GITHUB_TOKEN`，
+- monitor 版本漂移与 Observer GitHub 通知仍按各自契约读取。
+- 同账户 R2 不构成异地恢复保障；外部灾备副本或账户整体不可用时的恢复须由所有者/运维另行授权。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
 - 原件清单在 D1 导出后冻结，只包含追加式资料索引；每件核对大小和 SHA-256，
   缺失或损坏使本次完整备份失败。单件 8 MiB、每次最多 1000 件，超过明确失败；
   不得截断清单并称成功。扩大上限或增加资料删除/改写须同步验证恢复一致性。
@@ -243,24 +244,19 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 
 操作、凭证初始化和运行边界见[定时运维](cloudflare-operations.md)。
 
-## 2026-10-20 领域扩展配置
+## 归档：2026-10-20 领域扩展首发配置
 
-本地实现新增 `codepi-project`、`codepi-me` Worker/D1、对应 custom domain，以及
-私有 `codepi-me-imports` R2。仅这些明确的新资源允许 planned 状态与未填 D1 UUID；
-既有 managed 资源校验不放宽。planned 是待创建，不是已上线证据。
-
-MCP 增加 `PROJECT -> codepi-project#ProjectMcp`、`ME -> codepi-me#MeMcp`、
-`GU -> codepi-gu#GuMcp`；Ops 增加 `ME -> codepi-me#MeImportsBackup`，与原
-`GU -> codepi-gu#GuMaterialsBackup` 同为只读原件能力。博客媒体另增计划中的
-`BLOG -> codepi-www#BlogMediaBackup` 与 `BLOG_MEDIA -> codepi-blog-uploads`。
-第 8 节旧的“仅 GU”限制由此精确扩展，仍禁止 Ops 直接绑定业务 D1、Auth、业务 R2
-或其他任意服务。
+本节保留当时的首发配置与 planned 资源边界，不能覆盖当前实现、日期化发布证据或资源登记表。
+当前 MCP 包含 `PROJECT -> codepi-project#ProjectMcp`、`ME -> codepi-me#MeMcp`、
+`GU -> codepi-gu#GuMcp`、`BLOG -> codepi-www#BlogMcp`；Ops 的只读原件能力为
+`GU -> codepi-gu#GuMaterialsBackup`、`ME -> codepi-me#MeImportsBackup`、
+`BLOG -> codepi-www#BlogMediaBackup`。Ops 仍禁止直接绑定业务 D1、Auth、业务 R2 或其他任意服务。
 
 备份必需库名见 `backup-core.mjs` 的 `DATABASE_NAMES`，既有 UUID 仍用 `DATABASES`
 校验，新库按精确名称解析，缺失/歧义时失败。原件集合由 `ORIGINAL_COLLECTIONS`
-登记。新写出的完成清单是 v4，必须覆盖全部库以及 GU 原件、Me 原文和博客媒体；
-v3 只覆盖 GU+Me，v2 只覆盖 GU，二者仅可用于恢复旧副本，不能证明新覆盖已完成。
-博客媒体桶与 Ops BLOG binding 仍是 planned，不是已部署证据。不上线新 Ops 到尚不存在的绑定。
+登记。新写出的完成清单是 v4，必须覆盖九库以及 GU 原件、Me 原文和博客媒体；
+v3 只覆盖 GU+Me，v2 只覆盖 GU，二者仅可用于恢复旧副本，不能证明 v4 覆盖已完成。
+实际生产隔离恢复、存储私有性和实时 binding 状态须控制面单独核验。
 
 新增产品 SSO 与各自 Auth opt-in secret 用配对脚本一次完成；不手填两侧不同值。
 新增 Worker 的 Issues 自动规则、生产登录、非空原文备份/恢复和真实 MCP 客户端必须

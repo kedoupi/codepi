@@ -140,13 +140,13 @@ FRONTEND_ORIGIN=https://health.codepi.app
 
 `ALLOW_DEV_LOGIN`：
 
-- **预览 / 测试 Worker**（`*.pages.dev` 若挂了 `/api`）：必须设 `ALLOW_DEV_LOGIN=1`，落地页才会出现「DEV 演示登录」，点击后走 `/api/auth/dev/session` 跳过 OAuth 进看板。
+- **获授权的临时测试 Worker**：必须设 `ALLOW_DEV_LOGIN=1`，落地页才会出现「DEV 演示登录」，点击后走 `/api/auth/dev/session` 跳过 OAuth 进看板。
 - **生产 health.codepi.app**：必须 unset 或 `0`。落地页只保留「用 Oura 登录」。
 - 本地 `.dev.vars` 设 `ALLOW_DEV_LOGIN=1`。
 
 Oura 应用里的 Redirect URL 必须与 `OURA_REDIRECT_URI` 完全一致。
 
-前端只在 `/api/me` **明确返回** `allowDevLogin: true` 时显示 DEV 登录 / 「DEV 演示」徽章。纯静态 Pages（没有 Worker `/api`）时 `/api/me` 失败按未登录渲染营销页，不出现红色错误条，也不会出现 DEV 按钮。
+前端只在 `/api/me` **明确返回** `allowDevLogin: true` 时显示 DEV 登录 / 「DEV 演示」徽章。API 失败时按未登录渲染营销页，不出现红色错误条，也不会出现 DEV 按钮。
 
 ## 权限模型 — 摘要 vs 完整解读（无付费）
 
@@ -168,9 +168,9 @@ Oura 应用里的 Redirect URL 必须与 `OURA_REDIRECT_URI` 完全一致。
 
 **语言**：整站壳（落地页 + 看板导航 + 解读入口）跟 `navigator.language`：`zh*` → 中文，否则英文。设置里可覆盖并写入 D1 `user_prefs` + `localStorage`。Phase 1 解读**正文模板只有中文**；英文 UI 用壳 + 「Phase 1 insight body is Chinese-only」。
 
-## Cloudflare Pages（`apps/web`）
+## Health frontend Worker Static Assets（`apps/web`）
 
-生产 Pages 必须部署 **Svelte 构建产物**，不要把仓库根目录或旧的 vanilla `index.html`（登录卡片 + DEV 按钮）当作 Pages 根目录。
+生产前端 Worker 必须部署 **Svelte 构建产物**，不要把仓库根目录或旧的 vanilla `index.html`（登录卡片 + DEV 按钮）当作资产根目录。
 
 ```bash
 pnpm --filter @health-kdp/web build
@@ -205,8 +205,8 @@ pnpm check:api
 回调指向当前域名的 `/api/auth/oura/callback`。它不会完成用户授权，也不会打印
 OAuth state 或密钥。可传入另一个部署域名：`pnpm check:api https://<domain>`。
 
-如果 `/api/*` 返回 `200 text/html`，请求落到了 Pages 的 SPA 首页回退，而非
-API Worker。先核对 Worker Route，不能只重新发布前端或修改错误文案。
+如果 `/api/*` 返回 `200 text/html`，请求落到了前端 Worker Static Assets 的 SPA 首页回退，而非
+API Worker。先核对 `WORKER` service binding 与 `/api/*` 的 `run_worker_first`，不能只重新发布前端或修改错误文案。
 检查同时要求日报、AI、周报和两种对比模式在匿名请求下返回 401，
 设置接口 GET 返回 405；返回 404 会使检查失败，避免旧 Worker 漏掉新路由。
 这些检查不读取健康数据；OAuth start 会生成短期授权 state。
@@ -222,7 +222,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 | `pnpm build` | 前端生产构建 + Worker 打包 |
 | `pnpm check:api` | 线上路由、匿名鉴权、能力字段、OAuth 跳转契约 |
 | `pnpm test:browser` | 构建后在无头 Chrome 中验证正常与 SSO 两套完整交互 |
-| `pnpm test:browser:built` | 复用已有构建运行浏览器回归（CI 发布前必跑） |
+| `pnpm test:browser:built` | 复用已有构建运行浏览器回归（CI 验证时运行） |
 | `pnpm test:browser:ego` | 保留本机 Ego 浏览器排查入口 |
 
 集成测试使用 Wrangler 已锁定的 Miniflare，无新增依赖。执行真实构建后的 Worker、
@@ -239,7 +239,7 @@ API Worker。先核对 Worker Route，不能只重新发布前端或修改错误
 同时覆盖快速切换对比模式的响应竞争、睡眠缺失/空结果/请求失败、
 18 类数据补采、超大窗口自动拆分、后台同步状态和数据库额度耗尽后的恢复提示。
 同时验证稀疏周报、日期跨午夜、375px 移动端、键盘交互及 SSO 中断/恢复。
-GitHub PR 与上线 workflow 均在部署前执行浏览器回归；失败会阻止部署。
+CI（包括 GitHub PR）只做验证，不部署；真实发布由获授权发布者按本地发布流程执行。浏览器回归失败会阻止相应验证通过。
 截图、浏览器/网络诊断与 fixture 日志作为 CI artifacts 保留 7 天；
 本地默认写入系统临时目录，可通过 `HEALTH_BROWSER_ARTIFACTS` 指定位置。
 
@@ -413,6 +413,8 @@ Health 看板图标由 `/icon.png`（应用图标）和 `/brand/codepi-symbol.pn
 旧 MCP 路径的历史边缘规则不代表新 `mcp.codepi.app` 已验收。`pnpm check:api`
 验证 Health API 和旧连接器路径的 404 JSON；`services/mcp` 的 `pnpm check:live`
 单独验证新域名的发现和匿名拒绝。默认遇到边缘 403 时失败，不能当作 Worker 已验证。
+
+> **归档开发记录（非当前操作说明）。** 以下内容保留当时的开发事实；其中 Pages、早期 Oura 名称和旧路径均不覆盖本 README 上方的现行 Worker Static Assets、SSO 与发布说明。
 
 ## Phase 0 — `/api/me/daily` 契约（2026-09-15）
 

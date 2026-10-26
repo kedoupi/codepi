@@ -12,7 +12,7 @@ Required configuration when `SSO_ENABLED=1`:
 
 - `DB`: the application's existing database with the SSO migration applied.
 - `AUTH`: service binding to the central auth Worker.
-- `AUTH_ORIGIN`: the central HTTPS origin, without a path or query.
+- `AUTH_ORIGIN`: production uses the central HTTPS origin without a path or query; local development may use an HTTP origin only on `localhost`, `127.0.0.1`, or `[::1]`.
 - `AUTH_CLIENT_ID`: one of the IDs in `clients.ts`; `oura` remains Health's existing protocol ID.
 - `AUTH_CLIENT_SECRET`: a separate secret per application, also registered centrally.
 

@@ -1,7 +1,8 @@
 # CodePi MCP
 
 One remote MCP entry at `https://mcp.codepi.app/mcp`. Domain tools cover Health, Project, Me, GU and Blog;
-this is a support service. New domains remain undeployed until the task records real release evidence. The official SDK handles stateless
+this is a support service. The five modules have explicit bindings in the current implementation, and their dated release evidence is in the
+[task index](../../docs/development/tasks/README.md); local configuration is not proof of current production state or client acceptance. The official SDK handles stateless
 Streamable HTTP at `/mcp`. Legacy HTTP+SSE clients use `/sse` plus its advertised
 `/messages` endpoint; one `LegacySse` Durable Object holds each ephemeral connection.
 
@@ -100,14 +101,13 @@ ignored temporary config with its returned ID and migrates before deploying.
 The source remains the reviewed commit. Record the actual UUID/version in the
 resource registry after the first release; a planned registry row is not readiness.
 
-1. Deploy compatible Auth support, Project/Me and Health/GU named RPCs first.
-   New Project/Me D1/R2 and their client pairs require the explicit first-release
-   steps in the local release runbook; do not deploy dangling MCP/Ops bindings.
+1. Deploy compatible Auth support and every required domain named RPC first.
+   First-release or replacement resources require the explicit local-release steps; do not deploy dangling MCP/Ops bindings.
 2. For an explicitly authorized credential initialization/rotation, run
    `node scripts/cloudflare/pair-mcp-secret.mjs --rotate` from the repository root,
    before acquiring the normal release lock. It generates one value, updates only
    Auth's `SSO_CLIENT_SECRET_MCP` and this Worker's `AUTH_CLIENT_SECRET`, and checks
-   readiness. Partial failures stop the operation. Never rotate the four existing clients.
+   readiness. Partial failures stop the operation. Never rotate unrelated client credentials.
 3. Follow `docs/development/local-release.md`: hold the production release lock
    and use the clean, merged source matching remote main. Run
    `pnpm --dir services/mcp run deploy <full-source-SHA>` locally.

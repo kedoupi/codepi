@@ -1,10 +1,10 @@
 # CodePi 统一 MCP
 
-本文的 Health 数据语义继续有效；逐领域授权、Project、Me、GU 与 CLI 的现行契约见
+本文的 Health 数据语义继续有效；Health、Project、Me、GU、Blog 五领域的现行契约见
 [领域扩展](mcp-domains.md)。下文首次上线与旧入口切换描述 2026-10-18/19 的历史基线，
-不代表新领域已经部署。
+不构成当前领域目录或生产状态说明；日期化发布证据和实际客户端验收见[任务索引](../development/tasks/README.md)。
 
-首次实现对应“一个 CodePi 入口，先做 Health，其他产品完成后接入”的决策。
+首次实现对应“一个 CodePi 入口，先做 Health，其他产品完成后接入”的历史决策。
 实现与验证状态见[任务记录](../development/tasks/2026-10-18-unified-mcp.md)；
 统一入口已于 2026-10-19（北京时间）发布到生产；同日所有者确认已在 Claude 手机端
 连接并使用。此为用户使用确认，逐工具统计、授权刷新和撤销等专项验收范围见任务记录。
@@ -57,11 +57,11 @@ D1 只存 secret hash；回调接受精确 HTTPS、loopback 与 RFC 8252 私有 
 浏览器 MCP 请求只接受规范 origin 或 `MCP_ALLOWED_ORIGINS` 中的精确 origin；
 服务端客户端可以不发送 Origin。
 
-## 首期工具
+## 历史首期工具（Health 基线）
 
 | Tool | 用途 | 是否触发同步 |
 | --- | --- | --- |
-| `list_data_sources` | 列出已实现且已授权的模块，目前只有 Health | 否 |
+| `list_data_sources` | 当时列出已实现且已授权的模块；首期只有 Health | 否 |
 | `health_get_catalog` | 集合、字段、单位、统计规则与已保存历史范围 | 否 |
 | `health_query_records` | 查询记录，含原始明细和看板评分缓存 | 默认首屏可触发 |
 | `health_aggregate` | 全区间统计、按日/周/月分组、两区间对比 | 默认可触发 |
@@ -97,12 +97,12 @@ AI 先发现数据源和 catalog，再选择字段；趋势和对比优先使用
 Oura 断连、集合拒绝、限流和写入配额等待；重复提问不能清除这些状态。
 因此明细与统计工具的 `readOnlyHint` 为 false。
 
-## 后续产品接入
+## 领域接入规则
 
-新增模块时先实现所属应用的内部数据能力，再注册工具、Service Binding 和授权范围。
+新增模块先实现所属应用的内部数据能力，再注册工具、Service Binding 和授权范围。
 模块登记保存工具定义与调用函数，Health 的 operation 类型只约束 Health 适配器。
 新产品无需变更 MCP HTTP transport，也不能直接查询另一个产品的数据库。
-GU、Project、Me 按领域扩展任务接入；GZH/Web 不注册空工具，不创建尚不存在的数据承诺。
+GZH/Web 不注册空工具，不创建尚不存在的数据承诺；现有 Blog 工具边界见[领域扩展](mcp-domains.md)。
 
 ## 发布和旧入口切换
 
