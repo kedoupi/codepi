@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { fixture as authFixture } from '../../../services/auth/test/runtime.mjs';
 const require = createRequire(new URL('../../../services/auth/package.json', import.meta.url));
@@ -11,7 +11,7 @@ const bundle = async contents => (await build({
   platform: 'neutral', write: false, loader: { '.css': 'text' },
   external: ['cloudflare:workers'],
 })).outputFiles[0].text;
-const deskScript = await bundle(`export {default, BlogMcp} from './web/worker/index.ts';`);
+const deskScript = await bundle(`export {default, BlogMcp, BlogMediaBackup} from './web/worker/index.ts';`);
 const providers = {
   health: 'health/workers/api/src/index.ts',
   gu: 'gu/worker/index.ts',
@@ -62,6 +62,7 @@ export async function deskFixture(t, options = {}) {
   const f = await authFixture(t, {}, {
     scripts: { desk: deskScript },
     d1Databases: { desk: { BLOG: 'blog-test' } },
+    r2Buckets: { desk: { BLOG_MEDIA: 'blog-media-test' } },
     serviceBindings: { desk: { ASSETS: 'blog-assets' } },
     extraWorkers: [{
       name: 'blog-assets', modules: true, compatibilityDate: '2026-10-15',
@@ -88,8 +89,11 @@ export async function deskFixture(t, options = {}) {
     } },
   });
   const blog = await f.runtime.getD1Database('BLOG', 'desk');
-  const migration = await readFile(new URL('../migrations-blog/0001_blog.sql', import.meta.url), 'utf8');
-  await blog.batch(migration.split(';').filter(sql => sql.trim()).map(sql => blog.prepare(sql)));
+  const migrations = new URL('../migrations-blog/', import.meta.url);
+  for (const name of (await readdir(migrations)).filter(name => name.endsWith('.sql')).sort()) {
+    const migration = await readFile(new URL(name, migrations), 'utf8');
+    await blog.batch(migration.split(';').filter(sql => sql.trim()).map(sql => blog.prepare(sql)));
+  }
   const app = await f.runtime.getWorker('desk');
   const origin = 'http://localhost:8804';
   const call = (path, cookies = '', body, custom = {}) => app.fetch(origin + path, {

@@ -32,6 +32,21 @@ test('oversized material collections fail rather than silently truncate coverage
   await assert.rejects(materialIndex(materialFixture(Array.from({ length: 1001 }, () => 'Synthetic'))), /1000 objects/);
 });
 
+test('blog media uses lowercase UUID identity and the media/ key namespace', async () => {
+  const blog = materialFixture(['Synthetic blog image'], { prefix: 'media' });
+  assert.deepEqual((await collectionIndex('codepi-blog', blog)).items.map(row => row.object_key),
+    [`media/${blog.rows[0].id}`]);
+  for (const mutate of [
+    binding => { binding.rows[0].id = '01J00000000000000000000001'; binding.rows[0].object_key = `media/${binding.rows[0].id}`; },
+    binding => { binding.rows[0].object_key = `imports/${binding.rows[0].id}`; },
+    binding => { binding.rows[0].id = `${binding.rows[0].id}ff`; binding.rows[0].object_key = `media/${binding.rows[0].id}`; },
+  ]) {
+    const binding = materialFixture(['Synthetic blog image'], { prefix: 'media' });
+    mutate(binding);
+    await assert.rejects(collectionIndex('codepi-blog', binding), /invalid codepi-blog original index/);
+  }
+});
+
 test('Me imports use their ULID identity and imports/ key namespace without accepting GU identities', async () => {
   const me = materialFixture(['Synthetic Me import'], { prefix: 'imports', idKind: 'ulid' });
   assert.deepEqual((await collectionIndex('codepi-me', me)).items.map(row => row.object_key),

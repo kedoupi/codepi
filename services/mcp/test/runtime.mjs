@@ -17,6 +17,10 @@ function manifest(directory) {
   }
   return { mainModule: 'index.js', modules };
 }
+const blogBundle = await build({
+  entryPoints: [fileURLToPath(new URL('../../../apps/web/worker/index.ts', import.meta.url))],
+  bundle: true, format: 'esm', platform: 'neutral', write: false, external: ['cloudflare:workers'],
+});
 let domainManifests;
 async function domains() {
   domainManifests ??= Promise.all(['project', 'me', 'gu'].map(async name => {
@@ -116,17 +120,8 @@ export async function fixture(t, options = {}) {
       config: {
         name: 'blog', compatibilityDate: '2026-10-18', compatibilityFlags: ['nodejs_compat'],
         exports: { BlogMcp: { type: 'worker' } },
-        manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: `
-          export const BlogMcp = {
-            async execute(request) {
-              return { ok: true, data: { echoed: request } };
-            },
-            async summary(subject) {
-              return { source: 'blog', status: 'empty', asOf: null, updatedAt: null, stale: false,
-                metrics: [], facts: [], notes: [], attention: [] };
-            },
-          };
-        ` } } },
+        manifest: { mainModule: 'index.js', modules: { 'index.js': { type: 'esm', contents: blogBundle.outputFiles[0].text } } },
+        env: { BLOG: { type: 'd1', name: 'blog-db' }, BLOG_MEDIA: { type: 'r2', name: 'blog-media' } },
       },
     }],
   });
@@ -137,12 +132,14 @@ export async function fixture(t, options = {}) {
   const projectDb = await runtime.getD1Database('DB', 'project');
   const meDb = await runtime.getD1Database('DB', 'me');
   const guDb = await runtime.getD1Database('DB', 'gu');
+  const blogDb = await runtime.getD1Database('BLOG', 'blog');
   for (const [target, directory] of [
     [db, new URL('../migrations/', import.meta.url)],
     [healthDb, new URL('../../../apps/health/migrations/', import.meta.url)],
     [projectDb, new URL('../../../apps/project/migrations/', import.meta.url)],
     [meDb, new URL('../../../apps/me/migrations/', import.meta.url)],
     [guDb, new URL('../../../apps/gu/migrations/', import.meta.url)],
+    [blogDb, new URL('../../../apps/web/migrations-blog/', import.meta.url)],
   ]) {
     for (const name of (await readdir(directory)).filter(n => n.endsWith('.sql')).sort()) {
       const sql = (await readFile(new URL(name, directory), 'utf8')).replace(/--[^\n]*/g, '');
@@ -231,7 +228,7 @@ export async function fixture(t, options = {}) {
       DO UPDATE SET synced_at=excluded.synced_at,attempted_at=excluded.attempted_at,last_error=excluded.last_error`)
       .bind('health-owner', collection, from, to, synced, new Date().toISOString(), error).run();
   }
-  return { runtime, db, healthDb, projectDb, meDb, guDb, health, state, at, post, login, grant, rpc, tool, record, cover, allScopes,
+  return { runtime, db, healthDb, projectDb, meDb, guDb, blogDb, health, state, at, post, login, grant, rpc, tool, record, cover, allScopes,
     fetch: (input, init) => worker.fetch(input, init) };
 }
 

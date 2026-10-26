@@ -90,6 +90,9 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
   await assert.rejects(callTool(env, reader, 'blog_submit', { slug: 'a', title: 'T', summary: 'S',
     body_markdown: 'b', request_id: 'r1' }), /tool_not_available/);
   await assert.rejects(callTool(env, reader, 'blog_retract', { slug: 'a' }), /tool_not_available/);
+  await assert.rejects(callTool(env, reader, 'blog_upload_image', { data_base64: 'AA==', alt: 'Image' }), /tool_not_available/);
+  await assert.rejects(callTool(env, ctx('blog.write'), 'blog_get', { slug: 'a' }), /tool_not_available/);
+  await assert.rejects(callTool(env, ctx('blog.write'), 'blog_create_image_upload', { alt: 'Image', bytes: 1, content_type: 'image/png', client: 'spoofed' }), /invalid_arguments/);
 
   const writer = ctx('blog.write');
   const submit = { slug: 'synthetic-post', title: 'T', summary: 'S', body_markdown: 'body', request_id: 'r1' };

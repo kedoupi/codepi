@@ -25,6 +25,10 @@ database_name = "codepi-blog"
 database_id = "22e27bb5-230a-4b89-b969-3dc29c8a1d22"
 migrations_dir = "migrations-blog"
 
+[[r2_buckets]]
+binding = "BLOG_MEDIA"
+bucket_name = "codepi-blog-uploads"
+
 [vars]
 SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "desk"

@@ -7,21 +7,14 @@ const description = '整理完成的公开表达：围绕个人数字空间、�
 <BaseLayout title={title} description={description} pathname="/blog/" schemaType="WebPage">
   <div class="blog-page">
     <header class="blog-header">
-      <span class="blog-eyebrow">02 / 思考与沉淀</span>
-      <h1 class="blog-title">真实想法，<br /><em>慢慢整理成文。</em></h1>
-      <p class="blog-lead">不追求高频发表，也不迎合算法分发。围绕健康与睡眠、资本与决策、私域智能与生活实践，把每一次值得回看的思考沉淀下来。</p>
-      <div class="blog-tags" aria-label="写作方向"><span class="blog-tag">深度思考</span><span class="blog-tag">确信的经验</span><span class="blog-tag">真实复盘</span><span class="blog-tag">长期主义</span></div>
+      <h1 class="blog-title">博客</h1>
+      <p class="blog-lead">关于个人数字空间、健康、投资与内容工作的观察与记录。把值得回看的想法，慢慢整理成文。</p>
     </header>
-    <section id="blog-list-mount" class="blog-list" hidden aria-label="文章列表"></section>
-    <section class="blog-empty-pavilion" aria-label="文章整理中">
-      <div class="blog-empty-hero">
-        <div class="blog-status-pill"><span class="pulse-dot"></span>正在整理</div>
-        <h2 class="blog-empty-title">思考在日常里发生，在时间中沉淀</h2>
-        <p class="blog-empty-desc">这里不会放未经推敲的碎片或占位草稿。只有经过真实生活检验、具备长期连接价值的观察与总结，才会梳理成篇公开发布。</p>
-        <div class="blog-topics-grid"><div class="topic-card"><span class="topic-num">01</span><span class="topic-tag">健康与睡眠</span><h3 class="topic-title">让身体成为可理解的数据</h3><p class="topic-desc">记录长期观察与真实复盘。</p></div><div class="topic-card"><span class="topic-num">02</span><span class="topic-tag">资本与决策</span><h3 class="topic-title">在不确定性中保持判断</h3><p class="topic-desc">整理确信的经验和决策过程。</p></div><div class="topic-card"><span class="topic-num">03</span><span class="topic-tag">私域智能</span><h3 class="topic-title">让工具服务于真实生活</h3><p class="topic-desc">探索个人数字空间的长期连接。</p></div></div>
-        <div class="blog-quote-block"><p class="blog-quote-text">“值得公开的，不是发生过什么，而是从中确认了什么。”</p></div>
-        <p class="blog-empty-note">所有正式文章均发布于 codepi.app 主域名内，支持全文检索与 CodePi MCP 结构化只读接口。</p>
-      </div>
+    <section id="blog-list-mount" class="blog-list-section" hidden aria-label="文章列表"></section>
+    <section class="blog-empty-pavilion" aria-labelledby="blog-empty-title">
+      <h2 id="blog-empty-title">文章正在整理中</h2>
+      <p>这里将收录经过审阅的公开文章。内容准备好后，会在这里发布。</p>
+      <a class="kdp-link" href="/about/">先了解我在做什么</a>
     </section>
   </div>
 </BaseLayout>

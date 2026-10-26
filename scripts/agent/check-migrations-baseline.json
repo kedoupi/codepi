@@ -32,6 +32,7 @@
     "services/mcp/migrations/0003_personal_tokens.sql": "0e508cc0947e4c53b8fde761d5a334be6cfddc6a3c350936234ac10c6766ec76"
   },
   "notApplied": [
+    "apps/web/migrations-blog/0002_blog_media.sql",
     "apps/health/migrations/0013_daily_cache_user_day.sql",
     "apps/health/migrations/0014_sync_window_lookup.sql"
   ],
