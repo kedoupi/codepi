@@ -211,24 +211,27 @@ async function renewOwnedLease(env: Env, userId: string, lease: string) {
   if (!owned) throw new ApiError("sync_in_progress", 409);
 }
 
-// Keep the current lease active until the provider refresh returns. The caller
-// then confirms ownership before saving; this never reclaims a replaced lease.
-function holdOwnedLease(env: Env, userId: string, lease: string) {
+// Keep the current lease active until the provider refresh returns. The first
+// renewal must succeed before any refresh request is sent; stopping must wake
+// the heartbeat immediately, even if a renewal is still in flight.
+async function holdOwnedLease(env: Env, userId: string, lease: string) {
+  await renewOwnedLease(env, userId, lease);
   let stopped = false;
-  let releaseWait = () => {};
+  let releaseWait: (() => void) | null = null;
   const held = (async () => {
     while (!stopped) {
-      await renewOwnedLease(env, userId, lease);
       await new Promise<void>(resolve => {
         const timer = setTimeout(resolve, 30_000);
         releaseWait = () => { clearTimeout(timer); resolve(); };
       });
+      if (stopped) break;
+      await renewOwnedLease(env, userId, lease);
     }
   })();
   return {
     release: async () => {
       stopped = true;
-      releaseWait();
+      releaseWait?.();
       await held;
     },
     confirm: () => renewOwnedLease(env, userId, lease),
@@ -247,7 +250,7 @@ export async function diagnoseSleepWindow(request: Request, env: Env, userId: st
     .bind(userId, lease, now + 120_000, now).first();
   if (!acquired) throw new ApiError("sync_in_progress", 409);
   const renewLease = () => renewOwnedLease(env, userId, lease);
-  const holdLease = async () => holdOwnedLease(env, userId, lease);
+  const holdLease = () => holdOwnedLease(env, userId, lease);
   try {
     const result: Record<string, unknown> = {};
     for (const [name, collection] of [["sleep", "sleep"], ["scores", "daily_sleep"]] as const) {
