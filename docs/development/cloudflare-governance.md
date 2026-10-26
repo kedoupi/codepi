@@ -231,8 +231,9 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
   专用账户 token 仅有 D1 Write（导出要求）、Workers Scripts Read 与 Zone Analytics Read；
   后者只用于 `codepi.app` zone 的 GraphQL Analytics 查询。R2 使用 binding。
 - 备份在内存中公钥加密，R2 按前缀保留 14 天；私有 R2 v4 完整清单与回执是当前自动化成功标准。
-  GitHub Release 副本仅保留历史验收材料，不是自动备份通道，Workflow 不读取 `GITHUB_TOKEN`。
-  同账户 R2 不构成异地恢复保障；外部灾备副本或账户整体不可用时的恢复须由所有者/运维另行授权。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
+- GitHub Release 副本仅保留历史验收材料，不是自动备份通道；R2 备份路径不读取 `GITHUB_TOKEN`，
+- monitor 版本漂移与 Observer GitHub 通知仍按各自契约读取。
+- 同账户 R2 不构成异地恢复保障；外部灾备副本或账户整体不可用时的恢复须由所有者/运维另行授权。格式、私钥及恢复演练见[备份 runbook](cloudflare-backup-restore.md)。
 - 原件清单在 D1 导出后冻结，只包含追加式资料索引；每件核对大小和 SHA-256，
   缺失或损坏使本次完整备份失败。单件 8 MiB、每次最多 1000 件，超过明确失败；
   不得截断清单并称成功。扩大上限或增加资料删除/改写须同步验证恢复一致性。

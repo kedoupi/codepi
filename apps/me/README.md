@@ -69,7 +69,7 @@ pnpm test:browser
 占位值，不复制生产 `.dev.vars` 或真实数据来测试。
 
 `pnpm run deploy` 是获授权发布时的入口，由通用脚本按精确名称解析 D1、执行迁移和上传；
-`--provision-d1` 仅用于获授权创建替代资源或恢复资源，普通更新不得重复 provision；R2 的创建与私有性需另行核验。所有发布必须
+`--provision-d1` 仅用于获授权首次创建、创建替代资源或恢复资源，普通更新不得重复 provision；R2 的创建与私有性需另行核验。所有发布必须
 从已合并、干净且等于远程 main 的源码执行，并按
 [本地发布流程](../../docs/development/local-release.md)持锁及完成线上 smoke。
 普通开发不执行部署或远程迁移。
