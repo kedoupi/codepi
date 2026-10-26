@@ -9,6 +9,7 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
+| 2026-10-26 分支与依赖整理后的全量生产同步 | 从干净 detached 实时 main `cc0579cd` 持锁重发十个 Worker；43 项检查、生产 smoke、发布后/观察后全量巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [发布证据](2026-10-26-full-sync-release.md)：未执行真实 Oura 对账/补采、Manus/Claude/ChatGPT/IDE 客户端验收或所有者实际使用确认；本 PR 仅回填文档，合并后无需重发业务 Worker |
 | Health 主睡眠缺失诊断 | PR #206 已合并，API/MCP 已上线；30 分钟观察 `healthy_reported`，真实 Oura 对账和数据修复均未执行 | [任务记录](2026-10-26-health-sleep-diagnosis.md)：继续定位同步覆盖与档案不一致；全局四项版本漂移及所有者实际使用确认仍待处理 |
 | www 页头统一与响应式验收 | PR #207 已合并并发布 `codepi-www`；35 组生产响应式 smoke、390px bsk 交互、14 项 CI checks 及 30 分钟 Ops 观察均通过 | [任务记录](2026-10-26-www-header-consistency.md)：观察 `release-634d43bccff3-header207` 为 `healthy_reported`、`rollback=null`，不代替实际用户使用确认 |
 | Blog Agent 写作与配图 | 实现、发布和 v4 备份已有日期化任务证据；配图上传、稿件修订与审核、响应式阅读、原件备份均在当前实现范围 | [任务记录](2026-10-26-blog-agent-images.md)：实际所有者持续使用与新客户端验收仍需单独记录，仓库配置不替代实时控制面核验 |
