@@ -16,6 +16,34 @@ export function validateSlug(slug: unknown): slug is string { return typeof slug
 function invalid(message = "invalid_arguments"): Error { return new Error(message); }
 function now() { return new Date().toISOString(); }
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]!));
+// CommonMark treats punctuation directly before a closing delimiter as right-flanking,
+// so `**标签：**正文` stays literal. Move that final punctuation outside the delimiter.
+const flankingPunctuation = /\*\*([^\*\n：，。、；！？:,.!?）)”"'—\\/-]+)([：，。、；！？:,.!?）)”"'—\\/-])\*\*/gu;
+type RepairToken = { type?: string; raw?: string; text?: string; tokens?: RepairToken[]; items?: RepairToken[]; rows?: RepairToken[][]; header?: RepairToken[] };
+function repairMarkdown(body: string): string {
+  const markdown = new Marked({ gfm: true });
+  const ranges: Array<[number, number, string]> = [];
+  const visit = (tokens: RepairToken[] | undefined, bounds: [number, number]) => {
+    let cursor = bounds[0];
+    for (const token of tokens ?? []) {
+      const raw = typeof token.raw === "string" ? token.raw : token.type === "text" && typeof token.text === "string" ? token.text : "";
+      const start = raw ? body.indexOf(raw, cursor) : -1;
+      const located = start >= cursor && start + raw.length <= bounds[1];
+      const tokenBounds: [number, number] = located ? [start, start + raw.length] : bounds;
+      if (Array.isArray(token.tokens)) visit(token.tokens, tokenBounds);
+      else if (located && token.type === "text") {
+        for (const match of raw.matchAll(flankingPunctuation)) ranges.push([start + match.index, start + match.index + match[0].length, `**${match[1]}**${match[2]}`]);
+      }
+      for (const item of token.items ?? []) visit(item.tokens, tokenBounds);
+      for (const row of token.rows ?? []) visit(row, tokenBounds);
+      if (Array.isArray(token.header)) visit(token.header, tokenBounds);
+      if (located && typeof token.raw === "string") cursor = tokenBounds[1];
+    }
+  };
+  visit(markdown.lexer(body) as RepairToken[], [0, body.length]);
+  const unique = [...new Map(ranges.map(range => [`${range[0]}:${range[1]}`, range])).values()];
+  return unique.sort((a, b) => b[0] - a[0]).reduce((text, [start, end, value]) => text.slice(0, start) + value + text.slice(end), body);
+}
 
 export async function renderMarkdown(body: string, media: Map<string, Media> = new Map()): Promise<string> {
   const markdown = new Marked({ gfm: true });
@@ -39,7 +67,7 @@ export async function renderMarkdown(body: string, media: Map<string, Media> = n
     },
     table(token) { return `<div class="blog-table-scroll" tabindex="0" role="region" aria-label="表格">${Renderer.prototype.table.call(this, token)}</div>`; },
   } });
-  try { return await markdown.parse(body); }
+  try { return await markdown.parse(repairMarkdown(body)); }
   catch (error) {
     // Marked adds its bug-report suffix to renderer errors. Preserve domain errors.
     const message = error instanceof Error ? error.message.split("\n")[0] : "";

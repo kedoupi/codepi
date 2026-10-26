@@ -9,6 +9,12 @@
 - release_worktree: /Users/codepi/.worktrees/codepi/codex/blog-agent-release
 - merged_sha: 0ce86cf987b89d1fc438bbf85bdb90a4fead836f
 - 授权：设计、实现和本地验证后，用户进一步明确授权本次博客功能提交、合并、创建私有图片桶、迁移 `codepi-blog`、发布 www/MCP/Ops 并验收。未授权轮换 secret、删除数据、清理 worktree 或回退数据库。
+- presentation_branch: codex/blog-image-presentation
+- presentation_base_sha: 0449a6c22ff9acadab07ec7b04c0ac3d3a1b9157
+- presentation_worktree: /Users/codepi/.worktrees/codepi/codex/blog-image-presentation
+- 展示续作授权：用户要求提交并发布本轮图片与长文排版优化；不修改、发布或删除既有草稿。累计发布范围按现行规则包括 Web 及其 MCP RPC 消费者，实际发布 www/MCP；Ops 未重新发布。
+- presentation_merged_sha: 405ab04a3ebb4738b767d7d8051456f366fbdc9c（PR #204）
+- presentation_release_worktree: /Users/codepi/.worktrees/codepi/codex/blog-image-release（干净 detached 发布源）
 
 ## 设计与使用
 
@@ -18,7 +24,7 @@
 4. `blog_submit` 提交完成稿，更新时带 `base_revision`，新文章可传 0；同一次重试沿用 `request_id`。返回 Desk 审核与登录预览地址。
 5. 主人在 Desk 审核；正式版是单独快照。新修订保持 pending，旧正式版继续展示；拒绝意见由 Agent 读取并修改。Desk 审核携带 revision 防止审核错误版本。
 6. 图片位于私有 R2，公开读取前每次核对已发布文章引用，未发布图片只有本人 SSO 可读取。图片 no-store；下架后不继续从应用缓存公开图片。已经下载的公开内容无法收回。
-7. 列表分页、封面、阅读宽度、图片原始比例与图注、代码与表格滚动、日期、SEO metadata 遵循共享设计。
+7. 列表分页、封面、阅读宽度、图片原始比例与图注、代码与表格滚动、日期、SEO metadata 遵循共享设计。封面可宽于正文，最多 920px 宽、680px 或 62vh 高；正文图片最多 680px 宽、同样高度。列表封面保持 16:9 画框并完整显示，不裁切图片。正文首个一级标题与页面标题重复时隐藏；表格列按内容收缩。紧贴结束符的冒号等标点会使 CommonMark 加粗失效，渲染时仅在文本 token 中把标点移到结束符外，围栏、缩进和行内代码保持原样。
 
 现有 OAuth scopes 不变（blog.read/blog.write）。PAT 仍按选定 scope；write 不隐含 read。图片单文件临时凭证与 MCP Bearer 完全分离，不在 URL 中携带。
 
@@ -58,5 +64,15 @@
 - 真实 `codepi CLI` 经生产 OAuth 授权后，直接调用线上 Blog MCP：`blog_list(view=submissions)`、inline PNG 上传、单次 PUT PNG 上传、带封面和两处图注的 `blog_submit`、`blog_get` 与 `base_revision` 改稿均成功。Desk 对合成验收稿写入拒绝意见后，CLI 读到相同意见并再次按 revision 提交；最终 `agent-blog-media-acceptance-20261026` 保持 pending revision 3，未公开发布。本人预览实际显示封面、两张图片与图注；公开文章及两张未发布图片的匿名请求均为 404，媒体响应为 no-store。
 - 生产完整备份实例 `cf_d2bc8d1d03d9bb71feedde0f1c1d1da2afa95b56a0758fcb2bfbf418e821df71` 于 `2026-10-26T00:49:38.520Z` 完成。v4 manifest 覆盖 9 个 D1、GU 112 件、Me 2 件和 Blog 2 件；两个 Blog `material_id` 与本次真实上传 ID 完全一致。`reports/backup/latest.json` 为 `r2=complete`、`ok=true`、`build=0ce86cf987b8`。Workflow 已逐件校验源与密文并提交清单；本次未另做该生产实例的隔离恢复，既有本地 runtime 已覆盖隔离恢复路径。
 - 发布后观察 `release-0ce86cf987b8-blog196` 已完成，Workflow 实例 `cf_07a6868d5622510636b6d03cac712d0aae388802f85f2e8678b7bf48c3c36f80`；manifest 推导 www/Ops `rollback_allowed=false`、MCP 为 true。2026-10-26T01:15:00.321Z 写入最终 summary：`healthy_reported`，t=0/5/10/15/20/25/30 七轮完成；末轮 www/MCP/Ops 均为 `healthy`，活动版本与 manifest 一致，无版本错配、硬失败或观测读取失败，`rollback=null`。该结论是平台观察证据，不代替所有者对实际使用的确认。
+
+## 展示优化发布与观察（PR #204）
+
+- 执行者为本会话，在本机干净 detached source `405ab04a3ebb4738b767d7d8051456f366fbdc9c` 发布，变更前复核其等于实时远程 main。冻结安装、Web 42 项测试、Desk 类型检查、构建、资产检查、治理与 32 migration 守门通过；从原发布 `0ce86cf987b8` 累计选择的 8 项本地检查及额外 MCP test/typecheck/build 通过。PR 的 4 项运行检查成功，8 项不受影响检查 skipped。
+- 本地浏览器 `test:browser:desk` 通过，320/375/768/1024/1440px 无页面横向溢出；合成横图封面宽于 720px 正文且不超过 920px，内容图不超过 680px。截图目录 `/var/folders/tf/by849xr51djfhx_x0fw2rqth0000gn/T/kdp-desk-browser-vgC1G1`。
+- www 由 `11cd1860-75f5-4cbf-84f7-e0a3e1e7c7bf` 更新为 `17ae27a0-2a66-4066-9d5f-27e4bede42be`；MCP 由 `ee21dcbb-dae3-4df1-8373-62da79512773` 更新为 `f61cc5ae-2d36-46aa-9d2e-8ea2dd91d313`。两者 `BUILD_SHA=405ab04a3ebb`，单一版本 100% 承流。无新迁移、secret、binding 或外部业务数据变更；Ops 保留原发布。
+- 预检误把 Health 的 `TOKEN_ENCRYPTION_KEY` 当作 MCP 必需 secret，按 MCP 真实声明纠正后通过；首次 www 部署因参数使用 camelCase 被拒绝，MCP 因发布 shell 未正确停止而先行发布，观察准备检查拒绝混合版本。本会话改用显式 `bash -euo pipefail` 补发 www、重验两服务并仅触发一次统一观察。Git 外证据中该次旧 www smoke 的错误 SHA 归属已更正；未把它记作成功部署。
+- 线上 `check-pages.mjs web production`、Auth health、MCP 凭证配对、discovery、匿名拒绝及连接入口 smoke 通过。本人只读预览确认桌面正文 720px、375px 手机正文 335px，均无页面溢出；正文首个重复 H1 隐藏，表格最小列宽 98px，1×1 验收图不再放大。未修改或发布既有草稿；旧分析稿仍有 5 处原样星号，需要另行重新渲染保存的 HTML 才会应用加粗修复。此次未重新执行生产写稿、上传、审核或真实客户端 OAuth。
+- 统一观察 `release-405ab04a3ebb-blog204`，实例 `cf_3c365888e4398a8394b2fb908bc937fee98e75564c442979bccb718029dbc790`。2026-10-26T04:39:37.408Z 最终报告 `healthy_reported`、`rollback=null`，manifest 对两服务推导 `rollback_allowed=true`。末轮 round 6 的 www/MCP 均 healthy，版本与 manifest 一致，无版本读取失败、硬失败或 observability_failed；22 项 core 检查全部成功。`metrics=null`，该报告不证明存在实际请求指标样本，也不代替所有者实际使用确认。
+- 原始 summary 与末轮 poll 已下载至 Git 外 `/tmp/codepi-blog204-observation-summary.json`、`/tmp/codepi-blog204-poll-6.json`；deployment 证据在 `/tmp/codepi-deployment-evidence.jsonl`。文档回填不重新发布业务 Worker。
 
 边界：图片验证是容器/尺寸校验，不是完整像素解码；animated WebP 不支持。本地浏览器使用 CDP synthetic harness，原生确认框以测试替身覆盖并断言文案，按钮 DOM click，未测物理点击；生产验收补充了真实 OAuth、CLI、MCP、R2、预览和 Desk 审核链路。公开布局尚未用真实大尺寸照片发布验收，合成草稿保持私密。

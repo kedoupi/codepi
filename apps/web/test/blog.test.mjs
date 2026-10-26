@@ -75,6 +75,17 @@ test('submitted HTML is sanitized and javascript: links are rejected', async t =
   assert.doesNotMatch(stored.body_html, /<script|onerror|<iframe/i);
   const jsLink = await submit(f, draft({ slug: 'xss-link', body_markdown: '[click](javascript:alert(1))' }));
   assert.deepEqual(jsLink, { ok: false, error: 'unsafe_content', status: 400 });
+  const image = await f.rpc({ subject: 'kdp-owner', client: 'test-client', operation: 'media_upload', args: { alt: '加粗回归图片', data_base64: png.toString('base64') } });
+  assert.equal(image.ok, true, JSON.stringify(image));
+  const emphasisBody = `**重要说明：**仅供核对。\n\n- **列表：**内容\n\n| 项目 | 说明 |\n| --- | --- |\n| **标签：**值 | 保留 |\n\n![加粗回归图片](${image.data.markdown.match(/\([^)]+\)/)[0].slice(1, -1)})\n\n\`\`\`\n**代码：**保持原样\n\`\`\`\n\n行内 \`**代码：**值\` 保持。`;
+  const emphasis = await submit(f, draft({ slug: 'emphasis', cover_media_id: image.data.id, body_markdown: emphasisBody }));
+  assert.equal(emphasis.ok, true);
+  const formatted = (await f.blog.prepare('SELECT body_html FROM blog_drafts WHERE slug=?').bind('emphasis').first()).body_html;
+  assert.match(formatted, /<strong>重要说明<\/strong>：仅供核对/);
+  assert.match(formatted, /<strong>列表<\/strong>：内容/);
+  assert.match(formatted, /<strong>标签<\/strong>：值/);
+  assert.match(formatted, /<code>\*\*代码：\*\*保持原样/);
+  assert.match(formatted, /<code>\*\*代码：\*\*值<\/code>/);
 });
 
 test('retract only withdraws pending drafts', async t => {
