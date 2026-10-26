@@ -335,6 +335,12 @@ Health 看板图标由 `/icon.png`（应用图标）和 `/brand/codepi-symbol.pn
   同步指定窗口（睡眠页「同步此区间」及既有调用方保留使用；首页和设置不再逐窗口调用）；
   同地址 `GET` 只读已保存数据。
   仅已登录的个人 owner（SSO 或原 OAuth 会话）可访问。
+- 诊断：`POST /api/me/health-records/sleep-diagnosis?from=YYYY-MM-DD&to=YYYY-MM-DD`
+  仅接受 owner 的同源请求，起止日期必填且最多 7 天。实时读取 Oura 的 `sleep` 和
+  `daily_sleep` 全部分页，与已保存档案对照，返回逐日类型计数、重复 ID 数、窗口外数量及
+  缺失/额外/文档变化数量；不返回记录 ID、序列、健康指标数值或提供方凭证。
+  不替换健康记录、不更新覆盖窗口或评分缓存；共用同步租约，必要时正常刷新并保存 Oura
+  授权，成功的提供方请求仍可解除旧的授权暂停。此接口没有前端按钮或 MCP 工具入口。
 - 统一 MCP：`health_query_records` 和 `health_aggregate` 默认将过期窗口入队刷新，
   `refresh:false` 只读历史；`health_get_sync_status` 读取本地状态，不访问 Oura。
 - 起止日期均包含在内，最多 31 天；心率、电量最多 7 天，按 UTC 时间戳归日；

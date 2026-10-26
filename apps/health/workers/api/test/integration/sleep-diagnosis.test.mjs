@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import { before, after, test } from 'node:test';
+import { calendarDay } from '../../../../shared/dates.ts';
+import { createRuntime, login, migrate } from './runtime.mjs';
+
+const origin = 'https://oura.example';
+const day = calendarDay();
+const main = { id: 'night-private-id', day, type: 'long_sleep', total_sleep_duration: 25200, average_hrv: 42 };
+const nap = { id: 'nap-private-id', day, type: 'sleep', total_sleep_duration: 1800 };
+let runtime, db, cookie;
+let providerCalls = [];
+let mode = 'complete';
+before(async () => {
+  runtime = createRuntime({ providerResponse(url) {
+    if (!url.pathname.endsWith('/sleep')) return undefined;
+    providerCalls.push(url.href);
+    if (mode === 'failure') return Response.json({}, { status: 500 });
+    if (mode === 'nap-only') return Response.json({ data: [nap], next_token: null });
+    return url.searchParams.has('next_token')
+      ? Response.json({ data: [nap], next_token: null })
+      : Response.json({ data: [main], next_token: 'private-page-token' });
+  } });
+  await runtime.ready;
+  await migrate(runtime);
+  cookie = await login(runtime);
+  db = await runtime.getD1Database('DB');
+  await db.prepare(`INSERT INTO health_records (user_id,collection,record_id,day,payload,fetched_at)
+    VALUES ('test-user','sleep',?,?,?,'2000-01-01T00:00:00Z')`)
+    .bind(nap.id, day, JSON.stringify(nap)).run();
+});
+after(async () => { await runtime?.dispose(); });
+const diagnose = (params = new URLSearchParams({ from: day, to: day }), options = {}) => runtime.dispatchFetch(
+  `${origin}/api/me/health-records/sleep-diagnosis?${params}`,
+  { method: 'POST', headers: { Cookie: cookie, Origin: origin }, ...options },
+);
+
+async function snapshot() {
+  const result = {};
+  for (const table of ['health_records', 'health_sync_windows', 'daily_cache']) {
+    result[table] = (await db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()).results;
+  }
+  return result;
+}
+
+test('sleep diagnosis follows all provider pages and compares without changing saved health data', async () => {
+  const before = await snapshot();
+  providerCalls = [];
+  const response = await diagnose();
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = await response.json();
+  assert.equal(body.from, day);
+  assert.equal(body.to, day);
+  assert.deepEqual(body.sleep.upstream.by_day, [{ day, types: { long_sleep: 1, sleep: 1 } }]);
+  assert.deepEqual(body.sleep.saved.by_day, [{ day, types: { sleep: 1 } }]);
+  assert.equal(body.sleep.difference.missing_from_saved, 1);
+  assert.equal(body.sleep.difference.only_in_saved, 0);
+  assert.equal(body.sleep.difference.changed, 0);
+  assert.equal(body.sleep.upstream.records, 2);
+  assert.deepEqual(body.scores.upstream.by_day, [{ day, types: { other: 1 } }]);
+  assert.equal(body.scores.upstream.outside_window, 1, 'the provider fixture includes the exclusive end date');
+  assert.equal(providerCalls.length, 2);
+  const request = new URL(providerCalls[0]);
+  assert.equal(request.searchParams.get('start_date'), day);
+  assert.equal(request.searchParams.get('end_date'), new Date(Date.parse(day) + 86400000).toISOString().slice(0, 10));
+  assert.deepEqual(await snapshot(), before);
+  assert.doesNotMatch(JSON.stringify(body), /night-private-id|nap-private-id|private-page-token|test-access|test-refresh|average_hrv|25200/);
+});
+
+test('sleep diagnosis distinguishes provider main-sleep gaps from missing imports', async () => {
+  mode = 'nap-only';
+  try {
+    const response = await diagnose();
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.sleep.upstream.by_day, [{ day, types: { sleep: 1 } }]);
+    assert.equal(body.sleep.difference.missing_from_saved, 0);
+    assert.equal(body.sleep.difference.only_in_saved, 0);
+  } finally { mode = 'complete'; }
+});
+
+test('sleep diagnosis rejects unauthenticated, non-owner, invalid ranges and methods before provider calls', async () => {
+  const count = providerCalls.length;
+  assert.equal((await diagnose(undefined, { headers: {} })).status, 401);
+  assert.equal((await diagnose(undefined, { method: 'GET' })).status, 405);
+  assert.equal((await diagnose(undefined, { headers: { Cookie: cookie, Origin: 'https://other.example' } })).status, 403);
+  assert.equal((await diagnose(new URLSearchParams())).status, 400);
+  assert.equal((await diagnose(new URLSearchParams({ from: '2026-02-30', to: day }))).status, 400);
+  assert.equal((await diagnose(new URLSearchParams({ from: new Date(Date.parse(day) - 7 * 86400000).toISOString().slice(0, 10), to: day }))).status, 400);
+  await db.prepare("INSERT INTO users (id) VALUES ('other-user')").run();
+  await db.prepare("UPDATE sessions SET user_id='other-user'").run();
+  try { assert.equal((await diagnose()).status, 403); }
+  finally { await db.prepare("UPDATE sessions SET user_id='test-user'").run(); }
+  assert.equal(providerCalls.length, count);
+});
+
+test('sleep diagnosis respects the sync lease and preserves health records on provider failure', async () => {
+  await db.prepare('UPDATE sync_state SET lease_until=?').bind(Date.now() + 120000).run();
+  const count = providerCalls.length;
+  assert.equal((await diagnose()).status, 409);
+  assert.equal(providerCalls.length, count);
+  await db.prepare('UPDATE sync_state SET lease_until=0').run();
+  const before = await snapshot();
+  mode = 'failure';
+  try {
+    assert.equal((await diagnose()).status, 502);
+    assert.deepEqual(await snapshot(), before);
+    assert.equal((await db.prepare("SELECT lease_until FROM sync_state WHERE user_id='test-user'").first()).lease_until, 0);
+  } finally { mode = 'complete'; }
+});

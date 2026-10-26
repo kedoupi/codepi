@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 import { requireSession, isResponse } from "../lib/authz";
 import { ApiError } from "../lib/errors.ts";
-import { healthStatus, healthWindow, readHealthRecords, syncHealthWindow } from "../lib/health-records.ts";
+import { diagnoseSleepWindow, healthStatus, healthWindow, readHealthRecords, syncHealthWindow } from "../lib/health-records.ts";
 import { automaticSyncStatus, requestAutomaticSync, runAutomaticSync } from "../lib/auto-sync.ts";
 
 export async function handleHealthRecords(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
@@ -11,6 +11,14 @@ export async function handleHealthRecords(request: Request, env: Env, ctx?: Exec
     throw new ApiError("not_owner", 403);
   }
   const url = new URL(request.url);
+  if (url.pathname.endsWith("/sleep-diagnosis")) {
+    if (request.method !== "POST") throw new ApiError("method_not_allowed", 405);
+    if (request.headers.get("Origin") !== url.origin) throw new ApiError("origin_not_allowed", 403);
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    if (!from || !to) throw new ApiError("invalid_date_range", 400);
+    return Response.json(await diagnoseSleepWindow(request, env, auth.session.user_id, from, to));
+  }
   if (url.pathname.endsWith("/automatic")) {
     if (request.method === "POST") {
       const result = await requestAutomaticSync(env, auth.session.user_id);

@@ -165,6 +165,70 @@ async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
   throw new ApiError("sync_window_too_large", 422);
 }
 
+function diagnosisSummary(rows: RecordData[], w: Window) {
+  const byDay = new Map<string, Record<string, number>>();
+  const ids = new Set<string>();
+  let duplicateIds = 0;
+  let outsideWindow = 0;
+  for (const row of rows) {
+    const day = recordDay(row, w.spec);
+    if (day < w.from || day > w.to) { outsideWindow++; continue; }
+    const id = recordId(row, w.spec);
+    if (ids.has(id)) duplicateIds++;
+    ids.add(id);
+    const type = ["long_sleep", "sleep", "rest", "late_nap"].includes(String(row.type)) ? String(row.type) : "other";
+    const types = byDay.get(day) ?? {};
+    types[type] = (types[type] ?? 0) + 1;
+    byDay.set(day, types);
+  }
+  return { records: rows.length, duplicate_ids: duplicateIds, outside_window: outsideWindow,
+    by_day: [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, types]) => ({ day, types })) };
+}
+
+/** Compare live provider documents with the archive without replacing health records. */
+export async function diagnoseSleepWindow(request: Request, env: Env, userId: string, from: string, to: string) {
+  const w = healthWindow("sleep", from, to);
+  if (Date.parse(w.to) - Date.parse(w.from) > 6 * DAY) throw new ApiError("invalid_date_range", 400);
+  const lease = crypto.randomUUID();
+  const now = Date.now();
+  const acquired = await env.DB.prepare(`INSERT INTO sync_state (user_id, lease_id, lease_until) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET lease_id=excluded.lease_id, lease_until=excluded.lease_until
+    WHERE sync_state.lease_until < ? RETURNING lease_id`)
+    .bind(userId, lease, now + 120_000, now).first();
+  if (!acquired) throw new ApiError("sync_in_progress", 409);
+  try {
+    const result: Record<string, unknown> = {};
+    for (const [name, collection] of [["sleep", "sleep"], ["scores", "daily_sleep"]] as const) {
+      const window = healthWindow(collection, w.from, w.to);
+      const upstream = await withOuraAccess(request, env, userId, token => fetchRecords(token, window), lease);
+      const owned = await env.DB.prepare("SELECT lease_id FROM sync_state WHERE user_id=? AND lease_id=? AND lease_until>?")
+        .bind(userId, lease, Date.now()).first();
+      if (!owned) throw new ApiError("sync_in_progress", 409);
+      const saved = await env.DB.prepare(`SELECT payload FROM health_records
+        WHERE user_id=? AND collection=? AND day>=? AND day<=?`)
+        .bind(userId, collection, w.from, w.to).all<{ payload: string }>();
+      const savedRows = saved.results.map(row => JSON.parse(row.payload) as RecordData);
+      const savedById = new Map(savedRows.map(row => [recordId(row, window.spec), row]));
+      const incoming = new Map(upstream.filter(row => {
+        const day = recordDay(row, window.spec);
+        return day >= w.from && day <= w.to;
+      }).map(row => [recordId(row, window.spec), row]));
+      result[name] = {
+        upstream: diagnosisSummary(upstream, window), saved: diagnosisSummary(savedRows, window),
+        difference: {
+          missing_from_saved: [...incoming.keys()].filter(id => !savedById.has(id)).length,
+          only_in_saved: [...savedById.keys()].filter(id => !incoming.has(id)).length,
+          changed: [...incoming].filter(([id, row]) => savedById.has(id)
+            && JSON.stringify(savedById.get(id)) !== JSON.stringify(row)).length,
+        },
+      };
+    }
+    return { from: w.from, to: w.to, checked_at: new Date().toISOString(), ...result };
+  } finally {
+    await env.DB.prepare("UPDATE sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
+  }
+}
+
 async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedAt: string, lease: string) {
   const parents = await env.DB.prepare(`SELECT window_from, window_to, attempted_at FROM health_sync_windows
     WHERE user_id=? AND collection=? AND last_error='sync_window_too_large'
