@@ -6,7 +6,17 @@ import { createRuntime, login, migrate } from './runtime.mjs';
 const origin = 'https://oura.example';
 const day = calendarDay();
 const main = { id: 'night-private-id', day, type: 'long_sleep', total_sleep_duration: 25200, average_hrv: 42 };
-const nap = { id: 'nap-private-id', day, type: 'sleep', total_sleep_duration: 1800 };
+const nap = {
+  id: 'nap-private-id', day, type: 'sleep', total_sleep_duration: 1800,
+  readiness: { score: null, contributors: { recovery: 1, balance: 2 } },
+};
+function reorderKeys(value) {
+  if (Array.isArray(value)) return value.map(reorderKeys);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).reverse().map(([key, item]) => [key, reorderKeys(item)]));
+  }
+  return value;
+}
 let runtime, db, cookie;
 let providerCalls = [];
 let mode = 'complete';
@@ -15,6 +25,13 @@ before(async () => {
     if (!url.pathname.endsWith('/sleep')) return undefined;
     providerCalls.push(url.href);
     if (mode === 'failure') return Response.json({}, { status: 500 });
+    if (mode === 'reordered') return Response.json({ data: [reorderKeys(nap)], next_token: null });
+    if (mode === 'takeover-401' || mode === 'takeover-page') return (async () => {
+      await db.prepare("UPDATE sync_state SET lease_id='successor',lease_until=? WHERE user_id='test-user'")
+        .bind(Date.now() + 120000).run();
+      return mode === 'takeover-401' ? new Response('', { status: 401 })
+        : Response.json({ data: [nap], next_token: 'must-not-fetch' });
+    })();
     if (mode === 'nap-only') return Response.json({ data: [nap], next_token: null });
     return url.searchParams.has('next_token')
       ? Response.json({ data: [nap], next_token: null })
@@ -78,6 +95,35 @@ test('sleep diagnosis distinguishes provider main-sleep gaps from missing import
     assert.equal(body.sleep.difference.only_in_saved, 0);
   } finally { mode = 'complete'; }
 });
+
+test('sleep diagnosis ignores JSON object field order', async () => {
+  mode = 'reordered';
+  try {
+    const response = await diagnose();
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).sleep.difference.changed, 0);
+  } finally { mode = 'complete'; }
+});
+
+for (const takeover of ['takeover-401', 'takeover-page']) {
+  test(`sleep diagnosis stops before token retry or pagination after ${takeover}`, async () => {
+    const tokensBefore = await db.prepare("SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id='test-user'").first();
+    const before = await snapshot();
+    providerCalls = [];
+    mode = takeover;
+    try {
+      const response = await diagnose();
+      assert.equal(response.status, 409);
+      assert.equal(providerCalls.length, 1);
+      assert.deepEqual(await db.prepare("SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id='test-user'").first(), tokensBefore);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal((await db.prepare("SELECT lease_id FROM sync_state WHERE user_id='test-user'").first()).lease_id, 'successor');
+    } finally {
+      mode = 'complete';
+      await db.prepare("UPDATE sync_state SET lease_until=0 WHERE user_id='test-user'").run();
+    }
+  });
+}
 
 test('sleep diagnosis rejects unauthenticated, non-owner, invalid ranges and methods before provider calls', async () => {
   const count = providerCalls.length;

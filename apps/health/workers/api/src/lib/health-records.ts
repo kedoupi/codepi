@@ -127,7 +127,9 @@ function recordId(row: RecordData, spec: Collection): string {
   throw new ApiError("invalid_upstream_record", 502);
 }
 
-async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
+async function fetchRecords(
+  token: string, w: Window, beforePage?: () => Promise<void>,
+): Promise<RecordData[]> {
   const url = new URL(`${OURA_API_BASE}/${w.spec.name}`);
   const exclusiveEnd = new Date(Date.parse(w.to) + DAY).toISOString();
   if (w.spec.mode === "date") {
@@ -141,6 +143,7 @@ async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
   const seen = new Set<string>();
   // Bound each provider subrequest; pagination remains capped at 20 pages.
   for (let page = 0; page < 20; page++) {
+    if (beforePage) await beforePage();
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
@@ -165,6 +168,19 @@ async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
   throw new ApiError("sync_window_too_large", 422);
 }
 
+function canonicalDocument(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalDocument);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort()
+      .map(key => [key, canonicalDocument((value as Record<string, unknown>)[key])]));
+  }
+  return value;
+}
+
+function sameDocument(left: RecordData, right: RecordData) {
+  return JSON.stringify(canonicalDocument(left)) === JSON.stringify(canonicalDocument(right));
+}
+
 function diagnosisSummary(rows: RecordData[], w: Window) {
   const byDay = new Map<string, Record<string, number>>();
   const ids = new Set<string>();
@@ -185,6 +201,16 @@ function diagnosisSummary(rows: RecordData[], w: Window) {
     by_day: [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, types]) => ({ day, types })) };
 }
 
+// Extend only a lease this call still owns. Never reclaim an expired or replaced lease:
+// the next provider page or token refresh must stop instead.
+async function renewOwnedLease(env: Env, userId: string, lease: string) {
+  const now = Date.now();
+  const owned = await env.DB.prepare(`UPDATE sync_state SET lease_until=?
+    WHERE user_id=? AND lease_id=? AND lease_until>? RETURNING lease_id`)
+    .bind(now + 120_000, userId, lease, now).first();
+  if (!owned) throw new ApiError("sync_in_progress", 409);
+}
+
 /** Compare live provider documents with the archive without replacing health records. */
 export async function diagnoseSleepWindow(request: Request, env: Env, userId: string, from: string, to: string) {
   const w = healthWindow("sleep", from, to);
@@ -196,14 +222,15 @@ export async function diagnoseSleepWindow(request: Request, env: Env, userId: st
     WHERE sync_state.lease_until < ? RETURNING lease_id`)
     .bind(userId, lease, now + 120_000, now).first();
   if (!acquired) throw new ApiError("sync_in_progress", 409);
+  const renewLease = () => renewOwnedLease(env, userId, lease);
   try {
     const result: Record<string, unknown> = {};
     for (const [name, collection] of [["sleep", "sleep"], ["scores", "daily_sleep"]] as const) {
       const window = healthWindow(collection, w.from, w.to);
-      const upstream = await withOuraAccess(request, env, userId, token => fetchRecords(token, window), lease);
-      const owned = await env.DB.prepare("SELECT lease_id FROM sync_state WHERE user_id=? AND lease_id=? AND lease_until>?")
-        .bind(userId, lease, Date.now()).first();
-      if (!owned) throw new ApiError("sync_in_progress", 409);
+      const upstream = await withOuraAccess(
+        request, env, userId, token => fetchRecords(token, window, renewLease), lease, renewLease,
+      );
+      await renewLease();
       const saved = await env.DB.prepare(`SELECT payload FROM health_records
         WHERE user_id=? AND collection=? AND day>=? AND day<=?`)
         .bind(userId, collection, w.from, w.to).all<{ payload: string }>();
@@ -218,8 +245,10 @@ export async function diagnoseSleepWindow(request: Request, env: Env, userId: st
         difference: {
           missing_from_saved: [...incoming.keys()].filter(id => !savedById.has(id)).length,
           only_in_saved: [...savedById.keys()].filter(id => !incoming.has(id)).length,
-          changed: [...incoming].filter(([id, row]) => savedById.has(id)
-            && JSON.stringify(savedById.get(id)) !== JSON.stringify(row)).length,
+          changed: [...incoming].filter(([id, row]) => {
+            const savedRow = savedById.get(id);
+            return savedRow ? !sameDocument(savedRow, row) : false;
+          }).length,
         },
       };
     }

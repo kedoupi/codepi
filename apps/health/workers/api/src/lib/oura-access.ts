@@ -61,16 +61,20 @@ export async function ouraAccessToken(
   return stored.access_token;
 }
 
-/** Must run inside the caller's per-user sync lease, including the retry. */
+/** Must run inside the caller's per-user sync lease, including the retry.
+ *  beforeAccess rechecks that lease before reading a token and before refreshing one. */
 export async function withOuraAccess<T>(
   request: Request, env: Env, userId: string, load: (token: string) => Promise<T>, lease: string,
+  beforeAccess?: () => Promise<void>,
 ): Promise<T> {
+  if (beforeAccess) await beforeAccess();
   const token = await ouraAccessToken(request, env, userId);
   let data: T;
   try {
     data = await load(token);
   } catch (error) {
     if (!(error instanceof ApiError) || error.code !== "oura_access_token_rejected") throw error;
+    if (beforeAccess) await beforeAccess();
     const refreshed = await ouraAccessToken(request, env, userId, token);
     try {
       data = await load(refreshed);
