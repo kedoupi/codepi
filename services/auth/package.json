@@ -16,6 +16,6 @@
     "esbuild": "0.28.2",
     "hono": "^4.9.8",
     "typescript": "7.0.2",
-    "wrangler": "4.151.1"
+    "wrangler": "4.152.0"
   }
 }

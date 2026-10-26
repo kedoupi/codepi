@@ -20,7 +20,7 @@
     "hono": "^4.9.8"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "^1.4.4",
+    "@cloudflare/vitest-plugin": "^1.4.7",
     "@cloudflare/workers-types": "latest",
     "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
@@ -30,8 +30,8 @@
     "svelte": "^5.38.6",
     "svelte-check": "^4.7.7",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4",
+    "vite": "^8.3.5",
     "vitest": "^4.1.11",
-    "wrangler": "^4.151.1"
+    "wrangler": "^4.152.0"
   }
 }
