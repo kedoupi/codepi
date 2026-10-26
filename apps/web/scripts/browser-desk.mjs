@@ -228,6 +228,15 @@ try {
   await page.waitForSelector('.blog-article-cover');
   await page.waitForFunction(() => [...document.images].every(image => image.complete));
   assert.deepEqual(await page.evaluate(() => { const image = document.querySelector('.blog-article-cover'); return [image.naturalWidth, image.naturalHeight]; }), [1200, 675]);
+  const articlePresentation = await page.evaluate(() => {
+    const cover = document.querySelector('.blog-article-cover');
+    const content = document.querySelector('.personal-article-content img');
+    const box = image => { const rect = image.getBoundingClientRect(); return { width: rect.width, height: rect.height, fit: getComputedStyle(image).objectFit }; };
+    return { cover: box(cover), content: box(content), reading: document.querySelector('.blog-article-header').getBoundingClientRect().width };
+  });
+  assert.equal(articlePresentation.cover.fit, 'contain');
+  assert.ok(articlePresentation.cover.width > articlePresentation.reading && articlePresentation.cover.width <= 920 && articlePresentation.cover.height <= 680, 'the landscape cover is wider than the text but bounded');
+  assert.ok(articlePresentation.content.width <= 680 && articlePresentation.content.height <= 680, 'content images stay within the reading bounds');
   assert.ok(await page.evaluate(() => document.querySelector('figcaption').textContent.length > 0));
   await page.screenshot({ path: 'blog-article-desktop.png' });
   for (const width of [320, 375, 768, 1024, 1440]) {
@@ -241,7 +250,10 @@ try {
   assert.ok(await page.evaluate(() => document.querySelector('pre').scrollWidth > document.querySelector('pre').clientWidth));
   await page.screenshot({ path: 'blog-article-mobile-code.png' });
   await page.goto(origins.desk + '/blog/');
-  await page.waitForSelector('.blog-card');
+  await page.waitForSelector('.blog-card-cover');
+  const cardPresentation = await page.evaluate(() => { const image = document.querySelector('.blog-card-cover'); return { fit: getComputedStyle(image).objectFit, ratio: image.getBoundingClientRect().width / image.getBoundingClientRect().height }; });
+  assert.equal(cardPresentation.fit, 'contain');
+  assert.ok(Math.abs(cardPresentation.ratio - 16 / 9) < 0.02, 'list covers keep a consistent frame without cropping');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.screenshot({ path: 'blog-list-mobile.png' });
   await page.goto(origins.desk + '/desk/');
