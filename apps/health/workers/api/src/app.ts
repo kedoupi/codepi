@@ -76,6 +76,7 @@ all("/api/me/sync", c => handleMeDaily(c.req.raw, c.env));
 all("/api/me/health-records", c => handleHealthRecords(c.req.raw, c.env, c.get("executionCtx")));
 all("/api/me/health-records/status", c => handleHealthRecords(c.req.raw, c.env, c.get("executionCtx")));
 all("/api/me/health-records/automatic", c => handleHealthRecords(c.req.raw, c.env, c.get("executionCtx")));
+all("/api/me/health-records/sleep-diagnosis", c => handleHealthRecords(c.req.raw, c.env, c.get("executionCtx")));
 all("/api/me/ai", c => handleMeAi(c.req.raw, c.env));
 all("/api/me/insights/weekly", c => handleWeeklyInsights(c.req.raw, c.env));
 all("/api/me/insights/compare", c => handleCompareInsights(c.req.raw, c.env));
