@@ -73,30 +73,6 @@ a { text-underline-offset: 4px; }
 .kdp-footer-links a:hover { color: var(--color-action-hover); }
 .kdp-copyright { margin: 10px 0 0; text-align: right; color: var(--kdp-muted); font-size: 13px; }
 
-/* The homepage uses the same public chrome as the rest of the site, but keeps
- * the fixed, wide stage and quiet footer from the Three.js design. */
-.kdp-header--home {
-  position: fixed;
-  inset: 0 0 auto;
-  z-index: 30;
-  border-bottom: 1px solid transparent;
-  background: color-mix(in srgb, var(--color-background) 82%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  backdrop-filter: blur(20px) saturate(1.25);
-  transition: border-color var(--motion-normal) ease, background-color var(--motion-normal) ease;
-}
-.kdp-header--home.is-scrolled {
-  border-color: color-mix(in srgb, var(--color-text) 10%, transparent);
-  background: color-mix(in srgb, var(--color-background) 94%, transparent);
-}
-.kdp-header--home .kdp-header-inner {
-  width: min(calc(100% - 2 * clamp(20px, 5.2vw, 96px)), 1400px);
-  min-height: 76px;
-}
-.kdp-header--home .kdp-brand { flex: 0 0 auto; }
-.kdp-header--home .kdp-logo { width: 124px; }
-.kdp-header--home .kdp-nav { gap: clamp(20px, 3.2vw, 42px); font-size: 15px; font-weight: 500; }
-.kdp-header--home .kdp-nav .kdp-nav-entry { padding: 6px 20px; border-radius: 999px; font-size: 15px; font-weight: 500; }
 .kdp-footer--home { background: var(--color-background); }
 .kdp-footer--home .kdp-footer-inner {
   width: min(calc(100% - 2 * clamp(20px, 5.2vw, 96px)), 1400px);
@@ -145,14 +121,6 @@ a { text-underline-offset: 4px; }
   .kdp-copyright { text-align: left; font-size: 13px; }
   .kdp-main { padding-block: 32px 48px; }
   .kdp-main--home { padding-top: 0; }
-  .kdp-header--home .kdp-header-inner {
-    width: calc(100% - 32px);
-    min-height: 62px;
-    flex-wrap: nowrap;
-    gap: 12px;
-    padding-block: 0;
-  }
-  .kdp-header--home .kdp-logo { width: 104px; }
   .kdp-footer--home .kdp-footer-inner { width: calc(100% - 32px); align-items: flex-start; gap: 20px; padding-block: 32px; }
   .kdp-footer--home .kdp-logo { width: 100px; }
 }
