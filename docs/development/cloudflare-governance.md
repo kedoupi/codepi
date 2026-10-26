@@ -188,7 +188,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
     entrypoint 缺失或错误均违规。不得新增业务 D1、Auth、GU R2 或其他 service binding。
 12. GU 资料仅允许 `MATERIALS → codepi-gu-uploads`，不与备份桶共用。
 13. Durable Object 目前不在上述自动校验范围内。新增 DO 必须先在资源登记表写明
-    planned/managed 状态、binding 和 migration；MCP 的 `LegacySse` 在发布前保持 planned。
+    planned/managed 状态、binding 和 migration；MCP 的 `LegacySse` 已于 PR #195 发布并核对 namespace。
     首发该单一 R2 允许 `planned` 登记，不放宽 GU 的 Worker/D1 校验；
     发布前需创建并核验无公开域名、无公开 r2.dev 入口。静态配置不证明存储已就绪。
     GU D1 备份包含资料元数据，原件单独加密；全部已登记 D1 与原件均成功才有完整回执，
