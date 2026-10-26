@@ -24,7 +24,7 @@
     "@astrojs/sitemap": "^3.7.2",
     "@astrojs/tailwind": "^6.0.2",
     "@kedoupi/shared": "workspace:*",
-    "tailwindcss": "^3.4.19",
+    "tailwindcss": "^4.3.3",
     "wrangler": "^4.151.1"
   }
 }
