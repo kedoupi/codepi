@@ -127,7 +127,9 @@ function recordId(row: RecordData, spec: Collection): string {
   throw new ApiError("invalid_upstream_record", 502);
 }
 
-async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
+async function fetchRecords(
+  token: string, w: Window, beforePage?: () => Promise<void>,
+): Promise<RecordData[]> {
   const url = new URL(`${OURA_API_BASE}/${w.spec.name}`);
   const exclusiveEnd = new Date(Date.parse(w.to) + DAY).toISOString();
   if (w.spec.mode === "date") {
@@ -141,6 +143,7 @@ async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
   const seen = new Set<string>();
   // Bound each provider subrequest; pagination remains capped at 20 pages.
   for (let page = 0; page < 20; page++) {
+    if (beforePage) await beforePage();
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10_000),
@@ -163,6 +166,136 @@ async function fetchRecords(token: string, w: Window): Promise<RecordData[]> {
     url.searchParams.set("next_token", body.next_token);
   }
   throw new ApiError("sync_window_too_large", 422);
+}
+
+function canonicalDocument(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalDocument);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort()
+      .map(key => [key, canonicalDocument((value as Record<string, unknown>)[key])]));
+  }
+  return value;
+}
+
+function sameDocument(left: RecordData, right: RecordData) {
+  return JSON.stringify(canonicalDocument(left)) === JSON.stringify(canonicalDocument(right));
+}
+
+function diagnosisSummary(rows: RecordData[], w: Window) {
+  const byDay = new Map<string, Record<string, number>>();
+  const ids = new Set<string>();
+  let duplicateIds = 0;
+  let outsideWindow = 0;
+  for (const row of rows) {
+    const day = recordDay(row, w.spec);
+    if (day < w.from || day > w.to) { outsideWindow++; continue; }
+    const id = recordId(row, w.spec);
+    if (ids.has(id)) duplicateIds++;
+    ids.add(id);
+    const type = ["long_sleep", "sleep", "rest", "late_nap"].includes(String(row.type)) ? String(row.type) : "other";
+    const types = byDay.get(day) ?? {};
+    types[type] = (types[type] ?? 0) + 1;
+    byDay.set(day, types);
+  }
+  return { records: rows.length, duplicate_ids: duplicateIds, outside_window: outsideWindow,
+    by_day: [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([day, types]) => ({ day, types })) };
+}
+
+// Extend only a lease this call still owns. Never reclaim an expired or replaced lease:
+// the next provider page or token refresh must stop instead.
+async function renewOwnedLease(env: Env, userId: string, lease: string) {
+  const now = Date.now();
+  const owned = await env.DB.prepare(`UPDATE sync_state SET lease_until=?
+    WHERE user_id=? AND lease_id=? AND lease_until>? RETURNING lease_id`)
+    .bind(now + 120_000, userId, lease, now).first();
+  if (!owned) throw new ApiError("sync_in_progress", 409);
+}
+
+// Keep the current lease active until the provider refresh returns. The first
+// renewal must succeed before any refresh request is sent; heartbeat failures
+// are retained for the main flow instead of becoming unhandled rejections.
+async function holdOwnedLease(env: Env, userId: string, lease: string) {
+  await renewOwnedLease(env, userId, lease);
+  let stopped = false;
+  let failure: unknown = null;
+  let releaseWait: (() => void) | null = null;
+  const assertActive = () => { if (failure) throw failure; };
+  const held = (async () => {
+    while (!stopped) {
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(resolve, 30_000);
+        releaseWait = () => { clearTimeout(timer); resolve(); };
+      });
+      if (stopped) break;
+      try {
+        await renewOwnedLease(env, userId, lease);
+      } catch (error) {
+        failure = error;
+        stopped = true;
+      }
+    }
+  })();
+  return {
+    release: async () => {
+      stopped = true;
+      releaseWait?.();
+      await held;
+      assertActive();
+    },
+    confirm: async () => {
+      assertActive();
+      await renewOwnedLease(env, userId, lease);
+      assertActive();
+    },
+  };
+}
+
+/** Compare live provider documents with the archive without replacing health records. */
+export async function diagnoseSleepWindow(request: Request, env: Env, userId: string, from: string, to: string) {
+  const w = healthWindow("sleep", from, to);
+  if (Date.parse(w.to) - Date.parse(w.from) > 6 * DAY) throw new ApiError("invalid_date_range", 400);
+  const lease = crypto.randomUUID();
+  const now = Date.now();
+  const acquired = await env.DB.prepare(`INSERT INTO sync_state (user_id, lease_id, lease_until) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET lease_id=excluded.lease_id, lease_until=excluded.lease_until
+    WHERE sync_state.lease_until < ? RETURNING lease_id`)
+    .bind(userId, lease, now + 120_000, now).first();
+  if (!acquired) throw new ApiError("sync_in_progress", 409);
+  const renewLease = () => renewOwnedLease(env, userId, lease);
+  const holdLease = () => holdOwnedLease(env, userId, lease);
+  try {
+    const result: Record<string, unknown> = {};
+    for (const [name, collection] of [["sleep", "sleep"], ["scores", "daily_sleep"]] as const) {
+      const window = healthWindow(collection, w.from, w.to);
+      const upstream = await withOuraAccess(
+        request, env, userId, token => fetchRecords(token, window, renewLease), lease, holdLease,
+      );
+      await renewLease();
+      const saved = await env.DB.prepare(`SELECT payload FROM health_records
+        WHERE user_id=? AND collection=? AND day>=? AND day<=?`)
+        .bind(userId, collection, w.from, w.to).all<{ payload: string }>();
+      const savedRows = saved.results.map(row => JSON.parse(row.payload) as RecordData);
+      const savedById = new Map(savedRows.map(row => [recordId(row, window.spec), row]));
+      const incoming = new Map(upstream.filter(row => {
+        const day = recordDay(row, window.spec);
+        return day >= w.from && day <= w.to;
+      }).map(row => [recordId(row, window.spec), row]));
+      result[name] = {
+        upstream: diagnosisSummary(upstream, window), saved: diagnosisSummary(savedRows, window),
+        difference: {
+          missing_from_saved: [...incoming.keys()].filter(id => !savedById.has(id)).length,
+          only_in_saved: [...savedById.keys()].filter(id => !incoming.has(id)).length,
+          changed: [...incoming].filter(([id, row]) => {
+            const savedRow = savedById.get(id);
+            return savedRow ? !sameDocument(savedRow, row) : false;
+          }).length,
+        },
+      };
+    }
+    return { from: w.from, to: w.to, checked_at: new Date().toISOString(), ...result };
+  } finally {
+    await env.DB.prepare("UPDATE sync_state SET lease_until=0 WHERE user_id=? AND lease_id=?").bind(userId, lease).run();
+  }
 }
 
 async function resolveSplitWindows(env: Env, userId: string, w: Window, fetchedAt: string, lease: string) {

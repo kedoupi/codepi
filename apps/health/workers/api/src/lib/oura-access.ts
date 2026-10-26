@@ -37,41 +37,59 @@ async function persistRefreshedTokens(
 }
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
+// holdRefresh keeps that same lease from the token read through refresh and
+// persistence. Its first renewal must succeed before any provider refresh, and
+// it must not reclaim a lease that expired or was replaced.
 export async function ouraAccessToken(
   request: Request, env: Env, userId: string, rejectedToken?: string,
+  holdRefresh?: () => Promise<{ release: () => Promise<void>; confirm: () => Promise<void> }>,
 ): Promise<string> {
   const key = resolveEncryptionKey(request, env);
   if (!key || !oauthConfigured(env)) throw new ApiError("oura_not_configured", 503);
-  const record = await loadEncryptedTokenRecord(env, userId, key).catch((error: unknown) => {
-    // Retrying cannot repair an unreadable grant; fresh consent replaces it.
-    if (error instanceof DecryptError) throw new ApiError("reconnect_required", 401);
-    throw error;
-  });
-  if (!record) throw new ApiError("reconnect_required", 401);
-  let stored = record.tokens;
-  if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
-    || stored.access_token === rejectedToken) {
-    stored = tokensFromOura(await refreshAccessToken({
-      refreshToken: stored.refresh_token,
-      clientId: env.OURA_CLIENT_ID!,
-      clientSecret: env.OURA_CLIENT_SECRET!,
-    }));
-    await persistRefreshedTokens(env, userId, key, stored, record.revision);
+  const held = holdRefresh ? await holdRefresh() : null;
+  try {
+    const record = await loadEncryptedTokenRecord(env, userId, key).catch((error: unknown) => {
+      // Retrying cannot repair an unreadable grant; fresh consent replaces it.
+      if (error instanceof DecryptError) throw new ApiError("reconnect_required", 401);
+      throw error;
+    });
+    if (!record) throw new ApiError("reconnect_required", 401);
+    let stored = record.tokens;
+    if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
+      || stored.access_token === rejectedToken) {
+      // The token read may have outlived the lease, and the heartbeat may
+      // already have observed its loss. Stop before contacting the provider.
+      await held?.confirm();
+      const refreshed = tokensFromOura(await refreshAccessToken({
+        refreshToken: stored.refresh_token,
+        clientId: env.OURA_CLIENT_ID!,
+        clientSecret: env.OURA_CLIENT_SECRET!,
+      }));
+      // Confirm ownership after the provider call and before saving. The lease
+      // is still held here; release happens only after persistence finishes.
+      await held?.confirm();
+      stored = refreshed;
+      await persistRefreshedTokens(env, userId, key, stored, record.revision);
+    }
+    return stored.access_token;
+  } finally {
+    await held?.release();
   }
-  return stored.access_token;
 }
 
-/** Must run inside the caller's per-user sync lease, including the retry. */
+/** Must run inside the caller's per-user sync lease, including the retry.
+ *  holdRefresh keeps that lease active while reading and refreshing a token. */
 export async function withOuraAccess<T>(
   request: Request, env: Env, userId: string, load: (token: string) => Promise<T>, lease: string,
+  holdRefresh?: () => Promise<{ release: () => Promise<void>; confirm: () => Promise<void> }>,
 ): Promise<T> {
-  const token = await ouraAccessToken(request, env, userId);
+  const token = await ouraAccessToken(request, env, userId, undefined, holdRefresh);
   let data: T;
   try {
     data = await load(token);
   } catch (error) {
     if (!(error instanceof ApiError) || error.code !== "oura_access_token_rejected") throw error;
-    const refreshed = await ouraAccessToken(request, env, userId, token);
+    const refreshed = await ouraAccessToken(request, env, userId, token, holdRefresh);
     try {
       data = await load(refreshed);
     } catch (retryError) {
