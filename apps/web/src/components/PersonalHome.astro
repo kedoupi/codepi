@@ -175,7 +175,6 @@ import { products } from '@kedoupi/shared/products';
     const root = document.documentElement;
     const hero = document.querySelector('[data-hero]');
     const heroCopy = document.querySelector('[data-hero-copy]');
-    const header = document.querySelector('.kdp-header--home');
     const scenes = [...document.querySelectorAll('[data-scene]')];
     const sceneCurrent = document.querySelector('[data-scene-current]');
     const reveals = document.querySelectorAll('[data-reveal]');
@@ -206,8 +205,6 @@ import { products } from '@kedoupi/shared/products';
         scenes.forEach((s, i) => s.classList.toggle('active', i === activeIndex));
         if (sceneCurrent) sceneCurrent.textContent = String(activeIndex + 1).padStart(2, '0');
 
-        // 顶栏背景模糊
-        header?.classList.toggle('is-scrolled', rect.top < -20);
 
         // 首屏文字淡出（顺滑无残留）
         if (heroCopy instanceof HTMLElement) {
