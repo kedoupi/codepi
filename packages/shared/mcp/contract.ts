@@ -39,7 +39,7 @@ export const GU_OPERATIONS = ["portfolio", "cash", "trades", "rules", "reports"]
 export type GuOperation = typeof GU_OPERATIONS[number];
 export type GuService = DomainService<GuOperation>;
 
-export const BLOG_OPERATIONS = ["list", "submit", "retract"] as const;
+export const BLOG_OPERATIONS = ["list", "get", "submit", "retract", "media_upload", "media_upload_start"] as const;
 export type BlogOperation = typeof BLOG_OPERATIONS[number];
 export type BlogService = DomainService<BlogOperation>;
 

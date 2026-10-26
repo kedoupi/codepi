@@ -65,6 +65,17 @@ function validateEntry(collection, entry, manifest, seenFiles, seenObjects) {
   seenObjects.add(entry.object_key);
 }
 
+const LEGACY_COLLECTION_SOURCES = Object.freeze({
+  3: ['codepi-gu', 'codepi-me'],
+});
+
+function expectedCollectionSources(version) {
+  if (version === 4) return ORIGINAL_COLLECTIONS.map(item => item.source);
+  const legacy = LEGACY_COLLECTION_SOURCES[version];
+  assert.ok(legacy, 'unsupported backup manifest version');
+  return legacy;
+}
+
 export function manifestOriginalCollections(manifest) {
   assert.ok(manifest && typeof manifest === 'object', 'backup manifest is invalid');
   const seenFiles = new Set(), seenObjects = new Set();
@@ -82,10 +93,10 @@ export function manifestOriginalCollections(manifest) {
     for (const entry of collection.entries) validateEntry(collection, entry, manifest, seenFiles, seenObjects);
     return [collection];
   }
-  assert.equal(manifest.version, 3, 'unsupported backup manifest version');
+  const expectedSources = expectedCollectionSources(manifest.version);
   requireDatabaseManifest(manifest.databases);
   assert.ok(Array.isArray(manifest.materials?.collections)
-    && manifest.materials.collections.length === ORIGINAL_COLLECTIONS.length,
+    && manifest.materials.collections.length === expectedSources.length,
   'complete original manifest is required');
   const sources = new Set();
   let total = 0;
@@ -100,7 +111,7 @@ export function manifestOriginalCollections(manifest) {
     for (const entry of collection.entries) validateEntry(collection, entry, manifest, seenFiles, seenObjects);
     return collection;
   });
-  assert.deepEqual([...sources].sort(), ORIGINAL_COLLECTIONS.map(item => item.source).sort(),
+  assert.deepEqual([...sources].sort(), [...expectedSources].sort(),
     'complete original manifest is required');
   assert.equal(manifest.materials.objects, total, 'backup manifest original count is incomplete');
   return collections;
@@ -254,7 +265,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
       assert.ok(['--backup-dir', '--private-key', '--database', '--out'].includes(flag) && value,
         'unknown, incomplete or duplicate material recovery option');
       if (flag === '--database') {
-        const match = /^(codepi-(?:gu|me))=([a-f0-9-]{36})$/.exec(value);
+        const match = /^(codepi-(?:gu|me|blog))=([a-f0-9-]{36})$/.exec(value);
         assert.ok(match && !opts.database[match[1]], 'invalid or duplicate --database name=UUID');
         opts.database[match[1]] = match[2];
       } else {

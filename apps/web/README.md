@@ -60,6 +60,30 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 
 缺少配置时接口明确拒绝请求；不要临时绕过登录使页面“看起来能用”。
 
+## Agent 写作与图片
+
+统一连接 `https://mcp.codepi.app/mcp`，使用现有 `blog.read` / `blog.write`。以下是本地实现的接口；生产状态见[任务记录](../../docs/development/tasks/2026-10-26-blog-agent-images.md)。
+
+可直接向 Agent 说：
+
+> 帮我写一篇关于……的博客。先查看我已有文章，避免重复；把我提供的图片上传，选择一张作封面，正文按内容放图并写图注。完成后提交审核，给我预览和审核入口。不要编造我的经历。
+
+改稿时说：
+
+> 查看文章 `<slug>` 的审核意见，读取当前修订，按意见修改后重新提交。保留已经公开的版本，等待我审核。
+
+工具顺序：`blog_list(view=submissions)` → `blog_get` → 上传配图 → `blog_submit` → 主人在 `/desk/` 审核。`blog_get` 默认读取草稿，`view=published` 读取公开快照。长正文按 `next_offset` 读取，并沿用首屏 `revision` 作为 `expected_revision`，避免混合版本。`blog_list` 只返回摘要。
+
+- `blog_upload_image({data_base64,alt})`：PNG、JPEG、WebP，原文件不超过 192 KiB。传普通 base64，不带 `data:` 前缀。
+- `blog_create_image_upload({alt,bytes,content_type})`：原文件最多 8 MiB，返回十分钟有效的单次 PUT 地址及专用 headers；Agent 发送原文件字节（不是 multipart），HTTP 返回图片结果。不发送 MCP Bearer。没有 HTTP PUT 能力的 Agent 使用前一种方式。
+- 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 使用图片 id。每稿最多 30 张不同图片（含封面）。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
+- `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`，可选 `tag`、`cover_media_id`。更新前读取 `revision` 并传 `base_revision`；创建可传 `base_revision:0`。重试同一次提交沿用 `request_id`。
+- 提交返回 `pending`、`preview_url`、`review_url`。预览及未发布图片要求本人登录。公开文章采用已审核快照，后续改稿不直接改公开内容。`blog_retract` 仅撤回待审核版本。
+
+图片存储使用私有 `BLOG_MEDIA` R2，每次读取核对是否被正式文章引用。未发布图片本人可读；下架或替换后失去公开引用的图片不再公开，响应均 `no-store`。已经被下载的公开图片无法收回。数据库索引和原件纳入 Ops v4 备份；没有自动删除原件。
+
+本任务发布依赖：先创建并核验私有 `codepi-blog-uploads`，应用 `migrations-blog/0002_blog_media.sql`，发布 www，再发布 MCP 与依赖 `BlogMediaBackup` 的 Ops。普通开发不执行这些远程步骤。
+
 ## 运维记录
 
 - 2026-10-16：Desk 的 `AUTH_CLIENT_SECRET` 经中央 per-client override（`SSO_CLIENT_SECRET_DESK`）轮换，应用侧同值配对后重发；轮换后 Desk 现有登录需重新登录。

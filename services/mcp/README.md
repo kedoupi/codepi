@@ -53,6 +53,16 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
 These options describe implementation, not real-client acceptance. Deployment and client checks
 are tracked in [the task](../../docs/development/tasks/2026-10-25-mcp-agent-compat.md).
 
+## Blog writing
+
+Blog tools support article/status reads, review feedback, small inline image uploads (192 KiB),
+one-file raw PUT uploads (8 MiB), covers and revision-checked resubmission. Images are private until
+referenced by an owner-approved published snapshot. Updates leave the previous public revision live
+until review. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.
+The owning www Worker handles media validation/storage and serves images; MCP does not fetch arbitrary
+image URLs or bind the bucket. Full workflow and copyable Agent prompts: [Web README](../../apps/web/README.md#agent-写作与图片).
+Implementation/release evidence: [Blog task](../../docs/development/tasks/2026-10-26-blog-agent-images.md).
+
 ## Local checks
 
 Install once at repository root with `pnpm install --frozen-lockfile`.

@@ -28,6 +28,8 @@ const baseEnv = {
   D1_DATABASE_IDS: JSON.stringify(databaseIds),
 };
 const meFixture = bodies => materialFixture(bodies, { prefix: 'imports', idKind: 'ulid' });
+const blogFixture = bodies => materialFixture(bodies, { prefix: 'media' });
+const originalSources = ['codepi-gu', 'codepi-me', 'codepi-blog'];
 
 function stepFixture() {
   const state = new Map();
@@ -56,7 +58,7 @@ test('Workflow RPC results are cloned and disposed before their stubs can accumu
 
 test('partial exports never publish a manifest and resuming does not re-export completed databases', async () => {
   const bucket = bucketFixture(), step = stepFixture(), calls = [];
-  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]) };
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]), BLOG: blogFixture([]) };
   let fail = true;
   const exportOne = async (name, ...args) => {
     calls.push(name);
@@ -86,7 +88,7 @@ test('partial exports never publish a manifest and resuming does not re-export c
 
 test('a put followed by an interrupted workflow reuses the existing ciphertext', async () => {
   const bucket = bucketFixture(), step = stepFixture();
-  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]) };
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]), BLOG: blogFixture([]) };
   await backupOperation(env, step, event, keys.publicKey, { exportOne: exportStub });
   for (const name of Object.keys(DATABASES)) step.state.delete(`encrypted export ${name}`);
   await backupOperation(env, step, event, keys.publicKey, {
@@ -98,7 +100,7 @@ test('a put followed by an interrupted workflow reuses the existing ciphertext',
 
 test('a paused instance cannot publish success after its ciphertext expires or its recipient changes', async () => {
   const bucket = bucketFixture(), step = stepFixture(), env = {
-    ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]),
+    ...baseEnv, BACKUPS: bucket, GU: materialFixture(), ME: meFixture([]), BLOG: blogFixture([]),
   };
   const originalPut = bucket.put.bind(bucket);
   let interrupt = true;
@@ -135,7 +137,7 @@ test('advisory threat alerts remain in the report without failing the monitor', 
   await env.BACKUPS.put('reports/backup/r2-success.json', JSON.stringify({
     completed_at: new Date().toISOString(), prefix: 'backups/advisory-synthetic',
     databases: DATABASE_NAMES.length, database_names: DATABASE_NAMES,
-    materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
+    materials: { sources: originalSources, objects: 0 },
   }));
   const traffic = [
     { name: 'zone traffic threats exceed threshold', ok: false, advisory: true, detail: 'scan denied' },
@@ -159,7 +161,7 @@ test('freshness rejects stale and incomplete backups and requires its manifest',
     prefix: 'backups/freshness-synthetic',
     databases: DATABASE_NAMES.length,
     database_names: DATABASE_NAMES,
-    materials: { sources: ['codepi-gu', 'codepi-me'], objects: 0 },
+    materials: { sources: originalSources, objects: 0 },
   };
   for (const item of [
     { ...complete, completed_at: new Date(Date.now() - 31 * 3600000).toISOString() },
@@ -194,7 +196,7 @@ test('missing, corrupted or interrupted GU originals cannot publish a complete m
       pull(controller) { controller.error(new Error('PRIVATE CONTENT')); },
     });
     await assert.rejects(backupOperation({
-      ...baseEnv, BACKUPS: bucket, ME: meFixture([]),
+      ...baseEnv, BACKUPS: bucket, ME: meFixture([]), BLOG: blogFixture([]),
       ...(kind === 'binding' ? {} : { GU: gu }),
     },
       stepFixture(), event, keys.publicKey, { exportOne: exportStub }),
@@ -206,11 +208,11 @@ test('missing, corrupted or interrupted GU originals cannot publish a complete m
 
 test('Me imports are encrypted alongside GU and missing ME coverage cannot publish a manifest', async () => {
   const bucket = bucketFixture(), me = meFixture(['Synthetic Me import one', 'Synthetic Me import two']);
-  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture([]), ME: me };
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture([]), ME: me, BLOG: blogFixture([]) };
   await backupOperation(env, stepFixture(), event, keys.publicKey, { exportOne: exportStub });
   const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
-  assert.equal(manifest.version, 3);
-  assert.deepEqual(manifest.materials.collections.map(collection => collection.source), ['codepi-gu', 'codepi-me']);
+  assert.equal(manifest.version, 4);
+  assert.deepEqual(manifest.materials.collections.map(collection => collection.source), originalSources);
   const meCollection = manifest.materials.collections.find(collection => collection.source === 'codepi-me');
   assert.equal(meCollection.objects, 2);
   for (const [index, entry] of meCollection.entries.entries()) {
@@ -220,8 +222,28 @@ test('Me imports are encrypted alongside GU and missing ME coverage cannot publi
     assert.equal(recovered.sql.toString(), `Synthetic Me import ${index === 0 ? 'one' : 'two'}`);
     assert.equal(recovered.metadata.kind, 'me-import');
   }
-  await assert.rejects(backupOperation({ ...baseEnv, BACKUPS: bucketFixture(), GU: materialFixture([]), ME: undefined },
+  await assert.rejects(backupOperation({ ...baseEnv, BACKUPS: bucketFixture(), GU: materialFixture([]), ME: undefined, BLOG: blogFixture([]) },
     stepFixture(), event, keys.publicKey, { exportOne: exportStub }), /codepi-me original backup binding/);
+});
+
+test('blog media is encrypted with the other originals and missing BLOG coverage cannot publish a manifest', async () => {
+  const bucket = bucketFixture(), blog = blogFixture(['Synthetic blog image one', 'Synthetic blog image two']);
+  const env = { ...baseEnv, BACKUPS: bucket, GU: materialFixture([]), ME: meFixture([]), BLOG: blog };
+  await backupOperation(env, stepFixture(), event, keys.publicKey, { exportOne: exportStub });
+  const manifest = await (await bucket.get(`backups/${event.instanceId}/manifest.json`)).json();
+  assert.equal(manifest.version, 4);
+  const blogCollection = manifest.materials.collections.find(collection => collection.source === 'codepi-blog');
+  assert.equal(blogCollection.kind, 'blog-media');
+  assert.equal(blogCollection.objects, 2);
+  for (const [index, entry] of blogCollection.entries.entries()) {
+    assert.equal(entry.object_key, `media/${entry.material_id}`);
+    const recovered = decrypt(bucket.data.get(`backups/${event.instanceId}/materials/${entry.file}`).bytes,
+      keys.privateKey);
+    assert.equal(recovered.sql.toString(), `Synthetic blog image ${index === 0 ? 'one' : 'two'}`);
+    assert.equal(recovered.metadata.kind, 'blog-media');
+  }
+  await assert.rejects(backupOperation({ ...baseEnv, BACKUPS: bucketFixture(), GU: materialFixture([]), ME: meFixture([]), BLOG: undefined },
+    stepFixture(), event, keys.publicKey, { exportOne: exportStub }), /codepi-blog original backup binding/);
 });
 
 test('material ciphertext is reused after a receipt interruption and expiration prevents completion', async () => {
@@ -234,7 +256,7 @@ test('material ciphertext is reused after a receipt interruption and expiration 
     return put(key, ...args);
   };
   const run = () => backupOperation({
-    ...baseEnv, BACKUPS: bucket, GU: gu, ME: meFixture([]),
+    ...baseEnv, BACKUPS: bucket, GU: gu, ME: meFixture([]), BLOG: blogFixture([]),
   }, step, event, keys.publicKey, { exportOne: exportStub });
   await assert.rejects(run(), /synthetic pause/);
   interrupted = false;

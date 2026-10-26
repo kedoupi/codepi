@@ -8,7 +8,8 @@ v3 的 Project/Me 备份与巡检已随 `58bd615` 上线并完成真实验收：
 `cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
 覆盖八库、GU 112 件与 Me 空集合，私有 R2 密文与 manifest 验收通过；新云端巡检 34/34。
 当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
-v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记录是旧覆盖的证据。
+已验收的 v3 清单覆盖 Project/Me D1 和 Me 原文；仓库现已写出 v4，并增加计划中的博客媒体集合。
+下文六库/v2 与已验收 v3 的记录是旧覆盖的证据，不是当前清单版本。
 
 ## 运行方式
 
@@ -16,7 +17,7 @@ v3 清单覆盖 Project/Me D1 和 Me 原文；下文六库/v2 的已有验收记
 | --- | --- |
 | `codepi-ops` Worker | 两个 Cron，无公网 routes、workers.dev 或 preview URL |
 | `codepi-ops` Workflow | 以确定的 instance ID 去重，每个步骤最多重试两次，指数退避 |
-| `codepi-ops-backups` 私有 R2 | 全库与 GU/Me 原件密文、完成清单、运维报告，以及 `reports/traffic/samples.json`；流量基线按最近 7 天逐小时滚动 |
+| `codepi-ops-backups` 私有 R2 | 全库与 GU/Me/博客原件密文、完成清单、运维报告，以及 `reports/traffic/samples.json`；流量基线按最近 7 天逐小时滚动 |
 
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
 这些是平台定时任务，不保证精确到分钟。只能从实际 Workflow 实例和 R2 对象确认
@@ -117,12 +118,12 @@ KDPB001 格式的认证 tag 位于密文之前，因此第一片等最终 tag �
 也不再使用原来的 16 MiB 整库缓冲保护。D1 导出可能暂时影响对应库，故安排在低峰。
 SQL、解密密钥和 D1 signed URL 都不作为持久步骤返回值。
 
-对象在 `backups/<instance>/` 下，全部必需库和 GU/Me 有索引原件完成后才写 v3 `manifest.json`。
+对象在 `backups/<instance>/` 下，全部必需库和 GU/Me/博客有索引原件完成后才写 v4 `manifest.json`。
 上传完成后再次流式计算密文 SHA-256，在同前缀的 `.receipt.json` 中绑定 R2 ETag、
 库身份和摘要。成功步骤在重试时复用已写入的密文，保持 envelope 和 manifest 一致；
 若上传提交后、回执写入前中断，重试只对已提交的密文补算摘要，不重新导出。
 密文过期、身份或 ETag 不一致时失败，需新建备份实例。
-半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示当前全库及 GU/Me 原件 R2 完整备份，
+半途失败不得写完整成功记录。`reports/backup/r2-success.json` 表示当前全库及 GU/Me/博客原件 R2 完整备份，
 不表示已有 Cloudflare 之外的副本。
 
 ## GU 原件
@@ -144,14 +145,15 @@ UUID、object key、大小及摘要，不含文件名或正文。逐件验证源
 缺失、损坏、流中断均失败。单件 8 MiB、最多 1000 件；超限明确失败，需要先扩容并验收。
 原件沿用 ETag/identity/receipt 的中断恢复，不在重试时替换已经提交的密文。
 
-历史 v2 manifest 含 `databases` 与单一 GU `materials`；当前 v3 使用
-`materials.collections` 分别记录 GU/Me 的来源、冻结上限、件数与逐件索引；
+历史 v2 manifest 含 `databases` 与单一 GU `materials`；v3 使用
+`materials.collections` 记录 GU/Me；当前 v4 在同一结构中再加入博客媒体。
+每组记录来源、冻结上限、件数与逐件索引；
 每件同时记录源 `source_bytes`/`source_sha256` 和密文 `bytes`/`sha256`。
 KDPB001 envelope 保持 v1，原 D1 解密工具仍可使用。旧 `d1-backup.mjs` 与手动 Actions
 应急入口只导出 D1，不生成原件完整覆盖回执。
 
-备份完整成功的唯一标准是：所有必需 D1、GU/Me 原件均完成加密写入私有 R2，校验通过后提交
-v3 `manifest.json` 与 `reports/backup/r2-success.json`。`reports/backup/latest.json` 记录
+备份完整成功的唯一标准是：所有必需 D1、GU/Me/博客原件均完成加密写入私有 R2，校验通过后提交
+v4 `manifest.json` 与 `reports/backup/r2-success.json`。`reports/backup/latest.json` 记录
 `r2=complete`、`ok=true`；Workflow 不再调用 GitHub Release，也不读取 `GITHUB_TOKEN`。
 R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用；需要异机恢复时由人工在仓库之外导出
 完整 R2 前缀并按 manifest 校验。历史 GitHub Release 不是当前备份通道，仍需在公开仓库前
@@ -167,10 +169,18 @@ R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用；需要异�
 原文写入 `backups/<instance>/materials/me-import-<ULID>.bin.enc`，
 每件核对索引大小和 SHA-256，再使用同一公钥 envelope 加密。
 
-GU 和 Me 各自最多 1000 件、单件最多 8 MiB；超限使完整备份失败。
-即使某集合没有原件，v3 仍须保留该集合的空记录；不能通过缺省集合冒充已覆盖。
-恢复使用 `originals-restore.mjs` 同时核验两类索引与原文；
-旧 GU-only 工具留给历史 v2 副本，不能验收 v3。
+GU 和 Me 各自最多 1000 件、单件最多 8 MiB；博客媒体集合使用同一上限。超限使完整备份失败。
+即使某集合没有原件，v4 仍须保留该集合的空记录；不能通过缺省集合冒充已覆盖。
+恢复使用 `originals-restore.mjs`：v4 同时核验三组索引与原文，v3 只核验 GU/Me，
+v2 只核验 GU。旧 GU-only 工具留给历史 v2 副本，不能验收 v3 或 v4。
+
+## 博客媒体（planned）
+
+`BLOG → codepi-www#BlogMediaBackup` 是计划中的只读 named entrypoint，
+读取追加式 `blog_media` 索引和 `codepi-blog-uploads` 中的 `media/<UUID>` 对象。
+Ops 不绑定博客 D1 或该 R2。原文写入
+`backups/<instance>/materials/blog-media-<UUID>.bin.enc`，单件最多 8 MiB。
+桶、binding 和 entrypoint 目前只在仓库登记为 planned，尚未创建或发布。
 
 ## 首次初始化与凭证
 

@@ -34,6 +34,7 @@ const REGISTRY_ROWS = [
   ['worker-me', 'production', 'worker', 'codepi-me', 'me.codepi.app', 'planned'],
   ['d1-me', 'production', 'd1', 'codepi-me', '-', 'planned'],
   ['r2-me-imports', 'production', 'r2', 'codepi-me-imports', '-', 'planned'],
+  ['r2-blog-uploads', 'production', 'r2', 'codepi-blog-uploads', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
   ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
@@ -166,6 +167,10 @@ entrypoint = "GuMaterialsBackup"
 binding = "ME"
 service = "codepi-me"
 entrypoint = "MeImportsBackup"
+[[services]]
+binding = "BLOG"
+service = "codepi-www"
+entrypoint = "BlogMediaBackup"
 [vars]
 ENVIRONMENT = "production"
 [triggers]
@@ -181,7 +186,7 @@ ${OBSERVABILITY}
 `;
 }
 
-test('ops remains private with only its owned R2, Workflow and exact GU/ME backup entrypoints', () => {
+test('ops remains private with only its owned R2, Workflow and exact GU/ME/BLOG backup entrypoints', () => {
   assert.deepEqual(run(legalFiles()), []);
   for (const config of [
     opsConfig().replace('workers_dev = false', 'workers_dev = true'),
@@ -197,6 +202,10 @@ test('ops remains private with only its owned R2, Workflow and exact GU/ME backu
     opsConfig().replace('entrypoint = "MeImportsBackup"', ''),
     opsConfig().replace('service = "codepi-me"', 'service = "codepi-ops"'),
     opsConfig().replace(/\n\[\[services\]\]\nbinding = "ME"[\s\S]*?entrypoint = "MeImportsBackup"\n?/, '\n'),
+    opsConfig().replace('entrypoint = "BlogMediaBackup"', 'entrypoint = "OtherEntrypoint"'),
+    opsConfig().replace('entrypoint = "BlogMediaBackup"', ''),
+    opsConfig().replace('service = "codepi-www"', 'service = "codepi-ops"'),
+    opsConfig().replace(/\n\[\[services\]\]\nbinding = "BLOG"[\s\S]*?entrypoint = "BlogMediaBackup"\n?/, '\n'),
     opsConfig() + '\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "codepi-health"\n',
     opsConfig() + '\n[[services]]\nbinding = "AUTH"\nservice = "codepi-auth"\n',
   ]) {
@@ -277,11 +286,12 @@ ${OBSERVABILITY}
 `;
 }
 
-function webWorkerConfig() {
+function webWorkerConfig({ media = true } = {}) {
   return privateWorkerConfig({ app: 'www' })
     .replace('run_worker_first = true', 'run_worker_first = ["/api/*", "/desk", "/desk/*"]\nnot_found_handling = "404-page"')
     .replaceAll('database_name = "codepi-www', 'database_name = "codepi-desk')
-    + '\n[[d1_databases]]\nbinding = "BLOG"\ndatabase_name = "codepi-blog"\n';
+    + '\n[[d1_databases]]\nbinding = "BLOG"\ndatabase_name = "codepi-blog"\n'
+    + (media ? '[[r2_buckets]]\nbinding = "BLOG_MEDIA"\nbucket_name = "codepi-blog-uploads"\n' : '');
 }
 test('all non-allowlisted R2 and Workflow bindings are rejected across TOML and JSONC', () => {
   const files = legalFiles({
@@ -710,6 +720,22 @@ test('www BLOG D1 is name-pinned and MCP BLOG RPC is exact', () => {
   const wrongEntrypoint = mcpConfig().replace('entrypoint = "BlogMcp"', 'entrypoint = "OtherEntrypoint"');
   assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': wrongEntrypoint } }))
     .some(v => v.startsWith('mcp:') && v.includes('BLOG')));
+});
+
+test('www blog media has exactly one planned private bucket and rejects every other R2', () => {
+  assert.deepEqual(run(legalFiles()), []);
+  for (const [config, needle] of [
+    [webWorkerConfig({ media: false }), 'bind only BLOG_MEDIA'],
+    [webWorkerConfig().replace('binding = "BLOG_MEDIA"', 'binding = "MATERIALS"'), 'bind only BLOG_MEDIA'],
+    [webWorkerConfig().replace('bucket_name = "codepi-blog-uploads"', 'bucket_name = "codepi-gu-uploads"'), 'bind only BLOG_MEDIA'],
+    [webWorkerConfig() + '[[r2_buckets]]\nbinding = "EXTRA"\nbucket_name = "codepi-blog-uploads"\n', 'bind only BLOG_MEDIA'],
+  ]) {
+    assert.ok(run(legalFiles({ files: { 'apps/web/wrangler.toml': config } })).some(v => v.includes(needle)), needle);
+  }
+  const missing = REGISTRY_ROWS.filter(row => row[0] !== 'r2-blog-uploads');
+  assert.ok(run(legalFiles({ registryRows: missing })).some(v => v.includes('codepi-blog-uploads has no registry record')));
+  const unknown = REGISTRY_ROWS.map(row => row[0] === 'r2-blog-uploads' ? [...row.slice(0, 5), 'unknown'] : row);
+  assert.ok(run(legalFiles({ registryRows: unknown })).some(v => v.includes('codepi-blog-uploads is registered as unknown')));
 });
 
 test('MCP reserves its own D1 and requires the named Health RPC capability', () => {

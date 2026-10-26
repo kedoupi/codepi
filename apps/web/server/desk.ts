@@ -124,16 +124,19 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   }
   const publishMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/publish$/);
   if (publishMatch && request.method === "POST") {
-    try { return deskJson(await publishDraft(env.BLOG, decodeURIComponent(publishMatch[1]), url.origin)); }
-    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+    let payload: unknown = {};
+    try { if (request.body) payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || (payload.revision !== undefined && (!Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1))) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await publishDraft(env.BLOG, decodeURIComponent(publishMatch[1]), url.origin, payload.revision as number | undefined)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   const rejectMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/reject$/);
   if (rejectMatch && request.method === "POST") {
     let payload: unknown = {};
     try { payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
-    if (!record(payload) || (payload.note !== undefined && typeof payload.note !== "string")) return deskJson({ error: "invalid_request" }, 400);
-    try { return deskJson(await rejectDraft(env.BLOG, decodeURIComponent(rejectMatch[1]), payload.note as string | undefined)); }
-    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+    if (!record(payload) || (payload.note !== undefined && typeof payload.note !== "string") || (payload.revision !== undefined && (!Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1))) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await rejectDraft(env.BLOG, decodeURIComponent(rejectMatch[1]), payload.note as string | undefined, payload.revision as number | undefined)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   const unpublishMatch = path.match(/^\/api\/blog\/posts\/([^/]+)\/unpublish$/);
   if (unpublishMatch && request.method === "POST") {
