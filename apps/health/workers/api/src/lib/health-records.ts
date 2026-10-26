@@ -212,12 +212,14 @@ async function renewOwnedLease(env: Env, userId: string, lease: string) {
 }
 
 // Keep the current lease active until the provider refresh returns. The first
-// renewal must succeed before any refresh request is sent; stopping must wake
-// the heartbeat immediately, even if a renewal is still in flight.
+// renewal must succeed before any refresh request is sent; heartbeat failures
+// are retained for the main flow instead of becoming unhandled rejections.
 async function holdOwnedLease(env: Env, userId: string, lease: string) {
   await renewOwnedLease(env, userId, lease);
   let stopped = false;
+  let failure: unknown = null;
   let releaseWait: (() => void) | null = null;
+  const assertActive = () => { if (failure) throw failure; };
   const held = (async () => {
     while (!stopped) {
       await new Promise<void>(resolve => {
@@ -225,7 +227,12 @@ async function holdOwnedLease(env: Env, userId: string, lease: string) {
         releaseWait = () => { clearTimeout(timer); resolve(); };
       });
       if (stopped) break;
-      await renewOwnedLease(env, userId, lease);
+      try {
+        await renewOwnedLease(env, userId, lease);
+      } catch (error) {
+        failure = error;
+        stopped = true;
+      }
     }
   })();
   return {
@@ -233,8 +240,13 @@ async function holdOwnedLease(env: Env, userId: string, lease: string) {
       stopped = true;
       releaseWait?.();
       await held;
+      assertActive();
     },
-    confirm: () => renewOwnedLease(env, userId, lease),
+    confirm: async () => {
+      assertActive();
+      await renewOwnedLease(env, userId, lease);
+      assertActive();
+    },
   };
 }
 

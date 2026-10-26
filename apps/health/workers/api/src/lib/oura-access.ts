@@ -57,6 +57,9 @@ export async function ouraAccessToken(
     let stored = record.tokens;
     if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
       || stored.access_token === rejectedToken) {
+      // The token read may have outlived the lease, and the heartbeat may
+      // already have observed its loss. Stop before contacting the provider.
+      await held?.confirm();
       const refreshed = tokensFromOura(await refreshAccessToken({
         refreshToken: stored.refresh_token,
         clientId: env.OURA_CLIENT_ID!,
