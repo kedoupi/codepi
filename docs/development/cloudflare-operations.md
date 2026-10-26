@@ -4,12 +4,11 @@
 巡检和备份由 Cloudflare 执行，不依赖 Actions runner 或个人电脑在线。
 生产部署继续遵循 [本地发布](local-release.md)。
 
-v3 的 Project/Me 备份与巡检已随 `58bd615` 上线并完成真实验收：生产备份实例
-`cf_93cea89d2248417b1d15530d606a6f32cb921ac8f6cbbf8c24486786218d5572`
-覆盖八库、GU 112 件与 Me 空集合，私有 R2 密文与 manifest 验收通过；新云端巡检 34/34。
-当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
-已验收的 v3 清单覆盖 Project/Me D1 和 Me 原文；仓库现已写出 v4，并增加计划中的博客媒体集合。
-下文六库/v2 与已验收 v3 的记录是旧覆盖的证据，不是当前清单版本。
+v4 的博客媒体备份与巡检覆盖已随 `0ce86cf987b8` 上线。生产备份实例
+`cf_d2bc8d1d03d9bb71feedde0f1c1d1da2afa95b56a0758fcb2bfbf418e821df71`
+于 2026-10-26 完成，覆盖九库、GU 112 件、Me 2 件与 Blog 2 件，私有 R2 密文、manifest
+和完成回执已核对。当前完整覆盖定义以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准。
+下文六库/v2 与八库/v3 的记录是旧覆盖的证据，不是当前清单版本。
 
 ## 运行方式
 
@@ -174,13 +173,14 @@ GU 和 Me 各自最多 1000 件、单件最多 8 MiB；博客媒体集合使用�
 恢复使用 `originals-restore.mjs`：v4 同时核验三组索引与原文，v3 只核验 GU/Me，
 v2 只核验 GU。旧 GU-only 工具留给历史 v2 副本，不能验收 v3 或 v4。
 
-## 博客媒体（planned）
+## 博客媒体
 
-`BLOG → codepi-www#BlogMediaBackup` 是计划中的只读 named entrypoint，
+`BLOG → codepi-www#BlogMediaBackup` 是已发布的只读 named entrypoint，
 读取追加式 `blog_media` 索引和 `codepi-blog-uploads` 中的 `media/<UUID>` 对象。
 Ops 不绑定博客 D1 或该 R2。原文写入
 `backups/<instance>/materials/blog-media-<UUID>.bin.enc`，单件最多 8 MiB。
-桶、binding 和 entrypoint 目前只在仓库登记为 planned，尚未创建或发布。
+2026-10-26 已创建并核验私有桶、发布 binding/entrypoint，并在上述 v4 实例中
+实际备份两份真实 Agent 上传原件；无公开域名或 r2.dev 访问。
 
 ## 首次初始化与凭证
 
