@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
+import { encryptJson, packEncryptedBlob } from '../../src/lib/crypto.ts';
+import { tokenAad } from '../../src/lib/tokens.ts';
 import { calendarDay } from '../../../../shared/dates.ts';
 import { createRuntime, login, migrate } from './runtime.mjs';
 
@@ -20,9 +22,23 @@ function reorderKeys(value) {
 let runtime, db, cookie;
 let providerCalls = [];
 let mode = 'complete';
+let releaseRefresh = () => {};
+let refreshGate = Promise.resolve();
 before(async () => {
   runtime = createRuntime({ providerResponse(url) {
+    if (url.pathname === '/oauth/token' && (mode === 'expired-token' || mode === 'rejected-401')) {
+      providerCalls.push(url.href);
+      return (async () => {
+        if (providerCalls.filter(href => new URL(href).pathname === '/oauth/token').length === 1) releaseRefresh();
+        await refreshGate;
+        return Response.json({ access_token: 'refreshed-private-access', refresh_token: 'refreshed-private-refresh', expires_in: 3600 });
+      })();
+    }
     if (!url.pathname.endsWith('/sleep')) return undefined;
+    if (mode === 'rejected-401' && !providerCalls.some(href => new URL(href).pathname === '/oauth/token')) {
+      providerCalls.push(url.href);
+      return new Response('', { status: 401 });
+    }
     providerCalls.push(url.href);
     if (mode === 'failure') return Response.json({}, { status: 500 });
     if (mode === 'reordered') return Response.json({ data: [reorderKeys(nap)], next_token: null });
@@ -104,6 +120,47 @@ test('sleep diagnosis ignores JSON object field order', async () => {
     assert.equal((await response.json()).sleep.difference.changed, 0);
   } finally { mode = 'complete'; }
 });
+
+for (const refreshCase of ['expired-token', 'rejected-401']) {
+  test(`sleep diagnosis keeps its lease through ${refreshCase} refresh`, async () => {
+    const tokensBefore = await db.prepare("SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id='test-user'").first();
+    if (refreshCase === 'expired-token') {
+      const expired = packEncryptedBlob(await encryptJson('integration-encryption-secret', {
+        refresh_token: 'stored-private-refresh', access_token: 'stored-private-access', expires_at: Date.now() - 60_000,
+      }, tokenAad('test-user')));
+      await db.prepare("UPDATE encrypted_tokens SET ciphertext=?,iv=? WHERE user_id='test-user'")
+        .bind(expired.ciphertext, expired.iv).run();
+    }
+    const before = await snapshot();
+    providerCalls = [];
+    mode = refreshCase;
+    let openGate;
+    const refreshStarted = new Promise(resolve => { releaseRefresh = resolve; });
+    refreshGate = new Promise(resolve => { openGate = resolve; });
+    try {
+      const pending = diagnose();
+      await refreshStarted;
+      const competing = await db.prepare(`INSERT INTO sync_state (user_id,lease_id,lease_until) VALUES ('test-user','competing',?)
+        ON CONFLICT(user_id) DO UPDATE SET lease_id='competing',lease_until=excluded.lease_until
+        WHERE sync_state.lease_until < ? RETURNING lease_id`).bind(Date.now() + 120000, Date.now()).first();
+      assert.equal(competing, null, 'a concurrent sync acquired the diagnosis lease');
+      openGate();
+      const response = await pending;
+      assert.equal(response.status, 200);
+      assert.equal(providerCalls.filter(href => new URL(href).pathname === '/oauth/token').length, 1);
+      assert.notDeepEqual(await db.prepare("SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id='test-user'").first(), tokensBefore);
+      assert.deepEqual(await snapshot(), before);
+      assert.equal((await db.prepare("SELECT lease_until FROM sync_state WHERE user_id='test-user'").first()).lease_until, 0);
+    } finally {
+      openGate?.();
+      mode = 'complete';
+      refreshGate = Promise.resolve();
+      await db.prepare('UPDATE encrypted_tokens SET ciphertext=?,iv=? WHERE user_id=?')
+        .bind(tokensBefore.ciphertext, tokensBefore.iv, 'test-user').run();
+      await db.prepare("UPDATE sync_state SET lease_until=0 WHERE user_id='test-user'").run();
+    }
+  });
+}
 
 for (const takeover of ['takeover-401', 'takeover-page']) {
   test(`sleep diagnosis stops before token retry or pagination after ${takeover}`, async () => {

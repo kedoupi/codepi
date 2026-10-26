@@ -211,6 +211,30 @@ async function renewOwnedLease(env: Env, userId: string, lease: string) {
   if (!owned) throw new ApiError("sync_in_progress", 409);
 }
 
+// Keep the current lease active until the provider refresh returns. The caller
+// then confirms ownership before saving; this never reclaims a replaced lease.
+function holdOwnedLease(env: Env, userId: string, lease: string) {
+  let stopped = false;
+  let releaseWait = () => {};
+  const held = (async () => {
+    while (!stopped) {
+      await renewOwnedLease(env, userId, lease);
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(resolve, 30_000);
+        releaseWait = () => { clearTimeout(timer); resolve(); };
+      });
+    }
+  })();
+  return {
+    release: async () => {
+      stopped = true;
+      releaseWait();
+      await held;
+    },
+    confirm: () => renewOwnedLease(env, userId, lease),
+  };
+}
+
 /** Compare live provider documents with the archive without replacing health records. */
 export async function diagnoseSleepWindow(request: Request, env: Env, userId: string, from: string, to: string) {
   const w = healthWindow("sleep", from, to);
@@ -223,12 +247,13 @@ export async function diagnoseSleepWindow(request: Request, env: Env, userId: st
     .bind(userId, lease, now + 120_000, now).first();
   if (!acquired) throw new ApiError("sync_in_progress", 409);
   const renewLease = () => renewOwnedLease(env, userId, lease);
+  const holdLease = async () => holdOwnedLease(env, userId, lease);
   try {
     const result: Record<string, unknown> = {};
     for (const [name, collection] of [["sleep", "sleep"], ["scores", "daily_sleep"]] as const) {
       const window = healthWindow(collection, w.from, w.to);
       const upstream = await withOuraAccess(
-        request, env, userId, token => fetchRecords(token, window, renewLease), lease, renewLease,
+        request, env, userId, token => fetchRecords(token, window, renewLease), lease, holdLease,
       );
       await renewLease();
       const saved = await env.DB.prepare(`SELECT payload FROM health_records

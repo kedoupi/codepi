@@ -37,8 +37,11 @@ async function persistRefreshedTokens(
 }
 
 // Both callers hold the per-user sync_state lease, serializing token rotation.
+// beforeRefresh keeps that same lease through the provider refresh; it must not
+// reclaim a lease that expired or was replaced while the token record was loading.
 export async function ouraAccessToken(
   request: Request, env: Env, userId: string, rejectedToken?: string,
+  holdRefresh?: () => Promise<{ release: () => Promise<void>; confirm: () => Promise<void> }>,
 ): Promise<string> {
   const key = resolveEncryptionKey(request, env);
   if (!key || !oauthConfigured(env)) throw new ApiError("oura_not_configured", 503);
@@ -51,31 +54,37 @@ export async function ouraAccessToken(
   let stored = record.tokens;
   if (!stored.access_token || !Number.isFinite(stored.expires_at) || stored.expires_at <= Date.now()
     || stored.access_token === rejectedToken) {
-    stored = tokensFromOura(await refreshAccessToken({
-      refreshToken: stored.refresh_token,
-      clientId: env.OURA_CLIENT_ID!,
-      clientSecret: env.OURA_CLIENT_SECRET!,
-    }));
+    const held = holdRefresh ? await holdRefresh() : null;
+    let refreshed: StoredTokens;
+    try {
+      refreshed = tokensFromOura(await refreshAccessToken({
+        refreshToken: stored.refresh_token,
+        clientId: env.OURA_CLIENT_ID!,
+        clientSecret: env.OURA_CLIENT_SECRET!,
+      }));
+    } finally {
+      await held?.release();
+    }
+    await held?.confirm();
+    stored = refreshed;
     await persistRefreshedTokens(env, userId, key, stored, record.revision);
   }
   return stored.access_token;
 }
 
 /** Must run inside the caller's per-user sync lease, including the retry.
- *  beforeAccess rechecks that lease before reading a token and before refreshing one. */
+ *  beforeAccess rechecks that lease before reading a token and around its refresh. */
 export async function withOuraAccess<T>(
   request: Request, env: Env, userId: string, load: (token: string) => Promise<T>, lease: string,
-  beforeAccess?: () => Promise<void>,
+  holdRefresh?: () => Promise<{ release: () => Promise<void>; confirm: () => Promise<void> }>,
 ): Promise<T> {
-  if (beforeAccess) await beforeAccess();
-  const token = await ouraAccessToken(request, env, userId);
+  const token = await ouraAccessToken(request, env, userId, undefined, holdRefresh);
   let data: T;
   try {
     data = await load(token);
   } catch (error) {
     if (!(error instanceof ApiError) || error.code !== "oura_access_token_rejected") throw error;
-    if (beforeAccess) await beforeAccess();
-    const refreshed = await ouraAccessToken(request, env, userId, token);
+    const refreshed = await ouraAccessToken(request, env, userId, token, holdRefresh);
     try {
       data = await load(refreshed);
     } catch (retryError) {
