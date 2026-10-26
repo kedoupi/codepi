@@ -21,8 +21,9 @@
 | Health 历史同步告警 | PR #111 已合并，Health API/MCP 已发布；真实账号 16 类旧告警归零，48 条历史记录保留，生产巡检 24/24 通过 | [修复与发布证据](2026-10-20-health-sync-alerts.md)：刷新设置页读取新状态，无需重新同步 |
 | 工程文档与 Agent 规范整理 | 本地整理、链接核对与受影响检查完成，经 PR #106 交付 | [本轮记录](2026-10-19-engineering-docs.md)：入口、规则、skills 与历史标记已校正；主干状态以 PR 为准，后续新任务从包含规范的 main 开始 |
 | Cloudflare 定时运维 | 私有 R2 v4 备份为现行通道，覆盖九库及 GU/Me/Blog 三组原件；GitHub Release 自动复制已退役，仅保留历史验收记录 | [R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[公开与重发记录](2026-10-23-public-rename-redeploy.md)：每日 Cron 以实际回执为准；外部灾备副本及隔离恢复范围须另行核验 |
-| 统一 MCP / 五领域实现 | Health、Project、Me、GU、Blog 模块及显式 binding 已在当前实现中；发布日期化证据见对应任务与资源登记表 | [领域扩展](2026-10-20-codepi-mcp-domains.md)、[Blog 记录](2026-10-26-blog-agent-images.md)：真实 Claude/Codex/CLI 客户端验收、LegacySse 生产使用和所有者持续使用不由本地配置推定 |
+| 统一 MCP / 五领域实现 | Health、Project、Me、GU、Blog 模块及显式 binding 已在当前实现中；Agent 兼容扩展已通过 PR #195 部署，生产观察 `healthy_reported` | [领域扩展](2026-10-20-codepi-mcp-domains.md)、[接入兼容](2026-10-25-mcp-agent-compat.md)、[Blog 记录](2026-10-26-blog-agent-images.md)：真实 Claude/Codex/CLI 客户端验收、LegacySse 生产使用和所有者持续使用不由本地配置推定 |
 | GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：GitHub 副本是历史验收材料；当前 v4 R2 完整清单、回执与隔离恢复证据见运维 runbook，自动研究与 GZH MCP 为后续产品讨论 |
+| Desk 真实使用验收 | Worker、D1 和所需 secret 名称已有后续发布证据；不能继续仅凭最初 P6 记录判断“未部署” | [首页迁移](2026-10-17-web-static-assets.md)、[资源登记表](../cloudflare-resource-registry.md)、[应用说明](../../../apps/web/README.md)：如继续此产品，核对登录后的三来源摘要，不因旧 TODO 重建资源或轮换凭证 |
 | 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标，未覆盖 Desk/MCP | 本轮仅记录：[Auth 使用限制](../../../services/auth/README.md#validation)。后续先更新目标和覆盖范围，再按授权执行真实邮件验收；不影响现行发布探针 |
 
 ## 已落地阶段与历史接续关系
