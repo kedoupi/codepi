@@ -9,6 +9,10 @@
 - release_worktree: /Users/codepi/.worktrees/codepi/codex/blog-agent-release
 - merged_sha: 0ce86cf987b89d1fc438bbf85bdb90a4fead836f
 - 授权：设计、实现和本地验证后，用户进一步明确授权本次博客功能提交、合并、创建私有图片桶、迁移 `codepi-blog`、发布 www/MCP/Ops 并验收。未授权轮换 secret、删除数据、清理 worktree 或回退数据库。
+- presentation_branch: codex/blog-image-presentation
+- presentation_base_sha: 0449a6c22ff9acadab07ec7b04c0ac3d3a1b9157
+- presentation_worktree: /Users/codepi/.worktrees/codepi/codex/blog-image-presentation
+- 展示续作授权：用户要求提交并发布本轮图片与长文排版优化；不修改、发布或删除既有草稿，不重发无业务改动的 MCP/Ops。
 
 ## 设计与使用
 
@@ -18,7 +22,7 @@
 4. `blog_submit` 提交完成稿，更新时带 `base_revision`，新文章可传 0；同一次重试沿用 `request_id`。返回 Desk 审核与登录预览地址。
 5. 主人在 Desk 审核；正式版是单独快照。新修订保持 pending，旧正式版继续展示；拒绝意见由 Agent 读取并修改。Desk 审核携带 revision 防止审核错误版本。
 6. 图片位于私有 R2，公开读取前每次核对已发布文章引用，未发布图片只有本人 SSO 可读取。图片 no-store；下架后不继续从应用缓存公开图片。已经下载的公开内容无法收回。
-7. 列表分页、封面、阅读宽度、图片原始比例与图注、代码与表格滚动、日期、SEO metadata 遵循共享设计。
+7. 列表分页、封面、阅读宽度、图片原始比例与图注、代码与表格滚动、日期、SEO metadata 遵循共享设计。封面可宽于正文，最多 920px 宽、680px 或 62vh 高；正文图片最多 680px 宽、同样高度。列表封面保持 16:9 画框并完整显示，不裁切图片。正文首个一级标题与页面标题重复时隐藏；表格列按内容收缩。紧贴结束符的冒号等标点会使 CommonMark 加粗失效，渲染时仅在文本 token 中把标点移到结束符外，围栏、缩进和行内代码保持原样。
 
 现有 OAuth scopes 不变（blog.read/blog.write）。PAT 仍按选定 scope；write 不隐含 read。图片单文件临时凭证与 MCP Bearer 完全分离，不在 URL 中携带。
 
