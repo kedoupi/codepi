@@ -76,7 +76,10 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; client_name?: string | null; review_note?: string | null; updated_at: string; published_at?: string | null; cover_media_id?: string | null; body_html?: string | null; is_test?: number; archived_at?: string | null };
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; client_name?: string | null; review_note?: string | null; updated_at: string; published_at?: string | null; cover_media_id?: string | null; body_html?: string | null; is_test?: number; archived_at?: string | null; category?: string | null; tags?: string | null; series?: string | null };
+type Category = { slug: string; name: string; published: number };
+let categoriesCache: Category[] = [];
+const tagList = (value?: string | null): string[] => { try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") : []; } catch { return []; } };
 let reviewVersion = 0;
 function reviewMessage(message: string, failed = false) {
   const status = el("blog-review-status");
@@ -102,6 +105,35 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
   content.append(node("p", `更新于 ${time(item.updated_at)}（北京时间）`, "desk-review-meta"), node("p", item.summary));
   if (!publishedItem && liveRevision !== undefined) content.append(node("p", `当前公开版本为修订 ${liveRevision}，发布更新前继续保留。`, "desk-fine"));
   if (item.review_note) content.append(node("p", `审阅说明：${item.review_note}`, "desk-review-note"));
+  const taxonomy = [item.category ? categoriesCache.find(category => category.slug === item.category)?.name ?? item.category : "", ...tagList(item.tags)].filter(Boolean).join(" · ");
+  if (taxonomy) content.append(node("p", taxonomy, "desk-review-meta"));
+  if (item.series) content.append(node("p", `系列：${item.series}`, "desk-review-meta"));
+  if (!publishedItem && !inactive && item.status !== "rejected") {
+    const form = node("div", "", "desk-review-taxonomy");
+    const categoryLabel = node("label", "分类");
+    const select = node("select");
+    select.name = "category";
+    select.append(new Option("未分类", ""));
+    for (const category of categoriesCache) select.append(new Option(category.name, category.slug, false, category.slug === item.category));
+    categoryLabel.append(select);
+    const tagsLabel = node("label", "标签（1–5 个，逗号分隔）");
+    const tagsInput = node("input");
+    tagsInput.name = "tags";
+    tagsInput.value = tagList(item.tags).join("，");
+    tagsInput.maxLength = 220;
+    tagsLabel.append(tagsInput);
+    const seriesLabel = node("label", "系列（可选）");
+    const seriesInput = node("input");
+    seriesInput.name = "series";
+    seriesInput.value = item.series ?? "";
+    seriesInput.maxLength = 40;
+    seriesLabel.append(seriesInput);
+    const save = node("button", "保存分类与标签", "desk-text-button");
+    save.type = "button";
+    save.dataset.reviewAction = "metadata";
+    form.append(categoryLabel, tagsLabel, seriesLabel, save);
+    content.append(form);
+  }
   if (!publishedItem && item.body_html) {
     const details = node("details", "", "desk-review-full");
     const article = node("div", "", "personal-article-content");
@@ -162,12 +194,15 @@ async function loadReview(message = "") {
   reviewMessage("正在读取博客审核列表…");
   for (const id of ["blog-drafts-list", "blog-published-list", "blog-archived-list"]) el(id).setAttribute("aria-busy", "true");
   try {
-    const [drafts, published, inactive] = await Promise.all([
+    const [drafts, published, inactive, categories] = await Promise.all([
       api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
       api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
       api("/api/blog/drafts?view=archived") as Promise<{ drafts: ReviewItem[] }>,
+      api("/api/blog/categories") as Promise<{ categories: Category[] }>,
     ]);
     if (current !== generation || version !== reviewVersion || !active) return;
+    categoriesCache = categories.categories;
+    renderCategories();
     const live = new Map(published.posts.map(item => [item.slug, item.revision]));
     el("blog-drafts-list").replaceChildren(...(drafts.drafts.length ? drafts.drafts.map(item => renderReview(item, false, live.get(item.slug))) : [node("p", "暂无待审核的草稿。通过 MCP 提交的草稿会出现在这里。", "desk-review-empty")]));
     el("blog-published-list").replaceChildren(...(published.posts.length ? published.posts.map(item => renderReview(item, true)) : [node("p", "暂无已发布的文章。", "desk-review-empty")]));
@@ -187,7 +222,7 @@ async function reviewAction(event: Event) {
   const row = button?.closest<HTMLElement>("[data-slug]");
   if (!active || !button || !row || button.disabled) return;
   const action = button.dataset.reviewAction;
-  if (!action || !["publish", "reject", "unpublish", "archive", "restore"].includes(action)) return;
+  if (!action || !["publish", "reject", "unpublish", "archive", "restore", "metadata"].includes(action)) return;
   const title = row.querySelector("h3")?.textContent ?? "这篇文章";
   const confirmations: Record<string, string> = {
     unpublish: `下架《${title}》？公开页面将无法访问。`,
@@ -199,17 +234,27 @@ async function reviewAction(event: Event) {
   const buttons = row.querySelectorAll<HTMLButtonElement>("button");
   for (const control of buttons) control.disabled = true;
   row.setAttribute("aria-busy", "true");
-  reviewMessage(action === "publish" ? "正在发布…" : action === "reject" ? "正在拒绝草稿…" : action === "unpublish" ? "正在下架…" : action === "archive" ? "正在归档…" : "正在恢复…");
+  reviewMessage(action === "publish" ? "正在发布…" : action === "reject" ? "正在拒绝草稿…" : action === "unpublish" ? "正在下架…" : action === "archive" ? "正在归档…" : action === "restore" ? "正在恢复…" : "正在保存分类与标签…");
   try {
     const slug = encodeURIComponent(row.dataset.slug!);
     const revision = Number(row.dataset.revision);
     const note = row.querySelector<HTMLTextAreaElement>("textarea")?.value.trim();
-    await api(action === "unpublish" ? `/api/blog/posts/${slug}/unpublish` : `/api/blog/drafts/${slug}/${action}`, {
+    let endpoint = action === "unpublish" ? `/api/blog/posts/${slug}/unpublish` : `/api/blog/drafts/${slug}/${action}`;
+    let payload: Record<string, unknown> = action === "reject" ? { revision, note: note || undefined } : { revision };
+    if (action === "metadata") {
+      const category = row.querySelector<HTMLSelectElement>("select[name=category]")?.value ?? "";
+      const tags = (row.querySelector<HTMLInputElement>("input[name=tags]")?.value ?? "").split(/[,，]/).map(value => value.trim()).filter(Boolean);
+      const series = row.querySelector<HTMLInputElement>("input[name=series]")?.value.trim() ?? "";
+      if (!tags.length || tags.length > 5) throw Error("请填写 1–5 个标签，用逗号分隔。");
+      endpoint = `/api/blog/drafts/${slug}/metadata`;
+      payload = { revision, category: category || null, tags, series: series || null };
+    }
+    await api(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action === "reject" ? { revision, note: note || undefined } : { revision }),
+      body: JSON.stringify(payload),
     });
     if (current !== generation || !active) return;
-    await loadReview(action === "publish" ? "文章已发布。" : action === "reject" ? "草稿已拒绝，审阅说明已保存。" : action === "unpublish" ? "文章已下架。" : action === "archive" ? "稿件已归档，可在下方恢复。" : "稿件已恢复到审核队列。");
+    await loadReview(action === "publish" ? "文章已发布。" : action === "reject" ? "草稿已拒绝，审阅说明已保存。" : action === "unpublish" ? "文章已下架。" : action === "archive" ? "稿件已归档，可在下方恢复。" : action === "restore" ? "稿件已恢复到审核队列。" : "分类与标签已保存。");
   } catch (error) {
     if (current === generation && active && !(error instanceof SessionExpired)) reviewMessage(`${reviewError(error)} 可点击“重新读取”获取最新状态。`, true);
   } finally {
@@ -219,6 +264,50 @@ async function reviewAction(event: Event) {
     }
   }
 }
+function renderCategories() {
+  const list = el("blog-categories-list");
+  list.replaceChildren(...categoriesCache.map(category => {
+    const row = node("p", "", "desk-category-row");
+    row.append(node("span", `${category.name}（${category.slug}）· ${category.published} 篇已发布`));
+    const remove = node("button", "删除", "desk-text-button");
+    remove.type = "button";
+    remove.dataset.categoryDelete = category.slug;
+    row.append(remove);
+    return row;
+  }));
+}
+async function categoryAction(event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest<HTMLButtonElement>("[data-category-delete]");
+  if (!active || !button || button.disabled) return;
+  const slug = button.dataset.categoryDelete!;
+  if (!window.confirm(`删除分类 ${slug}？只有没有稿件使用的分类才能删除。`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/blog/categories/${encodeURIComponent(slug)}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    await loadReview("分类已删除。");
+  } catch (error) {
+    if (!(error instanceof SessionExpired)) reviewMessage(reviewError(error), true);
+  } finally { button.disabled = false; }
+}
+el("blog-categories-list").addEventListener("click", categoryAction);
+el<HTMLFormElement>("blog-category-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!active) return;
+  const form = event.currentTarget as HTMLFormElement;
+  const data = new FormData(form);
+  const button = form.querySelector<HTMLButtonElement>("button")!;
+  button.disabled = true;
+  try {
+    await api("/api/blog/categories", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug: String(data.get("slug") ?? "").trim(), name: String(data.get("name") ?? "").trim() }) });
+    form.reset();
+    await loadReview("分类已添加。");
+  } catch (error) {
+    if (!(error instanceof SessionExpired)) reviewMessage(reviewError(error), true);
+  } finally { button.disabled = false; }
+});
 el("blog-review-status").setAttribute("aria-live", "polite");
 const reviewRetry = node("button", "重新读取", "desk-text-button");
 reviewRetry.type = "button";

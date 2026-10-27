@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { BlogOperation, BlogService, DomainReply, DomainRequest } from "@kedoupi/shared/mcp/contract";
 import { BLOG_OPERATIONS } from "@kedoupi/shared/mcp/contract";
-import { blogSummary, getDraft, getPost, listPublished, listSubmissions, retractDraft, submitDraft, validateSlug, type BlogEnv } from "../server/blog";
+import { blogSummary, getDraft, getPost, listPublished, listSubmissions, retractDraft, submitDraft, validateSlug, listCategories, type BlogEnv } from "../server/blog";
 import { createUpload, uploadInline } from "../server/media";
 import { BLOG_GUIDE } from "../server/guide";
 
@@ -13,7 +13,7 @@ export class BlogMcp extends WorkerEntrypoint<Env> implements BlogService {
     if (!BLOG_OPERATIONS.includes(request.operation)) return {ok:false,error:"invalid_arguments",status:400};
     try {
       const args = request.args ?? {};
-      if (request.operation === "guide") return {ok:true,data:{guide:BLOG_GUIDE}};
+      if (request.operation === "guide") return {ok:true,data:{guide:{...BLOG_GUIDE,categories:await listCategories(this.env.BLOG)}}};
       if (request.operation === "media_upload") return {ok:true,data:await uploadInline(this.env,args,request.client ?? "mcp",request.clientName)};
       if (request.operation === "media_upload_start") return {ok:true,data:await createUpload(this.env,args,request.client ?? "mcp",request.clientName)};
       if (request.operation === "list" || request.operation === "get") {
@@ -38,7 +38,7 @@ export class BlogMcp extends WorkerEntrypoint<Env> implements BlogService {
       return {ok:true,data:await retractDraft(this.env.BLOG,args.slug)};
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      const errors: Record<string,number> = {not_found:404,markdown_unavailable:409,revision_conflict:409,payload_too_large:413,unsafe_content:400,unknown_media:400,too_many_images:400,invalid_image:400,alt_required:400,cover_required:400,test_draft:400,archived:400,invalid_arguments:400};
+      const errors: Record<string,number> = {not_found:404,markdown_unavailable:409,revision_conflict:409,payload_too_large:413,unsafe_content:400,unknown_media:400,too_many_images:400,invalid_image:400,alt_required:400,cover_required:400,test_draft:400,archived:400,unknown_category:400,category_limit:400,category_in_use:400,invalid_arguments:400};
       return {ok:false,error:message in errors ? message : "blog_unavailable",status:errors[message] ?? 503};
     }
   }

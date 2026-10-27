@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { deskFixture } from './runtime.mjs';
 
-const draft = (overrides = {}) => ({ slug: 'hello-world', title: 'Hello', summary: 'Summary', body_markdown: '# Body', request_id: crypto.randomUUID(), ...overrides });
+const draft = (overrides = {}) => ({ slug: 'hello-world', title: 'Hello', summary: 'Summary', body_markdown: '# Body', category: 'tech', tags: ['测试'], request_id: crypto.randomUUID(), ...overrides });
 const rpc = (f, operation, args = {}, subject = 'kdp-owner') => f.rpc({ subject, client: 'test-client', clientName: 'Test Client', operation, args });
 const submit = async (f, args, subject = 'kdp-owner') => {
   // Covers are mandatory; attach a fresh uploaded one unless the test provides its own.
@@ -75,6 +75,97 @@ test('archive and restore are revision-checked and keep drafts out of the queue'
   assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts.map(item => item.slug), ['archivable']);
   assert.equal((await f.call('/api/blog/drafts/archivable/publish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 404);
+});
+
+test('submissions validate category, tags, series and sources', async t => {
+  const f = await deskFixture(t);
+  assert.deepEqual(await submit(f, draft({ category: 'not-a-category' })), { ok: false, error: 'unknown_category', status: 400 });
+  for (const tags of [[], ['a', 'b', 'c', 'd', 'e', 'f'], ['dup', 'dup'], ['']]) {
+    const reply = await submit(f, draft({ tags }));
+    assert.deepEqual(reply, { ok: false, error: 'invalid_arguments', status: 400 }, JSON.stringify(tags));
+  }
+  for (const sources of [[{ title: 'x', url: 'http://insecure.test/a' }], [{ title: '', url: 'https://ok.test' }], [{ title: 'x', url: 'javascript:alert(1)' }]]) {
+    assert.deepEqual(await submit(f, draft({ sources })), { ok: false, error: 'invalid_arguments', status: 400 });
+  }
+  const legacy = await submit(f, draft({ slug: 'legacy-tag', tags: undefined, tag: '旧标签' }));
+  assert.equal(legacy.ok, true);
+  assert.equal(await f.blog.prepare('SELECT tags FROM blog_drafts WHERE slug=?').bind('legacy-tag').first('tags'), '["旧标签"]');
+  const categorized = await submit(f, draft({ slug: 'categorized', category: 'digital-space', tags: ['空间', '记录'], series: 'AI 周报', sources: [{ title: '参考', url: 'https://example.test/source' }] }));
+  assert.equal(categorized.ok, true);
+  const saved = await f.blog.prepare('SELECT category,tags,series,sources FROM blog_drafts WHERE slug=?').bind('categorized').first();
+  assert.equal(saved.category, 'digital-space');
+  assert.deepEqual(JSON.parse(saved.tags), ['空间', '记录']);
+  assert.equal(saved.series, 'AI 周报');
+  const guide = await rpc(f, 'guide');
+  assert.equal(guide.data.guide.categories.length, 6);
+  assert.ok(guide.data.guide.categories.some(category => category.slug === 'digital-space'));
+});
+
+test('desk manages categories and edits review metadata with revision checks', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  const initial = await (await f.call('/api/blog/categories', cookie)).json();
+  assert.equal(initial.categories.length, 6);
+  assert.equal((await f.call('/api/blog/categories', cookie, { slug: 'ai-weekly', name: 'AI 周报' })).status, 200);
+  await submit(f, draft({ slug: 'meta', category: 'ai-weekly', tags: ['初稿'] }));
+  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 400);
+  assert.equal((await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 2, category: 'tech', tags: ['改'] })).status, 409);
+  assert.deepEqual(await (await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 1, category: 'unknown', tags: ['改'] })).json(), { error: 'unknown_category' });
+  const updated = await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 1, category: 'tech', tags: ['改后', '审校'], series: '周报' });
+  assert.equal(updated.status, 200);
+  const saved = await f.blog.prepare('SELECT category,tags,series,revision FROM blog_drafts WHERE slug=?').bind('meta').first();
+  assert.equal(saved.category, 'tech'); assert.deepEqual(JSON.parse(saved.tags), ['改后', '审校']); assert.equal(saved.series, '周报'); assert.equal(saved.revision, 1);
+  assert.equal((await f.call('/api/blog/drafts/meta/publish', cookie, { revision: 1 })).status, 200);
+  const post = await f.blog.prepare('SELECT category,tags,series FROM blog_posts WHERE slug=?').bind('meta').first();
+  assert.equal(post.category, 'tech'); assert.deepEqual(JSON.parse(post.tags), ['改后', '审校']); assert.equal(post.series, '周报');
+  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 200);
+  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 404);
+  for (const slug of ['extra-one', 'extra-two']) assert.equal((await f.call('/api/blog/categories', cookie, { slug, name: slug })).status, 200);
+  assert.deepEqual(await (await f.call('/api/blog/categories', cookie, { slug: 'overflow', name: '超出' })).json(), { error: 'category_limit' });
+});
+
+test('taxonomy pages, reading time, sources, neighbors and RSS render from published snapshots', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  const worker = await f.runtime.getWorker('desk');
+  const body = '## 第一节\n\n' + '正文。'.repeat(500) + '\n\n## 第二节\n\n结尾。';
+  for (const [slug, series] of [['first-post', 'AI 周报'], ['second-post', null]]) {
+    assert.equal((await submit(f, draft({ slug, title: `标题 ${slug}`, body_markdown: body, category: 'digital-space', tags: ['空间'], series, sources: [{ title: '来源', url: 'https://example.test/ref' }] }))).ok, true);
+    await f.blog.prepare('UPDATE blog_drafts SET published_at=? WHERE slug=?').bind(`2026-10-2${slug === 'first-post' ? '0' : '1'}T00:00:00.000Z`, slug).run();
+    assert.equal((await f.call(`/api/blog/drafts/${slug}/publish`, cookie, { revision: 1 })).status, 200);
+  }
+  await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-20T00:00:00.000Z' WHERE slug='first-post'").run();
+  await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-21T00:00:00.000Z' WHERE slug='second-post'").run();
+  const list = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
+  assert.match(list, /分类：digital-space|分类：数字空间/);
+  assert.match(list, /约 \d+ 分钟/);
+  assert.match(list, /aria-current="true"/);
+  assert.match(list, /rss\.xml/);
+  const article = await (await worker.fetch('http://localhost:8804/blog/first-post/')).text();
+  assert.match(article, /blog-toc/);
+  assert.match(article, /href="#h-1"/);
+  assert.match(article, /资料来源/);
+  assert.match(article, /https:\/\/example\.test\/ref/);
+  assert.match(article, /AI 协作撰写/);
+  assert.match(article, /约 \d+ 分钟/);
+  assert.match(article, /系列：<a href="\/blog\/series\/AI%20%E5%91%A8%E6%8A%A5\//);
+  assert.match(article, /下一篇：标题 second-post/);
+  const second = await (await worker.fetch('http://localhost:8804/blog/second-post/')).text();
+  assert.match(second, /上一篇：标题 first-post/);
+  const tagPage = await (await worker.fetch('http://localhost:8804/blog/tag/%E7%A9%BA%E9%97%B4/')).text();
+  assert.match(tagPage, /标签：空间/);
+  assert.equal((tagPage.match(/blog-card-title/g) ?? []).length, 2);
+  const seriesPage = await (await worker.fetch('http://localhost:8804/blog/series/AI%20%E5%91%A8%E6%8A%A5/')).text();
+  assert.match(seriesPage, /系列：AI 周报/);
+  assert.match(seriesPage, /first-post/);
+  assert.doesNotMatch(seriesPage, /second-post/);
+  const rss = await worker.fetch('http://localhost:8804/blog/rss.xml');
+  assert.equal(rss.status, 200);
+  assert.match(rss.headers.get('Content-Type'), /application\/rss\+xml/);
+  const feed = await rss.text();
+  assert.match(feed, /<title>标题 first-post<\/title>/);
+  assert.match(feed, /<link>http:\/\/localhost:8804\/blog\/second-post\/<\/link>/);
+  assert.doesNotMatch(feed, /正在整理/);
+  const emptyFilter = await worker.fetch('http://localhost:8804/blog/tag/%E4%B8%8D%E5%AD%98%E5%9C%A8/');
+  assert.equal(emptyFilter.status, 200);
 });
 
 test('blog endpoints require owner session and origin', async t => {

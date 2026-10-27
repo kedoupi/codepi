@@ -9,7 +9,8 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
-| 2026-10-27 Blog 审核基础（第 1 期） | revision CAS 补齐、blog_guide 规范、头图必填与 warnings、测试稿隔离、Desk 全文审核与归档已实现；本地 45+63 项测试、类型检查、构建与浏览器验收通过 | [任务记录](2026-10-27-blog-review-foundations.md)：合并后先应用 0003 迁移再发布；生产测试稿上线后归档 |
+| 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 分类/标签/系列/来源、Desk 分类维护与审核元数据、2.35:1 卡片、目录、阅读时长、上下篇、RSS 已实现；本地 48+63 项测试与浏览器验收通过 | [任务记录](2026-10-27-blog-content-model.md)：合并后应用 0004 迁移并发布 www/MCP |
+| 2026-10-27 Blog 审核基础（第 1 期） | PR #215 已合并；0003 迁移已应用，www 与 MCP 已发布；生产两篇测试稿已归档，审核队列仅剩真实稿件 | [任务记录](2026-10-27-blog-review-foundations.md)：生产 smoke 通过（blog 200、API 401、归档回执）；真实外部 MCP 客户端验收与发布后 Observer 观察待补 |
 | 2026-10-26 Blog Mermaid 图表支持 | PR #213 已合并为 `d233d1ab`，十个 Worker 已发布；生产双图桌面/手机验收、发布后/观察后巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [任务与发布证据](2026-10-26-blog-mermaid.md)：现有草稿无需重提交，仍保持待审核；未执行真实外部客户端或所有者持续使用确认，证据文档合并后无需重发 |
 | 2026-10-26 分支与依赖整理后的全量生产同步 | 从干净 detached 实时 main `cc0579cd` 持锁重发十个 Worker；43 项检查、生产 smoke、发布后/观察后全量巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [发布证据](2026-10-26-full-sync-release.md)：未执行真实 Oura 对账/补采、Manus/Claude/ChatGPT/IDE 客户端验收或所有者实际使用确认；本 PR 仅回填文档，合并后无需重发业务 Worker |
 | Health 主睡眠缺失诊断 | PR #206 已合并，API/MCP 已上线；30 分钟观察 `healthy_reported`，真实 Oura 对账和数据修复均未执行 | [任务记录](2026-10-26-health-sleep-diagnosis.md)：继续定位同步覆盖与档案不一致；全局四项版本漂移及所有者实际使用确认仍待处理 |

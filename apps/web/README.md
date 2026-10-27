@@ -77,7 +77,9 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 - `blog_upload_image({data_base64,alt})`：PNG、JPEG、WebP，原文件不超过 192 KiB。传普通 base64，不带 `data:` 前缀。
 - `blog_create_image_upload({alt,bytes,content_type})`：原文件最多 8 MiB，返回十分钟有效的单次 PUT 地址及专用 headers；Agent 发送原文件字节（不是 multipart），HTTP 返回图片结果。不发送 MCP Bearer。没有 HTTP PUT 能力的 Agent 使用前一种方式。
 - 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 使用图片 id。每稿最多 30 张不同图片（含封面）。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
-- `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`、`cover_media_id`，可选 `tag`。每篇必须有头图，建议 2.35:1、1800×766 或更大；比例或尺寸不达标不阻断提交，在返回的 `warnings` 中提示。新文章可省略 `base_revision` 或传 `0`；更新已有稿件必须传 `blog_get` 返回的 `revision`，版本不一致会被拒绝。重试同一次提交沿用 `request_id`。`is_test=true` 仅用于联调：测试稿件不进入 Desk 审核队列、不能发布，恢复后才可审核。
+- `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`、`cover_media_id`、`category`、`tags`，可选 `tag`（旧单标签，映射进 tags）、`series`、`sources`。每篇必须有头图，建议 2.35:1、1800×766 或更大；比例或尺寸不达标不阻断提交，在返回的 `warnings` 中提示。`category` 只能取 `blog_guide` 返回的分类 slug（Desk「管理分类」维护，最多 8 个）；`tags` 1–5 个由 AI 提议；`sources` 为 `{title,url}`（仅 https），在文末「资料来源」展示。新文章可省略 `base_revision` 或传 `0`；更新已有稿件必须传 `blog_get` 返回的 `revision`，版本不一致会被拒绝。重试同一次提交沿用 `request_id`。`is_test=true` 仅用于联调：测试稿件不进入 Desk 审核队列、不能发布，恢复后才可审核。
+- 前台：列表卡片为 2.35:1 头图、分类、标签与阅读时长；`/blog/?category=<slug>` 分类筛选，`/blog/tag/<标签>/`、`/blog/series/<系列>/` 标签与系列页；文章页含目录、阅读时长、上一篇/下一篇、文末资料来源与 AI 协作说明；`/blog/rss.xml` 提供最近 50 篇 RSS。
+- Desk 待审卡片可直接修改分类、标签与系列（`POST /api/blog/drafts/:slug/metadata`，需 `{revision}`，不改变修订号）；分类通过 `/api/blog/categories` 维护，只有无稿件引用的分类可删除。
 - Desk 审核卡片可展开阅读全文与配图（含 Mermaid），无需跳转预览；待审或已拒绝稿件可归档，`/api/blog/drafts?view=archived` 列出测试与已归档稿件，`POST /api/blog/drafts/:slug/archive|restore` 均需 `{revision}`。归档稿件不能发布；重新提交会清掉归档与测试标记并回到审核队列。
 - 图表使用 ` ```mermaid ` 代码块。文章页和草稿预览按需渲染 SVG，并保留可展开的 Mermaid 源码；渲染失败时显示提示和原始代码。已有稿件无需为图表支持重新提交。
 - 提交返回 `pending`、`preview_url`、`review_url`。预览及未发布图片要求本人登录。公开文章采用已审核快照，后续改稿不直接改公开内容。`blog_retract` 仅撤回待审核版本。

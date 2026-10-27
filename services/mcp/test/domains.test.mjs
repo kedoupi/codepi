@@ -85,7 +85,7 @@ test('real named RPC: blog source appears only with a blog.read grant', async t 
   const image = uploaded.structuredContent;
   const saved = await f.tool(withBlog.access_token, 'blog_submit', {
     slug: 'mcp-image-post', title: '合成文章', summary: '完整 MCP 流程', body_markdown: image.markdown,
-    cover_media_id: image.id, base_revision: 0, request_id: 'first-submit',
+    cover_media_id: image.id, base_revision: 0, request_id: 'first-submit', category: 'tech', tags: ['合成'],
   });
   assert.equal(saved.isError, undefined, JSON.stringify(saved));
   assert.equal(saved.structuredContent.status, 'pending');

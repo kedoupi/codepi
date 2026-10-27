@@ -599,6 +599,16 @@
 .desk-review-full { margin-top: 16px; }
 .desk-review-full > summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--kdp-muted); font-size: 14px; }
 .desk-review-full .personal-article-content { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--kdp-line); }
+.desk-review-taxonomy { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end; margin-top: 16px; }
+.desk-review-taxonomy label { display: grid; gap: 6px; color: var(--kdp-muted); font-size: 13px; }
+.desk-review-taxonomy select, .desk-review-taxonomy input { min-height: 40px; padding: 8px 10px; border: 1px solid var(--kdp-line-strong); border-radius: var(--kdp-radius-sm); background: var(--kdp-surface); color: var(--kdp-text); font: inherit; }
+.desk-review-taxonomy button { justify-self: start; }
+.desk-categories { margin-top: 16px; }
+.desk-categories > summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--kdp-muted); font-size: 14px; }
+.desk-category-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 8px 0; color: var(--kdp-muted); font-size: 14px; }
+.desk-category-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; margin-top: 12px; }
+.desk-category-form label { display: grid; gap: 6px; color: var(--kdp-muted); font-size: 13px; }
+.desk-category-form input { min-height: 40px; padding: 8px 10px; border: 1px solid var(--kdp-line-strong); border-radius: var(--kdp-radius-sm); background: var(--kdp-surface); color: var(--kdp-text); font: inherit; }
 @media (max-width: 720px) {
   .desk-review { padding: 24px 20px; }
   .desk-review-item { flex-direction: column; gap: 16px; }
