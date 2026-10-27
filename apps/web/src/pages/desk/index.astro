@@ -77,7 +77,10 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
             <button type="submit" class="kdp-button kdp-button--secondary">添加分类</button>
           </form>
         </details>
-        <div id="blog-drafts-list"></div>
+        <div id="blog-review-workspace" class="desk-review-workspace" data-view="list">
+          <div id="blog-drafts-list" class="desk-queue" aria-label="待审核稿件列表"></div>
+          <section id="blog-review-detail" class="desk-detail" aria-label="稿件审核详情"></section>
+        </div>
         <h3 class="desk-review-subtitle">已发布文章</h3>
         <div id="blog-published-list"></div>
         <h3 class="desk-review-subtitle">测试与归档</h3>

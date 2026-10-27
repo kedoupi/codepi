@@ -208,33 +208,69 @@ try {
   await page.click('#desk-generate');
   await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 3);
   await page.screenshot({ path: 'desk-mobile-summary.png' });
-  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]'));
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-workspace').dataset.view), 'list');
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-workspace').dataset.view === 'detail');
+  await page.waitForSelector('#blog-review-detail [data-review-action="publish"]');
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').disabled), true, 'publish stays disabled until the checklist is complete');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-queue')).display), 'none', 'mobile review shows the detail layer only');
+  const mobileOverflow = await page.evaluate(() => {
+    const wide = [...document.querySelectorAll('#blog-review-detail *')].find(node => {
+      const style = getComputedStyle(node);
+      return node.scrollWidth > node.clientWidth + 1 && node.clientWidth > 0 && node.clientWidth > innerWidth - 16 && !['auto', 'scroll', 'hidden'].includes(style.overflowX);
+    });
+    return wide ? `${wide.tagName}.${wide.className} ${wide.scrollWidth}>${wide.clientWidth}` : '';
+  });
+  assert.equal(mobileOverflow, '', `mobile review stays inside the viewport (${mobileOverflow})`);
+  await page.screenshot({ path: 'desk-blog-review-mobile.png' });
+  await page.click('.desk-detail-back');
+  await page.waitForFunction(() => document.querySelector('#blog-review-workspace').dataset.view === 'list');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.desk-review').scrollIntoView({ behavior: 'instant', block: 'start' }); });
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
+  await page.waitForSelector('#blog-review-detail .desk-review-full[open] .personal-article-content img');
   await page.screenshot({ path: 'desk-blog-review-desktop.png' });
-  // Read the full text and inline images without leaving the Desk.
-  await page.click('#blog-drafts-list .desk-review-full > summary');
-  await page.waitForSelector('#blog-drafts-list .desk-review-full[open] .personal-article-content img');
   await page.screenshot({ path: 'desk-blog-fulltext-desktop.png' });
-  // Archive removes the draft from the queue; restore brings it back.
+  await page.evaluate(() => document.querySelector('#blog-review-detail .desk-review-diff > summary').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-detail .desk-review-diff').textContent.includes('没有可对比的上一版'));
+  await page.evaluate(() => { document.querySelector('#blog-review-detail input[name="tags"]').value = '合成，审校'; });
+  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="metadata"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('分类与标签已保存'));
+  await page.waitForSelector('#blog-review-detail [data-revision="1"]');
+  await page.evaluate(() => document.querySelector('#blog-review-detail .desk-review-revise > summary').click());
+  await page.evaluate(() => { document.querySelector('#blog-review-detail input[name="revise-title"]').value = '合成文章 12：审校后的标题'; });
+  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="revise"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('当前为修订 2'));
+  await page.waitForSelector('#blog-review-detail [data-revision="2"]');
+  await page.evaluate(() => document.querySelector('#blog-review-detail .desk-review-diff > summary').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-detail .desk-review-diff').textContent.includes('审校后的标题'));
+  const armChecklist = () => page.evaluate(() => {
+    document.querySelectorAll('#blog-review-detail input[data-checklist]').forEach(box => {
+      box.checked = true;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+  await armChecklist();
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').disabled), false);
   await page.evaluate(() => { window.confirm = () => true; });
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="archive"]').click());
+  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="archive"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('稿件已归档'));
   await page.waitForSelector('#blog-archived-list [data-review-action="restore"]');
   assert.equal(await page.evaluate(() => document.querySelectorAll('#blog-drafts-list [data-slug]').length), 0);
   await page.evaluate(() => document.querySelector('#blog-archived-list [data-review-action="restore"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('已恢复'));
-  await page.waitForSelector('#blog-drafts-list [data-review-action="publish"]');
-  // Edit taxonomy during review without changing the revision.
-  await page.evaluate(() => { document.querySelector('#blog-drafts-list input[name="tags"]').value = '合成，审校'; });
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="metadata"]').click());
-  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('分类与标签已保存'));
-  await page.waitForSelector('#blog-drafts-list [data-review-action="publish"]');
+  await page.waitForSelector('#blog-drafts-list [data-slug="browser-article-12"]');
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
+  await page.waitForSelector('#blog-review-detail [data-review-action="publish"]');
+  await armChecklist();
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]').click());
+  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已发布'));
-  assert.match(await page.evaluate(() => window.__reviewConfirmation), /修订 1/);
-  assert.equal((await f.blog.prepare("SELECT revision FROM blog_posts WHERE slug='browser-article-12'").first()).revision, 1);
+  assert.match(await page.evaluate(() => window.__reviewConfirmation), /修订 2/);
+  const publishedArticle = await f.blog.prepare("SELECT revision,title FROM blog_posts WHERE slug='browser-article-12'").first();
+  assert.equal(publishedArticle.revision, 2);
+  assert.equal(publishedArticle.title, '合成文章 12：审校后的标题');
   await page.goto(origins.desk + '/blog/');
   await page.waitForSelector('.blog-card');
   assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some(resource => resource.name.includes('mermaid'))), false, 'the listing does not load Mermaid without a chart');

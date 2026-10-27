@@ -1,5 +1,5 @@
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
-import { getDraft, listDrafts, listInactiveDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, archiveDraft, restoreDraft, listCategories, addCategory, removeCategory, updateDraftMetadata, type BlogEnv } from "./blog";
+import { getDraft, listDrafts, listInactiveDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, archiveDraft, restoreDraft, listCategories, addCategory, removeCategory, updateDraftMetadata, reviseDraft, getRevision, type BlogEnv } from "./blog";
 import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export interface DeskEnv extends SsoEnv, BlogEnv {
@@ -42,7 +42,7 @@ function decodeSummary(value: unknown, source: DeskSource): DeskSummary {
   return result;
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
+async function boundedJson(response: Response, max = 32768): Promise<unknown> {
   if (!response.body) throw Error("missing_body");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -52,7 +52,7 @@ async function boundedJson(response: Response): Promise<unknown> {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 32768) throw Error("summary_too_large");
+      if (size > max) throw Error("summary_too_large");
       chunks.push(value);
     }
   } finally { await reader.cancel(); }
@@ -145,6 +145,21 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (draftMatch && request.method === "GET") {
     const draft = await getDraft(env.BLOG, decodeURIComponent(draftMatch[1]));
     return draft ? deskJson({ draft }) : deskJson({ error: "not_found" }, 404);
+  }
+  const reviseMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/revise$/);
+  if (reviseMatch && request.method === "POST") {
+    let payload: unknown = {};
+    try { payload = await boundedJson(new Response(request.body), 128 * 1024); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await reviseDraft(env.BLOG, env, decodeURIComponent(reviseMatch[1]), payload, payload.revision as number)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
+  }
+  const diffMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/diff$/);
+  if (diffMatch && request.method === "GET") {
+    const draft = await getDraft(env.BLOG, decodeURIComponent(diffMatch[1]));
+    if (!draft) return deskJson({ error: "not_found" }, 404);
+    const previous = draft.revision > 1 ? await getRevision(env.BLOG, draft.slug, draft.revision - 1) : null;
+    return deskJson({ current: { revision: draft.revision, title: draft.title, summary: draft.summary, body_markdown: draft.body_markdown }, previous });
   }
   const publishMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/publish$/);
   if (publishMatch && request.method === "POST") {
