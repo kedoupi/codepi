@@ -148,12 +148,40 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], warnings:[] as string[] };
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
-  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at,category,tags,series,sources)
+  const [result] = await db.batch([
+    db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at,category,tags,series,sources)
     VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?,?,NULL,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,is_test=excluded.is_test,archived_at=NULL,category=excluded.category,tags=excluded.tags,series=excluded.series,sources=excluded.sources
     WHERE blog_drafts.revision=? AND blog_drafts.status=?`)
-    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending").run();
+    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending"),
+    db.prepare(`INSERT INTO blog_revisions (slug,revision,title,summary,body_markdown,submitted_at)
+      SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM blog_drafts WHERE slug=? AND revision=? AND status='pending')
+      ON CONFLICT(slug,revision) DO NOTHING`).bind(slug,revision,title,summary,body,timestamp,slug,revision),
+  ]);
   if (!result.meta.changes) throw invalid("revision_conflict");
   return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:content.warnings };
+}
+export async function reviseDraft(db: D1Database, env: BlogEnv, slug: string, input: Record<string, unknown>, expectedRevision?: number) {
+  const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");
+  if (draft.archived_at) throw invalid("archived");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  const title = input.title ?? draft.title, summary = input.summary ?? draft.summary, body = input.body_markdown ?? draft.body_markdown;
+  if (!text(title,200) || !title.trim() || !text(summary,500) || !summary.trim() || typeof body !== "string" || !body.trim()) throw invalid();
+  if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
+  const content = await prepareContent(env,body,draft.cover_media_id);
+  const timestamp = now(), revision = draft.revision+1;
+  const [result] = await db.batch([
+    db.prepare("UPDATE blog_drafts SET title=?,summary=?,body_markdown=?,body_html=?,media_ids=?,revision=?,submitted_at=?,updated_at=? WHERE slug=? AND status='pending' AND revision=?")
+      .bind(title,summary,body,content.html,JSON.stringify(content.ids),revision,timestamp,timestamp,slug,expectedRevision),
+    db.prepare(`INSERT INTO blog_revisions (slug,revision,title,summary,body_markdown,submitted_at)
+      SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM blog_drafts WHERE slug=? AND revision=? AND status='pending')
+      ON CONFLICT(slug,revision) DO NOTHING`).bind(slug,revision,title,summary,body,timestamp,slug,revision),
+  ]);
+  if (!result.meta.changes) throw invalid("revision_conflict");
+  return {slug,revision,status:"pending",submitted_at:timestamp,warnings:content.warnings};
+}
+export async function getRevision(db: D1Database, slug: string, revision: number) {
+  if (!Number.isSafeInteger(revision) || revision < 1) throw invalid();
+  return db.prepare("SELECT slug,revision,title,summary,body_markdown,submitted_at FROM blog_revisions WHERE slug=? AND revision=?").bind(slug,revision).first();
 }
 export async function retractDraft(db: D1Database, slug: string) {
   const result = await db.prepare("UPDATE blog_drafts SET status='withdrawn',updated_at=? WHERE slug=? AND status='pending'").bind(now(),slug).run();

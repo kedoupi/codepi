@@ -661,6 +661,48 @@ test('list defaults to published and submissions expose filterable review status
   }
 });
 
+test('small edits create a revision snapshot and diff returns the previous text', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  assert.equal((await submit(f, draft({ slug: 'revise-me', title: '初稿', summary: '摘要', body_markdown: '# 第一段\n\n原文。' }))).ok, true);
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 1);
+  const firstDiff = await (await f.call('/api/blog/drafts/revise-me/diff', cookie)).json();
+  assert.equal(firstDiff.previous, null);
+  assert.equal(firstDiff.current.revision, 1);
+  assert.equal(firstDiff.current.title, '初稿');
+  assert.equal((await f.call('/api/blog/drafts/revise-me/diff')).status, 401);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 9, title: '过期' })).status, 409);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 1, title: '  ' })).status, 400);
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 1);
+  const revised = await f.call('/api/blog/drafts/revise-me/revise', cookie, {
+    revision: 1, title: '修订标题', summary: '新摘要', body_markdown: '# 第一段\n\n改后。<script>alert(1)</script>',
+  });
+  assert.equal(revised.status, 200);
+  assert.equal((await revised.json()).revision, 2);
+  const saved = await f.blog.prepare('SELECT title,summary,revision,body_html FROM blog_drafts WHERE slug=?').bind('revise-me').first();
+  assert.equal(saved.title, '修订标题');
+  assert.equal(saved.summary, '新摘要');
+  assert.equal(saved.revision, 2);
+  assert.match(saved.body_html, /id="h-1"/);
+  assert.match(saved.body_html, /改后/);
+  assert.doesNotMatch(saved.body_html, /<script/);
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 2);
+  const diff = await (await f.call('/api/blog/drafts/revise-me/diff', cookie)).json();
+  assert.equal(diff.current.revision, 2);
+  assert.equal(diff.current.title, '修订标题');
+  assert.equal(diff.previous.revision, 1);
+  assert.equal(diff.previous.title, '初稿');
+  assert.match(diff.previous.body_markdown, /原文/);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/archive', cookie, { revision: 2 })).status, 200);
+  assert.deepEqual(await (await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 2, title: '不行' })).json(), { error: 'archived' });
+  assert.equal((await f.call('/api/blog/drafts/revise-me/restore', cookie, { revision: 2 })).status, 200);
+  const again = await submit(f, draft({ slug: 'revise-me', title: '再提交', request_id: 'again', base_revision: 2, body_markdown: '# 再来' }));
+  assert.equal(again.ok, true);
+  assert.equal(again.data.revision, 3);
+  assert.equal(await f.blog.prepare("SELECT title FROM blog_revisions WHERE slug='revise-me' AND revision=3").first('title'), '再提交');
+  assert.equal((await f.call('/api/blog/drafts/revise-me/publish', cookie, { revision: 3 })).status, 200);
+  assert.deepEqual(await (await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 3, title: '已发布' })).json(), { error: 'not_found' });
+});
+
 test('blog summary reports publication and review counts', async t => {
   const f = await deskFixture(t);
   const empty = await f.rpc({ subject: 'kdp-owner', client: 'test-client', operation: 'list', args: {} });
