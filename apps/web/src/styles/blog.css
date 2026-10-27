@@ -3,6 +3,7 @@
 .blog-header { max-width: var(--kdp-reading-width); }
 .blog-title { margin: 0 0 var(--space-6); font-size: clamp(36px, 4.4vw, 48px); line-height: 1.15; font-weight: 700; letter-spacing: -.03em; color: var(--color-text); }
 .blog-lead { margin: 0; font-size: 18px; line-height: 1.8; color: var(--color-text-muted); text-wrap: pretty; }
+.blog-rss { margin: var(--space-3) 0 0; font-size: var(--text-small); }
 .blog-empty-pavilion { padding: var(--space-12); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
 .blog-empty-pavilion h2 { margin: 0 0 var(--space-4); font-size: var(--text-h3); color: var(--color-text); }
 .blog-empty-pavilion p { margin: 0 0 var(--space-6); color: var(--color-text-muted); line-height: 1.8; }
@@ -11,7 +12,7 @@
 .blog-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-8); }
 .blog-card { display: flex; flex-direction: column; min-width: 0; height: 100%; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); text-decoration: none; transition: border-color var(--motion-fast); }
 .blog-card:hover { border-color: var(--color-border-strong); }
-.blog-card-cover { display: block; width: 100%; aspect-ratio: 16 / 9; height: auto; object-fit: contain; background: var(--color-background); }
+.blog-card-cover { display: block; width: 100%; aspect-ratio: 2.35 / 1; height: auto; object-fit: cover; background: var(--color-background); }
 .blog-card-content { display: flex; flex: 1; flex-direction: column; align-items: flex-start; padding: var(--space-8); }
 .blog-card-meta, .blog-article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.5; }
 .blog-card-tag { display: inline-block; padding: var(--space-1) var(--space-3); border-radius: var(--radius-control); background: var(--brand-soft); color: var(--color-action-hover); font-size: var(--text-caption); font-weight: 600; }
@@ -65,6 +66,37 @@
 .blog-article .personal-article-content th, .blog-article .personal-article-content td { padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); min-width: 7em; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .blog-article .personal-article-content th { background: var(--color-surface); font-weight: 600; }
 .blog-article .personal-article-content hr { margin: var(--space-12) 0; border: 0; border-top: 1px solid var(--color-border); }
+.blog-filter { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-8); }
+.blog-filter a { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: var(--space-1) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text-muted); font-size: var(--text-small); text-decoration: none; }
+.blog-filter a:hover { border-color: var(--color-border-strong); color: var(--color-text); }
+.blog-filter a[aria-current="true"] { border-color: var(--color-action-hover); background: var(--brand-soft); color: var(--color-action-hover); font-weight: 600; }
+.blog-filter-count { font-size: var(--text-caption); color: inherit; opacity: .75; }
+.blog-card-labels { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.blog-card-label { display: inline-block; padding: 0 var(--space-2); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text-muted); font-size: var(--text-caption); line-height: 1.8; text-decoration: none; }
+a.blog-card-label:hover { color: var(--color-action-hover); }
+.blog-toc { margin-bottom: var(--space-8); padding: var(--space-4) var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.blog-toc-title { margin: 0 0 var(--space-3); font-size: var(--text-small); font-weight: 600; color: var(--color-text); }
+.blog-toc ul { margin: 0; padding: 0; list-style: none; }
+.blog-toc li { margin: var(--space-1) 0; }
+.blog-toc li.blog-toc-h3 { padding-left: var(--space-4); }
+.blog-toc a { display: inline-flex; align-items: center; min-height: 32px; color: var(--color-text-muted); font-size: var(--text-small); text-decoration: none; }
+.blog-toc a:hover { color: var(--color-action-hover); }
+.blog-article-sources { margin-top: var(--space-10); padding-top: var(--space-6); border-top: 1px solid var(--color-border); }
+.blog-article-sources h2 { margin: 0 0 var(--space-4); font-size: var(--text-h3); color: var(--color-text); }
+.blog-article-sources ul { margin: 0; padding-left: var(--space-6); list-style: disc; }
+.blog-article-sources li { margin: var(--space-2) 0; font-size: var(--text-small); line-height: 1.8; }
+.blog-article-sources a { color: var(--color-action-hover); overflow-wrap: anywhere; }
+.blog-article-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); }
+.blog-article-series { margin: 0 0 var(--space-4); color: var(--color-text-muted); font-size: var(--text-small); }
+.blog-article-series a { color: var(--color-action-hover); }
+.blog-ai-note { margin: 0 0 var(--space-6); color: var(--color-text-muted); font-size: var(--text-caption); line-height: 1.8; }
+.blog-article-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+.blog-article-nav a { display: block; padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); font-size: var(--text-small); line-height: 1.7; text-decoration: none; overflow-wrap: anywhere; }
+.blog-article-nav a:hover { border-color: var(--color-border-strong); color: var(--color-action-hover); }
+.blog-article-nav a[rel="next"] { text-align: right; }
+@media (max-width: 720px) {
+  .blog-article-nav { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 720px) {
   .blog-page { gap: var(--space-8); }
   .blog-list { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }

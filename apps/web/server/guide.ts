@@ -36,6 +36,12 @@ export const BLOG_GUIDE = {
       "头图之外的配图按内容需要放置，单篇含头图最多 30 张不同图片。",
     ],
   },
+  taxonomy: {
+    category: "每篇必须有一个分类，只能从本工具返回的 categories 列表中选择 slug；不要自造分类。",
+    tags: "每篇 1–5 个标签，由你根据内容提议，每个不超过 40 字，不重复。",
+    series: "可选。同一系列（如「AI 周报」）使用完全相同的系列名，不超过 40 字。",
+    sources: "可选但推荐。文末资料来源，最多 10 条，每条 {title, url}，url 必须为 https。",
+  },
   submission: {
     base_revision: "新文章可省略或传 0；更新已有稿件必须传 blog_get 返回的 revision。",
     request_id: "仅用于让同一次重试幂等；普通提交省略。",

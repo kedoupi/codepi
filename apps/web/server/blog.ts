@@ -4,7 +4,12 @@ import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { getMedia, mediaId, mediaUrl, type MediaEnv, type Media } from "./media";
 
 export interface BlogEnv extends MediaEnv {}
-type Content = { slug: string; title: string; summary: string; tag: string | null; body_markdown: string; body_html: string; cover_media_id: string | null; media_ids: string; revision: number; published_at: string | null; updated_at: string };
+export type Source = { title: string; url: string };
+type Content = { slug: string; title: string; summary: string; tag: string | null; body_markdown: string; body_html: string; cover_media_id: string | null; media_ids: string; revision: number; published_at: string | null; updated_at: string; category: string | null; tags: string; series: string | null; sources: string };
+export const parseTags = (value: string | null): string[] => { try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") : []; } catch { return []; } };
+export const parseSources = (value: string | null): Source[] => { try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => object(item) && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; } };
+// Chinese-dominant articles: roughly 400 characters per minute.
+export const readingMinutes = (chars: number) => Math.max(1, Math.round(chars/400));
 export type Draft = Content & { status: string; client_id: string; client_name: string | null; last_request_id: string | null; review_note: string | null; submitted_at: string; is_test: number; archived_at: string | null };
 export type Post = Content & { published_at: string };
 const RESERVED = new Set(["api", "desk", "blog", "preview", "media", "sitemap-blog.xml"]);
@@ -47,8 +52,10 @@ function repairMarkdown(body: string): string {
 
 export async function renderMarkdown(body: string, media: Map<string, Media> = new Map()): Promise<string> {
   const markdown = new Marked({ gfm: true });
+  let headings = 0;
   markdown.use({ renderer: {
     html() { return ""; },
+    heading({ tokens, depth }) { return `<h${depth} id="h-${++headings}">${this.parser.parseInline(tokens)}</h${depth}>\n`; },
     link({ href, title, tokens }) {
       if (!/^(?:https?:\/\/|mailto:|\/[^/]|#)/i.test(href) || /[\x00-\x20\\]/.test(href)) throw invalid("unsafe_content");
       return `<a href="${escape(href)}"${title ? ` title="${escape(title)}"` : ""} rel="noopener noreferrer">${this.parser.parseInline(tokens)}</a>`;
@@ -99,12 +106,39 @@ async function prepareContent(env: BlogEnv, body: string, cover: unknown) {
   return { html:await renderMarkdown(body,media), ids:[...ids], warnings:await coverWarnings(env,cover) };
 }
 function row<T>(result: D1Result<T>): T | null { return result.results[0] ?? null; }
+const validTags = (value: unknown): value is string[] => Array.isArray(value) && value.length >= 1 && value.length <= 5 && value.every(item => text(item,40) && item.trim().length > 0) && new Set(value).size === value.length;
+const validSources = (value: unknown): value is Source[] => Array.isArray(value) && value.length <= 10 && value.every(item => object(item) && text(item.title,200) && item.title.trim().length > 0 && typeof item.url === "string" && item.url.length <= 500 && /^https:\/\/[^\s/]+\.[^\s/]+/.test(item.url));
+async function assertCategory(db: D1Database, category: unknown): Promise<string> {
+  if (!text(category,40) || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(category)) throw invalid();
+  if (!await db.prepare("SELECT slug FROM blog_categories WHERE slug=?").bind(category).first()) throw invalid("unknown_category");
+  return category;
+}
+export async function listCategories(db: D1Database) {
+  return (await db.prepare("SELECT slug,name,(SELECT COUNT(*) FROM blog_posts WHERE blog_posts.category=blog_categories.slug) AS published FROM blog_categories ORDER BY rowid").all<{slug:string;name:string;published:number}>()).results;
+}
+export async function addCategory(db: D1Database, slug: unknown, name: unknown) {
+  if (!text(slug,40) || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(slug) || !text(name,20) || !name.trim()) throw invalid();
+  if ((await db.prepare("SELECT COUNT(*) AS n FROM blog_categories").first<number>("n") ?? 0) >= 8) throw invalid("category_limit");
+  await db.prepare("INSERT INTO blog_categories (slug,name,created_at) VALUES (?,?,?)").bind(slug,name.trim(),now()).run();
+  return {slug,name:name.trim()};
+}
+export async function removeCategory(db: D1Database, slug: string) {
+  const used = await db.prepare("SELECT (SELECT COUNT(*) FROM blog_drafts WHERE category=?) + (SELECT COUNT(*) FROM blog_posts WHERE category=?) AS n").bind(slug,slug).first<number>("n") ?? 0;
+  if (used) throw invalid("category_in_use");
+  const result = await db.prepare("DELETE FROM blog_categories WHERE slug=?").bind(slug).run();
+  if (!result.meta.changes) throw invalid("not_found");
+  return {slug,status:"removed"};
+}
 
 export async function submitDraft(db: D1Database, input: Record<string, unknown>, env?: BlogEnv) {
   const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision } = input;
   const requestId = input.request_id === undefined || input.request_id === null ? crypto.randomUUID() : input.request_id;
   const isTest = input.is_test === true;
+  const tags = input.tags === undefined && text(tag,40) && tag.trim() ? [tag] : input.tags;
+  const sources = input.sources ?? [];
   if (!validateSlug(slug) || !text(title,200) || !title.trim() || !text(summary,500) || !summary.trim() || typeof body !== "string" || !body.trim() || !text(requestId,100) || !requestId || (tag !== undefined && tag !== null && !text(tag,40)) || (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || Number(baseRevision)<0)) || (input.is_test !== undefined && typeof input.is_test !== "boolean")) throw invalid();
+  if (!validTags(tags) || !validSources(sources) || (input.series !== undefined && input.series !== null && (!text(input.series,40) || !input.series.trim()))) throw invalid();
+  const category = await assertCategory(db,input.category);
   if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
   const existing = await getDraft(db,slug);
   if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
@@ -114,10 +148,10 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], warnings:[] as string[] };
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
-  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at)
-    VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?,?,NULL) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,is_test=excluded.is_test,archived_at=NULL
+  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at,category,tags,series,sources)
+    VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?,?,NULL,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,is_test=excluded.is_test,archived_at=NULL,category=excluded.category,tags=excluded.tags,series=excluded.series,sources=excluded.sources
     WHERE blog_drafts.revision=? AND blog_drafts.status=?`)
-    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,existing?.revision ?? 0,existing?.status ?? "pending").run();
+    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending").run();
   if (!result.meta.changes) throw invalid("revision_conflict");
   return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:content.warnings };
 }
@@ -126,9 +160,14 @@ export async function retractDraft(db: D1Database, slug: string) {
   if (!result.meta.changes) throw invalid("not_found");
   return {slug,status:"withdrawn"};
 }
-export async function listPublished(db: D1Database, offset=0, limit=20) {
-  const total = await db.prepare("SELECT COUNT(*) AS count FROM blog_posts").first<number>("count") ?? 0;
-  const posts = (await db.prepare("SELECT slug,title,summary,tag,cover_media_id,revision,published_at,updated_at FROM blog_posts ORDER BY published_at DESC,slug LIMIT ? OFFSET ?").bind(limit,offset).all<Post>()).results;
+export async function listPublished(db: D1Database, offset=0, limit=20, filter: {category?: string; tag?: string; series?: string} = {}) {
+  const clauses: string[] = [], values: string[] = [];
+  if (filter.category) { clauses.push("category=?"); values.push(filter.category); }
+  if (filter.tag) { clauses.push("EXISTS (SELECT 1 FROM json_each(blog_posts.tags) WHERE json_each.value=?)"); values.push(filter.tag); }
+  if (filter.series) { clauses.push("series=?"); values.push(filter.series); }
+  const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
+  const total = await db.prepare(`SELECT COUNT(*) AS count FROM blog_posts${where}`).bind(...values).first<number>("count") ?? 0;
+  const posts = (await db.prepare(`SELECT slug,title,summary,tag,category,tags,series,cover_media_id,revision,published_at,updated_at,length(body_markdown) AS body_chars FROM blog_posts${where} ORDER BY published_at DESC,slug LIMIT ? OFFSET ?`).bind(...values,limit,offset).all<Post>()).results;
   return { posts,total,next_offset:offset+posts.length<total ? offset+posts.length : null };
 }
 export async function listSubmissions(db: D1Database, offset=0, limit=20, status?: string) {
@@ -149,9 +188,9 @@ export async function publishDraft(db: D1Database, slug: string, origin?: string
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
   const at = now();
   const [postResult] = await db.batch([
-    db.prepare(`INSERT INTO blog_posts (slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at)
-      SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,?,? FROM blog_drafts WHERE slug=? AND status='pending' AND revision=?
-      ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_html=excluded.body_html,body_markdown=excluded.body_markdown,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,revision=excluded.revision,updated_at=excluded.updated_at`).bind(at,at,slug,draft.revision),
+    db.prepare(`INSERT INTO blog_posts (slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at,category,tags,series,sources)
+      SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,?,?,category,tags,series,sources FROM blog_drafts WHERE slug=? AND status='pending' AND revision=?
+      ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_html=excluded.body_html,body_markdown=excluded.body_markdown,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,revision=excluded.revision,updated_at=excluded.updated_at,category=excluded.category,tags=excluded.tags,series=excluded.series,sources=excluded.sources`).bind(at,at,slug,draft.revision),
     db.prepare("UPDATE blog_drafts SET status='published',published_at=?,updated_at=? WHERE slug=? AND status='pending' AND revision=?").bind(at,at,slug,draft.revision),
   ]);
   if (!postResult.meta.changes) throw invalid("revision_conflict");
@@ -186,6 +225,23 @@ export async function restoreDraft(db: D1Database, slug: string, expectedRevisio
   const result = await db.prepare("UPDATE blog_drafts SET archived_at=NULL,is_test=0,updated_at=? WHERE slug=? AND revision=? AND (archived_at IS NOT NULL OR is_test=1)").bind(now(),slug,expectedRevision).run();
   if (!result.meta.changes) throw invalid("revision_conflict");
   return {slug,status:draft.status,revision:draft.revision};
+}
+export async function updateDraftMetadata(db: D1Database, slug: string, input: Record<string, unknown>, expectedRevision?: number) {
+  const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  const category = input.category === null ? null : await assertCategory(db,input.category);
+  if (!validTags(input.tags) || (input.series !== undefined && input.series !== null && (!text(input.series,40) || !input.series.trim()))) throw invalid();
+  const series = input.series === undefined ? draft.series : input.series;
+  const result = await db.prepare("UPDATE blog_drafts SET category=?,tags=?,series=?,updated_at=? WHERE slug=? AND status='pending' AND revision=?")
+    .bind(category,JSON.stringify(input.tags),series,now(),slug,expectedRevision).run();
+  if (!result.meta.changes) throw invalid("revision_conflict");
+  return {slug,revision:draft.revision,category,tags:input.tags,series};
+}
+export async function postNeighbors(db: D1Database, post: Post) {
+  // Chronological reading order: previous = older, next = newer.
+  const previous = await db.prepare("SELECT slug,title FROM blog_posts WHERE published_at<? OR (published_at=? AND slug>?) ORDER BY published_at DESC,slug ASC LIMIT 1").bind(post.published_at,post.published_at,post.slug).first<{slug:string;title:string}>();
+  const next = await db.prepare("SELECT slug,title FROM blog_posts WHERE published_at>? OR (published_at=? AND slug<?) ORDER BY published_at ASC,slug DESC LIMIT 1").bind(post.published_at,post.published_at,post.slug).first<{slug:string;title:string}>();
+  return {previous:previous ?? null,next:next ?? null};
 }
 export async function purgeBlogCaches(slug?: string, origin="https://codepi.app") {
   try { const cache=caches.default; await cache.delete(new Request(`${origin}/blog/`)); if (slug) await cache.delete(new Request(`${origin}/blog/${slug}/`)); } catch { /* best effort */ }

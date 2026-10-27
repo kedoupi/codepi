@@ -65,11 +65,11 @@ try {
   const coverId = image.data.id;
   const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`mermaid\nflowchart TD\n    U[开发者 / 企业用户] --> A[Codex 或其他 Agent]\n    A --> T[工具执行与权限控制]\n    A --> R[模型路由与调用接口]\n    R --> O[OpenAI 直接服务]\n    R --> G[Google Cloud 模型入口]\n    R --> X[其他模型供应商]\n    T --> L[日志、审计与任务结果]\n    R --> L\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    A[桌面 / Web / IM 入口] --> B[Agent 工作流与任务状态]\n    B --> C[模型路由与统一观测]\n    C --> D[OpenAI]\n    C --> E[Google Cloud]\n    C --> F[其他供应商]\n    B --> G[工具权限 / 审批 / 执行日志]\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    Broken[无效图表\n\`\`\`\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
   for (let i = 0; i < 13; i++) {
-    const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId } });
+    const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }] } });
     assert.ok(result.ok);
   }
   // Seed publication snapshots locally; browser review exercises the thirteenth draft.
-  await f.blog.prepare(`INSERT INTO blog_posts(slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at) SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,submitted_at,updated_at FROM blog_drafts WHERE slug <> 'browser-article-12'`).run();
+  await f.blog.prepare(`INSERT INTO blog_posts(slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at,category,tags,series,sources) SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,submitted_at,updated_at,category,tags,series,sources FROM blog_drafts WHERE slug <> 'browser-article-12'`).run();
   await f.blog.prepare("UPDATE blog_drafts SET status='published' WHERE slug <> 'browser-article-12'").run();
   const today = calendarDay();
   const health = f.sources.dbs.health;
@@ -225,6 +225,11 @@ try {
   await page.evaluate(() => document.querySelector('#blog-archived-list [data-review-action="restore"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('已恢复'));
   await page.waitForSelector('#blog-drafts-list [data-review-action="publish"]');
+  // Edit taxonomy during review without changing the revision.
+  await page.evaluate(() => { document.querySelector('#blog-drafts-list input[name="tags"]').value = '合成，审校'; });
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="metadata"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('分类与标签已保存'));
+  await page.waitForSelector('#blog-drafts-list [data-review-action="publish"]');
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已发布'));
@@ -283,8 +288,8 @@ try {
   await page.goto(origins.desk + '/blog/');
   await page.waitForSelector('.blog-card-cover');
   const cardPresentation = await page.evaluate(() => { const image = document.querySelector('.blog-card-cover'); return { fit: getComputedStyle(image).objectFit, ratio: image.getBoundingClientRect().width / image.getBoundingClientRect().height }; });
-  assert.equal(cardPresentation.fit, 'contain');
-  assert.ok(Math.abs(cardPresentation.ratio - 16 / 9) < 0.02, 'list covers keep a consistent frame without cropping');
+  assert.equal(cardPresentation.fit, 'cover');
+  assert.ok(Math.abs(cardPresentation.ratio - 2.35) < 0.02, 'list covers share the 2.35:1 WeChat-style frame');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.screenshot({ path: 'blog-list-mobile.png' });
   await page.goto(origins.desk + '/desk/');

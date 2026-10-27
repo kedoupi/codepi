@@ -1,5 +1,5 @@
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
-import { getDraft, listDrafts, listInactiveDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, archiveDraft, restoreDraft, type BlogEnv } from "./blog";
+import { getDraft, listDrafts, listInactiveDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, archiveDraft, restoreDraft, listCategories, addCategory, removeCategory, updateDraftMetadata, type BlogEnv } from "./blog";
 import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export interface DeskEnv extends SsoEnv, BlogEnv {
@@ -115,6 +115,27 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   const session = await readSsoSession(request, env);
   if (!session || session.subject !== "kdp-owner" || session.userId !== "desk-owner") {
     return deskJson({ error: "unauthorized" }, 401);
+  }
+  if (path === "/api/blog/categories" && request.method === "GET") return deskJson({ categories: await listCategories(env.BLOG) });
+  if (path === "/api/blog/categories" && request.method === "POST") {
+    let payload: unknown = {};
+    try { payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload)) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await addCategory(env.BLOG, payload.slug, payload.name)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, 400); }
+  }
+  const categoryDelete = path.match(/^\/api\/blog\/categories\/([^/]+)\/delete$/);
+  if (categoryDelete && request.method === "POST") {
+    try { return deskJson(await removeCategory(env.BLOG, decodeURIComponent(categoryDelete[1]))); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : 400); }
+  }
+  const metadataMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/metadata$/);
+  if (metadataMatch && request.method === "POST") {
+    let payload: unknown = {};
+    try { payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1 || !Array.isArray(payload.tags) || !(payload.category === null || typeof payload.category === "string")) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await updateDraftMetadata(env.BLOG, decodeURIComponent(metadataMatch[1]), payload, payload.revision as number)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   if (path === "/api/blog/drafts" && request.method === "GET") {
     if (url.searchParams.get("view") === "archived") return deskJson({ drafts: await listInactiveDrafts(env.BLOG) });

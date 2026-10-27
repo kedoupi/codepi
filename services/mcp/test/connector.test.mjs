@@ -392,7 +392,7 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   assert.ok(coverId, JSON.stringify(uploaded.body));
   const accepted = await f.rpc(grant.access_token, 'tools/call', {
     name: 'blog_submit', arguments: { slug: 'long-post', title: 'Long post',
-      summary: 'Long post summary', body_markdown: body, cover_media_id: coverId },
+      summary: 'Long post summary', body_markdown: body, cover_media_id: coverId, category: 'tech', tags: ['合成'] },
   });
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body?.result?.structuredContent?.status, 'pending');
