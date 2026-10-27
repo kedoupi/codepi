@@ -1,5 +1,5 @@
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
-import { getDraft, listDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, type BlogEnv } from "./blog";
+import { getDraft, listDrafts, listInactiveDrafts, listPublished, publishDraft, rejectDraft, unpublishPost, archiveDraft, restoreDraft, type BlogEnv } from "./blog";
 import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export interface DeskEnv extends SsoEnv, BlogEnv {
@@ -116,7 +116,10 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (!session || session.subject !== "kdp-owner" || session.userId !== "desk-owner") {
     return deskJson({ error: "unauthorized" }, 401);
   }
-  if (path === "/api/blog/drafts" && request.method === "GET") return deskJson({ drafts: await listDrafts(env.BLOG) });
+  if (path === "/api/blog/drafts" && request.method === "GET") {
+    if (url.searchParams.get("view") === "archived") return deskJson({ drafts: await listInactiveDrafts(env.BLOG) });
+    return deskJson({ drafts: await listDrafts(env.BLOG) });
+  }
   const draftMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)$/);
   if (draftMatch && request.method === "GET") {
     const draft = await getDraft(env.BLOG, decodeURIComponent(draftMatch[1]));
@@ -126,22 +129,34 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (publishMatch && request.method === "POST") {
     let payload: unknown = {};
     try { if (request.body) payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
-    if (!record(payload) || (payload.revision !== undefined && (!Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1))) return deskJson({ error: "invalid_request" }, 400);
-    try { return deskJson(await publishDraft(env.BLOG, decodeURIComponent(publishMatch[1]), url.origin, payload.revision as number | undefined)); }
+    if (!record(payload) || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await publishDraft(env.BLOG, decodeURIComponent(publishMatch[1]), url.origin, payload.revision as number)); }
     catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   const rejectMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/reject$/);
   if (rejectMatch && request.method === "POST") {
     let payload: unknown = {};
     try { payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
-    if (!record(payload) || (payload.note !== undefined && typeof payload.note !== "string") || (payload.revision !== undefined && (!Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1))) return deskJson({ error: "invalid_request" }, 400);
-    try { return deskJson(await rejectDraft(env.BLOG, decodeURIComponent(rejectMatch[1]), payload.note as string | undefined, payload.revision as number | undefined)); }
+    if (!record(payload) || (payload.note !== undefined && typeof payload.note !== "string") || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await rejectDraft(env.BLOG, decodeURIComponent(rejectMatch[1]), payload.note as string | undefined, payload.revision as number)); }
     catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   const unpublishMatch = path.match(/^\/api\/blog\/posts\/([^/]+)\/unpublish$/);
   if (unpublishMatch && request.method === "POST") {
-    try { return deskJson(await unpublishPost(env.BLOG, decodeURIComponent(unpublishMatch[1]), url.origin)); }
-    catch (error) { return deskJson({ error: error instanceof Error ? error.message : "internal_error" }, error instanceof Error && error.message === "not_found" ? 404 : 400); }
+    let payload: unknown = {};
+    try { if (request.body) payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1) return deskJson({ error: "invalid_request" }, 400);
+    try { return deskJson(await unpublishPost(env.BLOG, decodeURIComponent(unpublishMatch[1]), url.origin, payload.revision as number)); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
+  }
+  const archiveMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/(archive|restore)$/);
+  if (archiveMatch && request.method === "POST") {
+    let payload: unknown = {};
+    try { if (request.body) payload = await boundedJson(new Response(request.body)); } catch { return deskJson({ error: "invalid_request" }, 400); }
+    if (!record(payload) || !Number.isSafeInteger(payload.revision) || Number(payload.revision) < 1) return deskJson({ error: "invalid_request" }, 400);
+    const slug = decodeURIComponent(archiveMatch[1]);
+    try { return deskJson(await (archiveMatch[2] === "archive" ? archiveDraft(env.BLOG, slug, payload.revision as number) : restoreDraft(env.BLOG, slug, payload.revision as number))); }
+    catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
   if (path === "/api/blog/posts" && request.method === "GET") return deskJson(await listPublished(env.BLOG, 0, 100));
   if (path === "/api/desk/me" && request.method === "GET") return deskJson({ authenticated: true });

@@ -1,6 +1,4 @@
-const mermaidBlocks = Array.from(document.querySelectorAll<HTMLPreElement>(".personal-article-content pre"))
-  .filter(pre => pre.firstElementChild?.matches("code.language-mermaid"));
-
+let mermaidSequence = 0;
 function showMermaidFallback(pre: HTMLPreElement) {
   if (pre.dataset.mermaidState === "rendered" || pre.dataset.mermaidState === "failed") return;
   pre.dataset.mermaidState = "failed";
@@ -11,7 +9,9 @@ function showMermaidFallback(pre: HTMLPreElement) {
   pre.before(note);
 }
 
-async function renderMermaid() {
+export async function renderMermaid(root: ParentNode = document) {
+  const mermaidBlocks = Array.from(root.querySelectorAll<HTMLPreElement>(".personal-article-content pre"))
+    .filter(pre => pre.firstElementChild?.matches("code.language-mermaid"));
   if (!mermaidBlocks.length) return;
   let mermaid: typeof import("mermaid").default;
   try {
@@ -42,9 +42,9 @@ async function renderMermaid() {
     return;
   }
 
-  for (const [index, pre] of mermaidBlocks.entries()) {
+  for (const pre of mermaidBlocks) {
     const source = pre.firstElementChild?.textContent ?? "";
-    const id = `blog-mermaid-${index}`;
+    const id = `blog-mermaid-${mermaidSequence++}`;
     pre.dataset.mermaidState = "loading";
     try {
       const { svg } = await mermaid.render(id, source);

@@ -28,6 +28,7 @@
     "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
     "apps/web/migrations-blog/0001_blog.sql": "1605cca4f1ce5bb4d87e45821a3178dfb95cded9b8dfe49b8467f0dd6c751fd3",
     "apps/web/migrations-blog/0002_blog_media.sql": "fa237b69fccf8d44602db9052eb1a4a5b5307374793672133c14763db6adad14",
+    "apps/web/migrations-blog/0003_blog_review.sql": "1d001b85c170bed0ab01d9062f5f021a3ac91d60da2cf967910b304b7ab9813d",
     "services/auth/migrations/0001_auth.sql": "778e2d750a26f2d9ba94bbdc85e8910ae66478fcad4d146146a7c76ea4cf66d6",
     "services/mcp/migrations/0001_mcp.sql": "0fd5f65c887c3e219820771bbe789f40090c7c7a5dee04ba526125d2382a909c",
     "services/mcp/migrations/0002_client_auth.sql": "ddd6b70acf6c5e566b37efb9a177ed5c92f166613eb3365fbfc62f0653aad81f",

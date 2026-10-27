@@ -212,6 +212,19 @@ try {
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.desk-review').scrollIntoView({ behavior: 'instant', block: 'start' }); });
   await page.screenshot({ path: 'desk-blog-review-desktop.png' });
+  // Read the full text and inline images without leaving the Desk.
+  await page.click('#blog-drafts-list .desk-review-full > summary');
+  await page.waitForSelector('#blog-drafts-list .desk-review-full[open] .personal-article-content img');
+  await page.screenshot({ path: 'desk-blog-fulltext-desktop.png' });
+  // Archive removes the draft from the queue; restore brings it back.
+  await page.evaluate(() => { window.confirm = () => true; });
+  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="archive"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('稿件已归档'));
+  await page.waitForSelector('#blog-archived-list [data-review-action="restore"]');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#blog-drafts-list [data-slug]').length), 0);
+  await page.evaluate(() => document.querySelector('#blog-archived-list [data-review-action="restore"]').click());
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('已恢复'));
+  await page.waitForSelector('#blog-drafts-list [data-review-action="publish"]');
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.evaluate(() => document.querySelector('#blog-drafts-list [data-review-action="publish"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已发布'));

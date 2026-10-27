@@ -596,6 +596,9 @@
 #blog-review-status[data-tone="error"] { color: var(--kdp-danger); }
 .desk-review-subtitle { margin: 32px 0 0; color: var(--kdp-text); }
 .desk-review-empty { margin: 16px 0 0; color: var(--kdp-muted); font-size: 14px; }
+.desk-review-full { margin-top: 16px; }
+.desk-review-full > summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; color: var(--kdp-muted); font-size: 14px; }
+.desk-review-full .personal-article-content { margin-top: 16px; padding-top: 8px; border-top: 1px solid var(--kdp-line); }
 @media (max-width: 720px) {
   .desk-review { padding: 24px 20px; }
   .desk-review-item { flex-direction: column; gap: 16px; }
