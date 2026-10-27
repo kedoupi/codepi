@@ -384,9 +384,15 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   const headers = { Authorization: 'Bearer ' + grant.access_token, 'Content-Type': 'application/json',
     Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2025-11-25' };
   const body = 'x'.repeat(40 * 1024);
+  const uploaded = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_upload_image', arguments: { alt: '合成头图',
+      data_base64: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64').toString('base64') },
+  });
+  const coverId = uploaded.body?.result?.structuredContent?.id;
+  assert.ok(coverId, JSON.stringify(uploaded.body));
   const accepted = await f.rpc(grant.access_token, 'tools/call', {
     name: 'blog_submit', arguments: { slug: 'long-post', title: 'Long post',
-      summary: 'Long post summary', body_markdown: body },
+      summary: 'Long post summary', body_markdown: body, cover_media_id: coverId },
   });
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body?.result?.structuredContent?.status, 'pending');

@@ -85,6 +85,11 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
       metrics: [], facts: [], notes: [], attention: [] }) } };
   const reader = ctx('blog.read');
   assert.ok(tools(reader.scope).map(t => t.name).includes('blog_list'));
+  assert.ok(tools(reader.scope).map(t => t.name).includes('blog_guide'));
+  assert.ok(!tools('blog.write').map(t => t.name).includes('blog_guide'));
+  await callTool(env, reader, 'blog_guide', {});
+  assert.equal(calls[0].operation, 'guide');
+  calls.length = 0;
   assert.ok(!tools(reader.scope).map(t => t.name).includes('blog_submit'));
   assert.ok(tools('blog.read').find(t => t.name === 'blog_list').annotations.readOnlyHint);
   await assert.rejects(callTool(env, reader, 'blog_submit', { slug: 'a', title: 'T', summary: 'S',

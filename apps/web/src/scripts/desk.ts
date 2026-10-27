@@ -1,5 +1,6 @@
 import { products } from "@kedoupi/shared/products";
 import type { DeskSummary, DeskSource } from "@kedoupi/shared/desk/contract";
+import { renderMermaid } from "./blog";
 
 type Payload = { generatedAt: string; partial: boolean; range: "current" | "week"; sources: DeskSummary[] };
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -40,8 +41,9 @@ function clearPrivate() {
   el("desk-attention-list").replaceChildren();
   el("blog-drafts-list").replaceChildren();
   el("blog-published-list").replaceChildren();
+  el("blog-archived-list").replaceChildren();
   el("blog-review-status").replaceChildren();
-  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
+  for (const id of ["blog-drafts-list", "blog-published-list", "blog-archived-list"]) el(id).setAttribute("aria-busy", "false");
   resetSummary();
   el<HTMLButtonElement>("desk-refresh").disabled = false;
   el<HTMLButtonElement>("desk-generate").disabled = false;
@@ -74,7 +76,7 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; client_name?: string | null; review_note?: string | null; updated_at: string; published_at?: string | null; cover_media_id?: string | null };
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; client_name?: string | null; review_note?: string | null; updated_at: string; published_at?: string | null; cover_media_id?: string | null; body_html?: string | null; is_test?: number; archived_at?: string | null };
 let reviewVersion = 0;
 function reviewMessage(message: string, failed = false) {
   const status = el("blog-review-status");
@@ -82,7 +84,7 @@ function reviewMessage(message: string, failed = false) {
   status.textContent = message;
 }
 function reviewError(error: unknown) { return error instanceof Error && error.name !== "AbortError" ? error.message : "请求超时或连接中断，请重试。"; }
-function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number) {
+function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number, inactive = false) {
   const row = node("article", "", "desk-review-item");
   row.dataset.slug = item.slug;
   row.dataset.revision = String(item.revision);
@@ -95,16 +97,35 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
     row.append(image);
   }
   content.append(node("h3", item.title));
-  const state = publishedItem ? "已发布" : item.status === "rejected" ? "已拒绝" : liveRevision !== undefined ? "更新待审核" : "待审核";
+  const state = publishedItem ? "已发布" : inactive ? item.is_test ? "测试稿件" : "已归档" : item.status === "rejected" ? "已拒绝" : liveRevision !== undefined ? "更新待审核" : "待审核";
   content.append(node("p", `${state} · 修订 ${item.revision}${!publishedItem ? ` · ${item.client_name ?? "MCP"}` : ""}`, "desk-review-meta"));
   content.append(node("p", `更新于 ${time(item.updated_at)}（北京时间）`, "desk-review-meta"), node("p", item.summary));
   if (!publishedItem && liveRevision !== undefined) content.append(node("p", `当前公开版本为修订 ${liveRevision}，发布更新前继续保留。`, "desk-fine"));
   if (item.review_note) content.append(node("p", `审阅说明：${item.review_note}`, "desk-review-note"));
+  if (!publishedItem && item.body_html) {
+    const details = node("details", "", "desk-review-full");
+    const article = node("div", "", "personal-article-content");
+    details.append(node("summary", "阅读全文与配图"), article);
+    let loaded = false;
+    details.addEventListener("toggle", () => {
+      if (!details.open || loaded) return;
+      loaded = true;
+      // The same server-sanitized snapshot the public article page renders.
+      article.innerHTML = item.body_html!;
+      void renderMermaid(article);
+    });
+    content.append(details);
+  }
   const actions = node("div", "", "desk-review-actions");
   const preview = node("a", publishedItem ? "查看文章" : "预览草稿", "kdp-link");
   preview.href = publishedItem ? `/blog/${encodeURIComponent(item.slug)}/` : `/blog/preview/${encodeURIComponent(item.slug)}/`;
   actions.append(preview);
-  if (!publishedItem && item.status !== "rejected") {
+  if (inactive) {
+    const button = node("button", "恢复到审核队列", "kdp-button kdp-button--secondary");
+    button.type = "button";
+    button.dataset.reviewAction = "restore";
+    actions.append(button);
+  } else if (!publishedItem && item.status !== "rejected") {
     const label = node("label", "审阅说明（拒绝时可选）", "desk-review-note-label");
     const note = node("textarea");
     note.name = "review-note";
@@ -124,6 +145,12 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
     button.dataset.reviewAction = "unpublish";
     actions.append(button);
   }
+  if (!publishedItem) {
+    const archive = node("button", "归档", "desk-text-button");
+    archive.type = "button";
+    archive.dataset.reviewAction = "archive";
+    actions.append(archive);
+  }
   content.append(actions);
   row.append(content);
   return row;
@@ -133,22 +160,24 @@ async function loadReview(message = "") {
   const current = generation;
   const version = ++reviewVersion;
   reviewMessage("正在读取博客审核列表…");
-  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "true");
+  for (const id of ["blog-drafts-list", "blog-published-list", "blog-archived-list"]) el(id).setAttribute("aria-busy", "true");
   try {
-    const [drafts, published] = await Promise.all([
+    const [drafts, published, inactive] = await Promise.all([
       api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
       api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
+      api("/api/blog/drafts?view=archived") as Promise<{ drafts: ReviewItem[] }>,
     ]);
     if (current !== generation || version !== reviewVersion || !active) return;
     const live = new Map(published.posts.map(item => [item.slug, item.revision]));
     el("blog-drafts-list").replaceChildren(...(drafts.drafts.length ? drafts.drafts.map(item => renderReview(item, false, live.get(item.slug))) : [node("p", "暂无待审核的草稿。通过 MCP 提交的草稿会出现在这里。", "desk-review-empty")]));
     el("blog-published-list").replaceChildren(...(published.posts.length ? published.posts.map(item => renderReview(item, true)) : [node("p", "暂无已发布的文章。", "desk-review-empty")]));
+    el("blog-archived-list").replaceChildren(...(inactive.drafts.length ? inactive.drafts.map(item => renderReview(item, false, undefined, true)) : [node("p", "暂无测试或已归档的稿件。", "desk-review-empty")]));
     reviewMessage(message || `${drafts.drafts.filter(item => item.status !== "rejected").length} 篇待审核，${published.total ?? published.posts.length} 篇已发布。`);
     if (published.total > published.posts.length) el("blog-published-list").append(node("p", `此处显示最近 ${published.posts.length} 篇已发布文章。`, "desk-review-empty"));
   } catch (error) {
     if (current === generation && version === reviewVersion && !(error instanceof SessionExpired)) reviewMessage(`博客审核暂时无法读取。${reviewError(error)} 可点击“重新读取”重试。`, true);
   } finally {
-    if (current === generation && version === reviewVersion) for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
+    if (current === generation && version === reviewVersion) for (const id of ["blog-drafts-list", "blog-published-list", "blog-archived-list"]) el(id).setAttribute("aria-busy", "false");
   }
 }
 async function reviewAction(event: Event) {
@@ -158,14 +187,19 @@ async function reviewAction(event: Event) {
   const row = button?.closest<HTMLElement>("[data-slug]");
   if (!active || !button || !row || button.disabled) return;
   const action = button.dataset.reviewAction;
-  if (action !== "publish" && action !== "reject" && action !== "unpublish") return;
+  if (!action || !["publish", "reject", "unpublish", "archive", "restore"].includes(action)) return;
   const title = row.querySelector("h3")?.textContent ?? "这篇文章";
-  if (action !== "reject" && !window.confirm(action === "unpublish" ? `下架《${title}》？公开页面将无法访问。` : `发布《${title}》的修订 ${row.dataset.revision}？文章及图片将公开可见。`)) return;
+  const confirmations: Record<string, string> = {
+    unpublish: `下架《${title}》？公开页面将无法访问。`,
+    publish: `发布《${title}》的修订 ${row.dataset.revision}？文章及图片将公开可见。`,
+    archive: `归档《${title}》？归档后不再出现在审核队列，可随时恢复。`,
+  };
+  if (confirmations[action] && !window.confirm(confirmations[action])) return;
   const current = generation;
   const buttons = row.querySelectorAll<HTMLButtonElement>("button");
   for (const control of buttons) control.disabled = true;
   row.setAttribute("aria-busy", "true");
-  reviewMessage(action === "publish" ? "正在发布…" : action === "reject" ? "正在拒绝草稿…" : "正在下架…");
+  reviewMessage(action === "publish" ? "正在发布…" : action === "reject" ? "正在拒绝草稿…" : action === "unpublish" ? "正在下架…" : action === "archive" ? "正在归档…" : "正在恢复…");
   try {
     const slug = encodeURIComponent(row.dataset.slug!);
     const revision = Number(row.dataset.revision);
@@ -175,7 +209,7 @@ async function reviewAction(event: Event) {
       body: JSON.stringify(action === "reject" ? { revision, note: note || undefined } : { revision }),
     });
     if (current !== generation || !active) return;
-    await loadReview(action === "publish" ? "文章已发布。" : action === "reject" ? "草稿已拒绝，审阅说明已保存。" : "文章已下架。");
+    await loadReview(action === "publish" ? "文章已发布。" : action === "reject" ? "草稿已拒绝，审阅说明已保存。" : action === "unpublish" ? "文章已下架。" : action === "archive" ? "稿件已归档，可在下方恢复。" : "稿件已恢复到审核队列。");
   } catch (error) {
     if (current === generation && active && !(error instanceof SessionExpired)) reviewMessage(`${reviewError(error)} 可点击“重新读取”获取最新状态。`, true);
   } finally {
@@ -192,6 +226,7 @@ reviewRetry.addEventListener("click", () => { void loadReview(); });
 el("blog-review-status").after(reviewRetry);
 el("blog-drafts-list").addEventListener("click", reviewAction);
 el("blog-published-list").addEventListener("click", reviewAction);
+el("blog-archived-list").addEventListener("click", reviewAction);
 
 function renderOverview(payload: Payload) {
   for (const data of payload.sources) {

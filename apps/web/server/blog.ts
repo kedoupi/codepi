@@ -5,7 +5,7 @@ import { getMedia, mediaId, mediaUrl, type MediaEnv, type Media } from "./media"
 
 export interface BlogEnv extends MediaEnv {}
 type Content = { slug: string; title: string; summary: string; tag: string | null; body_markdown: string; body_html: string; cover_media_id: string | null; media_ids: string; revision: number; published_at: string | null; updated_at: string };
-export type Draft = Content & { status: string; client_id: string; client_name: string | null; last_request_id: string | null; review_note: string | null; submitted_at: string };
+export type Draft = Content & { status: string; client_id: string; client_name: string | null; last_request_id: string | null; review_note: string | null; submitted_at: string; is_test: number; archived_at: string | null };
 export type Post = Content & { published_at: string };
 const RESERVED = new Set(["api", "desk", "blog", "preview", "media", "sitemap-blog.xml"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
@@ -75,10 +75,20 @@ export async function renderMarkdown(body: string, media: Map<string, Media> = n
     throw error;
   }
 }
+async function coverWarnings(env: BlogEnv, cover: string | null): Promise<string[]> {
+  const id = cover ? mediaId(mediaUrl(cover)) : null;
+  const image = id ? await getMedia(env,id) : null;
+  if (!image) return ["缺少头图：每篇文章必须有 2.35:1 的头图（建议 1800×766 或更大）。"];
+  const warnings: string[] = [];
+  const ratio = image.width/image.height;
+  if (ratio < 2.2 || ratio > 2.5) warnings.push(`头图比例建议 2.35:1（如 1800×766），当前为 ${image.width}×${image.height}，列表与分享时可能裁切。`);
+  if (image.width < 1800) warnings.push(`头图宽度建议至少 1800 像素，当前为 ${image.width} 像素。`);
+  return warnings;
+}
 async function prepareContent(env: BlogEnv, body: string, cover: unknown) {
-  if (cover !== undefined && cover !== null && typeof cover !== "string") throw invalid();
+  if (typeof cover !== "string" || !cover) throw invalid("cover_required");
   const ids = new Set<string>();
-  if (typeof cover === "string") { const id = mediaId(mediaUrl(cover)); if (!id) throw invalid("unknown_media"); ids.add(id); }
+  const id = mediaId(mediaUrl(cover)); if (!id) throw invalid("unknown_media"); ids.add(id);
   const markdown = new Marked();
   markdown.walkTokens(markdown.lexer(body), token => {
     if (token.type === "image") { const id = mediaId(token.href); if (!id) throw invalid("unknown_media"); ids.add(id); }
@@ -86,28 +96,30 @@ async function prepareContent(env: BlogEnv, body: string, cover: unknown) {
   if (ids.size > 30) throw invalid("too_many_images");
   const media = new Map<string,Media>();
   for (const id of ids) { const image = await getMedia(env,id); if (!image) throw invalid("unknown_media"); media.set(id,image); }
-  return { html:await renderMarkdown(body,media), ids:[...ids] };
+  return { html:await renderMarkdown(body,media), ids:[...ids], warnings:await coverWarnings(env,cover) };
 }
 function row<T>(result: D1Result<T>): T | null { return result.results[0] ?? null; }
 
 export async function submitDraft(db: D1Database, input: Record<string, unknown>, env?: BlogEnv) {
   const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision } = input;
   const requestId = input.request_id === undefined || input.request_id === null ? crypto.randomUUID() : input.request_id;
-  if (!validateSlug(slug) || !text(title,200) || !title.trim() || !text(summary,500) || !summary.trim() || typeof body !== "string" || !body.trim() || !text(requestId,100) || !requestId || (tag !== undefined && tag !== null && !text(tag,40)) || (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || Number(baseRevision)<0))) throw invalid();
+  const isTest = input.is_test === true;
+  if (!validateSlug(slug) || !text(title,200) || !title.trim() || !text(summary,500) || !summary.trim() || typeof body !== "string" || !body.trim() || !text(requestId,100) || !requestId || (tag !== undefined && tag !== null && !text(tag,40)) || (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || Number(baseRevision)<0)) || (input.is_test !== undefined && typeof input.is_test !== "boolean")) throw invalid();
   if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
   const existing = await getDraft(db,slug);
-  if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/" };
-  if (baseRevision !== undefined && (existing?.revision ?? 0) !== baseRevision) throw invalid("revision_conflict");
-  // Existing callers without images remain supported; all media is resolved in the domain Worker.
-  const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[] };
+  if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
+  // A new article may omit the revision; every update must name the revision it read.
+  if (existing ? baseRevision !== existing.revision : baseRevision !== undefined && baseRevision !== 0) throw invalid("revision_conflict");
+  // All media is resolved in the domain Worker; every submission requires a cover image.
+  const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], warnings:[] as string[] };
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
-  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids)
-    VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids
+  const result = await db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at)
+    VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?,?,NULL) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,is_test=excluded.is_test,archived_at=NULL
     WHERE blog_drafts.revision=? AND blog_drafts.status=?`)
-    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),existing?.revision ?? 0,existing?.status ?? "pending").run();
+    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,existing?.revision ?? 0,existing?.status ?? "pending").run();
   if (!result.meta.changes) throw invalid("revision_conflict");
-  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/" };
+  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:content.warnings };
 }
 export async function retractDraft(db: D1Database, slug: string) {
   const result = await db.prepare("UPDATE blog_drafts SET status='withdrawn',updated_at=? WHERE slug=? AND status='pending'").bind(now(),slug).run();
@@ -123,15 +135,18 @@ export async function listSubmissions(db: D1Database, offset=0, limit=20, status
   if (status && !["pending","rejected","published","withdrawn"].includes(status)) throw invalid();
   const where = status ? " WHERE status=?" : "", values = status ? [status] : [];
   const total = await db.prepare(`SELECT COUNT(*) AS n FROM blog_drafts${where}`).bind(...values).first<number>("n") ?? 0;
-  const drafts = (await db.prepare(`SELECT slug,title,summary,tag,status,revision,review_note,submitted_at,updated_at FROM blog_drafts${where} ORDER BY updated_at DESC,slug LIMIT ? OFFSET ?`).bind(...values,limit,offset).all()).results;
+  const drafts = (await db.prepare(`SELECT slug,title,summary,tag,status,revision,review_note,submitted_at,updated_at,is_test,archived_at FROM blog_drafts${where} ORDER BY updated_at DESC,slug LIMIT ? OFFSET ?`).bind(...values,limit,offset).all()).results;
   return {drafts,total,next_offset:offset+drafts.length<total ? offset+drafts.length : null};
 }
 export async function getDraft(db: D1Database, slug: string) { return row(await db.prepare("SELECT * FROM blog_drafts WHERE slug=?").bind(slug).all<Draft>()); }
-export async function listDrafts(db: D1Database) { return (await db.prepare("SELECT * FROM blog_drafts WHERE status IN ('pending','rejected') ORDER BY updated_at DESC").all<Draft>()).results; }
+export async function listDrafts(db: D1Database) { return (await db.prepare("SELECT * FROM blog_drafts WHERE status IN ('pending','rejected') AND is_test=0 AND archived_at IS NULL ORDER BY updated_at DESC").all<Draft>()).results; }
+export async function listInactiveDrafts(db: D1Database) { return (await db.prepare("SELECT * FROM blog_drafts WHERE (archived_at IS NOT NULL OR is_test=1) AND status<>'published' ORDER BY updated_at DESC").all<Draft>()).results; }
 export async function getPost(db: D1Database, slug: string) { return row(await db.prepare("SELECT * FROM blog_posts WHERE slug=?").bind(slug).all<Post>()); }
 export async function publishDraft(db: D1Database, slug: string, origin?: string, expectedRevision?: number) {
   const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");
-  if (expectedRevision !== undefined && expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  if (draft.is_test) throw invalid("test_draft");
+  if (draft.archived_at) throw invalid("archived");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
   const at = now();
   const [postResult] = await db.batch([
     db.prepare(`INSERT INTO blog_posts (slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at)
@@ -146,21 +161,37 @@ export async function publishDraft(db: D1Database, slug: string, origin?: string
 export async function rejectDraft(db: D1Database, slug: string, note?: string, expectedRevision?: number) {
   if (note !== undefined && !text(note,1000)) throw invalid();
   const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");
-  if (expectedRevision !== undefined && expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
   const result = await db.prepare("UPDATE blog_drafts SET status='rejected',review_note=?,updated_at=? WHERE slug=? AND status='pending' AND revision=?").bind(note ?? null,now(),slug,draft.revision).run();
   if (!result.meta.changes) throw invalid("revision_conflict");
   return {slug,status:"rejected"};
 }
-export async function unpublishPost(db: D1Database, slug: string, origin?: string) {
-  const [result] = await db.batch([db.prepare("DELETE FROM blog_posts WHERE slug=?").bind(slug),db.prepare("UPDATE blog_drafts SET status='pending',updated_at=? WHERE slug=? AND status='published'").bind(now(),slug)]);
-  if (!result.meta.changes) throw invalid("not_found");
+export async function unpublishPost(db: D1Database, slug: string, origin?: string, expectedRevision?: number) {
+  const post = await getPost(db,slug); if (!post) throw invalid("not_found");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== post.revision) throw invalid("revision_conflict");
+  const results = await db.batch([db.prepare("DELETE FROM blog_posts WHERE slug=? AND revision=?").bind(slug,expectedRevision),db.prepare("UPDATE blog_drafts SET status='pending',updated_at=? WHERE slug=? AND status='published' AND revision=?").bind(now(),slug,expectedRevision)]);
+  if (results.some(result => !result.meta.changes)) throw invalid("revision_conflict");
   await purgeBlogCaches(slug,origin); return {slug,status:"unpublished"};
+}
+export async function archiveDraft(db: D1Database, slug: string, expectedRevision?: number) {
+  const draft = await getDraft(db,slug); if (!draft || draft.status === "published" || draft.archived_at) throw invalid("not_found");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  const result = await db.prepare("UPDATE blog_drafts SET archived_at=?,updated_at=? WHERE slug=? AND revision=? AND status<>'published' AND archived_at IS NULL").bind(now(),now(),slug,expectedRevision).run();
+  if (!result.meta.changes) throw invalid("revision_conflict");
+  return {slug,status:"archived",revision:draft.revision};
+}
+export async function restoreDraft(db: D1Database, slug: string, expectedRevision?: number) {
+  const draft = await getDraft(db,slug); if (!draft || (!draft.archived_at && !draft.is_test)) throw invalid("not_found");
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== draft.revision) throw invalid("revision_conflict");
+  const result = await db.prepare("UPDATE blog_drafts SET archived_at=NULL,is_test=0,updated_at=? WHERE slug=? AND revision=? AND (archived_at IS NOT NULL OR is_test=1)").bind(now(),slug,expectedRevision).run();
+  if (!result.meta.changes) throw invalid("revision_conflict");
+  return {slug,status:draft.status,revision:draft.revision};
 }
 export async function purgeBlogCaches(slug?: string, origin="https://codepi.app") {
   try { const cache=caches.default; await cache.delete(new Request(`${origin}/blog/`)); if (slug) await cache.delete(new Request(`${origin}/blog/${slug}/`)); } catch { /* best effort */ }
 }
 export async function blogSummary(db: D1Database): Promise<SourceSummary> {
   const published=await db.prepare("SELECT COUNT(*) AS count FROM blog_posts").first<number>("count") ?? 0;
-  const pending=await db.prepare("SELECT COUNT(*) AS count FROM blog_drafts WHERE status='pending'").first<number>("count") ?? 0;
+  const pending=await db.prepare("SELECT COUNT(*) AS count FROM blog_drafts WHERE status='pending' AND is_test=0 AND archived_at IS NULL").first<number>("count") ?? 0;
   return {source:"blog",status:"ok",stale:false,asOf:null,updatedAt:null,metrics:[{label:"已发布",value:String(published)},{label:"待审核",value:String(pending)}],facts:[],notes:[],attention:pending ? [{label:`${pending} 篇博客草稿待审核`,href:"https://codepi.app/desk/"}] : []};
 }

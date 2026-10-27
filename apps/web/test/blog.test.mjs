@@ -5,7 +5,14 @@ import { deskFixture } from './runtime.mjs';
 
 const draft = (overrides = {}) => ({ slug: 'hello-world', title: 'Hello', summary: 'Summary', body_markdown: '# Body', request_id: crypto.randomUUID(), ...overrides });
 const rpc = (f, operation, args = {}, subject = 'kdp-owner') => f.rpc({ subject, client: 'test-client', clientName: 'Test Client', operation, args });
-const submit = (f, args, subject = 'kdp-owner') => rpc(f, 'submit', args, subject);
+const submit = async (f, args, subject = 'kdp-owner') => {
+  // Covers are mandatory; attach a fresh uploaded one unless the test provides its own.
+  if (subject === 'kdp-owner' && args.cover_media_id === undefined) {
+    const cover = await upload(f, '测试封面');
+    if (cover.ok) args = { ...args, cover_media_id: cover.data.id };
+  }
+  return rpc(f, 'submit', args, subject);
+};
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64');
 const upload = (f, alt = '一张测试图片') => rpc(f, 'media_upload', { data_base64: png.toString('base64'), alt });
 const startUpload = (f, overrides = {}) => rpc(f, 'media_upload_start', { alt: '原始图片', bytes: png.length, content_type: 'image/png', ...overrides });
@@ -19,6 +26,56 @@ const seedPost = (f, slug = 'public-post', now = new Date().toISOString()) =>
 const seedDraft = (f, slug = 'public-post', status = 'pending', now = new Date().toISOString()) =>
   f.blog.prepare("INSERT INTO blog_drafts (slug,title,summary,body_markdown,body_html,status,client_id,revision,last_request_id,submitted_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
     .bind(slug, 'Draft Title', 'Draft summary', '# Draft body', '<h1>Draft body</h1>', status, 'test-client', 1, 'req-seed', now, now).run();
+
+test('submissions require a cover and report ratio or size warnings', async t => {
+  const f = await deskFixture(t);
+  assert.deepEqual(await submit(f, draft({ cover_media_id: null })), { ok: false, error: 'cover_required', status: 400 });
+  const submitted = await submit(f, draft());
+  assert.equal(submitted.ok, true);
+  // The 1x1 test PNG violates both the 2.35:1 ratio and the 1800px recommendation.
+  assert.equal(submitted.data.warnings.length, 2);
+  assert.match(submitted.data.warnings[0], /2\.35:1/);
+  assert.match(submitted.data.warnings[1], /1800/);
+  const guide = await rpc(f, 'guide');
+  assert.equal(guide.ok, true);
+  assert.equal(guide.data.guide.images.cover.required, true);
+  assert.equal(guide.data.guide.images.cover.aspect_ratio, 2.35);
+  assert.equal((await rpc(f, 'guide', {}, 'intruder')).status, 403);
+});
+
+test('test drafts skip the review queue and cannot be published until restored', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  const submitted = await submit(f, draft({ slug: 'test-only', is_test: true }));
+  assert.equal(submitted.ok, true);
+  const queue = await (await f.call('/api/blog/drafts', cookie)).json();
+  assert.deepEqual(queue.drafts, []);
+  const inactive = await (await f.call('/api/blog/drafts?view=archived', cookie)).json();
+  assert.deepEqual(inactive.drafts.map(item => item.slug), ['test-only']);
+  assert.equal(inactive.drafts[0].is_test, 1);
+  assert.deepEqual(await (await f.call('/api/blog/drafts/test-only/publish', cookie, { revision: 1 })).json(), { error: 'test_draft' });
+  assert.equal(await f.blog.prepare("SELECT COUNT(*) AS n FROM blog_drafts WHERE status='pending' AND is_test=0 AND archived_at IS NULL").first('n'), 0);
+  assert.equal((await f.call('/api/blog/drafts/test-only/restore', cookie, { revision: 1 })).status, 200);
+  const restored = await (await f.call('/api/blog/drafts', cookie)).json();
+  assert.deepEqual(restored.drafts.map(item => item.slug), ['test-only']);
+  assert.equal((await f.call('/api/blog/drafts/test-only/publish', cookie, { revision: 1 })).status, 200);
+});
+
+test('archive and restore are revision-checked and keep drafts out of the queue', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  await submit(f, draft({ slug: 'archivable' }));
+  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, {})).status, 400);
+  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 2 })).status, 409);
+  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 200);
+  assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts, []);
+  assert.deepEqual((await (await f.call('/api/blog/drafts/archivable/publish', cookie, { revision: 1 })).json()), { error: 'archived' });
+  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 404);
+  const inactive = await (await f.call('/api/blog/drafts?view=archived', cookie)).json();
+  assert.deepEqual(inactive.drafts.map(item => item.slug), ['archivable']);
+  assert.equal((await f.call('/api/blog/drafts/archivable/restore', cookie, { revision: 1 })).status, 200);
+  assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts.map(item => item.slug), ['archivable']);
+  assert.equal((await f.call('/api/blog/drafts/archivable/publish', cookie, { revision: 1 })).status, 200);
+  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 404);
+});
 
 test('blog endpoints require owner session and origin', async t => {
   const f = await deskFixture(t);
@@ -42,7 +99,8 @@ test('BlogMcp rejects non-owner and validates submit input', async t => {
   assert.equal((await submit(f, draft({ body_markdown: 'x'.repeat(96 * 1024 + 1) }))).error, 'payload_too_large');
   const withoutId = await submit(f, draft({ slug: 'no-request-id', request_id: undefined }));
   assert.equal(withoutId.ok, true);
-  assert.equal((await submit(f, draft({ slug: 'no-request-id', request_id: undefined }))).data.revision, 2);
+  assert.deepEqual(await submit(f, draft({ slug: 'no-request-id', request_id: undefined })), { ok: false, error: 'revision_conflict', status: 409 });
+  assert.equal((await submit(f, draft({ slug: 'no-request-id', request_id: undefined, base_revision: 1 }))).data.revision, 2);
 });
 
 test('submit is idempotent, revision-checked and never touches the live post', async t => {
@@ -52,15 +110,17 @@ test('submit is idempotent, revision-checked and never touches the live post', a
   const retry = await submit(f, draft({ request_id: 'req-1' }));
   assert.deepEqual(retry, first);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_drafts').all()).results[0].c, 1);
-  const overwrite = await submit(f, draft({ request_id: 'req-2', title: 'New title' }));
+  const missingRevision = await submit(f, draft({ request_id: 'req-2', title: 'New title' }));
+  assert.deepEqual(missingRevision, { ok: false, error: 'revision_conflict', status: 409 });
+  const overwrite = await submit(f, draft({ request_id: 'req-2', title: 'New title', base_revision: 1 }));
   assert.equal(overwrite.data.revision, 2);
   const conflict = await submit(f, draft({ request_id: 'req-3', base_revision: 1 }));
   assert.deepEqual(conflict, { ok: false, error: 'revision_conflict', status: 409 });
-  const forced = await submit(f, draft({ request_id: 'req-4', title: 'Forced' }));
+  const forced = await submit(f, draft({ request_id: 'req-4', title: 'Forced', base_revision: 2 }));
   assert.equal(forced.data.revision, 3);
   await seedPost(f, 'hello-world');
   const before = (await f.blog.prepare('SELECT * FROM blog_posts WHERE slug=?').bind('hello-world').all()).results[0];
-  const resubmit = await submit(f, draft({ request_id: 'req-5', title: 'Resubmitted' }));
+  const resubmit = await submit(f, draft({ request_id: 'req-5', title: 'Resubmitted', base_revision: 3 }));
   assert.equal(resubmit.data.status, 'pending');
   const after = (await f.blog.prepare('SELECT * FROM blog_posts WHERE slug=?').bind('hello-world').all()).results[0];
   assert.deepEqual(after, before);
@@ -100,23 +160,26 @@ test('retract only withdraws pending drafts', async t => {
 test('desk review publish reject and unpublish flow', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'review');
-  assert.equal((await f.call('/api/blog/drafts/review/publish', cookie, {})).status, 200);
+  assert.equal((await f.call('/api/blog/drafts/review/publish', cookie, {})).status, 400);
+  assert.equal((await f.call('/api/blog/drafts/review/publish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('review').all()).results[0].c, 1);
-  assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, {})).status, 200);
+  assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, {})).status, 400);
+  assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, { revision: 2 })).status, 409);
+  assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('review').all()).results[0].c, 0);
   assert.equal((await f.blog.prepare('SELECT status FROM blog_drafts WHERE slug=?').bind('review').all()).results[0].status, 'pending');
-  const rejected = await f.call('/api/blog/drafts/review/reject', cookie, { note: 'Needs revision' });
+  const rejected = await f.call('/api/blog/drafts/review/reject', cookie, { revision: 1, note: 'Needs revision' });
   assert.equal(rejected.status, 200);
   assert.equal((await f.blog.prepare('SELECT review_note FROM blog_drafts WHERE slug=?').bind('review').all()).results[0].review_note, 'Needs revision');
-  assert.equal((await f.call('/api/blog/drafts/absent/publish', cookie, {})).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/absent/publish', cookie, { revision: 1 })).status, 404);
 });
 
 test('publish and submit are compare-and-swap operations', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'race');
   const [published, submitted] = await Promise.all([
-    f.call('/api/blog/drafts/race/publish', cookie, {}),
-    submit(f, draft({ slug: 'race', request_id: 'race-submit', title: 'Concurrent' })),
+    f.call('/api/blog/drafts/race/publish', cookie, { revision: 1 }),
+    submit(f, draft({ slug: 'race', request_id: 'race-submit', title: 'Concurrent', base_revision: 1 })),
   ]);
   assert.equal(submitted.ok || published.status === 200, true);
   assert.ok([200, 409].includes(published.status));
@@ -139,8 +202,8 @@ test('publish and submit are compare-and-swap operations', async t => {
 test('a rejected draft cannot be published', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'rejected-publish');
-  assert.equal((await f.call('/api/blog/drafts/rejected-publish/reject', cookie, { note: 'No' })).status, 200);
-  assert.equal((await f.call('/api/blog/drafts/rejected-publish/publish', cookie, {})).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/rejected-publish/reject', cookie, { revision: 1, note: 'No' })).status, 200);
+  assert.equal((await f.call('/api/blog/drafts/rejected-publish/publish', cookie, { revision: 1 })).status, 404);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('rejected-publish').all()).results[0].c, 0);
 });
 
@@ -192,14 +255,14 @@ test('sitemap and cache follow publish and unpublish', async t => {
   const worker = await f.runtime.getWorker('desk');
   const sitemapBefore = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.doesNotMatch(sitemapBefore, /cached-post/);
-  await f.call('/api/blog/drafts/cached-post/publish', cookie, {});
+  await f.call('/api/blog/drafts/cached-post/publish', cookie, { revision: 1 });
   const first = await worker.fetch('http://localhost:8804/blog/cached-post/');
   assert.equal(first.headers.get('X-Asset-Fetch-Count'), '1');
   const second = await worker.fetch('http://localhost:8804/blog/cached-post/');
   assert.equal(second.headers.get('X-Asset-Fetch-Count'), '1');
   const sitemapAfter = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.match(sitemapAfter, /cached-post/);
-  await f.call('/api/blog/posts/cached-post/unpublish', cookie, {});
+  await f.call('/api/blog/posts/cached-post/unpublish', cookie, { revision: 1 });
   assert.equal((await worker.fetch('http://localhost:8804/blog/cached-post/')).status, 404);
   const sitemapFinal = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.doesNotMatch(sitemapFinal, /cached-post/);
@@ -212,14 +275,14 @@ test('tracked query URLs are purged across publish and unpublish', async t => {
   const preheated = await worker.fetch(`http://localhost:8804/blog/${query}`);
   assert.equal(preheated.status, 200);
   assert.doesNotMatch(await preheated.text(), /tracked-post/);
-  await f.call('/api/blog/drafts/tracked-post/publish', cookie, {});
+  await f.call('/api/blog/drafts/tracked-post/publish', cookie, { revision: 1 });
   const publishedList = await worker.fetch(`http://localhost:8804/blog/${query}`);
   assert.match(await publishedList.text(), /tracked-post/);
   const publishedArticle = await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`);
   assert.equal(publishedArticle.status, 200);
-  await f.call('/api/blog/posts/tracked-post/unpublish', cookie, {});
+  await f.call('/api/blog/posts/tracked-post/unpublish', cookie, { revision: 1 });
   assert.equal((await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`)).status, 404);
-  await f.call('/api/blog/drafts/tracked-post/publish', cookie, {});
+  await f.call('/api/blog/drafts/tracked-post/publish', cookie, { revision: 1 });
   assert.equal((await worker.fetch(`http://localhost:8804/blog/tracked-post/${query}`)).status, 200);
 });
 
@@ -261,7 +324,7 @@ test('inline image stays private until a referencing post is published and becom
   const head = await worker.fetch(`http://localhost:8804${path}`, { method: 'HEAD' });
   assert.equal(head.status, 200); assert.equal(head.headers.get('Content-Length'), String(png.length));
   assert.equal(await head.text(), '');
-  assert.equal((await f.call('/api/blog/posts/illustrated/unpublish', cookie, {})).status, 200);
+  assert.equal((await f.call('/api/blog/posts/illustrated/unpublish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.call(path)).status, 404);
   assert.equal((await f.call(path, cookie)).status, 200);
 });

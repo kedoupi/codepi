@@ -4,6 +4,7 @@ import { products } from '@kedoupi/shared/products';
 import { deskSources } from '@kedoupi/shared/desk/contract';
 import Icon from '../../components/Icon.astro';
 import '../../styles/desk.css';
+import '../../styles/blog.css';
 const deskProducts = products.filter(product => (deskSources as readonly string[]).includes(product.id));
 ---
 <BaseLayout title="我的工作台" description="本人的健康、投资与内容工作概览。" pathname="/desk/" schemaType="WebPage" robots="noindex, nofollow">
@@ -70,6 +71,8 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
         <div id="blog-drafts-list"></div>
         <h3 class="desk-review-subtitle">已发布文章</h3>
         <div id="blog-published-list"></div>
+        <h3 class="desk-review-subtitle">测试与归档</h3>
+        <div id="blog-archived-list"></div>
       </section>
 
       <div class="desk-workspace">
