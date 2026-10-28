@@ -335,12 +335,13 @@ test('HEAD blog routes match GET metadata and never return a body', async t => {
     assert.equal(head.status, get.status);
     assert.equal(head.headers.get('Content-Type'), get.headers.get('Content-Type'));
     assert.equal(head.headers.get('Cache-Control'), get.headers.get('Cache-Control'));
+    if (path !== '/blog/') assert.equal(get.headers.get('Cache-Control'), 'no-store');
     assert.equal(head.headers.get('X-Asset-Method'), 'GET');
     assert.equal(await head.text(), '');
   }
 });
 
-test('sitemap and cache follow publish and unpublish', async t => {
+test('sitemap and repeated article reads follow publish and unpublish', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'cached-post');
   const worker = await f.runtime.getWorker('desk');
@@ -350,7 +351,7 @@ test('sitemap and cache follow publish and unpublish', async t => {
   const first = await worker.fetch('http://localhost:8804/blog/cached-post/');
   assert.equal(first.headers.get('X-Asset-Fetch-Count'), '1');
   const second = await worker.fetch('http://localhost:8804/blog/cached-post/');
-  assert.equal(second.headers.get('X-Asset-Fetch-Count'), '1');
+  assert.equal(second.headers.get('X-Asset-Fetch-Count'), '2');
   const sitemapAfter = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.match(sitemapAfter, /cached-post/);
   await f.call('/api/blog/posts/cached-post/unpublish', cookie, { revision: 1 });
@@ -358,6 +359,37 @@ test('sitemap and cache follow publish and unpublish', async t => {
   const sitemapFinal = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
   assert.doesNotMatch(sitemapFinal, /cached-post/);
 });
+test('public articles are never cached across publish, unpublish or other locations', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  await seedDraft(f, 'uncached-post');
+  const worker = await f.runtime.getWorker('desk');
+  await f.call('/api/blog/drafts/uncached-post/publish', cookie, { revision: 1 });
+  const first = await worker.fetch('http://localhost:8804/blog/uncached-post/');
+  assert.equal(first.headers.get('Cache-Control'), 'no-store');
+  assert.equal(first.headers.get('X-Asset-Fetch-Count'), '1');
+  const second = await worker.fetch('http://localhost:8804/blog/uncached-post/');
+  assert.equal(second.headers.get('X-Asset-Fetch-Count'), '2');
+  await f.call('/api/blog/posts/uncached-post/unpublish', cookie, { revision: 1 });
+  assert.equal((await worker.fetch('http://localhost:8804/blog/uncached-post/')).status, 404);
+});
+
+test('unpublishing an older live revision keeps its pending update and is not a false conflict', async t => {
+  const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
+  assert.equal((await submit(f, draft({ slug: 'older-live', title: 'Public revision' }))).ok, true);
+  assert.equal((await f.call('/api/blog/drafts/older-live/publish', cookie, { revision: 1 })).status, 200);
+  const worker = await f.runtime.getWorker('desk');
+  assert.equal((await worker.fetch('http://localhost:8804/blog/older-live/')).status, 200);
+  assert.equal((await submit(f, draft({ slug: 'older-live', title: 'Pending revision', base_revision: 1 }))).ok, true);
+  const unpublished = await f.call('/api/blog/posts/older-live/unpublish', cookie, { revision: 1 });
+  assert.equal(unpublished.status, 200);
+  assert.deepEqual(await unpublished.json(), { slug: 'older-live', status: 'unpublished' });
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_posts WHERE slug=?').bind('older-live').first('n'), 0);
+  assert.deepEqual(await f.blog.prepare('SELECT status,revision,title FROM blog_drafts WHERE slug=?').bind('older-live').first(), { status: 'pending', revision: 2, title: 'Pending revision' });
+  assert.equal((await worker.fetch('http://localhost:8804/blog/older-live/')).status, 404);
+  const sitemap = await (await worker.fetch('http://localhost:8804/sitemap-blog.xml')).text();
+  assert.doesNotMatch(sitemap, /older-live/);
+});
+
 test('tracked query URLs are purged across publish and unpublish', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'tracked-post');

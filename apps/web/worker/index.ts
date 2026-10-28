@@ -5,7 +5,7 @@ import { readSsoSession } from "@kedoupi/shared/auth/client";
 import { BlogMcp, BlogMediaBackup } from "./blog";
 
 interface Env extends DeskEnv, BlogEnv { ASSETS: Fetcher }
-const PUBLIC_CACHE = "public, max-age=60, s-maxage=300";
+const PUBLIC_CACHE = "no-store";
 const PAGE_SIZE = 12;
 const escape = (value: string) => value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]!));
 function responseHeaders(response: Response, cache = PUBLIC_CACHE) { const headers = new Headers(response.headers); headers.set("Cache-Control", cache); return headers; }
