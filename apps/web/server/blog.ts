@@ -236,8 +236,11 @@ export async function rejectDraft(db: D1Database, slug: string, note?: string, e
 export async function unpublishPost(db: D1Database, slug: string, origin?: string, expectedRevision?: number) {
   const post = await getPost(db,slug); if (!post) throw invalid("not_found");
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== post.revision) throw invalid("revision_conflict");
-  const results = await db.batch([db.prepare("DELETE FROM blog_posts WHERE slug=? AND revision=?").bind(slug,expectedRevision),db.prepare("UPDATE blog_drafts SET status='pending',updated_at=? WHERE slug=? AND status='published' AND revision=?").bind(now(),slug,expectedRevision)]);
-  if (results.some(result => !result.meta.changes)) throw invalid("revision_conflict");
+  const results = await db.batch([
+    db.prepare("DELETE FROM blog_posts WHERE slug=? AND revision=?").bind(slug,expectedRevision),
+    db.prepare("UPDATE blog_drafts SET status='pending',updated_at=? WHERE slug=? AND status='published' AND revision=?").bind(now(),slug,expectedRevision),
+  ]);
+  if (!results[0].meta.changes) throw invalid("revision_conflict");
   await purgeBlogCaches(slug,origin); return {slug,status:"unpublished"};
 }
 export async function archiveDraft(db: D1Database, slug: string, expectedRevision?: number) {
