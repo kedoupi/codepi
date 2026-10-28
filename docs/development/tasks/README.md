@@ -9,8 +9,9 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
-| 2026-10-27 Blog 审核体验（第 3 期） | 双栏审核、修订快照、小改/小改后发布、审核清单与移动两层已实现；本地 49 项测试、类型检查、构建与浏览器验收通过 | [任务记录](2026-10-27-blog-review-ux.md)：待第 2 期合并发布后再应用 0005 并发布 www |
-| 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 分类/标签/系列/来源、Desk 分类维护与审核元数据、2.35:1 卡片、目录、阅读时长、上下篇、RSS 已实现；本地 48+63 项测试与浏览器验收通过 | [任务记录](2026-10-27-blog-content-model.md)：合并后应用 0004 迁移并发布 www/MCP |
+| 2026-10-28 MCP Blog 提交参数修复 | `c170a80` 已提交并直接推送 main，MCP 已发布 `76f3f4a9`；CI 重跑全绿，生产只读 schema 与匿名 smoke 通过；Observer 七轮 `healthy_reported`、无回滚 | [任务与发布证据](2026-10-28-mcp-blog-submit-schema.md)：ChatGPT 需刷新工具 schema，所有者实际投稿确认另行验收 |
+| 2026-10-27 Blog 审核体验（第 3 期） | 已实现并由生产 Web `0f62999df7b1` 承载；Blog/Desk migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-review-ux.md)：本地 49 项、浏览器与生产 smoke 已通过；未代替真实审核操作验收 |
+| 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 已实现并由生产 Web/MCP `0f62999df7b1` 承载；Blog migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-content-model.md)：本次另补 MCP 分类/标签/头图必填 schema；生产只读契约已核验 |
 | 2026-10-27 Blog 审核基础（第 1 期） | PR #215 已合并；0003 迁移已应用，www 与 MCP 已发布；生产两篇测试稿已归档，审核队列仅剩真实稿件 | [任务记录](2026-10-27-blog-review-foundations.md)：生产 smoke 通过（blog 200、API 401、归档回执）；真实外部 MCP 客户端验收与发布后 Observer 观察待补 |
 | 2026-10-26 Blog Mermaid 图表支持 | PR #213 已合并为 `d233d1ab`，十个 Worker 已发布；生产双图桌面/手机验收、发布后/观察后巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [任务与发布证据](2026-10-26-blog-mermaid.md)：现有草稿无需重提交，仍保持待审核；未执行真实外部客户端或所有者持续使用确认，证据文档合并后无需重发 |
 | 2026-10-26 分支与依赖整理后的全量生产同步 | 从干净 detached 实时 main `cc0579cd` 持锁重发十个 Worker；43 项检查、生产 smoke、发布后/观察后全量巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [发布证据](2026-10-26-full-sync-release.md)：未执行真实 Oura 对账/补采、Manus/Claude/ChatGPT/IDE 客户端验收或所有者实际使用确认；本 PR 仅回填文档，合并后无需重发业务 Worker |
