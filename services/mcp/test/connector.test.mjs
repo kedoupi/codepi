@@ -406,6 +406,8 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   });
   assert.equal(domain.status, 200);
   assert.equal(domain.body?.result?.structuredContent?.error, 'invalid_arguments');
+  assert.equal(domain.body?.result?.structuredContent?.field, '/cover_media_id');
+  assert.equal(domain.body?.result?.structuredContent?.reason, 'required');
 });
 
 test('only unified MCP accepts grants while Health exposes data through RPC', async t => {
