@@ -100,7 +100,8 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
   await assert.rejects(callTool(env, ctx('blog.write'), 'blog_create_image_upload', { alt: 'Image', bytes: 1, content_type: 'image/png', client: 'spoofed' }), /invalid_arguments/);
 
   const writer = ctx('blog.write');
-  const submit = { slug: 'synthetic-post', title: 'T', summary: 'S', body_markdown: 'body', request_id: 'r1' };
+  const submit = { slug: 'synthetic-post', title: 'T', summary: 'S', body_markdown: 'body',
+    cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['synthetic'], request_id: 'r1' };
   await callTool(env, writer, 'blog_submit', submit);
   assert.equal(calls[0].client, 'synthetic-client');
   assert.equal(calls[0].clientName, 'Synthetic');
@@ -115,6 +116,11 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
   await callTool(env, writer, 'blog_submit', withoutId);
   await assert.rejects(callTool(env, writer, 'blog_submit', { ...submit, body_markdown: 'x'.repeat(96 * 1024 + 1) }),
     /invalid_arguments/);
+});
+
+test('blog_submit schema requires fields enforced by the Blog worker', () => {
+  const submit = tools('blog.write').find(tool => tool.name === 'blog_submit');
+  assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'cover_media_id', 'category', 'tags']);
 });
 
 test('domain writes receive grant identity, enforce schema and reject spoofed identity', async () => {

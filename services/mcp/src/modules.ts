@@ -248,7 +248,7 @@ MODULES.push({
         sources: { type: "array", maxItems: 10, items: object({ title: text(200, 1), url: text(500, 1) }, ["title", "url"]) },
         is_test: { type: "boolean" },
         request_id: text(100, 1),
-      }, ["slug", "title", "summary", "body_markdown"]),
+      }, ["slug", "title", "summary", "body_markdown", "cover_media_id", "category", "tags"]),
     }),
     domainTool(e => e.BLOG, "retract", "blog.write", {
       name: "blog_retract", title: "Retract blog draft", annotations: write,
