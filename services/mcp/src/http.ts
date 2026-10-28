@@ -1,5 +1,8 @@
 export class HttpError extends Error {
-  constructor(public code: string, public status = 400) { super(code); }
+  constructor(public code: string, public status = 400,
+    public details: { field?: string; reason?: string } = {}) { super(code); }
+  get field() { return this.details.field ?? ""; }
+  get reason() { return this.details.reason ?? ""; }
 }
 
 export function json(body: unknown, status = 200) {

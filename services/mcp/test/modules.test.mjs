@@ -123,6 +123,55 @@ test('blog_submit schema requires fields enforced by the Blog worker', () => {
   assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'cover_media_id', 'category', 'tags']);
 });
 
+test('argument failures identify schema paths and rules without exposing input', async () => {
+  const submit = { slug: 'synthetic', title: 'T', summary: 'S', body_markdown: 'body',
+    cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['生活感悟'] };
+  const cases = [
+    [{ ...submit, category: undefined }, '/category', 'required'],
+    [{ ...submit, slug: 'Bad_Slug' }, '/slug', 'pattern'],
+    [{ ...submit, title: '' }, '/title', 'minLength'],
+    [{ ...submit, summary: 'x'.repeat(501) }, '/summary', 'maxLength'],
+    [{ ...submit, cover_media_id: null }, '/cover_media_id', 'type'],
+    [{ ...submit, base_revision: -1 }, '/base_revision', 'minimum'],
+    [{ ...submit, is_test: 'false' }, '/is_test', 'type'],
+    [{ ...submit, tags: [] }, '/tags', 'minItems'],
+    [{ ...submit, tags: Array(6).fill('tag') }, '/tags', 'maxItems'],
+    [{ ...submit, tags: [null] }, '/tags/0', 'type'],
+    [{ ...submit, sources: [{ title: 'Source', url: 42 }] }, '/sources/0/url', 'type'],
+    [{ ...submit, sources: [{ title: 'Source', url: 'https://example.com', 'private-input-key': 'private-input-value' }] }, '/sources/0', 'additionalProperties'],
+  ];
+  const env = { BLOG: { execute() { throw Error('invalid arguments must not reach RPC'); } } };
+  for (const [input, field, reason] of cases) {
+    const args = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+    await assert.rejects(callTool(env, ctx('blog.write'), 'blog_submit', args), error => {
+      assert.equal(error.code, 'invalid_arguments');
+      assert.equal(error.status, 400);
+      assert.equal(error.field, field);
+      assert.equal(error.reason, reason);
+      assert.doesNotMatch(JSON.stringify(error), /private-input/);
+      return true;
+    });
+  }
+  await assert.rejects(callTool(env, ctx('blog.write'), 'blog_submit', null), error =>
+    error.field === '' && error.reason === 'type');
+  await assert.rejects(callTool(env, ctx('health.read'), 'health_query_records', { collection: 'sleep', refresh: 'yes' }), error =>
+    error.field === '/refresh' && error.reason === 'type');
+});
+
+test('blog optional nulls are advertised and omitted before RPC without mutating input', async () => {
+  let received;
+  const env = { BLOG: { execute: async request => { received = request.args; return { ok: true, data: {} }; } } };
+  const submit = { slug: 'synthetic', title: 'T', summary: 'S', body_markdown: 'body',
+    cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['生活感悟'] };
+  const optional = { tag: null, series: null, request_id: null, base_revision: null, sources: null, is_test: null };
+  const args = { ...submit, ...optional };
+  await callTool(env, ctx('blog.write'), 'blog_submit', args);
+  assert.deepEqual(received, submit);
+  assert.deepEqual(args, { ...submit, ...optional });
+  const schema = tools('blog.write').find(tool => tool.name === 'blog_submit').inputSchema;
+  for (const field of Object.keys(optional)) assert.ok(schema.properties[field].type.includes('null'), field);
+});
+
 test('domain writes receive grant identity, enforce schema and reject spoofed identity', async () => {
   let received;
   const env = { PROJECT: { execute: async request => { received = request; return { ok: true, data: { id: 'synthetic' } }; } } };
