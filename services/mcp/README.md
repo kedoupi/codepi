@@ -40,8 +40,10 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
 - Streamable HTTP + OAuth: `https://mcp.codepi.app/mcp`; discovery and DCR remain supported.
 - OAuth without DCR: an owner can pre-register client credentials at `/connections/clients`.
 - Client ID Metadata Document: public clients use a validated HTTPS metadata URL as `client_id`.
-- Fixed Bearer credential: the owner creates a PAT at `/connections/tokens`, chooses scopes and
-  7/30/90-day expiry. The plaintext appears once; only its hash is stored. Revocation is independent
+- Fixed Bearer credential: the owner creates a PAT at `/connections/tokens` with a 7/30/90-day
+  expiry. A PAT carries the same full scope set as the login grant, and a PAT issued before a scope
+  existed is read with the current set, so an old token still reaches newer tools. Narrowing means
+  revoking the token. The plaintext appears once; only its hash is stored. Revocation is independent
   of OAuth connections and provider access. Never put credentials in URL query parameters.
 - Legacy HTTP+SSE: connect to `/sse` with the same OAuth or PAT Bearer header and use the
   announced endpoint. The routing session ID does not authorize requests.
@@ -60,6 +62,10 @@ Blog tools support article/status reads, review feedback, small inline image upl
 one-file raw PUT uploads (8 MiB), covers and revision-checked resubmission. Images are private until
 referenced by an owner-approved published snapshot. Updates leave the previous public revision live
 until review. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.
+A client that still sends the first `blog_submit` schema (one `tag`, no `cover_media_id`,
+`category` or `tags`) is served: `tags` comes from `tag`, the cover is the first image the article
+embeds and the category is left for the owner during review. A request that names either taxonomy
+field is held to the published required list.
 The owning www Worker handles media validation/storage and serves images; MCP does not fetch arbitrary
 image URLs or bind the bucket. Full workflow and copyable Agent prompts: [Web README](../../apps/web/README.md#agent-写作与图片).
 Implementation/release evidence: [Blog task](../../docs/development/tasks/2026-10-26-blog-agent-images.md).

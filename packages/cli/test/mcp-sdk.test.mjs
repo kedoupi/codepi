@@ -289,6 +289,88 @@ test("maps unified MCP tool permission errors to exit code 3 without a token ret
   }
 });
 
+test("carries the server's argument diagnostic for a rejected tool call", async () => {
+  const dir = await makeTempDir();
+  const fake = await startFakeMcpServer({
+    tools: {
+      blog_submit: async () => ({
+        isError: true,
+        content: [{ type: "text", text: '{"error":"invalid_arguments"}' }],
+        structuredContent: { error: "invalid_arguments", field: "/tags", reason: "required" },
+      }),
+    },
+  });
+  try {
+    await writeCredentials(dir, fake.server);
+    await assert.rejects(callMcpTool({
+      server: fake.server, name: "blog_submit", args: { slug: "synthetic" }, configDir: dir,
+    }), error => {
+      assert.ok(error instanceof CliError);
+      assert.equal(error.exitCode, EXIT.REMOTE);
+      assert.equal(error.message, "MCP 工具返回错误：invalid_arguments /tags (required)。");
+      return true;
+    });
+  } finally {
+    await fake.close();
+    await removeTempDir(dir);
+  }
+});
+
+test("does not echo an argument path that is not a schema path", async () => {
+  const dir = await makeTempDir();
+  const fake = await startFakeMcpServer({
+    tools: {
+      blog_submit: async () => ({
+        isError: true,
+        content: [{ type: "text", text: '{"error":"invalid_arguments"}' }],
+        structuredContent: { error: "invalid_arguments", field: "/tags 注入", reason: "required now" },
+      }),
+    },
+  });
+  try {
+    await writeCredentials(dir, fake.server);
+    await assert.rejects(callMcpTool({
+      server: fake.server, name: "blog_submit", args: { slug: "synthetic" }, configDir: dir,
+    }), error => {
+      assert.ok(error instanceof CliError);
+      assert.equal(error.message, "MCP 工具返回错误：invalid_arguments。");
+      assert.doesNotMatch(error.message, /注入/);
+      return true;
+    });
+  } finally {
+    await fake.close();
+    await removeTempDir(dir);
+  }
+});
+
+test("names the missing scope when a tool is out of reach", async () => {
+  const dir = await makeTempDir();
+  const fake = await startFakeMcpServer({
+    tools: {
+      blog_submit: async () => ({
+        isError: true,
+        content: [{ type: "text", text: '{"error":"tool_not_available"}' }],
+        structuredContent: { error: "tool_not_available", scope: "blog.write" },
+      }),
+    },
+  });
+  try {
+    await writeCredentials(dir, fake.server);
+    await assert.rejects(callMcpTool({
+      server: fake.server, name: "blog_submit", args: { slug: "synthetic" }, configDir: dir,
+    }), error => {
+      assert.ok(error instanceof CliError);
+      assert.equal(error.exitCode, EXIT.SCOPE);
+      assert.match(error.message, /blog\.write/);
+      assert.equal(error.scope, "blog.write");
+      return true;
+    });
+  } finally {
+    await fake.close();
+    await removeTempDir(dir);
+  }
+});
+
 test("concurrent GET and POST 401s share one in-process refresh", async () => {
   const dir = await makeTempDir();
   const fake = await startConcurrent401Server();

@@ -66,7 +66,9 @@ test('a personal access token opens SSE and stops working once revoked', async t
   assert.equal(listed.status, 202);
   const reply = JSON.parse((await stream.next()).data);
   assert.ok(reply.result.tools.some(tool => tool.name === 'health_get_catalog'));
-  assert.equal(reply.result.tools.some(tool => tool.name === 'project_get'), false);
+  // A personal token carries the full scope set, so it reaches blog writes
+  // whatever the old form recorded for it.
+  assert.ok(reply.result.tools.some(tool => tool.name === 'blog_submit'));
   const query = await f.fetch(ORIGIN + '/sse?access_token=' + pat, { headers: { Accept: 'text/event-stream' } });
   assert.equal(query.status, 401, 'a query-string token is never accepted');
   const row = await f.db.prepare('SELECT token_id FROM mcp_personal_tokens').first();
@@ -155,4 +157,27 @@ test('disconnect and the session lifetime destroy the session; reconnect gets a 
   const short = await open(f, grant.access_token);
   t.after(short.close);
   assert.equal(await short.next(), null, 'the stream ends when its lifetime elapses');
+});
+
+test('an open session survives a scope upgrade and refuses a narrowed grant', async t => {
+  const f = await fixture(t);
+  const ping = { jsonrpc: '2.0', id: 1, method: 'ping' };
+  // A grant authorized before the full scope set existed keeps its stream
+  // when the refresh path upgrades it to every scope.
+  const legacy = await f.grant({ scope: 'health.read' });
+  const upgraded = await open(f, legacy.access_token);
+  t.after(upgraded.close);
+  await f.db.prepare('UPDATE mcp_tokens SET scope=? WHERE token_hash=?')
+    .bind(f.allScopes, await hash(legacy.access_token)).run();
+  assert.equal((await post(f, upgraded.endpoint, legacy.access_token, ping)).status, 202,
+    'a wider grant still covers the scope the session opened with');
+  // A grant that no longer holds every bound scope cannot use the session.
+  const full = await f.grant({ scope: f.allScopes });
+  const narrowed = await open(f, full.access_token);
+  t.after(narrowed.close);
+  await f.db.prepare('UPDATE mcp_tokens SET scope=? WHERE token_hash=?')
+    .bind('health.read', await hash(full.access_token)).run();
+  const refused = await post(f, narrowed.endpoint, full.access_token, ping);
+  assert.equal(refused.status, 403);
+  assert.equal((await refused.json()).error, 'session_grant_mismatch');
 });

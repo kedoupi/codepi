@@ -6,9 +6,11 @@ import { readDocument } from "./document.ts";
 import { hasScope, type Scope } from "./oauth-store.ts";
 
 export type ToolContext = { subject: string; client: string; clientName?: string; scope: string };
+type ToolPreparation = { args: Record<string, unknown>; optional?: string[] };
 type RegisteredTool = {
   definition: Tool;
   requiredScopes: Scope[];
+  prepare?: (args: Record<string, unknown>) => ToolPreparation;
   call: (env: Env, ctx: ToolContext, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
 };
 type ToolModule = {
@@ -45,10 +47,40 @@ const nullable = (schema: Record<string, unknown>) => ({ ...schema, type: [schem
 const pageArgs = { offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 100 } };
 const healthCursor = { cursor: text(2048, 1) };
 const healthPaging = " Responses over 12 KiB use health_data_json_v1 pagination. Repeat the original arguments with pagination.next_cursor as cursor, concatenate pagination.chunk in order, and JSON.parse only when complete=true. Verify total_bytes after UTF-8 encoding. A cursor_stale error requires restarting; use refresh=false if background updates keep changing the result.";
+/**
+ * Clients authorized before the blog taxonomy landed cached the first
+ * blog_submit schema: one free-text `tag`, no `cover_media_id`, no `category`
+ * and no `tags`. Such a client keeps sending the old argument set, and its
+ * article is still a valid request, so the missing fields are derived instead
+ * of rejected: `tags` comes from the legacy `tag`, the cover is the first
+ * image the article already embeds, and the category stays empty for the
+ * owner to pick during review. The published schema keeps requiring the new
+ * fields, so a refreshed client keeps sending them.
+ */
+function adaptLegacySubmit(args: Record<string, unknown>): ToolPreparation {
+  const optional: string[] = [];
+  const next = { ...args };
+  const rawTags = args.tags, rawCategory = args.category;
+  // An explicit null (or an empty string) is a field the client could not
+  // name: it is dropped and left to the owner during review.
+  const clientTags = rawTags !== undefined && rawTags !== null;
+  const clientCategory = rawCategory !== undefined && rawCategory !== null && rawCategory !== "";
+  if (rawCategory === null || rawCategory === "") { delete next.category; optional.push("/category"); }
+  if (rawTags === null) { delete next.tags; optional.push("/tags"); }
+  if (clientTags || clientCategory) return { args: next, optional };
+  // A request that carries neither taxonomy field was written against the
+  // first schema. A request that carries either one is a current client and
+  // is still held to the published required list.
+  optional.push("/cover_media_id", "/category");
+  if (typeof next.tag === "string" && next.tag.trim()) next.tags = [next.tag];
+  else optional.push("/tags");
+  return { args: next, optional };
+}
 function domainTool<Op extends string>(
   binding: (env: Env) => DomainService<Op>, operation: Op, scope: Scope, definition: Tool,
+  prepare?: (args: Record<string, unknown>) => ToolPreparation,
 ): RegisteredTool {
-  return { definition, requiredScopes: [scope], async call(env, ctx, args) {
+  return { definition, requiredScopes: [scope], ...(prepare ? { prepare } : {}), async call(env, ctx, args) {
     const reply = await binding(env).execute({ subject: ctx.subject, client: ctx.client,
       clientName: ctx.clientName, operation, args });
     if (!reply.ok) throw new HttpError(reply.error, reply.status);
@@ -250,7 +282,7 @@ MODULES.push({
         is_test: nullable({ type: "boolean" }),
         request_id: nullable(text(100, 1)),
       }, ["slug", "title", "summary", "body_markdown", "cover_media_id", "category", "tags"]),
-    }),
+    }, adaptLegacySubmit),
     domainTool(e => e.BLOG, "retract", "blog.write", {
       name: "blog_retract", title: "Retract blog draft", annotations: write,
       description: "Retract a pending blog draft. Published posts are not changed.",
@@ -269,7 +301,7 @@ const contextTool: Tool = {
 type ArgumentSchema = { type?: string | string[]; enum?: unknown[]; properties?: Record<string, object>; required?: string[];
   additionalProperties?: boolean; items?: object; minItems?: number; maxItems?: number;
   minLength?: number; maxLength?: number; minimum?: number; maximum?: number; pattern?: string };
-function validateArguments(schema: object, value: unknown, path = ""): void {
+function validateArguments(schema: object, value: unknown, path = "", optional: readonly string[] = []): void {
   const s = schema as ArgumentSchema;
   const types = Array.isArray(s.type) ? s.type : s.type ? [s.type] : [];
   const invalid = (reason: string, field = path) => { throw new HttpError("invalid_arguments", 400, { field, reason }); };
@@ -279,11 +311,16 @@ function validateArguments(schema: object, value: unknown, path = ""): void {
   if (types.includes("object")) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return invalid("type");
     const v = value as Record<string, unknown>;
-    for (const required of s.required ?? []) if (!Object.hasOwn(v, required)) invalid("required", `${path}/${required}`);
+    // A path listed as optional is one this call may legitimately omit; every
+    // other missing property still fails with its own field path.
+    for (const required of s.required ?? []) {
+      const field = `${path}/${required}`;
+      if (!Object.hasOwn(v, required) && !optional.includes(field)) invalid("required", field);
+    }
     for (const [key, item] of Object.entries(v)) {
       const prop = s.properties && Object.hasOwn(s.properties, key) ? s.properties[key] : undefined;
       if (!prop && s.additionalProperties === false) invalid("additionalProperties", path);
-      if (prop) validateArguments(prop, item, `${path}/${key}`);
+      if (prop) validateArguments(prop, item, `${path}/${key}`, optional);
     }
   }
   if (types.includes("string")) {
@@ -430,9 +467,16 @@ export async function callTool(env: Env, ctx: ToolContext, name: string, args: R
   for (const module of allowed(ctx.scope)) {
     const tool = module.tools.find(t => t.definition.name === name && permitted(ctx.scope, t));
     if (tool) {
-      validateArguments(tool.definition.inputSchema, args);
-      return tool.call(env, ctx, stripNulls(tool.definition.inputSchema, args) as Record<string, unknown>);
+      const prepared = tool.prepare ? tool.prepare(args) : { args };
+      validateArguments(tool.definition.inputSchema, prepared.args, "", prepared.optional);
+      return tool.call(env, ctx, stripNulls(tool.definition.inputSchema, prepared.args) as Record<string, unknown>);
     }
+  }
+  // The tool exists but this grant does not hold its scope: name the scope
+  // so a caller can request exactly what is missing.
+  for (const module of MODULES) {
+    const tool = module.tools.find(t => t.definition.name === name);
+    if (tool) throw new HttpError("tool_not_available", 403, { scope: tool.requiredScopes.join(" ") });
   }
   throw new HttpError("tool_not_available", 403);
 }

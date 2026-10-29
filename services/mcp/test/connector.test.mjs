@@ -405,9 +405,42 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
       summary: 'Too long summary', body_markdown: 'x'.repeat(96 * 1024 + 1) },
   });
   assert.equal(domain.status, 200);
+  // A call that names no taxonomy field predates them: it is no longer held to
+  // the cover it could never send, and the oversized body is what is named.
   assert.equal(domain.body?.result?.structuredContent?.error, 'invalid_arguments');
-  assert.equal(domain.body?.result?.structuredContent?.field, '/cover_media_id');
-  assert.equal(domain.body?.result?.structuredContent?.reason, 'required');
+  assert.equal(domain.body?.result?.structuredContent?.field, '/body_markdown');
+  assert.equal(domain.body?.result?.structuredContent?.reason, 'maxLength');
+  const current = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_submit', arguments: { slug: 'too-long', title: 'Too long',
+      summary: 'Too long summary', body_markdown: 'x'.repeat(96 * 1024 + 1), category: 'tech', tags: ['合成'] },
+  });
+  assert.equal(current.body?.result?.structuredContent?.error, 'invalid_arguments');
+  assert.equal(current.body?.result?.structuredContent?.field, '/cover_media_id');
+  assert.equal(current.body?.result?.structuredContent?.reason, 'required');
+});
+
+test('a client on the first blog_submit schema reaches the real Blog worker', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const uploaded = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_upload_image', arguments: { alt: '正文配图',
+      data_base64: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', 'base64').toString('base64') },
+  });
+  const image = uploaded.body?.result?.structuredContent;
+  assert.ok(image?.id, JSON.stringify(uploaded.body));
+  // The first schema: one free-text tag, no cover, no category, no tags.
+  const submitted = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_submit', arguments: { slug: 'legacy-post', title: '旧客户端稿件',
+      summary: '旧客户端摘要', tag: '生活感悟', body_markdown: `${image.markdown}\n\n正文内容。`,
+      request_id: 'legacy-request' },
+  });
+  assert.equal(submitted.status, 200);
+  const data = submitted.body?.result?.structuredContent;
+  assert.equal(data.status, 'pending');
+  assert.ok(data.warnings.some(warning => /分类/.test(warning)), JSON.stringify(data.warnings));
+  const row = await f.blogDb.prepare('SELECT cover_media_id,category,tags FROM blog_drafts WHERE slug=?').bind('legacy-post').first();
+  assert.equal(row.cover_media_id, image.id);
+  assert.equal(row.category, null);
+  assert.deepEqual(JSON.parse(row.tags), ['生活感悟']);
 });
 
 test('only unified MCP accepts grants while Health exposes data through RPC', async t => {

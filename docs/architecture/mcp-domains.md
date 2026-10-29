@@ -34,6 +34,15 @@ refresh 时升级为全量；refresh 忽略客户端的缩小请求，不能把�
 没有 `health.sync` 时默认不刷新，显式要求 refresh=true 被拒绝。
 连接页合并同一客户端全部活动授权族的 scope，不用 SQL `MAX(scope)` 代替集合并集。
 
+个人访问令牌与登录授权一致，只签发全量 scope；签发前留下的窄权限令牌在读取时按全量处理，
+不会因为新工具上线而失效。需要收缩能力时撤销令牌，不保留部分 scope 的旧形态。
+旧 SSE 会话按绑定 scope 校验：新 grant 仍覆盖绑定 scope 时继续可用，被收窄才 403。
+
+Blog 的 `blog_submit` 允许旧 schema 调用：同时缺少 `tags` 与 `category` 的请求按第一次
+schema 处理，`tags` 由旧 `tag` 派生，头图取正文第一张内联图片，分类留空由 owner 审核时补齐。
+给出任一分类字段的当前客户端仍按已发布 required 列表校验，显式 `null` 视为“填不出”而不是错误参数。
+未知字段名只回报父路径，不回显客户端输入的键名。
+
 `get_context` 只调用拥有读权限的来源，并发执行、每个来源 2 秒超时；
 失败只将该来源置为 unavailable。白名单过滤返回字段，永不转发 privateMetric。
 UTF-8 JSON 预算：单领域概览最多 4 KiB（Me 最多 1.5 KiB），详情页 12 KiB，

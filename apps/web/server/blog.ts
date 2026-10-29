@@ -93,22 +93,36 @@ async function coverWarnings(env: BlogEnv, cover: string | null): Promise<string
   return warnings;
 }
 async function prepareContent(env: BlogEnv, body: string, cover: unknown) {
-  if (typeof cover !== "string" || !cover) throw invalid("cover_required");
   const ids = new Set<string>();
-  const id = mediaId(mediaUrl(cover)); if (!id) throw invalid("unknown_media"); ids.add(id);
+  const inline: string[] = [];
   const markdown = new Marked();
   markdown.walkTokens(markdown.lexer(body), token => {
-    if (token.type === "image") { const id = mediaId(token.href); if (!id) throw invalid("unknown_media"); ids.add(id); }
+    if (token.type === "image") { const id = mediaId(token.href); if (!id) throw invalid("unknown_media"); ids.add(id); inline.push(id); }
   });
   if (ids.size > 30) throw invalid("too_many_images");
+  // A client that predates the cover field cannot name one; the first image
+  // the article already embeds is the cover. An article without any image
+  // still has no cover and is rejected.
+  let coverId: string | null;
+  if (cover === undefined || cover === null || cover === "") coverId = inline[0] ?? null;
+  else {
+    if (typeof cover !== "string") throw invalid("unknown_media");
+    coverId = mediaId(mediaUrl(cover)); if (!coverId) throw invalid("unknown_media");
+  }
+  if (!coverId) throw invalid("cover_required");
+  ids.add(coverId);
   const media = new Map<string,Media>();
   for (const id of ids) { const image = await getMedia(env,id); if (!image) throw invalid("unknown_media"); media.set(id,image); }
-  return { html:await renderMarkdown(body,media), ids:[...ids], warnings:await coverWarnings(env,cover) };
+  return { html:await renderMarkdown(body,media), ids:[...ids], cover:coverId, warnings:await coverWarnings(env,coverId) };
 }
 function row<T>(result: D1Result<T>): T | null { return result.results[0] ?? null; }
-const validTags = (value: unknown): value is string[] => Array.isArray(value) && value.length >= 1 && value.length <= 5 && value.every(item => text(item,40) && item.trim().length > 0) && new Set(value).size === value.length;
+const validTagList = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 5 && value.every(item => text(item,40) && item.trim().length > 0) && new Set(value).size === value.length;
+const validTags = (value: unknown): value is string[] => validTagList(value) && value.length >= 1;
 const validSources = (value: unknown): value is Source[] => Array.isArray(value) && value.length <= 10 && value.every(item => object(item) && text(item.title,200) && item.title.trim().length > 0 && typeof item.url === "string" && item.url.length <= 500 && /^https:\/\/[^\s/]+\.[^\s/]+/.test(item.url));
-async function assertCategory(db: D1Database, category: unknown): Promise<string> {
+async function assertCategory(db: D1Database, category: unknown): Promise<string | null> {
+  // A client that predates the taxonomy cannot name a category. The draft is
+  // still reviewed and published; the owner picks the category in Desk.
+  if (category === undefined || category === null) return null;
   if (!text(category,40) || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(category)) throw invalid();
   if (!await db.prepare("SELECT slug FROM blog_categories WHERE slug=?").bind(category).first()) throw invalid("unknown_category");
   return category;
@@ -134,10 +148,13 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision } = input;
   const requestId = input.request_id === undefined || input.request_id === null ? crypto.randomUUID() : input.request_id;
   const isTest = input.is_test === true;
-  const tags = input.tags === undefined && text(tag,40) && tag.trim() ? [tag] : input.tags;
+  // A client that predates the taxonomy may propose no tags at all; an
+  // explicit list still has to hold the published 1–5 rules.
+  const legacyTags = input.tags === undefined;
+  const tags = legacyTags ? (text(tag,40) && tag.trim() ? [tag] : []) : input.tags;
   const sources = input.sources ?? [];
   if (!validateSlug(slug) || !text(title,200) || !title.trim() || !text(summary,500) || !summary.trim() || typeof body !== "string" || !body.trim() || !text(requestId,100) || !requestId || (tag !== undefined && tag !== null && !text(tag,40)) || (baseRevision !== undefined && (!Number.isSafeInteger(baseRevision) || Number(baseRevision)<0)) || (input.is_test !== undefined && typeof input.is_test !== "boolean")) throw invalid();
-  if (!validTags(tags) || !validSources(sources) || (input.series !== undefined && input.series !== null && (!text(input.series,40) || !input.series.trim()))) throw invalid();
+  if (!validTagList(tags) || (!legacyTags && !tags.length) || !validSources(sources) || (input.series !== undefined && input.series !== null && (!text(input.series,40) || !input.series.trim()))) throw invalid();
   const category = await assertCategory(db,input.category);
   if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
   const existing = await getDraft(db,slug);
@@ -145,20 +162,21 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   // A new article may omit the revision; every update must name the revision it read.
   if (existing ? baseRevision !== existing.revision : baseRevision !== undefined && baseRevision !== 0) throw invalid("revision_conflict");
   // All media is resolved in the domain Worker; every submission requires a cover image.
-  const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], warnings:[] as string[] };
+  const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], cover:null as string | null, warnings:[] as string[] };
+  const warnings = [...content.warnings, ...(category ? [] : ["未提供分类，请在 Desk 审核时指定分类。"])];
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
   const [result] = await db.batch([
     db.prepare(`INSERT INTO blog_drafts (slug,title,summary,tag,body_markdown,body_html,status,client_id,client_name,revision,last_request_id,review_note,published_at,submitted_at,updated_at,cover_media_id,media_ids,is_test,archived_at,category,tags,series,sources)
     VALUES (?,?,?,?,?,?,'pending',?,?,?,?,NULL,NULL,?,?,?,?,?,NULL,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET title=excluded.title,summary=excluded.summary,tag=excluded.tag,body_markdown=excluded.body_markdown,body_html=excluded.body_html,status='pending',client_id=excluded.client_id,client_name=excluded.client_name,revision=excluded.revision,last_request_id=excluded.last_request_id,review_note=NULL,submitted_at=excluded.submitted_at,updated_at=excluded.updated_at,cover_media_id=excluded.cover_media_id,media_ids=excluded.media_ids,is_test=excluded.is_test,archived_at=NULL,category=excluded.category,tags=excluded.tags,series=excluded.series,sources=excluded.sources
     WHERE blog_drafts.revision=? AND blog_drafts.status=?`)
-    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending"),
+    .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,content.cover ?? input.cover_media_id ?? null,JSON.stringify(content.ids),isTest ? 1 : 0,category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending"),
     db.prepare(`INSERT INTO blog_revisions (slug,revision,title,summary,body_markdown,submitted_at)
       SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM blog_drafts WHERE slug=? AND revision=? AND status='pending')
       ON CONFLICT(slug,revision) DO NOTHING`).bind(slug,revision,title,summary,body,timestamp,slug,revision),
   ]);
   if (!result.meta.changes) throw invalid("revision_conflict");
-  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:content.warnings };
+  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings };
 }
 export async function reviseDraft(db: D1Database, env: BlogEnv, slug: string, input: Record<string, unknown>, expectedRevision?: number) {
   const draft = await getDraft(db,slug); if (!draft || draft.status !== "pending") throw invalid("not_found");

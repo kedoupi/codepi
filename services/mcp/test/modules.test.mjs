@@ -123,6 +123,47 @@ test('blog_submit schema requires fields enforced by the Blog worker', () => {
   assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'cover_media_id', 'category', 'tags']);
 });
 
+test('a client on the first blog_submit schema still reaches the Blog worker', async () => {
+  const calls = [];
+  const env = { BLOG: { async execute(request) { calls.push(request); return { ok: true, data: { slug: request.args.slug, revision: 1 } }; } } };
+  const writer = ctx('blog.write');
+  // The first schema: one free-text tag, no cover, no category, no tags.
+  await callTool(env, writer, 'blog_submit', {
+    slug: 'legacy-post', title: 'T', summary: 'S', tag: '生活感悟', body_markdown: 'body', request_id: 'r1',
+  });
+  assert.deepEqual(calls[0].args.tags, ['生活感悟']);
+  assert.equal(calls[0].args.cover_media_id, undefined);
+  assert.equal(calls[0].args.category, undefined);
+  // Without a legacy tag the request still reaches the worker and leaves the
+  // tags empty instead of failing on a field the client never knew.
+  await callTool(env, writer, 'blog_submit', {
+    slug: 'legacy-post-2', title: 'T', summary: 'S', body_markdown: 'body', request_id: 'r2',
+  });
+  assert.equal(calls[1].args.tags, undefined);
+  // A current client keeps the published required list: one taxonomy field
+  // present is enough to hold it to the schema.
+  for (const missing of ['tags', 'category']) {
+    const args = { slug: 'current-post', title: 'T', summary: 'S', body_markdown: 'body',
+      cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['synthetic'] };
+    delete args[missing];
+    await assert.rejects(callTool(env, writer, 'blog_submit', args), error =>
+      error.code === 'invalid_arguments' && error.field === `/${missing}` && error.reason === 'required');
+  }
+  // An explicit null is a field the client could not name: it is dropped and
+  // left to the owner instead of failing the whole submission.
+  await callTool(env, writer, 'blog_submit', {
+    slug: 'null-category', title: 'T', summary: 'S', body_markdown: 'body',
+    cover_media_id: '12345678-1234-4234-8234-123456789012', category: null, tags: ['synthetic'],
+  });
+  assert.equal(calls[2].args.category, undefined);
+  assert.deepEqual(calls[2].args.tags, ['synthetic']);
+  await callTool(env, writer, 'blog_submit', {
+    slug: 'null-tags', title: 'T', summary: 'S', body_markdown: 'body', tag: '生活感悟', request_id: 'r3',
+  });
+  assert.deepEqual(calls[3].args.tags, ['生活感悟']);
+  assert.equal(calls[3].args.category, undefined);
+});
+
 test('argument failures identify schema paths and rules without exposing input', async () => {
   const submit = { slug: 'synthetic', title: 'T', summary: 'S', body_markdown: 'body',
     cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['生活感悟'] };

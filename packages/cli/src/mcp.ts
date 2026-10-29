@@ -43,6 +43,7 @@ const SAFE_TOOL_ERROR_CODES = new Set([
   "invalid_cursor",
   "cursor_stale",
   "not_owner",
+  "not_found",
   "client_required",
   "source_unavailable",
   "storage_unavailable",
@@ -55,6 +56,21 @@ const SAFE_TOOL_ERROR_CODES = new Set([
   "empty_import",
   "import_limit_exceeded",
   "import_chunk_too_large",
+  // Blog domain rejections. They are fixed codes, so they are safe to show.
+  "unknown_media",
+  "cover_required",
+  "too_many_images",
+  "invalid_image",
+  "alt_required",
+  "unsafe_content",
+  "test_draft",
+  "archived",
+  "unknown_category",
+  "category_limit",
+  "category_in_use",
+  "revision_conflict",
+  "markdown_unavailable",
+  "payload_too_large",
 ]);
 const SAFE_SCOPES = new Set([
   "context.read",
@@ -65,7 +81,15 @@ const SAFE_SCOPES = new Set([
   "me.read",
   "me.write",
   "invest.read",
+  "blog.read",
+  "blog.write",
 ]);
+// The server names the failing argument as a schema path and the failed rule
+// as a fixed token. Both are server-generated, but they are echoed only when
+// they match these shapes, so a remote peer cannot smuggle text into a
+// command's output.
+const SAFE_FIELD = /^\/[A-Za-z0-9_]{1,64}(?:\/[A-Za-z0-9_]{1,64}){0,8}$/;
+const SAFE_REASON = /^[A-Za-z]{1,32}$/;
 
 export interface McpToolResult {
   structured: unknown;
@@ -127,11 +151,26 @@ export async function callMcpTool(options: CallMcpOptions): Promise<McpToolResul
     if (result.isError) {
       const code = result.structuredContent?.error;
       if (code === "insufficient_scope" || code === "tool_not_available") {
-        throw scopeError("当前授权没有此工具的权限，请运行 `codepi login` 并授予所需 scope。");
+        // The server names the scope the tool needs, so the command can ask
+        // for exactly that instead of "some scope".
+        const scope = safeScope(
+          typeof result.structuredContent?.scope === "string" ? result.structuredContent.scope : null);
+        throw scopeError(
+          scope
+            ? `当前授权没有此工具的权限，缺少 scope：${scope}。请运行 \`codepi login --scopes ${scope}\` 重新授权。`
+            : "当前授权没有此工具的权限，请运行 `codepi login` 并授予所需 scope。",
+          scope ?? undefined,
+        );
       }
       const safeCode = typeof code === "string" && SAFE_TOOL_ERROR_CODES.has(code) ? code : null;
+      // Without the field path a rejected call is indistinguishable from a
+      // broken one, so the server's own argument diagnostic is carried over.
+      const field = result.structuredContent?.field;
+      const reason = result.structuredContent?.reason;
+      const where = safeCode && typeof field === "string" && SAFE_FIELD.test(field) ? ` ${field}` : "";
+      const why = safeCode && typeof reason === "string" && SAFE_REASON.test(reason) ? ` (${reason})` : "";
       throw new CliError(
-        safeCode ? `MCP 工具返回错误：${safeCode}。` : "MCP 工具返回错误。",
+        safeCode ? `MCP 工具返回错误：${safeCode}${where}${why}。` : "MCP 工具返回错误。",
         EXIT.REMOTE,
         { code: "tool_error" },
       );

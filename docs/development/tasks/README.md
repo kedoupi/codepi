@@ -9,6 +9,7 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
+| 2026-10-29 MCP Blog 旧客户端与授权兼容 | 本地实现并验证：旧 schema 调用可提交、PAT 与 SSE 会话在 scope 升级后继续可用、CLI 回传字段诊断；未部署、未 push | [任务记录](2026-10-29-mcp-blog-legacy-client-compat.md)：ChatGPT 刷新 schema 后可用新契约；PAT 改为全量 scope 需所有者确认，合并后需重发 MCP 与 Web |
 | 2026-10-28 MCP Blog 提交参数修复 | `c170a80` 已提交并直接推送 main，MCP 已发布 `76f3f4a9`；CI 重跑全绿，生产只读 schema 与匿名 smoke 通过；Observer 七轮 `healthy_reported`、无回滚 | [任务与发布证据](2026-10-28-mcp-blog-submit-schema.md)：ChatGPT 需刷新工具 schema，所有者实际投稿确认另行验收 |
 | 2026-10-27 Blog 审核体验（第 3 期） | 已实现并由生产 Web `0f62999df7b1` 承载；Blog/Desk migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-review-ux.md)：本地 49 项、浏览器与生产 smoke 已通过；未代替真实审核操作验收 |
 | 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 已实现并由生产 Web/MCP `0f62999df7b1` 承载；Blog migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-content-model.md)：本次另补 MCP 分类/标签/头图必填 schema；生产只读契约已核验 |

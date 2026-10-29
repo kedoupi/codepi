@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixture, ORIGIN } from './runtime.mjs';
+import { fixture, hash, ORIGIN } from './runtime.mjs';
 
 const csrf = html => html.match(/name="csrf_token" value="([^"]+)"/)[1];
 test('owner issues scoped PAT once, uses it without OAuth, then revokes or expires it', async t => {
@@ -17,8 +17,12 @@ test('owner issues scoped PAT once, uses it without OAuth, then revokes or expir
   assert.ok(!html.includes('<script>agent</script>'));
   const stored = await f.db.prepare('SELECT * FROM mcp_personal_tokens').first();
   assert.notEqual(stored.token_hash, token);
+  // A personal token carries the full scope set, exactly like the OAuth
+  // grant: the old per-scope checkboxes never narrowed it.
+  assert.equal(stored.scope, f.allScopes);
   assert.equal((await f.rpc(token, 'tools/list')).status, 200);
-  assert.equal((await f.tool(token, 'memory_search', { query: 'test' })).isError, true);
+  assert.ok((await f.rpc(token, 'tools/list')).body.result.tools.some(tool => tool.name === 'blog_submit'));
+  assert.equal(Boolean((await f.tool(token, 'memory_search', { query: 'test' })).isError), false);
   assert.ok(!(await (await f.at('/connections/tokens', { headers })).text()).includes(token));
   await f.db.prepare('UPDATE mcp_personal_tokens SET expires_at=0').run();
   assert.equal((await f.rpc(token, 'tools/list')).status, 401);
@@ -34,6 +38,18 @@ test('owner issues scoped PAT once, uses it without OAuth, then revokes or expir
   assert.equal(limited.status, 409);
   assert.equal((await limited.text()).includes('kdp_pat_'), false);
   assert.equal((await f.db.prepare('SELECT COUNT(*) n FROM mcp_personal_tokens WHERE revoked_at IS NULL').first()).n, 20);
+});
+
+test('a personal token issued before a scope existed still reaches the new tools', async t => {
+  const f = await fixture(t);
+  const token = `kdp_pat_${'A'.repeat(43)}`;
+  await f.db.prepare(`INSERT INTO mcp_personal_tokens (token_id,token_hash,user_id,name,scope,expires_at)
+    VALUES (?,?,?,?,?,?)`)
+    .bind('pat_legacy', await hash(token), 'kdp-owner', 'Legacy token', 'projects.read', Date.now() + 60000).run();
+  const listed = await f.rpc(token, 'tools/list');
+  assert.equal(listed.status, 200);
+  assert.ok(listed.body.result.tools.some(tool => tool.name === 'blog_submit'),
+    'an old token keeps working on tools its stored scope never named');
 });
 
 test('manual client registration supplies credentials usable by the OAuth flow', async t => {
