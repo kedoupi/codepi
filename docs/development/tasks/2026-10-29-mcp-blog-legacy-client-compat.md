@@ -61,6 +61,10 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
 - 并行 flake 追查：本机 `node --test test/*.test.mjs` 连续 6 轮全绿（70/70），最终
   `scripts/agent/check.mjs --run` 的 `pnpm test` 也通过。未复现即不改并发设置，避免为一次
   未定位的抖动拖慢 CI；若 CI 再次出现，保留失败日志（文件、错误、并发负载）再定位。
+- 上述保守结论随后被发布门禁推翻：干净 main 上连续两次 `pnpm test` 分别随机失败于
+  `legacy-sse`、`metadata-flow` + `personal-tokens`，均为 Miniflare `ECONNRESET`，隔离重跑全过。
+  因重复复现且随机换文件，将 `pnpm test` 固定为 `--test-concurrency=1`：覆盖仍为同一组 70 例，
+  只串行启动 workerd，避免继续用随机重跑充当发布证据。
 - 最终验证：`node scripts/agent/check.mjs --base c7217a1 --run` 全部通过（agent 检查 35/35、
   lint、Web 53/53 + typecheck/build/assets、MCP 70/70 + typecheck/build + 浏览器验收、
   CLI 57/57 + typecheck/build）。

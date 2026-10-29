@@ -83,6 +83,8 @@ pnpm --dir services/mcp test:browser:built
 ```
 
 Tests use built MCP/Health and bundled Project/Me/GU Workers, real local D1/R2 and named RPC. The
+test command runs files serially (`--test-concurrency=1`) because parallel workerd instances
+intermittently reset unrelated Miniflare requests. The
 CLI integration uses the actual CLI credential store and SDK client against these
 Workers, including refresh and scope errors. Only
 central SSO is stubbed, and provider network requests fail the tests. The SDK
