@@ -68,11 +68,39 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
 - 最终验证：`node scripts/agent/check.mjs --base c7217a1 --run` 全部通过（agent 检查 35/35、
   lint、Web 53/53 + typecheck/build/assets、MCP 70/70 + typecheck/build + 浏览器验收、
   CLI 57/57 + typecheck/build）。
-- 未部署、未 push。
+## 合并、生产发布与真实 OAuth 验收
 
-## 待所有者确认与后续
+- 所有者已确认 PAT 与登录一致的全量 scope 口径。兼容修复以 `2f14a1f` 推送 main；
+  测试串行修复以 `70f7672` 推送 main，12 个 Validate platform jobs 全部成功。
+  发布使用独立干净 worktree；所有者主 checkout 的登记表、任务索引和探针等 5 处未提交改动保持原样。
+- 发布门禁初次连续捕获并行 Miniflare `ECONNRESET` 后停止，未上传 Worker；串行修复后完整
+  `check.mjs --run`、governance、35 个 migration 文件守门和 diff check 全部通过。
+  `codepi-desk` 与 `codepi-blog` 均无待应用 migration。
+- 从干净、等于实时远程 main 的 `70f767297b6aa0a3161dd5693336f1bfeab8560c` 持锁发布：
+  Web `ed106b62-277c-4571-8283-aa264a9fe66d` → `0e0d0f7a-90d8-4d9b-8a64-0efd84909dab`，
+  MCP `72f51a25-e3b4-4098-96ee-a3a1b8ba322a` → `f2cec380-8cf4-4de2-8156-fdf236ceb043`；
+  两者均 100% 承流、`BUILD_SHA=70f767297b6a`。无 migration、secret、binding 变更。
+- Web 私有 API / SSO smoke、Auth health、MCP 精确 build / Auth 配对 / 发现 / 匿名拒绝全部通过。
+  MCP 只要求 `AUTH_CLIENT_SECRET`；workers.dev 按设计关闭，使用自定义域名 smoke。
+  证据已追加到 Git 外 `/tmp/codepi-deployment-evidence.jsonl`。
+- 真实 OAuth 验收均通过官方 SDK + Streamable HTTP，测试稿只含合成内容和 1×1 合成图片：
+  - 发布前已有的 OAuth client 在隔离凭证副本中强制本地过期后成功 refresh，client 不变且
+    grant 含 `blog.write`；旧 schema（单 `tag`、无 `cover_media_id/category/tags`）提交成功，
+    正文首图成为头图、`tag` 派生为标签、分类为 `null` 并提示审核补齐。
+  - 隔离空凭证目录重新走完整 OAuth consent / PKCE / loopback callback，取得全量 scope；
+    当前 schema（`cover_media_id/category/tags`）提交成功。
+  - 新 OAuth grant 再按旧 schema 提交同样成功，证明认证新旧与 schema 新旧可独立组合。
+  - 所有测试稿均 `blog_retract`；一条因探针断言过严提前退出而留下的 pending 也已补撤回，
+    D1 复核未撤回测试稿为 0。没有发布或修改真实稿件。
+- Observer `release-70f767297b6a-bloglegacycompat`
+  （`cf_f4d6396bb1f957e0bfd0439c2dfc5afb2261f53d9b66946d45b4baa4275bf890`）七轮完成，
+  Workflow `Completed/Success`；summary 于 `2026-10-29T09:20:36.316Z` 得到
+  `healthy_reported`、`events=3`、`rollback=null`。末轮 Web/MCP healthy、版本一致，
+  22/22 core checks 通过。
+- 全量 `production-monitor.mjs --require-versions` 中 Web/MCP 通过；其余 Auth、GU、GZH、
+  Project、Me、Health API、Health Web、Ops 共 8 项为本次范围外的累计版本漂移，未扩大发布。
+
+## 后续
 
 - ChatGPT 连接器刷新或重连 MCP schema 后会看到新 schema；即使不刷新，旧 schema 调用现在也能提交。
-- PAT 权限口径由“逐项勾选”改为“与登录一致的全量 scope”，属于权限口径调整，需要收缩时撤销令牌。
-- 合并后需要重新发布 `codepi-mcp` 与 `codepi-www`（MCP 校验与领域头图回退各一处），
-  发布流程见 `docs/development/local-release.md`。
+- 需要收缩 PAT 权限时撤销该令牌并改用其他客户端连接；不再支持逐项勾选。
