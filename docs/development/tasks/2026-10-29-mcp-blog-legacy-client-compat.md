@@ -21,9 +21,10 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
 
 ## 实现
 
-- MCP `blog_submit` 增加 `prepare` 钩子：请求同时缺少 `tags` 与 `category` 时判定为旧 schema
-  调用，`tags` 由旧 `tag` 派生，头图与分类不再强制；给出任一分类字段的当前客户端仍按已发布
-  required 列表校验。显式 `null` 的分类/标签按“客户端填不出”处理并留给审核补齐。
+- MCP `blog_submit` 增加 `prepare` 钩子：请求缺少 `tags` 且仍带旧 `tag`（或同时缺 `category`）时
+  判定为旧 schema 调用，`tags` 由旧 `tag` 派生，头图与分类不再强制；已带 `category` 但仍用旧
+  `tag` 的混合形态同样被服务。给出新 `tags` 列表的当前客户端仍按已发布 required 列表校验。
+  显式 `null` 的分类/标签按“客户端填不出”处理并留给审核补齐。
 - 领域层：没有 `cover_media_id` 时头图取正文第一张内联图片，全文无图仍报 `cover_required`；
   分类缺省写 `null` 并在 warnings 中提示审核时补齐；旧 `tag` 仍派生 `tags`，显式空数组仍按
   1–5 个标签的既有规则拒绝。
@@ -34,11 +35,11 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
 
 ## 本地验证
 
-- `services/mcp` 70/70（逐文件串行）、`apps/web` 53/53、`packages/cli` 57/57 通过；MCP typecheck/build、
+- `services/mcp` 70/70（13 个测试文件逐个串行，合计 70 例）、`apps/web` 53/53、`packages/cli` 57/57 通过；MCP typecheck/build、
   CLI typecheck/build、Web `typecheck:desk`/build/`test:assets`、MCP 浏览器验收通过。
 - 新增回归用例：旧 schema 客户端仍能提交（标签由 `tag` 派生、头图取正文首图、分类留空并告警）、
-  无图文章仍报 `cover_required`、当前客户端缺必填仍按字段路径拒绝、旧 SSE 会话在 scope 升级后可用、
-  旧 PAT 仍能调用新工具、CLI 回传字段诊断并点名缺失 scope。
+  旧客户端同时带 `category` 的混合形态仍能提交、无图文章仍报 `cover_required`、当前客户端缺必填
+  仍按字段路径拒绝、旧 SSE 会话在 scope 升级后可用、旧 PAT 仍能调用新工具、CLI 回传字段诊断并点名缺失 scope。
 - MCP 一次并行全量重跑出现 Miniflare `SocketError`（`metadata-flow`），单文件串行重跑通过，
   与上一轮记录的并发抖动一致，不计为失败证据。
 - 未部署、未 push、未改生产数据；生产 Blog 端到端只在发布后由所有者用真实客户端验收。

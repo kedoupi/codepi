@@ -38,9 +38,10 @@ refresh 时升级为全量；refresh 忽略客户端的缩小请求，不能把�
 不会因为新工具上线而失效。需要收缩能力时撤销令牌，不保留部分 scope 的旧形态。
 旧 SSE 会话按绑定 scope 校验：新 grant 仍覆盖绑定 scope 时继续可用，被收窄才 403。
 
-Blog 的 `blog_submit` 允许旧 schema 调用：同时缺少 `tags` 与 `category` 的请求按第一次
-schema 处理，`tags` 由旧 `tag` 派生，头图取正文第一张内联图片，分类留空由 owner 审核时补齐。
-给出任一分类字段的当前客户端仍按已发布 required 列表校验，显式 `null` 视为“填不出”而不是错误参数。
+Blog 的 `blog_submit` 允许旧 schema 调用：缺少 `tags` 且仍带旧 `tag`（或同时缺 `category`）的请求
+按第一次 schema 处理，`tags` 由旧 `tag` 派生，头图取正文第一张内联图片，分类留空由 owner 审核时补齐；
+即使已带 `category` 但仍用旧 `tag` 的客户端同样被服务。给出新 `tags` 列表的当前客户端仍按已发布
+required 列表校验，显式 `null` 视为“填不出”而不是错误参数。
 未知字段名只回报父路径，不回显客户端输入的键名。
 
 `get_context` 只调用拥有读权限的来源，并发执行、每个来源 2 秒超时；

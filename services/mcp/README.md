@@ -64,8 +64,9 @@ referenced by an owner-approved published snapshot. Updates leave the previous p
 until review. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.
 A client that still sends the first `blog_submit` schema (one `tag`, no `cover_media_id`,
 `category` or `tags`) is served: `tags` comes from `tag`, the cover is the first image the article
-embeds and the category is left for the owner during review. A request that names either taxonomy
-field is held to the published required list.
+embeds and the category is left for the owner during review. A request without `tags` is served
+when it still names the old single `tag`, even if it also names a category. A request that names
+the new `tags` list is held to the published required list.
 The owning www Worker handles media validation/storage and serves images; MCP does not fetch arbitrary
 image URLs or bind the bucket. Full workflow and copyable Agent prompts: [Web README](../../apps/web/README.md#agent-写作与图片).
 Implementation/release evidence: [Blog task](../../docs/development/tasks/2026-10-26-blog-agent-images.md).

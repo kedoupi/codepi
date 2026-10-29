@@ -162,6 +162,13 @@ test('a client on the first blog_submit schema still reaches the Blog worker', a
   });
   assert.deepEqual(calls[3].args.tags, ['生活感悟']);
   assert.equal(calls[3].args.category, undefined);
+  // A client that names the category but still the old single tag is served.
+  await callTool(env, writer, 'blog_submit', {
+    slug: 'hybrid-post', title: 'T', summary: 'S', body_markdown: 'body', tag: '生活感悟',
+    cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech',
+  });
+  assert.deepEqual(calls[4].args.tags, ['生活感悟']);
+  assert.equal(calls[4].args.category, 'tech');
 });
 
 test('argument failures identify schema paths and rules without exposing input', async () => {

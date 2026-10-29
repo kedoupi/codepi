@@ -65,14 +65,17 @@ function adaptLegacySubmit(args: Record<string, unknown>): ToolPreparation {
   // name: it is dropped and left to the owner during review.
   const clientTags = rawTags !== undefined && rawTags !== null;
   const clientCategory = rawCategory !== undefined && rawCategory !== null && rawCategory !== "";
+  const clientTag = typeof args.tag === "string" && args.tag.trim() !== "";
   if (rawCategory === null || rawCategory === "") { delete next.category; optional.push("/category"); }
   if (rawTags === null) { delete next.tags; optional.push("/tags"); }
-  if (clientTags || clientCategory) return { args: next, optional };
   // A request that carries neither taxonomy field was written against the
-  // first schema. A request that carries either one is a current client and
-  // is still held to the published required list.
+  // first schema, and so is one that still names the old single `tag`. A
+  // request that names the new `tags` list is a current client and is held to
+  // the published required list.
+  const legacy = !clientTags && (clientTag || !clientCategory);
+  if (!legacy) return { args: next, optional };
   optional.push("/cover_media_id", "/category");
-  if (typeof next.tag === "string" && next.tag.trim()) next.tags = [next.tag];
+  if (clientTag) next.tags = [args.tag as string];
   else optional.push("/tags");
   return { args: next, optional };
 }

@@ -441,6 +441,17 @@ test('a client on the first blog_submit schema reaches the real Blog worker', as
   assert.equal(row.cover_media_id, image.id);
   assert.equal(row.category, null);
   assert.deepEqual(JSON.parse(row.tags), ['生活感悟']);
+  // The same client once it names a category but still the old single tag.
+  const hybrid = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_submit', arguments: { slug: 'hybrid-post', title: '旧客户端稿件',
+      summary: '旧客户端摘要', tag: '生活感悟', body_markdown: `${image.markdown}\n\n正文内容。`,
+      cover_media_id: image.id, category: 'tech', request_id: 'hybrid-request' },
+  });
+  assert.equal(hybrid.body?.result?.structuredContent?.status, 'pending', JSON.stringify(hybrid.body));
+  const hybridRow = await f.blogDb.prepare('SELECT cover_media_id,category,tags FROM blog_drafts WHERE slug=?').bind('hybrid-post').first();
+  assert.equal(hybridRow.cover_media_id, image.id);
+  assert.equal(hybridRow.category, 'tech');
+  assert.deepEqual(JSON.parse(hybridRow.tags), ['生活感悟']);
 });
 
 test('only unified MCP accepts grants while Health exposes data through RPC', async t => {
