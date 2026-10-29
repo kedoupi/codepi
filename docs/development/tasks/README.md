@@ -30,7 +30,7 @@
 | 统一 MCP / 五领域实现 | Health、Project、Me、GU、Blog 模块及显式 binding 已在当前实现中；Agent 兼容扩展已通过 PR #195 部署，生产观察 `healthy_reported` | [领域扩展](2026-10-20-codepi-mcp-domains.md)、[接入兼容](2026-10-25-mcp-agent-compat.md)、[Blog 记录](2026-10-26-blog-agent-images.md)：真实 Claude/Codex/CLI 客户端验收、LegacySse 生产使用和所有者持续使用不由本地配置推定 |
 | GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：GitHub 副本是历史验收材料；当前 v4 R2 完整清单、回执与隔离恢复证据见运维 runbook，自动研究与 GZH MCP 为后续产品讨论 |
 | Desk 真实使用验收 | Worker、D1 和所需 secret 名称已有后续发布证据；不能继续仅凭最初 P6 记录判断“未部署” | [首页迁移](2026-10-17-web-static-assets.md)、[资源登记表](../cloudflare-resource-registry.md)、[应用说明](../../../apps/web/README.md)：如继续此产品，核对登录后的三来源摘要，不因旧 TODO 重建资源或轮换凭证 |
-| 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标，未覆盖 Desk/MCP | 本轮仅记录：[Auth 使用限制](../../../services/auth/README.md#validation)。后续先更新目标和覆盖范围，再按授权执行真实邮件验收；不影响现行发布探针 |
+| 生产 SSO 验收脚本 | 本地已修复七个现行客户端目标及 Desk/MCP 会话检查，并补 mock 端到端回归；尚未发送真实 OTP | [Auth 使用限制](../../../services/auth/README.md#validation)：真实邮件验收需另行明确授权；不影响现行发布探针 |
 
 ## 已落地阶段与历史接续关系
 
