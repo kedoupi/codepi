@@ -452,6 +452,20 @@ test('a client on the first blog_submit schema reaches the real Blog worker', as
   assert.equal(hybridRow.cover_media_id, image.id);
   assert.equal(hybridRow.category, 'tech');
   assert.deepEqual(JSON.parse(hybridRow.tags), ['生活感悟']);
+  // The same request over the official SDK transport, the way a connector
+  // that cached the first schema talks to the server.
+  const client = new Client({ name: 'codepi-legacy-test', version: '1.0.0' });
+  t.after(() => client.close());
+  await client.connect(new StreamableHTTPClientTransport(new URL(ORIGIN + '/mcp'), {
+    fetch: f.fetch, requestInit: { headers: { Authorization: 'Bearer ' + grant.access_token } },
+  }));
+  const sdk = await client.callTool({ name: 'blog_submit', arguments: {
+    slug: 'legacy-sdk-post', title: '旧客户端稿件', summary: '旧客户端摘要', tag: '生活感悟',
+    body_markdown: `${image.markdown}\n\n正文内容。`, request_id: 'legacy-sdk-request' } });
+  assert.equal(sdk.structuredContent.status, 'pending', JSON.stringify(sdk.structuredContent));
+  const sdkRow = await f.blogDb.prepare('SELECT cover_media_id,category,tags FROM blog_drafts WHERE slug=?').bind('legacy-sdk-post').first();
+  assert.equal(sdkRow.cover_media_id, image.id);
+  assert.deepEqual(JSON.parse(sdkRow.tags), ['生活感悟']);
 });
 
 test('only unified MCP accepts grants while Health exposes data through RPC', async t => {

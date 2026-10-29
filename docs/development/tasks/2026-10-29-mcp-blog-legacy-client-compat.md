@@ -42,7 +42,20 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
   仍按字段路径拒绝、旧 SSE 会话在 scope 升级后可用、旧 PAT 仍能调用新工具、CLI 回传字段诊断并点名缺失 scope。
 - MCP 一次并行全量重跑出现 Miniflare `SocketError`（`metadata-flow`），单文件串行重跑通过，
   与上一轮记录的并发抖动一致，不计为失败证据。
-- 未部署、未 push、未改生产数据；生产 Blog 端到端只在发布后由所有者用真实客户端验收。
+- 2026-10-29 生产联调（修复未部署，生产仍为旧行为）：在已发布的 MCP 上实测三种旧形态
+  均按预期被 schema 拦截——tag-only → `/cover_media_id required`、tag+cover →
+  `/category required`、tag+cover+category → `/tags required`，证实根因判断；新契约路径
+  实测可用（`blog_upload_image` → `blog_submit` `is_test:true` → `blog_retract`，头图比例
+  校验正常给出 warning，测试稿件已全部撤回，未留生产稿件）。
+- 观测到一次 `unknown_media`：upload 成功后立即 submit 报媒体不存在，而 D1 主库直查该行
+  存在；随后多轮同路径探测（含 SDK 直连）均未复现。判定为疑似读后写时序/副本一致性问题，
+  **未证实、未改动**，需要可复现路径后再处理。
+- 新增 SDK 级回归：connector 测试用 `@modelcontextprotocol/sdk` 的
+  `StreamableHTTPClientTransport` 走真实 HTTP 提交旧 schema，防止协议层差异漏测。
+- `services/mcp` 并行全量重跑仍有 Miniflare flake（本轮落在 `personal-tokens.test.mjs` 的
+  `fetch failed / ECONNRESET`，历史上也抖在 `metadata-flow`）；逐文件串行 70/70 全绿。
+  属独立测试基础设施问题，另行跟踪。
+- 未部署、未 push。
 
 ## 待所有者确认与后续
 
