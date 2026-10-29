@@ -55,6 +55,15 @@ ChatGPT 通过 MCP 提交 Blog 一直失败。生产实测确认：连接器缓�
 - `services/mcp` 并行全量重跑仍有 Miniflare flake（本轮落在 `personal-tokens.test.mjs` 的
   `fetch failed / ECONNRESET`，历史上也抖在 `metadata-flow`）；逐文件串行 70/70 全绿。
   属独立测试基础设施问题，另行跟踪。
+- 读后写异常追查：用官方 SDK 直连生产连续 10 轮「upload → 立即 submit → retract」全部成功
+  （0 失败），此前的单次 `unknown_media` 未复现，因此不加防御性重试或 session 固化，保持观察。
+  探针产生的测试稿件（含上一轮遗留的 3 条 pending）已全部 retract，审核队列恢复为空。
+- 并行 flake 追查：本机 `node --test test/*.test.mjs` 连续 6 轮全绿（70/70），最终
+  `scripts/agent/check.mjs --run` 的 `pnpm test` 也通过。未复现即不改并发设置，避免为一次
+  未定位的抖动拖慢 CI；若 CI 再次出现，保留失败日志（文件、错误、并发负载）再定位。
+- 最终验证：`node scripts/agent/check.mjs --base c7217a1 --run` 全部通过（agent 检查 35/35、
+  lint、Web 53/53 + typecheck/build/assets、MCP 70/70 + typecheck/build + 浏览器验收、
+  CLI 57/57 + typecheck/build）。
 - 未部署、未 push。
 
 ## 待所有者确认与后续
