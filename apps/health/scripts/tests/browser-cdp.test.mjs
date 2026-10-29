@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { CdpConnection, CdpPage, parseLocator, removeBrowserProfile } from '../browser-cdp.mjs';
+import { BrowserSmokeError, CdpConnection, CdpPage, parseLocator, removeBrowserProfile, withDeadline } from '../browser-cdp.mjs';
 
 test('Chrome profile cleanup retries transient filesystem races without swallowing persistent errors', async () => {
   const calls = [];
@@ -47,13 +47,22 @@ test('CDP correlates concurrent responses, forwards events and reports protocol 
 test('CDP timeout and disconnect reject pending work instead of hanging CI', async () => {
   const socket = new Socket();
   const cdp = new CdpConnection(socket);
-  await assert.rejects(cdp.send('slow', {}, 5), /CDP timed out: slow/);
+  await assert.rejects(cdp.send('slow', {}, 5), error => {
+    assert.equal(error.code, 'cdp_timeout');
+    assert.match(error.message, /CDP timed out after 5ms: slow/);
+    return true;
+  });
   assert.equal(cdp.pending.size, 0);
   const pending = cdp.send('pending');
   cdp.close();
   await assert.rejects(pending, /disconnected during pending/);
   await assert.rejects(cdp.send('later'), /disconnected before later/);
   assert.equal(cdp.pending.size, 0);
+});
+
+test('runner deadlines retain their machine-readable phase and reject promptly', async () => {
+  const error = new BrowserSmokeError('scenario stalled', { code: 'browser_scenario_timeout', phase: 'scenario' });
+  await assert.rejects(withDeadline(new Promise(() => {}), 5, error), value => value === error);
 });
 
 test('locator adapter handles exact text without changing native CSS selectors', () => {
@@ -79,6 +88,48 @@ test('page evaluation awaits promises and propagates browser exceptions', async 
   connection.close();
 });
 
+test('read-only inspection retries one CDP timeout and records step timings', async () => {
+  const socket = new Socket();
+  const connection = new CdpConnection(socket);
+  const page = new CdpPage(connection, '/unused');
+  const inspection = page.step('health check: comparison', () => page.evaluate(() => document.title, undefined, 5), { retries: 1 });
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(socket.sent.length, 2);
+  socket.message({ id: socket.sent[1].id, result: { result: { value: 'Compare' } } });
+  assert.equal(await inspection, 'Compare');
+  assert.deepEqual(page.steps.map(step => ({ step: step.step, attempt: step.attempt, code: step.error?.code })), [
+    { step: 'health check: comparison', attempt: 1, code: 'cdp_timeout' },
+    { step: 'health check: comparison', attempt: 2, code: undefined },
+  ]);
+  assert.ok(page.steps.every(step => Number.isFinite(step.duration_ms)));
+  connection.close();
+});
+
+test('read-only retry does not repeat browser exceptions', async () => {
+  const socket = new Socket();
+  const connection = new CdpConnection(socket);
+  const page = new CdpPage(connection, '/unused');
+  const inspection = page.step('health check: comparison', () => page.evaluate(() => { throw new Error('render failed'); }), { retries: 1 });
+  socket.message({ id: socket.sent[0].id, result: { exceptionDetails: { text: 'Error: render failed' } } });
+  await assert.rejects(inspection, error => error.code === 'page_evaluation_failed');
+  assert.equal(socket.sent.length, 1);
+  assert.equal(page.steps[0].error.code, 'page_evaluation_failed');
+  connection.close();
+});
+
+test('page evaluation has an earlier explicit deadline for awaited page work', async () => {
+  const socket = new Socket();
+  const connection = new CdpConnection(socket);
+  const page = new CdpPage(connection, '/unused');
+  const evaluation = page.evaluate(async () => { await new Promise(() => {}); }, undefined, 1000);
+  assert.match(socket.sent[0].params.expression, /__health_smoke_evaluation_timeout__750/);
+  socket.message({ id: socket.sent[0].id, result: {
+    exceptionDetails: { exception: { description: 'Error: __health_smoke_evaluation_timeout__750' } },
+  } });
+  await assert.rejects(evaluation, error => error.code === 'page_evaluation_timeout');
+  connection.close();
+});
+
 test('failure diagnostics retain console/network events even if screenshot or DOM capture fails', async () => {
   const artifactDir = await mkdtemp(join(tmpdir(), 'health-cdp-test-'));
   const socket = new Socket();
@@ -90,7 +141,7 @@ test('failure diagnostics retain console/network events even if screenshot or DO
     page.screenshot = async () => { throw new Error('target closed'); };
     page.snapshot = async () => ({ title: 'Settings', text: 'Retry' });
     await page.saveDiagnostics(new Error('assertion failed'));
-    assert.deepEqual((await readdir(artifactDir)).sort(), ['capture.json', 'console-network.json', 'failure-page.json', 'failure.txt']);
+    assert.deepEqual((await readdir(artifactDir)).sort(), ['capture.json', 'console-network.json', 'failure-page.json', 'failure.txt', 'steps.json']);
     assert.match(await readFile(join(artifactDir, 'failure.txt'), 'utf8'), /assertion failed/);
     assert.match(await readFile(join(artifactDir, 'console-network.json'), 'utf8'), /render failed/);
     assert.match(await readFile(join(artifactDir, 'console-network.json'), 'utf8'), /503/);

@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { launchBrowser, stopChild } from './browser-cdp.mjs';
+import { BrowserSmokeError, launchBrowser, stopChild } from './browser-cdp.mjs';
 
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 
@@ -44,7 +44,9 @@ async function runScenario(scenario, artifactDir, ego) {
   fixture.stderr.on('data', chunk => { fixtureLog += chunk; output('stderr', chunk); });
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Fixture startup timed out')), 30000);
+      const timer = setTimeout(() => reject(new BrowserSmokeError('Fixture startup timed out after 30000ms', {
+        code: 'fixture_startup_timeout', phase: 'fixture_start',
+      })), 30000);
       const fail = error => { clearTimeout(timer); reject(error); };
       fixture.once('error', fail);
       fixture.once('exit', code => fail(new Error(`Fixture exited: ${code}`)));
@@ -68,7 +70,9 @@ async function runScenario(scenario, artifactDir, ego) {
       output(stream, chunk);
     });
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`Browser ${scenario} exceeded 10 minutes`)), 600000);
+      const timer = setTimeout(() => reject(new BrowserSmokeError(`Browser ${scenario} exceeded 600000ms`, {
+        code: 'browser_scenario_timeout', phase: 'scenario',
+      })), 600000);
       const fail = error => { clearTimeout(timer); reject(error); };
       child.once('error', fail);
       child.once('exit', code => {
@@ -83,7 +87,11 @@ async function runScenario(scenario, artifactDir, ego) {
       }
     });
   } catch (error) {
-    await writeFile(join(artifactDir, 'runner-failure.txt'), error.stack || String(error));
+    await writeFile(join(artifactDir, 'runner-failure.txt'), [
+      `code: ${error.code || 'runner_failed'}`,
+      `phase: ${error.phase || 'runner'}`,
+      error.stack || String(error),
+    ].join('\n'));
     throw error;
   } finally {
     if (child) await stopChild(child);

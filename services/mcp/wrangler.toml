@@ -8,6 +8,8 @@ rules = [{ type = "Text", globs = ["**/tokens.css"], fallthrough = true }]
 routes = [
   { pattern = "mcp.codepi.app", custom_domain = true }
 ]
+[triggers]
+crons = ["13 4 * * *"]
 
 [vars]
 ENVIRONMENT = "production"

@@ -9,7 +9,7 @@ import {
   SUPPORTED_SCOPES, resource, getClient, createClient, redirectAllowed, createConsentRequest, consentCsrfMatches,
   takeConsentRequest, createAuthCode, lookupAuthCode, exchangeAuthCode, exchangeRefreshToken, hasLiveGrant, sha256Base64Url,
   revokeToken, revokeClient, listConnections, registrableRedirect, clientSecretMatches, CLIENT_AUTH_METHODS,
-  type ClientAuthMethod, type OAuthClient,
+  registrationSourceHash, reserveRegistration, type ClientAuthMethod, type OAuthClient,
 } from "./oauth-store.ts";
 
 const OWNER = "kdp-owner";
@@ -84,6 +84,12 @@ export async function register(request: Request, env: Env) {
   const method = body.token_endpoint_auth_method ?? "none";
   if (!(CLIENT_AUTH_METHODS as readonly unknown[]).includes(method)) {
     return oauthError("invalid_client_metadata", `token_endpoint_auth_method must be one of ${CLIENT_AUTH_METHODS.join(", ")}`);
+  }
+  const limit = await reserveRegistration(env, await registrationSourceHash(env, request));
+  if (!limit.allowed) {
+    const response = oauthError("slow_down", "Too many client registrations; retry later", 429);
+    response.headers.set("Retry-After", String(limit.retryAfterSeconds));
+    return response;
   }
   const client = await createClient(env, typeof body.client_name === "string" ? body.client_name.slice(0, 120) : null,
     uris as string[], method as ClientAuthMethod);
