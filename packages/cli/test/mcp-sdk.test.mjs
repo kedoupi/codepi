@@ -75,6 +75,65 @@ test("SDK retries a 401 exactly once after a serialized token refresh", async ()
   }
 });
 
+test("401 refresh preserves a non-rotated refresh token", async () => {
+  const dir = await makeTempDir();
+  let tokenRequests = 0;
+  const fake = await startFakeMcpServer({
+    tools: {
+      get_context: async () => ({
+        content: [{ type: "text", text: "{}" }],
+        structuredContent: { ok: true, sources: [] },
+      }),
+    },
+  });
+  const server = createServer(async (req, res) => {
+    if (req.url !== "/oauth/token") {
+      json(res, 404, { error: "not_found" });
+      return;
+    }
+    tokenRequests += 1;
+    const body = new URLSearchParams(await readBody(req));
+    assert.equal(body.get("grant_type"), "refresh_token");
+    assert.equal(body.get("refresh_token"), "synthetic-refresh");
+    json(res, 200, {
+      access_token: "synthetic-access",
+      token_type: "Bearer",
+      expires_in: 3600,
+      scope: "context.read projects.read projects.write",
+    });
+  });
+  await listen(server);
+  const address = server.address();
+  // Route only OAuth token traffic to the token fixture; MCP stays on the SDK server.
+  const originalFetch = globalThis.fetch;
+  const fetchImpl = (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.pathname === "/oauth/token") {
+      url.protocol = "http:";
+      url.hostname = "127.0.0.1";
+      url.port = String(address.port);
+    }
+    return originalFetch(url, init);
+  };
+  try {
+    const store = await writeCredentials(dir, fake.server, { expiresAt: Date.now() + 20_000 });
+    await callMcpTool({
+      server: fake.server,
+      name: "get_context",
+      args: {},
+      configDir: dir,
+      fetchImpl,
+    });
+    assert.equal(tokenRequests, 1);
+    assert.equal((await store.read()).tokens.refresh_token, "synthetic-refresh");
+  } finally {
+    server.closeAllConnections();
+    await closeServer(server);
+    await fake.close();
+    await removeTempDir(dir);
+  }
+});
+
 test("invalid refresh grant releases the held refresh lease and clears the token family", async () => {
   const dir = await makeTempDir();
   const serverRef = { value: "" };

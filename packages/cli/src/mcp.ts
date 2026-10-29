@@ -305,12 +305,13 @@ class CredentialOAuthProvider implements OAuthClientProvider {
             code: "oauth_issuer_mismatch",
           });
         }
+        const storedTokens = record.tokens;
         await this.store.write({
           ...record,
-          tokens: fromOAuthTokens(tokens, record.metadata),
+          tokens: fromOAuthTokens(tokens, record.metadata, storedTokens),
         });
         this.savedRefreshAccessToken = tokens.access_token;
-        this.savedRefreshToken = tokens.refresh_token ?? null;
+        this.savedRefreshToken = tokens.refresh_token ?? storedTokens?.refresh_token ?? null;
       });
     } finally {
       await this.releaseLease();
@@ -538,6 +539,7 @@ function sameStoredTokens(left: StoredTokens, right: StoredTokens): boolean {
 function fromOAuthTokens(
   tokens: OAuthTokens,
   metadata?: AuthorizationMetadataRecord,
+  previous?: StoredTokens,
 ): StoredTokens {
   if (tokens.token_type.toLowerCase() !== "bearer") {
     throw new CliError("刷新响应包含不支持的 token type。", EXIT.REMOTE, {
@@ -546,7 +548,11 @@ function fromOAuthTokens(
   }
   return {
     access_token: tokens.access_token,
-    ...(tokens.refresh_token ? { refresh_token: tokens.refresh_token } : {}),
+    ...(tokens.refresh_token
+      ? { refresh_token: tokens.refresh_token }
+      : previous?.refresh_token
+        ? { refresh_token: previous.refresh_token }
+        : {}),
     token_type: "Bearer",
     scope: tokens.scope ?? metadata?.scopes_supported?.join(" ") ?? "",
     expires_at: Date.now() + Math.floor((tokens.expires_in ?? 3600) * 1000),
