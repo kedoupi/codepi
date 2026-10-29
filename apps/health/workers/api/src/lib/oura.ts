@@ -91,7 +91,7 @@ export function buildAuthorizeUrl(opts: {
   return auth.toString();
 }
 
-async function postToken(body: URLSearchParams): Promise<OuraTokens> {
+async function postToken(body: URLSearchParams, previousRefreshToken?: string): Promise<OuraTokens> {
   const res = await upstreamRequest(OURA_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -112,14 +112,17 @@ async function postToken(body: URLSearchParams): Promise<OuraTokens> {
     throw new ApiError("upstream_request_rejected", 502);
   }
   const expiresIn = Number(json?.expires_in);
+  const refreshToken = json?.refresh_token === undefined && previousRefreshToken !== undefined
+    ? previousRefreshToken
+    : json?.refresh_token;
   if (typeof json?.access_token !== "string" || !json.access_token
-    || typeof json.refresh_token !== "string" || !json.refresh_token
+    || typeof refreshToken !== "string" || !refreshToken
     || !Number.isFinite(expiresIn) || expiresIn <= 0) {
     throw new ApiError("invalid_upstream_response", 502);
   }
   return {
     access_token: json.access_token,
-    refresh_token: json.refresh_token,
+    refresh_token: refreshToken,
     expires_in: expiresIn,
   };
 }
@@ -151,7 +154,8 @@ export async function refreshAccessToken(args: {
     client_id: args.clientId,
     client_secret: args.clientSecret,
   });
-  return postToken(body);
+  // RFC 6749 allows a refresh response to retain the current refresh token.
+  return postToken(body, args.refreshToken);
 }
 
 async function ouraGet<T>(accessToken: string, path: string): Promise<T> {

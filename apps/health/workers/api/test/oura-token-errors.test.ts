@@ -29,3 +29,13 @@ test("malformed token lifetime cannot become a permanently unrefreshable token",
   }));
   await assert.rejects(refreshAccessToken(args), { code: "invalid_upstream_response" });
 });
+
+test("refresh preserves the current grant when the provider omits refresh_token", async t => {
+  t.mock.method(globalThis, "fetch", async () => Response.json({
+    access_token: "new-access", expires_in: 86400,
+  }));
+  const tokens = await refreshAccessToken(args);
+  assert.deepEqual(tokens, {
+    access_token: "new-access", refresh_token: "test-refresh", expires_in: 86400,
+  });
+});
