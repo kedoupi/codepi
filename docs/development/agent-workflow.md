@@ -2,102 +2,40 @@
 
 总入口见 [规范导航](README.md)；核对旧分支、集成、发布和退役使用 [集成与发布工作流](integration-release.md)，不在本文件重复维护云端规则。
 
-这套流程面向 kedoupi（codepi）的多 agent 开发：你确定目标和验收，不同工具、模型或会话中的 agent 共同遵循仓库规则。默认一个独立写入任务对应一个 worktree；小修改直接实施，跨应用、数据库或公共接口变更才写任务记录。
+这套流程面向 kedoupi（codepi）的 coding agent。omp、Codex 和 Claude Code 共用根规范、局部 `AGENTS.md` 与按需选择的四个共享 skill。默认由一个 agent 在当前任务 worktree 中完成目标、实现和本地验证；协作、独立审查、交接或发布只在任务风险、用户要求或发布门需要时启用。
 
-开工只需先明确：目标与验收、实际 worktree/起始 SHA、已有改动、允许写入路径、
-需要先完成的依赖。新 Agent 按[修改范围导航](README.md#按修改范围选路)读取相关规则；
-续做从[任务索引](tasks/README.md)定位记录，不遍历全部历史计划。
+开工先明确目标与验收、实际 worktree/起始 SHA、已有改动和允许写入路径。新 agent 按[修改范围导航](README.md#按修改范围选路)读取规则；续做从[任务索引](tasks/README.md)定位记录，不遍历历史计划。原生 skill 不可用时直接读取 `.agents/skills/<name>/SKILL.md`。
 
 ## 日常怎么用
 
-使用任意 coding agent 打开分配给它的 worktree，从明确的基线开始。已有任务继续使用原 worktree。各工具入口见 [工具兼容说明](agent-compatibility.md)。通用任务指令不依赖插件或专用命令：
+通用任务输入不依赖插件或专用命令：
 
 ```text
-读取 AGENTS.md 和 .agents/skills/kdp-dev/SKILL.md。
-修复 Health 的……。完成标准：……。范围限于 apps/health/。
-先调查根因，完成实现和本地验证，最后交付改动与未覆盖项。
+在当前任务 worktree 操作，并保护已有改动。
+目标：……
+验收：……
+允许修改：……
+任务基线：……
+先读取 AGENTS.md、docs/development/README.md 和适用的共享 skill；
+调查根因，完成实现与本地验证，交付改动、证据和未覆盖项。
 ```
 
-```text
-读取 AGENTS.md 和 .agents/skills/kdp-review/SKILL.md。
-审查当前任务相对 <基线 SHA> 的全部改动。
-重点检查行为回归、跨应用影响和测试缺口，先给问题，不修改代码。
-```
-
-```text
-读取 AGENTS.md 和 .agents/skills/kdp-handoff/SKILL.md。
-整理当前任务，让下一个 agent 能直接继续。
-记录基线、改动、实际检查结果和下一步，不包含私人数据或凭证。
-```
-
-```text
-读取 AGENTS.md 和 .agents/skills/kdp-release/SKILL.md。
-只读核对旧分支和 worktree 的工作是否已进入 main。
-分别列出已包含、仍需集成、已替代和主动不合并的内容，附证据；先不修改 Git 或云端。
-```
-
-四个 skill 的执行入口只维护在 `.agents/skills/`，详细流程链接到本目录，随仓库版本管理；各工具适配文件只负责引导读取。能发现原生 skill 时使用该工具的调用方式，不能发现时直接读取文件。`agents/openai.yaml` 仅为 Codex 的显示元数据，不是执行这些流程的必要条件。
-
-## 五角色发布流水线
-
-Ops Observer 已纳入正式交付协议。一次发布由同一条可追溯链路负责：
-
-1. **协调者**在 Orca main workspace 讨论需求、定义验收并拆分任务；main workspace 不直接承载实现改动。
-2. **实现 agent**为每个任务使用独立 worktree，按 `kdp-dev` 实施、验证并交付 commit。
-3. **PR 审查者**按 `kdp-review` 只读检查完整 diff、回归风险与证据，发表评论并通知原 Orca workspace；审查者不直接修改实现。
-4. **发布经理**按 `kdp-release` 在干净、已合并的 `main` 上持有唯一 merge/发布权，串行执行本地发布。
-5. **Ops Observer**在 smoke 通过并发布完成后自动创建 observe session，观察新版本 30 分钟并写入报告；它不替代发布前审查或用户验收。
-
-### PR 创建与重新审查
-
-PR 必须绑定 Orca workspace 的 reference（任务/会话标识或其可定位链接），描述至少包含 `task`、`base SHA`、实现范围、验证证据、未执行项和回滚边界。PR 的 source head SHA 发生变化（包括 rebase、冲突解决或追加提交）后，原审查结论失效，必须以新 head SHA 重新进行完整审查；不能以旧评论或旧 CI 结果代替。
-
-发布经理在生产 smoke 全部通过后，使用同一批发布事实生成单一 release manifest，并触发 `kind: observe` 的 Workflow。Observer 的结束状态、报告路径和用户确认必须回填任务记录；严重故障按运维文档的回滚安全门处理。
-
+按任务读取 `kdp-dev`（实现）、`kdp-review`（只读审查）、`kdp-handoff`（跨会话交接）或 `kdp-release`（分支核对、集成与发布）。审查固定 base/head SHA；发布按现有[本地发布操作](local-release.md)执行，不在这里复制发布锁、Observer 或远程操作细节。`agents/openai.yaml` 仅为 Codex 显示元数据，Claude 的轻量入口只负责导入共享 skill。
 
 ## 从需求到交付
 
 | 步骤 | Agent 的动作 | 需要留下什么 |
 | --- | --- | --- |
 | 定界 | 读取根与目标目录的 AGENTS、实际实现和调用方；确认当前 worktree、起点及已有改动 | 目标、验收、影响目录；简单任务放在对话即可 |
-| 隔离 | 复用本任务 worktree；并行写入任务使用另一个 worktree | worktree 路径、基线 SHA、唯一任务分支；不以工具名判断归属 |
+| 隔离 | 复用本任务 worktree；只有并行或独立写入任务才使用另一个 worktree | worktree 路径、基线 SHA、允许写入范围 |
 | 实施 | 一次解决一个问题；复用现有能力；接口变更先明确契约和消费者 | 最小可审查 diff |
 | 验证 | 先跑针对性测试，再跑受影响应用检查；UI 额外做浏览器验收 | 命令、结果、未覆盖路径 |
-| 审查 | 按整个任务 diff 检查；涉及认证、迁移或跨应用接口时优先独立审查 | 按严重程度排列的具体缺陷；没有发现也说明验证边界 |
-| 交付 | 区分已实现、本地通过、线上验收；用户需要时整理 PR 描述 | 改动、证据、风险、下一步 |
+| 审查 | 按风险、用户要求或发布门决定是否独立审查；认证、迁移或跨应用接口优先审查 | 固定 base/head SHA 上的缺陷与证据 |
+| 交付 | 区分已实现、本地通过、线上验收；按授权执行后续动作 | 改动、证据、风险、下一步 |
 
-默认开发交付到本地验证和审查完成。commit、push、PR 创建、merge、rebase、部署和远程迁移按本次用户授权执行；之前已授权的动作不重复询问。生产发布改由本机从已合并的 main 执行，步骤见 [本地发布操作](local-release.md)。合并和上线分开记录；Actions 验证不执行迁移或部署。
+默认开发交付到本地验证；独立审查不是每个小任务的必经角色。commit、push、PR 创建、merge、rebase、部署和远程迁移按本次用户授权执行；之前已授权的动作不重复询问。生产发布改由本机从已合并的 main 执行，步骤见[本地发布操作](local-release.md)；合并和上线分开记录，Actions 仅作验证。
 
-## 代码、运行环境与数据隔离
-
-- 一个写入者拥有一个 worktree；同一 worktree 内的 subagent 仅在文件集合明确不重叠时并行写入。审查者默认只读。不要通过多开聊天让多个 agent 同时修改同一批文件。
-- 开工用 `git rev-parse --show-toplevel` 核实实际仓库，再读取 `git status --short`、`git worktree list`、`git rev-parse HEAD`。旧聊天目录失效时先找实际 checkout，不在残留目录初始化仓库。已有改动需要辨明来源，不覆盖；出现任务开始后无法解释的改动时立即停止并确认。
-- 工具管理的 detached HEAD 可以直接开发；交付记录必须包含基线 SHA。复用当前 worktree 时不擅自切换到最新 `main`。新任务选择的起点必须明确，不能假定本地 `main` 或 `origin/main` 已最新。
-- 不共享 worktree 间的 `node_modules`、`dist`、`.astro` 或 `.wrangler`。依赖缓存可以由包管理器复用，应用目录及本地 D1 状态各自独立。不复制生产 `.env`、`.dev.vars` 或私人数据库来建立测试环境。
-- worktree 不隔离端口、浏览器 Cookie、远程数据库或外部服务。并行预览先分配独立端口；认证测试用独立浏览器上下文，必要时串行。相同 localhost 主机的 Cookie 不按端口隔离。
-- 首页默认 4321；Health 默认前端 5173、API 8787，GU 8791，GZH 8788。启动前检查端口；修改 Health API 端口时同步其 Vite proxy。固定端口的现有测试无法配置时串行运行，不杀其他任务的进程。
-- worktree 回收前保留已授权的交付结果，核对未跟踪文件与忽略文件；清理必须明确授权。不要用 `reset`、`stash` 或强制删除处理冲突。
-
-新 worktree 放在 `~/.worktrees/<项目目录>/<分支>`；先复用合适的现有目录。确需创建时，可以由任务负责人用标准 Git 准备目录（替换任务名和已确认基线）：
-
-```bash
-git worktree list
-git worktree add -b codex/task-name ~/.worktrees/codepi/codex/task-name <已确认的基线SHA>
-```
-
-创建前确认路径、分支均未被其他任务占用；不要覆盖已有 worktree。然后让目标工具打开新目录。未提交改动不会由这条 Git 命令自动复制，新 worktree 也不会自动获得当前尚未提交的规范文件。跨机器可用各自 checkout/clone，交接仍使用明确的基线和已授权传递的产物。
-
-## 并行任务的切法
-
-协作角色与模型无关，可以由不同厂商的工具承担：
-
-| 角色 | 职责 | 写入范围 |
-| --- | --- | --- |
-| 协调者 | 定义验收、拆分任务、分配 worktree 和接口负责人、处理依赖 | 任务分配记录；不代替执行者修改其工作目录 |
-| 执行者 | 在分配范围内实现并验证 | 自己的 worktree 和已分配路径 |
-| 审查者 | 检查固定版本的 diff、回归风险与证据 | 默认只读；需要改代码时先转为明确的修复任务 |
-| 集成者 | 按依赖顺序汇集已授权交付、处理冲突、重新验证组合结果 | 明确的集成 worktree；Git 合并与发布遵循用户授权 |
-
+审查和交付绑定具体提交 SHA；尚未授权提交时，绑定已停止写入的 worktree、基线与明确文件清单（含未跟踪文件）。代码继续变化后原审查与验证结论需要重新评估。各分支单独通过不代表组合通过，集成者在整合后按完整基线重新运行检查；没有集成授权时只交付可审查成果和依赖。
 小任务可以由同一个 agent 顺序承担这些角色；角色不是四个必须启动的进程。真正并行时，协调者维护唯一任务分配表，至少包含：
 
 ```markdown
@@ -118,7 +56,6 @@ git worktree add -b codex/task-name ~/.worktrees/codepi/codex/task-name <已确�
 
 发现必须修改另一个任务拥有的接口或文件时，先向协调者报告所需契约变化，继续不依赖它的工作；不能自行扩大写入范围。任务协调不默认授权给其他聊天发消息；使用用户已授权的沟通渠道，或把交接内容交给用户转交。
 
-审查和交付要绑定具体提交 SHA；尚未授权提交时，绑定已停止写入的 worktree、基线与明确文件清单（含未跟踪文件），需要跨机器传递时准备可审查的补丁或文件产物。代码继续变化后原审查与验证结论需要重新评估。各分支单独通过不代表组合通过，集成者在整合后按完整基线重新运行检查。没有集成授权时交付可审查成果和依赖，不擅自合并。
 
 ## 本地检查入口
 

@@ -1,6 +1,6 @@
 # 任务与接续入口
 
-本页是任务导航，不复制完整日志或充当跨 worktree 的实时锁。摘要汇集至 2026-10-26
+本页是任务导航，不复制完整日志或充当跨 worktree 的实时锁。摘要汇集至 2026-10-29
 的仓库记录与所有者反馈；继续工作前核对对应记录、当前源码和必要的远程状态。
 历史文件中的“待部署”“待配置”不自动等于今天的故障。
 
@@ -9,6 +9,8 @@
 
 | 工作 | 最近确认的状态 | 下一步与证据 |
 | --- | --- | --- |
+| 2026-11-01 Agent 工作流精简与客户端接入验收 | 默认单 agent、按需协作/审查/发布的规则已落地；omp、Codex、Claude Code 真实只读接入通过，本地七项检查通过；尚未提交或同步主干 | [基线、文件清单与验证证据](2026-11-01-workflow-simplification.md)：客户端升级/配置变化后复测，提交与合并另行授权 |
+| 2026-10-28 Blog/MCP 参数与下架修复续验 | PR #218/#219 已合并；MCP 最新 `72f51a25`、Web `ed106b62` 已上线；最新两个 Observer 均 `healthy_reported`、无回滚；生产巡检仍有 GU/Project/Me/Health API 四项既有漂移 | [续验与发布证据](2026-10-28-blog-mcp-followup.md)：ChatGPT 需刷新工具 schema，真实投稿和四项漂移处理另行验收 |
 | 2026-10-28 MCP Blog 提交参数修复 | `c170a80` 已提交并直接推送 main，MCP 已发布 `76f3f4a9`；CI 重跑全绿，生产只读 schema 与匿名 smoke 通过；Observer 七轮 `healthy_reported`、无回滚 | [任务与发布证据](2026-10-28-mcp-blog-submit-schema.md)：ChatGPT 需刷新工具 schema，所有者实际投稿确认另行验收 |
 | 2026-10-27 Blog 审核体验（第 3 期） | 已实现并由生产 Web `0f62999df7b1` 承载；Blog/Desk migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-review-ux.md)：本地 49 项、浏览器与生产 smoke 已通过；未代替真实审核操作验收 |
 | 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 已实现并由生产 Web/MCP `0f62999df7b1` 承载；Blog migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-content-model.md)：本次另补 MCP 分类/标签/头图必填 schema；生产只读契约已核验 |

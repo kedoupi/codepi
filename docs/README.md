@@ -21,8 +21,8 @@
 | 工程结构、技术栈、服务边界、环境 | [工程架构与部署模型](architecture/workspace-and-deployment.md) |
 | 共享视觉和 UI 约束 | [CodePi Design System 规范](architecture/codepi-design-system.md)（品牌、token、组件、应用主题、待实施清单）、[个人站设计规范](architecture/personal-design-system.md)（主站布局与公开页边界） |
 | 统一 MCP、Health 数据语义和扩展边界 | [领域扩展与 CLI](architecture/mcp-domains.md)、[Health MCP 架构](architecture/unified-mcp.md)、[MCP README](../services/mcp/README.md) |
-| 开发、审查、多 Agent 分工与交接 | [开发导航](development/README.md)、[Agent 工作流](development/agent-workflow.md) |
-| 不同 CLI 如何读取同一套规则 | [工具兼容说明](development/agent-compatibility.md) |
+| 开发、审查、多 Agent 分工与交接 | [开发导航](development/README.md)、[Agent 工作流](development/agent-workflow.md)（omp、Codex 和 Claude Code 共用规则；协作与审查按需） |
+| 不同工具如何读取同一套规则 | [工具兼容说明](development/agent-compatibility.md)（只覆盖当前三种工具和实际验证边界） |
 | 分支核对、集成和退役 | [集成发布流程](development/integration-release.md) |
 | 合并后从本机发布 | [本地发布操作](development/local-release.md) |
 | Cloudflare 约束和资源归属 | [治理规范](development/cloudflare-governance.md)、[资源登记表](development/cloudflare-resource-registry.md) |
