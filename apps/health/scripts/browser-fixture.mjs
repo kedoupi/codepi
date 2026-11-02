@@ -312,7 +312,7 @@ const server = createServer(async (req, res) => {
           }
         }
         if (scenario === 'nap-only') {
-          // Recent days keep only naps: the UI must not frame them as nights.
+          // Recent days keep only naps: details distinguish them while the overview totals them.
           await db.prepare("DELETE FROM health_records WHERE collection='sleep' AND day>=? AND json_extract(payload,'$.type')='long_sleep'").bind(shiftDay(today, -9)).run();
         }
         if (journal) {

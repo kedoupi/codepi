@@ -353,10 +353,12 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('[data-testid="sleep-duration"]').textContent), '0 小时 30 分');
   await healthy('nap-only day states the missing main sleep instead of framing a nap as the night');
   await navigate('/');
-  await page.waitForSelector('.journal-sleep .journal-metric');
+  await page.waitForFunction(() => document.querySelector('.journal-sleep .journal-metric strong')?.textContent.includes('0 小时 30 分'));
   const sleepMetricDate = await page.evaluate(() => document.querySelector('.journal-sleep .journal-metric span')?.textContent);
   const shanghaiToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
-  assert.notEqual(sleepMetricDate, shanghaiToday, 'a nap-only day must not surface as the latest main sleep');
+  assert.equal(sleepMetricDate, shanghaiToday, 'a nap-only day contributes to the daily total-sleep chart');
+  assert.match(await page.evaluate(() => document.querySelector('.journal-sleep .journal-metric strong')?.textContent), /0 小时 30 分/);
+  await healthy('nap-only days appear in the total-sleep chart without changing main-sleep HRV');
   await navigate('/sleep');
   await page.waitForSelector('[data-testid="nap-only-notice"]');
   await page.evaluate(async () => { await fetch('/__test/sleep-scenario?mode=records', { method: 'POST' }); });
@@ -454,7 +456,7 @@ try {
   await navigate('/');
   await page.waitForSelector('.automatic-sync');
   await page.waitForFunction(() => document.querySelector('.journal-score-body strong')?.textContent === '80'
-    && document.querySelector('.journal-sleep')?.textContent.includes('8 小时 0 分'));
+    && document.querySelector('.journal-sleep')?.textContent.includes('8 小时 30 分'));
   await fixture('sync-scenario?mode=success&hold_scores=1', 'POST');
   await page.click('loc=css:.journal-sync-line button:text-is("更新数据")');
   await page.waitForFunction(async () => (await (await fetch('/api/me/health-records/automatic')).json()).status === 'running');

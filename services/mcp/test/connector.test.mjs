@@ -195,7 +195,7 @@ test('statistics scan all saved records with units, daily weighting and honest m
   assert.equal(f.state.providerCalls, 0);
 });
 
-test('sleep statistics default to main sleep and expose an explicit all-period scope', async t => {
+test('sleep statistics default to all periods and expose an explicit main-sleep scope', async t => {
   const f = await fixture(t), grant = await f.grant();
   await f.record('sleep', '2026-01-01', 'main', {
     type: 'long_sleep', total_sleep_duration: 25200, average_hrv: 40,
@@ -211,17 +211,17 @@ test('sleep statistics default to main sleep and expose an explicit all-period s
     collection: 'sleep', from: '2026-01-01', to: '2026-01-02',
     metrics: ['total_sleep_duration', 'average_hrv'], operations: ['count', 'mean'], refresh: false,
   };
-  const main = await f.tool(grant.access_token, 'health_aggregate', args);
-  assert.equal(main.structuredContent.sleep_scope, 'main');
-  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].mean, 25200);
-  assert.equal(main.structuredContent.periods[0].metrics[1].buckets[0].mean, 40);
-  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].valid_records, 1);
-
-  const all = await f.tool(grant.access_token, 'health_aggregate', { ...args, sleep_scope: 'all' });
+  const all = await f.tool(grant.access_token, 'health_aggregate', args);
   assert.equal(all.structuredContent.sleep_scope, 'all');
   assert.equal(all.structuredContent.periods[0].metrics[0].buckets[0].mean, 15300);
   assert.equal(all.structuredContent.periods[0].metrics[1].buckets[0].mean, 83.75);
   assert.equal(all.structuredContent.periods[0].metrics[0].buckets[0].valid_records, 3);
+
+  const main = await f.tool(grant.access_token, 'health_aggregate', { ...args, sleep_scope: 'main' });
+  assert.equal(main.structuredContent.sleep_scope, 'main');
+  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].mean, 25200);
+  assert.equal(main.structuredContent.periods[0].metrics[1].buckets[0].mean, 40);
+  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].valid_records, 1);
 });
 
 test('stale queries enqueue durable deduplicated work, pagination and historical queries do not', async t => {

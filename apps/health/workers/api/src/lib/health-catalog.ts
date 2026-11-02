@@ -78,9 +78,9 @@ export function healthCatalog() {
     max_query_days: collection.mode === "time" ? 7 : 31,
     ...(collection.name === "sleep" ? {
       aggregate_sleep_scopes: {
-        default: "main",
-        main: "only records explicitly typed long_sleep; naps, rest and unmarked records are excluded",
-        all: "all sleep periods, including naps and rest; use only for total sleep across all periods",
+        default: "all",
+        main: "only records explicitly typed long_sleep; use for main-sleep-only metrics",
+        all: "all sleep periods, including naps and rest; daily additive durations match the Health total-sleep chart",
       },
     } : {}),
     fields: [...new Set([...(fields[collection.name] ?? []), ...(HEALTH_METRICS[collection.name] ?? []).map(m => m.field)])],

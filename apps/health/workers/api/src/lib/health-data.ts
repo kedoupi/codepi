@@ -198,7 +198,7 @@ const NUMERIC = (path: string) => `CASE WHEN json_type(payload,'$.${path}') IN (
   THEN json_extract(payload,'$.${path}') END`;
 
 export async function aggregatePeriod(env: Env, userId: string, name: string, selected: Range,
-  metrics: string[], operations: string[], interval: string, sleepScope: "main" | "all" = "main") {
+  metrics: string[], operations: string[], interval: string, sleepScope: "main" | "all" = "all") {
   const spec = collection(name);
   const definitions = HEALTH_METRICS[name] ?? [];
   const result: Record<string, unknown>[] = [];
@@ -247,7 +247,7 @@ export async function aggregatePeriod(env: Env, userId: string, name: string, se
 async function aggregate(env: Env, userId: string, args: Record<string, unknown>, now: number) {
   validateArgs(args, ["collection", "from", "to", "metrics", "operations", "interval", "compare_from", "compare_to", "refresh", "sleep_scope"]);
   const spec = collection(args.collection);
-  const sleepScope = args.sleep_scope ?? "main";
+  const sleepScope = args.sleep_scope ?? "all";
   if (spec.name !== "sleep" && args.sleep_scope !== undefined
     || !["main", "all"].includes(String(sleepScope))) throw new ApiError("invalid_sleep_scope", 400);
   const today = spec.mode === "time" ? new Date(now).toISOString().slice(0, 10) : calendarDay(new Date(now));

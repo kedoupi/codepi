@@ -38,7 +38,7 @@ test("aggregatePeriod batches all metric queries and preserves metric results", 
   assert.equal(batchCalls, 1);
   assert.equal(allCalls, 0);
   assert.equal(prepared.length, 2);
-  assert.ok(prepared.every(row => row.sql.includes("json_extract(payload,'$.type')='long_sleep'")));
+  assert.ok(prepared.every(row => !row.sql.includes("long_sleep")));
   assert.deepEqual(result.metrics, [
     {
       metric: "total_sleep_duration", unit: "seconds", daily_rule: "sum",
@@ -55,7 +55,7 @@ test("aggregatePeriod batches all metric queries and preserves metric results", 
   assert.equal(batchCalls, 1, "empty metrics must not call batch");
 });
 
-test("aggregatePeriod can explicitly include every sleep period", async () => {
+test("aggregatePeriod can explicitly limit metrics to main sleep", async () => {
   const sql: string[] = [];
   const DB = {
     prepare(query: string) {
@@ -65,7 +65,7 @@ test("aggregatePeriod can explicitly include every sleep period", async () => {
     async batch() { return [{ results: [] }]; },
   };
   await aggregatePeriod({ DB } as unknown as Env, "user-1", "sleep",
-    { from: "2026-01-01", to: "2026-01-07" }, ["total_sleep_duration"], ["count"], "period", "all");
+    { from: "2026-01-01", to: "2026-01-07" }, ["total_sleep_duration"], ["count"], "period", "main");
   assert.equal(sql.length, 1);
-  assert.equal(sql[0].includes("long_sleep"), false);
+  assert.ok(sql[0].includes("json_extract(payload,'$.type')='long_sleep'"));
 });

@@ -28,21 +28,12 @@ export function journalData(days: Day[], sleeps: SleepRecord[], end: string) {
   })) as Day[];
   const calendar = calendarDays(cleanDays, 90, end);
   const recent = calendar.slice(-30);
-  const sleepRows = recent.map(day => {
-    const rows = sleepForDay(sleeps, day.date);
-    // Explicitly typed naps/rest never stand in as the main sleep; only an
-    // unmarked period may fall back as the day's longest record.
-    return { date: day.date, row: rows.find(record => record.type === "long_sleep") ?? rows.find(record => !record.type) };
-  });
-  const sleep = sleepRows.map(({ date, row }) => ({
-    date,
-    value: finite(row?.total_sleep_duration) && row.total_sleep_duration >= 0 ? row.total_sleep_duration / 3600 : null,
-  }));
+  const sleep = recent.map(day => ({ date: day.date, value: rowsTotalSleep(sleeps, day.date) }));
   // HRV is explicitly a main-sleep measure. A nap must not silently replace it.
-  const hrv = sleepRows.map(({ date, row }) => ({
-    date,
-    value: row?.type === "long_sleep" && finite(row.average_hrv) && row.average_hrv > 0 ? row.average_hrv : null,
-  }));
+  const hrv = recent.map(day => {
+    const main = sleepForDay(sleeps, day.date).find(record => record.type === "long_sleep");
+    return { date: day.date, value: finite(main?.average_hrv) && main.average_hrv > 0 ? main.average_hrv : null };
+  });
   const steps = recent.map(day => ({
     date: day.date,
     value: finite(day.activity?.steps) && day.activity.steps >= 0 ? day.activity.steps : null,
@@ -51,6 +42,12 @@ export function journalData(days: Day[], sleeps: SleepRecord[], end: string) {
   const comparisons = latest ? scoreKeys.map(key => ({ key, delta: scoreDelta(calendar, latest, key) }))
     .filter(row => row.delta !== null).sort((a, b) => Math.abs(b.delta!.value) - Math.abs(a.delta!.value)) : [];
   return { calendar, recent, sleep, hrv, steps, latest, comparison: comparisons[0] ?? null };
+}
+
+function rowsTotalSleep(records: SleepRecord[], date: string): number | null {
+  const durations = records.filter(record => record.day === date)
+    .map(record => record.total_sleep_duration).filter(finite).filter(value => value >= 0);
+  return durations.length ? durations.reduce((sum, value) => sum + value, 0) / 3600 : null;
 }
 
 export function scorePoints(days: Day[], key: ScoreKey): JournalPoint[] {
