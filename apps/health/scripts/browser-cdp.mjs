@@ -4,6 +4,28 @@ import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 
+export class BrowserSmokeError extends Error {
+  constructor(message, { code = 'browser_smoke_failed', phase = 'browser', step = '', cause } = {}) {
+    super(message, { cause });
+    this.name = 'BrowserSmokeError';
+    this.code = code;
+    this.phase = phase;
+    this.step = step;
+  }
+}
+
+export async function withDeadline(promise, timeout, error) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((resolve, reject) => { timer = setTimeout(() => reject(error), timeout); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class CdpConnection {
   constructor(socket) {
     this.socket = socket;
@@ -28,7 +50,9 @@ export class CdpConnection {
       this.closed = true;
       for (const pending of this.pending.values()) {
         clearTimeout(pending.timer);
-        pending.reject(new Error(`CDP disconnected during ${pending.method}`));
+        pending.reject(new BrowserSmokeError(`CDP disconnected during ${pending.method}`, {
+          code: 'cdp_disconnected', phase: 'cdp', step: pending.method,
+        }));
       }
       this.pending.clear();
     };
@@ -48,12 +72,16 @@ export class CdpConnection {
   }
 
   send(method, params = {}, timeout = 15000) {
-    if (this.closed) return Promise.reject(new Error(`CDP disconnected before ${method}`));
+    if (this.closed) return Promise.reject(new BrowserSmokeError(`CDP disconnected before ${method}`, {
+      code: 'cdp_disconnected', phase: 'cdp', step: method,
+    }));
     const id = ++this.sequence;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`CDP timed out: ${method}`));
+        reject(new BrowserSmokeError(`CDP timed out after ${timeout}ms: ${method}`, {
+          code: 'cdp_timeout', phase: 'cdp', step: method,
+        }));
       }, timeout);
       this.pending.set(id, { method, resolve, reject, timer });
       try { this.socket.send(JSON.stringify({ id, method, params })); }
@@ -85,6 +113,7 @@ export class CdpPage {
     this.connection = connection;
     this.artifactDir = artifactDir;
     this.diagnostics = [];
+    this.steps = [];
     for (const method of ['Runtime.consoleAPICalled', 'Runtime.exceptionThrown', 'Log.entryAdded', 'Network.loadingFailed']) {
       connection.on(method, params => this.diagnostics.push({ method, params }));
     }
@@ -98,28 +127,84 @@ export class CdpPage {
 
   cdp(method, params) { return this.connection.send(method, params); }
 
+  async step(name, operation, { retries = 0 } = {}) {
+    let lastError;
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      const entry = { step: name, attempt, started_at: new Date().toISOString() };
+      this.steps.push(entry);
+      const started = Date.now();
+      try {
+        const result = await operation();
+        entry.duration_ms = Date.now() - started;
+        console.log(`STEP ${name} attempt=${attempt} duration_ms=${entry.duration_ms}`);
+        return result;
+      } catch (error) {
+        entry.duration_ms = Date.now() - started;
+        entry.error = { code: error.code || 'assertion_or_script', message: error.message };
+        error.browserStep ??= name;
+        error.browserPhase ??= error.phase || 'page';
+        lastError = error;
+        // Only repeat explicitly read-only operations. Retrying a click or a
+        // fixture POST could execute a user-visible mutation twice.
+        if (attempt > retries || !['cdp_timeout', 'page_evaluation_timeout'].includes(error.code)) throw error;
+        console.warn(`STEP_RETRY ${name} attempt=${attempt} code=${error.code}`);
+      }
+    }
+    throw lastError;
+  }
+
   async evaluate(fn, arg, timeout = 15000) {
-    const expression = `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`;
+    // A CDP deadline alone cannot explain whether the transport or the page's
+    // awaited fetch stalled. Give the page a slightly earlier, explicit budget.
+    const pageTimeout = Math.max(1, timeout - 250);
+    const marker = '__health_smoke_evaluation_timeout__';
+    const expression = `(async () => {
+      let timer;
+      try {
+        return await Promise.race([
+          Promise.resolve().then(() => (${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(${JSON.stringify(marker + pageTimeout)})), ${pageTimeout});
+          }),
+        ]);
+      } finally { clearTimeout(timer); }
+    })()`;
     const result = await this.connection.send('Runtime.evaluate', {
       expression, returnByValue: true, awaitPromise: true, userGesture: true,
     }, timeout);
     if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+      const description = result.exceptionDetails.exception?.description || result.exceptionDetails.text;
+      throw new BrowserSmokeError(description, {
+        code: description.includes(marker) ? 'page_evaluation_timeout' : 'page_evaluation_failed',
+        phase: 'page',
+      });
     }
     return result.result.value;
   }
 
+  inspect(fn, arg) {
+    return this.step('page inspection', () => this.evaluate(fn, arg), { retries: 1 });
+  }
+
   async waitForFunction(fn, arg, { timeout = 15000 } = {}) {
     const deadline = Date.now() + timeout;
+    let lastError;
     do {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
       try {
-        if (await this.evaluate(fn, arg, Math.max(1, deadline - Date.now()))) return;
+        if (await this.evaluate(fn, arg, Math.max(1, Math.min(5000, remaining)))) return;
       } catch (error) {
-        if (!/Execution context was destroyed|Cannot find context/.test(error.message)) throw error;
+        lastError = error;
+        const transient = ['cdp_timeout', 'page_evaluation_timeout'].includes(error.code)
+          || /Execution context was destroyed|Cannot find context/.test(error.message);
+        if (!transient || Date.now() >= deadline) throw error;
       }
       await delay(50);
     } while (Date.now() < deadline);
-    throw new Error(`Timed out after ${timeout}ms: ${fn.toString()} (${JSON.stringify(arg)})`);
+    throw new BrowserSmokeError(`Timed out after ${timeout}ms: ${fn.toString()} (${JSON.stringify(arg)})`, {
+      code: lastError?.code || 'wait_for_function_timeout', phase: 'page', cause: lastError,
+    });
   }
 
   waitForSelector(selector) {
@@ -212,12 +297,20 @@ export class CdpPage {
 
   async saveDiagnostics(error) {
     await writeFile(join(this.artifactDir, 'console-network.json'), JSON.stringify(this.diagnostics, null, 2));
+    await writeFile(join(this.artifactDir, 'steps.json'), JSON.stringify(this.steps, null, 2));
     if (!error) return;
-    await writeFile(join(this.artifactDir, 'failure.txt'), error.stack || String(error));
+    await writeFile(join(this.artifactDir, 'failure.txt'), [
+      `code: ${error.code || 'assertion_or_script'}`,
+      `phase: ${error.browserPhase || error.phase || 'scenario'}`,
+      `step: ${error.browserStep || error.step || 'unlabelled'}`,
+      error.stack || String(error),
+    ].join('\n'));
     // Preserve whatever remains available even when navigation or Chrome failed.
     const results = await Promise.allSettled([
-      this.screenshot({ path: 'failure.png' }),
-      this.snapshot().then(value => writeFile(join(this.artifactDir, 'failure-page.json'), JSON.stringify(value, null, 2))),
+      withDeadline(this.screenshot({ path: 'failure.png' }), 3000,
+        new BrowserSmokeError('Failure screenshot capture timed out', { code: 'diagnostic_timeout', phase: 'diagnostics' })),
+      withDeadline(this.snapshot().then(value => writeFile(join(this.artifactDir, 'failure-page.json'), JSON.stringify(value, null, 2))),
+        3000, new BrowserSmokeError('Failure page capture timed out', { code: 'diagnostic_timeout', phase: 'diagnostics' })),
     ]);
     await writeFile(join(this.artifactDir, 'capture.json'), JSON.stringify(results.map(result => ({
       status: result.status, error: result.reason?.message,

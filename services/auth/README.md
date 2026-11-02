@@ -74,12 +74,22 @@ The test registry contains synthetic identities and secrets, and is never
 included in the production bundle. MCP opt-in registration is tested here;
 the MCP service's own checks cover its protocol, RPC and browser authorization flow.
 
-`scripts/verify-production.mjs` is a legacy live acceptance script, not the
-current release entry. It sends an owner OTP and reads mail through Resend;
-it still includes the retired `codepi-gu.pages.dev` target and does not cover
-Desk/MCP. Correct its targets and obtain the required live-mail authorization
-before using it. Current probes and acceptance steps are in
-[local release](../../docs/development/local-release.md); ordinary tests do not send mail.
+`scripts/verify-production.mjs` is an explicit live acceptance script, not the
+current release entry. It sends one owner OTP, reads mail through Resend, and
+checks all seven current SSO clients plus global logout. It covers the canonical
+Workers origins only, including Desk's `/api/desk/me` and MCP's `/connections`;
+it does not use retired Pages origins or read private business payloads.
+`AUTH_ACCEPTANCE_OWNER_EMAIL` and `RESEND_API_KEY` must be supplied at runtime.
+Obtain explicit live-mail authorization before running:
+
+```sh
+AUTH_ACCEPTANCE_OWNER_EMAIL='<owner>' RESEND_API_KEY='<runtime-secret>' \
+  node services/auth/scripts/verify-production.mjs
+```
+
+The `production-acceptance` unit test replaces both production HTTP and mail
+with synthetic responses; ordinary tests do not send mail. Current probes and
+acceptance steps are in [local release](../../docs/development/local-release.md).
 
 For a local browser smoke test, run `node scripts/browser-fixture.mjs`, then open
 `http://localhost:8801/api/auth/login`. The local center uses port 8795 and the

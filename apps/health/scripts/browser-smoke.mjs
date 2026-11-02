@@ -29,7 +29,7 @@ const instrumentation = await page.cdp('Page.addScriptToEvaluateOnNewDocument', 
     };`,
 });
 async function healthy(label) {
-  const result = await page.evaluate(() => ({
+  const result = await page.step(`health check: ${label}`, () => page.evaluate(() => ({
     origin: location.origin,
     path: location.pathname,
     lang: document.documentElement.lang,
@@ -40,7 +40,7 @@ async function healthy(label) {
     errors: window.__smokeFailures || [],
     console: window.__smokeConsole || [],
     banners: [...document.querySelectorAll('.status.err')].map(el => el.textContent),
-  }));
+  })), { retries: 1 });
   assert.equal(result.origin, origin, label);
   const titles = {
     '/': ['健康 Health', 'Health'],

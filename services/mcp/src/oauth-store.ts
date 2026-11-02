@@ -30,6 +30,9 @@ export const REFRESH_REUSE_GRACE_MS = 60 * 1000;
 const REFRESH_REUSE_MAX_LIVE = 4;
 const CODE_TTL_MS = 5 * 60 * 1000;
 const CONSENT_TTL_MS = 10 * 60 * 1000;
+export const REGISTRATION_WINDOW_MS = 15 * 60 * 1000;
+export const REGISTRATION_SOURCE_LIMIT = 5;
+export const REGISTRATION_GLOBAL_LIMIT = 50;
 // Each authorization has its own refresh-token rotation family.
 const TOKEN_FAMILY_SQL = "family_id";
 
@@ -46,6 +49,41 @@ export function randomToken(bytes = 32): string {
 export async function sha256Base64Url(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return base64Url(new Uint8Array(digest));
+}
+
+async function hmacBase64Url(secret: string, value: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return base64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))));
+}
+
+export async function registrationSourceHash(env: Env, request: Request): Promise<string> {
+  // CF-Connecting-IP is set by Cloudflare. Missing input intentionally shares
+  // one bucket instead of allowing callers to bypass the limiter indefinitely.
+  const source = request.headers.get("CF-Connecting-IP")?.trim() || "unknown";
+  return hmacBase64Url(env.AUTH_CLIENT_SECRET || env.MCP_ORIGIN, `oauth-register:${source}`);
+}
+
+export async function reserveRegistration(
+  env: Env, sourceHash: string, now = Date.now(),
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  const bucketStarted = Math.floor(now / REGISTRATION_WINDOW_MS) * REGISTRATION_WINDOW_MS;
+  const result = await env.DB.prepare(
+    `INSERT INTO oauth_registration_events (id, source_hash, bucket_started, created_at)
+     SELECT ?, ?, ?, ?
+     WHERE (SELECT COUNT(*) FROM oauth_registration_events
+       WHERE source_hash = ? AND bucket_started = ?) < ?
+       AND (SELECT COUNT(*) FROM oauth_registration_events
+       WHERE bucket_started = ?) < ?`,
+  ).bind(
+    `reg_${randomToken(16)}`, sourceHash, bucketStarted, now,
+    sourceHash, bucketStarted, REGISTRATION_SOURCE_LIMIT,
+    bucketStarted, REGISTRATION_GLOBAL_LIMIT,
+  ).run();
+  return {
+    allowed: (result.meta?.changes ?? 0) === 1,
+    retryAfterSeconds: Math.max(1, Math.ceil((bucketStarted + REGISTRATION_WINDOW_MS - now) / 1000)),
+  };
 }
 
 export const CLIENT_AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"] as const;

@@ -6,6 +6,7 @@ import { legacySse } from "./legacy-sse.ts";
 export { LegacySse } from "./legacy-sse.ts";
 import { HttpError, json } from "./http.ts";
 import { contentSecurityPolicy, page } from "./pages.ts";
+import { cleanupExpiredData } from "./maintenance.ts";
 
 function allowedMcpOrigin(origin: string, env: Env) {
   return origin === env.MCP_ORIGIN
@@ -99,5 +100,9 @@ export default {
       headers.set("Access-Control-Expose-Headers", "WWW-Authenticate, MCP-Protocol-Version");
     }
     return new Response(result.body, { status: result.status, headers });
+  },
+  async scheduled(controller: ScheduledController, env: Env) {
+    const counts = await cleanupExpiredData(env, controller.scheduledTime);
+    console.log(JSON.stringify({ event: "mcp_maintenance", cron: controller.cron, counts }));
   },
 } satisfies ExportedHandler<Env>;

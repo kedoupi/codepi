@@ -46,6 +46,32 @@ for (const route of ['daily', 'health']) {
   });
 }
 
+test('a non-rotated provider refresh preserves the encrypted grant and completes synchronization', async t => {
+  let exchanges = 0;
+  const f = await fixture(t, (url, request) => {
+    if (url.pathname === '/oauth/token') {
+      exchanges++;
+      return Response.json(exchanges === 1
+        ? { access_token: 'test-access', refresh_token: 'test-refresh', expires_in: 86400 }
+        : { access_token: 'renewed-access', expires_in: 86400 });
+    }
+    if (/\/daily_(sleep|readiness|activity)$/.test(url.pathname)
+      && request.headers.get('Authorization') === 'Bearer test-access') {
+      return new Response('', { status: 401 });
+    }
+  });
+  const response = await f.daily();
+  assert.equal(response.status, 200, await response.text());
+  assert.equal(exchanges, 2);
+  const refreshed = await f.runtime.getBindings().then(bindings =>
+    bindings.DB.prepare('SELECT ciphertext,iv FROM encrypted_tokens WHERE user_id=?').bind('test-user').first());
+  assert.ok(refreshed?.ciphertext && refreshed?.iv);
+  const { loadEncryptedTokens } = await import('../../src/lib/tokens.ts');
+  const tokens = await loadEncryptedTokens(await f.runtime.getBindings(), 'test-user', 'integration-encryption-secret');
+  assert.equal(tokens.access_token, 'renewed-access');
+  assert.equal(tokens.refresh_token, 'test-refresh');
+});
+
 test('rotated refresh tokens are not lost when their D1 write hits the quota', async t => {
   const runtime = createRuntime();
   t.after(() => runtime.dispose());

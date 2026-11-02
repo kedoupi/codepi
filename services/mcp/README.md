@@ -40,6 +40,7 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
 - Streamable HTTP + OAuth: `https://mcp.codepi.app/mcp`; discovery and DCR remain supported.
 - OAuth without DCR: an owner can pre-register client credentials at `/connections/clients`.
 - Client ID Metadata Document: public clients use a validated HTTPS metadata URL as `client_id`.
+- Dynamic client registration accepts at most 5 valid registrations per source in a 15-minute window and 50 across the service in that window. The source uses Cloudflare's `CF-Connecting-IP`, stored only as a keyed hash; missing addresses share one `unknown` bucket. Invalid metadata does not consume a registration slot. A rejected registration returns OAuth `slow_down`, HTTP 429 and `Retry-After`.
 - Fixed Bearer credential: the owner creates a PAT at `/connections/tokens` with a 7/30/90-day
   expiry. A PAT carries the same full scope set as the login grant, and a PAT issued before a scope
   existed is read with the current set, so an old token still reaches newer tools. Narrowing means
@@ -95,6 +96,11 @@ deny and revocation. It also checks desktop/mobile layout and escaped client nam
 Requests from a browser must use the canonical origin or an exact origin in the
 optional comma-separated `MCP_ALLOWED_ORIGINS` runtime variable (for example a
 local MCP Inspector). Requests from server clients do not need an Origin header.
+
+The MCP Worker runs its own daily maintenance cron at `04:13 UTC`. It removes expired
+consent requests, authorization codes, SSO transactions/sessions, personal tokens and
+registration events. Expired or revoked MCP tokens are removed in bounded batches; revoked
+or rotated tokens remain for 7 days so refresh-token replay detection continues to work.
 
 For interactive local SSO use Wrangler multi-worker development with MCP, Auth,
 Health, Project, Me and GU configs and paired **synthetic local** secrets. Set MCP_ORIGIN to its

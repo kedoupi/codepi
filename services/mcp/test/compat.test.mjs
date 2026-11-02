@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, ORIGIN } from './runtime.mjs';
 
-const register = (f, body) => f.at('/oauth/register', { method: 'POST',
-  headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const register = (f, body, headers = {}) => f.at('/oauth/register', { method: 'POST',
+  headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
 const list = (f, token, headers = {}, path = '/mcp') => f.at(path, { method: 'POST', headers: {
   Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...headers,
@@ -90,4 +90,21 @@ test('IDE private-use scheme callbacks register while dangerous schemes stay rej
     'cursor://host/cb#fragment', 'ws://localhost/cb']) {
     assert.equal((await register(f, { redirect_uris: [uri] })).status, 400, uri);
   }
+});
+
+test('dynamic client registration is rate limited per source after metadata validation', async t => {
+  const f = await fixture(t);
+  const source = { 'CF-Connecting-IP': '198.51.100.7' };
+  const invalid = await register(f, { redirect_uris: ['https://outside.example/callback#fragment'] }, source);
+  assert.equal(invalid.status, 400);
+
+  const body = { client_name: 'Rate limited client', redirect_uris: ['https://agent.example/callback'] };
+  for (let attempt = 0; attempt < 5; attempt++) {
+    assert.equal((await register(f, body, source)).status, 201, `registration ${attempt + 1}`);
+  }
+  const limited = await register(f, body, source);
+  assert.equal(limited.status, 429);
+  assert.equal((await limited.json()).error, 'slow_down');
+  assert.match(limited.headers.get('Retry-After') ?? '', /^\d+$/);
+  assert.equal((await register(f, body, { 'CF-Connecting-IP': '198.51.100.8' })).status, 201);
 });
