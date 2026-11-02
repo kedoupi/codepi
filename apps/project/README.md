@@ -159,7 +159,7 @@ secret；需要隔离验证旧 allowlist 时可用 `PROJECT_TEST_AUTH_CLIENT_ID`
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm test:browser
+pnpm test:browser:built
 pnpm dev
 ```
 
@@ -168,7 +168,7 @@ pnpm dev
 预算分页、revision 失效、默认 `limit=20` 和续页无遗漏；同步测试覆盖并发占用、
 运行中续租、失去所有权后停止写入、失败 checkpoint 恢复、失败后仍冷却、第 59 秒
 拒绝与第 60 秒放行。部署、远程 migration、secret 配置和真实登录验收不属于普通
-本地检查。`test:browser` 启动本地静态产物和已安装的 Chrome，用合成 API 检查桌面
+`test:browser` 会自行构建；已有构建时运行 `test:browser:built`。浏览器测试启动本地静态产物和已安装的 Chrome，用合成 API 检查桌面
 详情、字段编辑、手写交接、390px 单栏和无横向滚动；它不替代真实 SSO 或线上验收。
 
 根 pnpm workspace 与 lockfile 由集成负责人维护。本应用合并前必须加入

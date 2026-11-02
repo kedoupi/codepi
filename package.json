@@ -14,6 +14,7 @@
     "check:task": "node scripts/agent/check.mjs --task --run",
     "check:all": "node scripts/agent/check.mjs --all --run",
     "check:run": "node scripts/agent/check.mjs --run",
-    "task:base": "node scripts/agent/task-base.mjs"
+    "task:base": "node scripts/agent/task-base.mjs",
+    "release:plan": "node scripts/cloudflare/release-plan.mjs"
   }
 }

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { changedFiles, makePlan, main, minimumNodeMajor } from './check.mjs';
-import { allApps, packageCommands } from './check-plan.mjs';
+import { allApps, ciPlan, packageCommands } from './check-plan.mjs';
 
 const repo = fileURLToPath(new URL('../../', import.meta.url));
 const script = fileURLToPath(new URL('./check.mjs', import.meta.url));
@@ -124,6 +124,16 @@ test('all package commands use pnpm from the repository root', () => {
   for (const check of makePlan(['.github/workflows/example.yml']).checks.filter(check => check.argv[0] === 'pnpm')) {
     assert.deepEqual(check.argv.slice(0, 3), ['pnpm', '--filter', packageCommands[Object.keys(packageCommands).find(app => packageCommands[app].cwd === check.cwd)].name]);
   }
+});
+
+test('CI consumes the same affected scope and command plan', () => {
+  const plan = ciPlan(['apps/gu/web/src/App.svelte', 'apps/health/workers/api/src/index.ts']);
+  assert.deepEqual(plan.jobs.map(job => job.app), ['gu', 'health', 'mcp']);
+  assert.deepEqual(plan.jobs[0].commands.map(command => command.name), ['test', 'test:scripts', 'typecheck', 'build', 'check:deploy']);
+  assert.equal(plan.sharedAuth, false);
+  assert.equal(plan.governance, false);
+  assert.deepEqual(ciPlan(['README.md']).jobs, []);
+  assert.deepEqual(ciPlan(['unknown/file']).manual, ['unknown/file']);
 });
 
 test('changed files include commits, staging, worktree and untracked paths', t => {

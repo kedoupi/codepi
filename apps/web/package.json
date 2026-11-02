@@ -12,7 +12,7 @@
     "test": "pnpm --dir ../../services/auth run build && node --test test/*.test.mjs",
     "typecheck:desk": "node ../../services/auth/node_modules/typescript/bin/tsc -p tsconfig.desk.json && node ../../services/auth/node_modules/typescript/bin/tsc -p tsconfig.desk-web.json",
     "test:assets": "node --test scripts/assets.test.mjs",
-    "test:browser:desk": "node scripts/browser-desk.mjs",
+    "test:browser:desk:built": "node scripts/browser-desk.mjs",
     "astro": "astro"
   },
   "dependencies": {

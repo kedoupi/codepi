@@ -1,6 +1,6 @@
 # Cloudflare 项目级治理规范
 
-本文件是 kdp.cool 仓库全部 Cloudflare 基础设施的规范：环境、命名、域名、密钥、发布、
+本文件是 kedoupi（codepi）仓库全部 Cloudflare 基础设施的规范：环境、命名、域名、密钥、发布、
 迁移与退役。资源事实来源是 [cloudflare-resource-registry.md](./cloudflare-resource-registry.md)。
 仓库内静态守门由 `node scripts/cloudflare/validate-governance.mjs` 执行（见第 8 节）。
 
@@ -14,7 +14,7 @@
 | 环境 | 语义 | 数据 | 凭证 |
 |---|---|---|---|
 | `local` | 开发者本机 | 默认本地 D1；显式联调可连接产品共用的远程业务 D1 | 自动测试用合成配置；联调凭证不入 Git、不输出 |
-| `production` | 日常使用与外部集成 | 各产品生产 D1 | Worker/Pages runtime secrets 与 CI 发布凭证分开管理 |
+| `production` | 日常使用与外部集成 | 各产品生产 D1 | Worker runtime secrets 与手动应急 CI 凭证分开管理 |
 
 `staging` 已于 2026-10-18 全面退役：仓库内所有 `[env.staging]` 配置、云端 staging
 Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。环境模型收敛为

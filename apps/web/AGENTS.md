@@ -10,7 +10,7 @@
 - 品牌、产品清单、布局和样式复用 `@kedoupi/shared/<subpath>`；公开内容改动核对
   sitemap、robots、草稿/私密可见性，不恢复旧工具、广告或退役域名。
 - 本地检查：`npm test`、`npm run typecheck:desk`、`npm run build`、
-  `npm run test:assets`。Desk 交互另做 `npm run test:browser:desk`，端口和合成
+  `npm run test:assets`。Desk 交互另做 `npm run test:browser:desk:built`，端口和合成
   SSO 配置见 README；普通 `astro dev` 不运行完整 Worker 登录/摘要流程。
 - 生产入口是 Workers Static Assets。发布走 `docs/development/local-release.md`
   （仓库根相对路径）；旧 Pages Functions 和 `build:functions` 已退役。

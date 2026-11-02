@@ -9,5 +9,5 @@
 - MCP 列表每页返回筛选后完整排序摘要的 64 位 SHA-256 `revision`；`offset > 0` 必须带首屏值，筛选、顺序或摘要变化时返回 `cursor_stale`，不得静默漏项。
 - `project_get` 超过 12 KiB 时返回有界 UTF-8 JSON 分页；每页必须重复 `as_of` 和完整 `project` 元数据并计入 12 KiB，调用方按序拼接 `pagination.chunk`。不得静默裁掉交接、任务或仓库字段；游标使用 SHA-256，卡片变化后旧游标必须失败。`SourceSummary` 不超过 4 KiB，且不输出 `privateMetric`。
 - 所有页面文本按纯文本节点渲染，不渲染 Markdown 或 HTML，不使用 `{@html}`。保持 `style-src 'self'`，不写内联 `style`；浏览器变更必须同源并经过 SSO 会话。
-- 本地检查：`pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm test:browser`。测试只使用合成项目、交接与 GitHub 响应；浏览器冒烟覆盖桌面与 390px 单栏，但真实 SSO、同步和线上验收必须分别记录，不能用构建通过代替。
+- 本地检查：`pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm test:browser:built`。测试只使用合成项目、交接与 GitHub 响应；浏览器冒烟覆盖桌面与 390px 单栏，但真实 SSO、同步和线上验收必须分别记录，不能用构建通过代替。
 - 根 workspace 与 lockfile 由集成负责人维护；本应用集成时必须成为 workspace 成员并使用既有依赖版本。

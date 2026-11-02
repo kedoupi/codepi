@@ -60,7 +60,7 @@ pnpm dev
 pnpm test
 pnpm typecheck
 pnpm build
-pnpm test:browser
+pnpm test:browser:built
 ```
 
 配置包括 `DB -> codepi-me`、`IMPORTS -> codepi-me-imports`、`AUTH -> codepi-auth`、

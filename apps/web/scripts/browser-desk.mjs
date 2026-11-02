@@ -44,7 +44,7 @@ function syntheticCover() {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
+const artifacts = process.env.DESK_BROWSER_ARTIFACTS || await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
 await mkdir(artifacts, { recursive: true });
 const f = await deskFixture();
 const servers = [];

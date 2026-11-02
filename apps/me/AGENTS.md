@@ -9,5 +9,5 @@
 - 认证只走 `@kedoupi/shared/auth/client`，生产 `AUTH_CLIENT_ID=me`；本地 D1 保留自己的 SSO 事务与会话表。浏览器写操作必须同源，主体固定为 Owner。
 - 不接受疑似 secret 的写入；拒绝路径不回显或记录内容。日志只记录错误码和必要元数据。
 - 页面只按文本节点渲染，不使用 `{@html}`；CSP 保持 `script-src 'self'`。桌面与 390px 移动布局复用共享视觉 token，不允许横向溢出。
-- 本地检查：`npm test`、`npm run typecheck`、`npm run build`、`npm run test:browser`。浏览器冒烟使用合成 SSO 与真实本地 Worker/D1/R2，覆盖桌面和移动的确认、搜索、profile、timeline、导入成功及错误路径。
+- 本地检查：`npm test`、`npm run typecheck`、`npm run build`、`npm run test:browser:built`。浏览器冒烟使用合成 SSO 与真实本地 Worker/D1/R2，覆盖桌面和移动的确认、搜索、profile、timeline、导入成功及错误路径。
 - 根 workspace、lockfile 与共享 contract 由集成负责人维护；本应用沿用既有依赖版本，不自行增加包或远程资源 UUID。

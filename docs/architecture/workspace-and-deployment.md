@@ -35,7 +35,7 @@ codepi/
 
 解决的问题：
 
-1. **依赖版本不统一**。四个应用各自管理 lockfile，同一包（如 wrangler、esbuild）
+1. **依赖版本不统一**。各应用分别管理 lockfile，同一包（如 wrangler、esbuild）
    可能出现不同版本，导致行为和构建结果不一致。
 2. **共享代码引用脆弱**。`shared/` 没有包管理，各应用用相对路径直接引用源码，
    移动文件或增加层级就会导致难以发现的构建失败。
@@ -82,14 +82,8 @@ Project/Me、Blog 与 CLI 的新增边界见[领域扩展](mcp-domains.md)和任
 网站 SSO、Oura 授权和 AI 客户端授权保持各自生命周期，不能相互替代或透传 token。
 具体域名、资源 ID 与部署证据由根 README、任务记录和资源登记表维护，不在本表复制。
 
-GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、交易、规则与报告以 GU D1 的确认版本为准，
-原件由 GU 经鉴权访问独立私有 R2；首次确认前可预览旧快照，启用后旧上传不能覆盖账户。
-业务逻辑仍归 GU，不抽到 MCP 或共享层。私有 R2 与 GU → Ops 原件备份 binding 已核验，
-真实投资资料现已迁入 revision 1，外部本机目录保留为迁移来源；
-2026-10-20 已通过真实 GU D1 与 112 份非空资料的隔离恢复和鉴权下载验收。
-六库与 GU 原件的 GitHub 跨平台复制是 2026-10-20 的历史验收记录，不是当前自动备份链路。
-当前 v4 标准以私有 R2 完整清单、回执及九库、GU/Me/Blog 三组原件为准；实际跨账户灾备与新的
-生产隔离恢复须另行授权和核验。证据见 [Cloudflare 定时运维](../development/cloudflare-operations.md)
+GU 的业务逻辑、线上版本与私有原件仍归 GU；历史迁移和恢复证据见对应任务记录。
+当前备份标准及未覆盖的灾备验收见 [Cloudflare 定时运维](../development/cloudflare-operations.md)
 与[备份恢复 runbook](../development/cloudflare-backup-restore.md)。
 
 ## 部署模型
@@ -136,31 +130,11 @@ GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、�
 方案配置无用密钥。第三方授权和资源标识按各自接入流程处理，未接入须明确显示未连接。
 可重建不代表每次发布清库，也不将业务数据删除、第三方 token 轮换附带在普通发布中。
 
-## Agent 开发模式
+## Agent 开发与发布
 
-### 基本原则
-
-- 一个独立写入任务对应一个 worktree；短期分支和明确 SHA 的 detached HEAD 均可，
-  不为加载规范擅自切换或重置在途任务。
-- 不同 CLI 工具、同一工具的不同窗口可以并行开发不同任务。
-- 换工具继续同一个任务时，接手原来的 worktree。
-- PR 是统一的集成入口，默认 squash merge。
-
-### 审查与合并
-
-- Agent 实现，多 Agent 审查，用户负责 UI/交互验收。
-- 审查重点：功能边界、跨应用影响、验证缺口。
-- 合并条件：所有审查无阻塞问题 + 用户确认。
-- 合并后按已授权范围在本机发布，不重复索取已获得的部署授权。
-- GitHub 平台强制规则需要独立核验。2026-10-16 rulesets API 返回私有仓库套餐限制，
-  本地 GitHub CLI 凭证也已失效；当前不能声称 PR、审批或禁止直推已由平台强制执行。
-  不为启用规则将仓库改为公开。仓库内检查与人工合并约定仍照常执行。
-
-### 并行开发注意事项
-
-- 应用间业务开发可以并行；共享接口（Auth、shared、Health/MCP RPC）与 CI 由一个任务负责。
-- worktree 不隔离端口、浏览器会话和远程数据；并行任务分配独立端口。
-- 共享数据库的结构迁移和批量操作集中安排，避免多任务并发修改。
+普通开发默认一个 agent 复用当前 checkout，不要求 worktree、任务文档或分配表。
+独立写入、跨会话交接或审查时按[开发与验证](../development/agent-workflow.md)处理。
+生产发布统一遵循[本地发布操作](../development/local-release.md)；提交、合并、部署和迁移不随普通开发自动执行。
 
 ## 技术栈方向
 
@@ -187,9 +161,8 @@ GU 线上工作台第一阶段已于 2026-10-19 经 PR #107 发布：账户、�
   迁移需单独确定收益、契约与验收，不能描述为已全面使用 binding
 - 不引入 Turborepo/Nx、ORM、SSR 全栈框架、完整组件库
 
-GU 服务端路由和 Svelte 前端已分批迁移；业务接口在路由迁移中保持不变。实施与验收状态见 [GU Hono 迁移记录](../development/tasks/2026-10-17-gu-hono-router.md)。三个私有应用前端已统一到 Svelte 5 + Vite（GU、GZH 迁移验收分别见 `2026-10-17-gu-svelte-frontend.md`、`2026-10-17-gzh-svelte-frontend.md`）；Health API 与 Auth 服务端已迁 Hono（验收分别见 `2026-10-17-health-hono-api.md`、[Auth Hono 迁移记录](../development/tasks/2026-10-17-auth-hono.md)）。
-
-部署载体已统一为 Workers Static Assets：GU、GZH（2026-10-17，`run_worker_first = true`，全部请求先进 Hono 鉴权链）、首页/Desk（2026-10-17，公开资产直出，`/api/*` 与 `/desk` 优先进入 Worker）与 Health 前端（2026-10-18，SPA + WORKER service binding 转发 API，前端不持有 DB/AUTH/Oura 等业务配置，仅由发布脚本注入 `BUILD_SHA` 元数据）均已切换正式域名，旧 Pages 项目全部删除。staging 环境同步于 2026-10-18 全面退役（仓库配置与云端资源均已删除），环境模型收敛为 local + production。实施与切换验收见 [GU](../development/tasks/2026-10-17-gu-static-assets.md)、[GZH](../development/tasks/2026-10-17-gzh-static-assets.md)、[首页](../development/tasks/2026-10-17-web-static-assets.md) 迁移记录及资源登记表。
+GU、GZH、首页/Desk 与 Health 前端使用 Workers Static Assets；GU、GZH 全部请求先进鉴权链，首页仅 API/Desk 优先进入 Worker，Health 前端只代理 API。
+历史迁移证据保留在任务记录，不覆盖当前架构。
 
 统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，领域查询和写入仍由各所属应用持有。
 MCP 通过 Health、Project、Me、GU 与 Blog 的 named RPC 调用，不直接绑定业务 D1/R2；

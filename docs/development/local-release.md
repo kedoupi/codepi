@@ -5,6 +5,7 @@ main 构建、迁移、发布、验收。GitHub Actions 提供附加验证和手
 定时巡检/备份由 Cloudflare 执行，见[定时运维](cloudflare-operations.md)；
 部署不等待 hosted runner。环境仍为 local + production。
 治理约束见 [Cloudflare 规范](cloudflare-governance.md)，不新增依赖或另一套环境。
+本文只描述日常更新；首次资源创建与替代见末节，备份恢复见[恢复手册](cloudflare-backup-restore.md)。
 
 ## 1. 固定源码与范围
 
@@ -22,6 +23,12 @@ git rev-parse --show-toplevel
 git status --short
 git rev-parse HEAD
 git ls-remote origin refs/heads/main
+```
+
+确定范围后运行只读计划，核对受影响服务、迁移目录与依赖顺序；它不访问控制面、不部署、不迁移：
+
+```bash
+pnpm release:plan -- --base <上次成功发布的sourceSHA>
 ```
 
 以上锁必须在整个发布所在的同一个 shell 生命周期内持有，不能预检结束就释放。

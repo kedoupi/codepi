@@ -19,6 +19,7 @@ pnpm check          # 当前未提交改动，快速检查
 pnpm check:full     # 当前未提交改动，完整本地检查
 pnpm check:task     # 已由 pnpm task:base 固定基线的整个任务
 pnpm check:all      # 全仓完整检查
+pnpm release:plan -- --base <SHA> # 只读计算发布范围，不部署
 ```
 
-应用命令和影响范围唯一维护在 `scripts/agent/check-plan.mjs`；检查器及回归测试验证该配置。快速检查不代替 UI、真实授权、生产数据、远程资源和发布验收。提交、合并、部署和迁移按实际授权执行。
+应用命令和影响范围唯一维护在 `scripts/agent/check-plan.mjs`；本地检查器、CI 及回归测试复用该配置。full 包含已登记的浏览器测试；快速检查不代替 UI、真实授权、生产数据、远程资源和发布验收。提交、合并、部署和迁移按实际授权执行。

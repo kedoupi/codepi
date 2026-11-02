@@ -1,37 +1,40 @@
 export const packageCommands = {
   web: { name: 'web', cwd: 'apps/web', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck:desk', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:assets', after: 'build', tier: 'full' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full' },
+    { name: 'test:browser:desk:built', after: 'build', tier: 'full' },
   ] },
   gu: { name: 'kdp-gu', cwd: 'apps/gu', commands: [
     { name: 'test', tier: 'quick' }, { name: 'test:scripts', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'check:deploy', after: 'build', args: ['--mode', 'config'], tier: 'full' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'check:deploy', after: 'build', args: ['--mode', 'config'], tier: 'full' },
   ] },
   gzh: { name: 'publish-desk', cwd: 'apps/gzh', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:assets', after: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   project: { name: 'kdp-project', cwd: 'apps/project', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+    { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   me: { name: 'kdp-me', cwd: 'apps/me', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+    { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   auth: { name: 'kdp-auth', cwd: 'services/auth', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
   mcp: { name: '@codepi/mcp', cwd: 'services/mcp', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   ops: { name: '@codepi/ops', cwd: 'services/ops', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full' }, { name: 'test:runtime', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true }, { name: 'test:runtime', tier: 'full' },
   ] },
   cli: { name: '@kedoupi/codepi', cwd: 'packages/cli', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
+    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
 };
 
@@ -66,5 +69,40 @@ export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/
 
 export function packageCheck(app, command) {
   const { name, args = [] } = command;
-  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app, name, after: command.after };
+  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app, name, after: command.after, exclusive: command.exclusive };
+}
+
+export function ciPlan(files) {
+  const apps = new Set();
+  const manual = [];
+  let workflow = false, sharedAuth = false, governance = false;
+  const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir)) || file.startsWith('scripts/agent/check-migrations'));
+  for (const file of files) {
+    const special = specialRules.find(rule => rule.files?.includes(file) || rule.prefixes?.some(prefix => file.startsWith(prefix)) || rule.suffixes?.some(suffix => file.endsWith(suffix)));
+    if (special) {
+      if (special.documentation) continue;
+      special.apps?.forEach(app => apps.add(app));
+      workflow ||= special.workflow ?? false;
+      sharedAuth ||= special.sharedAuth ?? false;
+      governance ||= special.governance ?? false;
+      continue;
+    }
+    const app = allApps.find(name => file.startsWith(`${packageCommands[name].cwd}/`));
+    if (!app) { manual.push(file); continue; }
+    apps.add(app);
+    for (const rule of crossServiceRules) if (rule.match(file)) rule.apps.forEach(name => apps.add(name));
+  }
+  if (files.some(file => wranglerConfigs.includes(file))) governance = true;
+  return {
+    manual,
+    jobs: allApps.map(app => ({
+      app,
+      cwd: packageCommands[app].cwd,
+      commands: packageCommands[app].commands,
+    })).filter(job => apps.has(job.app)),
+    sharedAuth,
+    governance,
+    workflow,
+    migrations: touchesMigrations,
+  };
 }

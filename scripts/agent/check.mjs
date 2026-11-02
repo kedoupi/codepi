@@ -6,6 +6,8 @@ import { readBaseline } from './task-base.mjs';
 import { allApps, crossServiceRules, migrationDirs, packageCheck, packageCommands, specialRules, wranglerConfigs } from './check-plan.mjs';
 
 export const minimumNodeMajor = 24;
+export const packageApp = check => check.app ?? Object.keys(packageCommands).find(app => packageCommands[app].cwd === check.cwd) ?? check.cwd;
+export const packageName = check => check.name ?? (check.argv[0] === 'pnpm' ? check.argv[3] : check.argv.join(' '));
 export const appDirs = Object.fromEntries(Object.entries(packageCommands).map(([app, config]) => [app, config.cwd]));
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -85,10 +87,11 @@ function runChecks(checks, cwd) {
   const results = new Array(checks.length);
   const pending = new Set(checks.keys());
   const running = new Map();
-  const indexes = new Map(checks.map((check, index) => [`${check.app}:${check.name}`, index]));
+  const indexes = new Map(checks.map((check, index) => [`${packageApp(check)}:${packageName(check)}`, index]));
   const dependencies = checks.map(check => {
-    if (!check.after) return [];
-    const dependency = indexes.get(`${check.app}:${check.after}`);
+    const dependencyName = check.after ?? (check.app === 'mcp' && check.name === 'test:browser:built' ? 'build' : undefined);
+    if (!dependencyName) return [];
+    const dependency = indexes.get(`${packageApp(check)}:${dependencyName}`);
     if (dependency === undefined) throw new Error(`Missing check dependency: ${check.app} ${check.name} after ${check.after}`);
     return [dependency];
   });
@@ -107,6 +110,8 @@ function runChecks(checks, cwd) {
       for (const index of [...pending]) {
         if (running.size >= concurrency) break;
         if (dependencies[index].some(dependency => !results[dependency])) continue;
+        if (checks[index].exclusive && running.size) continue;
+        if ([...running.keys()].some(other => checks[other].exclusive)) continue;
         const check = checks[index];
         pending.delete(index);
         const promise = new Promise(resolve => {

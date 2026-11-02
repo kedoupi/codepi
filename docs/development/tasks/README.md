@@ -4,8 +4,6 @@
 
 | 工作 | 当前事实 | 下一步 |
 | --- | --- | --- |
-| 2026-10-29 MCP Blog 旧客户端与授权兼容 | main `70f7672` 已合并并发布 Web/MCP，三种 OAuth/schema 组合实测通过 | [任务与发布证据](2026-10-29-mcp-blog-legacy-client-compat.md)；Observer 七轮 healthy_reported、无回滚 |
-| Agent 工程流程精简 | 已完成第一轮单 agent 入口；本轮继续统一命令、分层检查、声明式映射与任务导航 | 完成本地验证和交付；提交、合并、发布另行授权 |
 | Blog/MCP 参数与下架修复续验 | PR #218/#219 已合并并发布；记录中有 GU、Project、Me、Health API 四项版本漂移 | 按[2026-10-28 续验记录](2026-10-28-blog-mcp-followup.md)核对真实客户端和漂移，不从旧记录直接执行发布 |
 | Health 主睡眠缺失诊断 | PR #206 已合并并发布，真实 Oura 对账和数据修复未执行 | 按[诊断记录](2026-10-26-health-sleep-diagnosis.md)继续数据侧定位，不修改真实数据作为普通开发步骤 |
 | 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标且会发送真实邮件 | 使用时先更新目标与覆盖范围，并单独取得真实邮件授权 |

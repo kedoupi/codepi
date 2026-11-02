@@ -13,7 +13,7 @@ npm run build
 npm test
 npm run typecheck:desk
 npm run test:assets
-npm run test:browser:desk
+npm run test:browser:desk:built
 ```
 
 `astro dev` / `astro preview` 只运行静态页面。构建后用 `pnpm exec wrangler dev --port 8804` 运行 Worker 与静态资产；本地 Desk 登录还需本地 Auth、匹配的合成配置及 SSO migration。`test:assets` 用 Wrangler 配置和其 Miniflare/workerd 运行真实 Static Assets，验证静态头、404 和 API 优先路由。浏览器验收脚本用本地 Miniflare、合成数据、隔离 Chrome 配置和真实 SSO 流程，监听 localhost:8804（主站）及 localhost:8795（测试认证）。不发送真实邮件、不查询线上私人数据。截图在输出的临时目录。
