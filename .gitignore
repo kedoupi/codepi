@@ -6,6 +6,9 @@ dist/
 .astro/
 **/.svelte-check/
 
+# local agent state
+.agent/
+
 # logs
 npm-debug.log*
 yarn-debug.log*

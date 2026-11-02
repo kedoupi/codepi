@@ -6,8 +6,8 @@
 
 ## 开始工作
 
-1. 读[项目约束](../AGENTS.md)，检查 Git 根目录、HEAD 和已有改动。
-2. 读[开发导航](development/README.md)，按修改范围找到局部 `AGENTS.md` 和 skill。
+1. 读[项目约束](../AGENTS.md)、目标目录局部规则与 `kdp-dev`，检查 Git 根目录、HEAD 和已有改动。
+2. 普通改动在仓库根运行 `pnpm check`；需要选路时查[开发导航](development/README.md)，不必加载整套流程文档。
 3. 接续已有工作时，查[任务索引](development/tasks/README.md)和对应任务记录；
    核对文件是否已进入当前 checkout，未提交改动不会自动出现在其他 worktree。
 4. 读取相关实现与调用方，预览受影响检查，再开始改动。不同文档有冲突时，

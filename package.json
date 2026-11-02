@@ -8,7 +8,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "check": "node scripts/agent/check.mjs",
-    "check:run": "node scripts/agent/check.mjs --run"
+    "check": "node scripts/agent/check.mjs --run",
+    "check:quick": "node scripts/agent/check.mjs --run --quick",
+    "check:full": "node scripts/agent/check.mjs --run --base HEAD",
+    "check:task": "node scripts/agent/check.mjs --task --run",
+    "check:all": "node scripts/agent/check.mjs --all --run",
+    "check:run": "node scripts/agent/check.mjs --run",
+    "task:base": "node scripts/agent/task-base.mjs"
   }
 }

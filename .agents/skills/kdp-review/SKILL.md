@@ -13,7 +13,7 @@ description: 审查 codepi 的任务改动或 PR 时使用，检查跨应用回�
 - `packages/shared/` 查实际的应用和服务消费者；`services/auth/` / `packages/shared/auth/` 按 shared/auth/clients.ts 查所有客户端的兼容、回调校验、会话、退出及失败分支。数据迁移检查旧数据兼容与部署先后，不能用直接改旧 migration 代替新增版本。
 - Health 区分网站 SSO、Oura 提供方与 MCP 客户端授权；公共页不能带出私人响应。GU 的金额、来源和时间语义不能因展示调整改变；公众号不能因界面操作意外发布。
 - `services/mcp/` / `packages/shared/mcp/` 查各领域 named RPC、字段/统计/覆盖语义和逐工具 grants；`services/ops/` 按备份登记查全部库和原件集合完整性、恢复格式、密文边界及跨平台回执，不能把 R2 成功当成完整运维成功。
-- 用 `node scripts/agent/check.mjs --base <基线>` 核对检查范围。按需运行本地验证，但不触发远程验收、邮件发送或迁移。缺少验证证据如实说明；CI 绿色不等于真实业务与浏览器验收。
+- 用 `node scripts/agent/check.mjs --base <基线>` 预览完整检查范围，执行时追加 `--run`。按需运行本地验证，但不触发远程验收、邮件发送或迁移。缺少验证证据如实说明；CI 绿色不等于真实业务与浏览器验收。
 - 多个任务合并后另查组合结果与接口兼容；独立分支的审查通过不能代替集成验证。没有已集成版本时明确依赖和未覆盖项，不为了审查而擅自 merge、rebase 或 cherry-pick。
 - 涉及 CF、CI 或迁移时读 [治理规范](../../../docs/development/cloudflare-governance.md) 与 [集成发布流程](../../../docs/development/integration-release.md) 对应阶段；检查跨 job 依赖、完整发布范围、同环境认证预检和恢复边界。不把配置存在或静态检查通过当作控制面与业务验收通过。
 - 文档/skill 改动核对链接、真实命令、当前与历史的边界，以及新 Agent 是否能找到目标规则和检查；用户使用反馈、本地合成测试、真实客户端专项验收不能互相替代。

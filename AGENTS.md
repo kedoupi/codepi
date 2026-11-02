@@ -4,8 +4,7 @@ This is the shared project contract for all coding agents. Tool-specific entry f
 
 ## Start here
 
-- Read [development navigation](docs/development/README.md) for rule ownership and task routing; use [docs navigation](docs/README.md) for current versus historical material.
-- Follow [agent workflow](docs/development/agent-workflow.md) for implementation, verification and handoff. Choose a shared skill from `.agents/skills/` when the task matches it.
+- For ordinary development, read the root and target-directory rules plus `.agents/skills/kdp-dev/SKILL.md`; no task document or allocation table is required. Use [development navigation](docs/development/README.md) only for continuation, review, handoff or release.
 - Before editing `apps/`, `services/` or `packages/`, read the target directory's local `AGENTS.md`; inspect implementations, callers and tests.
 - Confirm the real Git root, starting SHA, existing changes and allowed paths. Preserve unrelated work. Ordinary work does not require an agent allocation table.
 
@@ -29,7 +28,7 @@ This is the shared project contract for all coding agents. Tool-specific entry f
 
 ## Verification and release
 
-- Preview affected checks with `node scripts/agent/check.mjs --base <starting-SHA>` and run them with `--run`; use the actual mapping and report uncovered paths.
+- Run `pnpm check` for current uncommitted changes. Use `pnpm check:full`, `pnpm check:task` or `pnpm check:all` as the scope requires; only task mode needs `pnpm task:base`. Keep package commands and consumers in `scripts/agent/check-plan.mjs`.
 - Run targeted tests first. UI, real OAuth, production data, remote bindings, mail delivery and release acceptance require separate evidence.
 - Use `docs/development/integration-release.md` for branch audits, integration and retirement, and `docs/development/local-release.md` for authorized local releases from clean, merged `main`.
 - A document, registry entry, workflow or CI result is not proof of current remote readiness or production acceptance.

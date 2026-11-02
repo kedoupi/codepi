@@ -54,19 +54,19 @@
 
 ## Local development
 
-从 [规范与工作流导航](docs/development/README.md) 开始：根与局部 `AGENTS.md` 定义项目约束；`.agents/skills/` 提供 `kdp-dev`、`kdp-review`、`kdp-release`、`kdp-handoff` 四个入口；[开发工作流](docs/development/agent-workflow.md) 和 [集成发布流程](docs/development/integration-release.md) 维护执行步骤。各工具按 [兼容说明](docs/development/agent-compatibility.md) 共用这些来源。`node scripts/agent/check.mjs --base <基线SHA>` 只预览检查计划，加 `--run` 才执行。
+普通开发读取根与目标目录 `AGENTS.md` 和 `.agents/skills/kdp-dev/SKILL.md`，从仓库根运行 `pnpm check`。完整任务、全仓或跨会话检查按需使用 `pnpm check:full`、`pnpm check:all`、`pnpm task:base && pnpm check:task`。续做、审查或发布时再打开[开发导航](docs/development/README.md)；各工具按[兼容说明](docs/development/agent-compatibility.md)共用同一来源。
 
 The homepage is the only Astro project; it imports shared APIs via the `@kedoupi/shared/<subpath>` exports allowlist and its own `src/site.config.js` via `@site/*`. The private apps use their own stacks. All packages are managed by a single pnpm workspace.
 
 ```bash
 pnpm install                    # install all workspace dependencies
-cd apps/web && npm run dev      # :4321
-cd apps/web && npm test         # builds services/auth, then node:test
-cd apps/web && npm run build    # → apps/web/dist
+pnpm --filter web dev         # :4321
+pnpm --filter web test        # builds services/auth, then node:test
+pnpm --filter web build       # → apps/web/dist
 ```
 
-Health: `cd apps/health && pnpm test`, `pnpm typecheck`, `pnpm build`.
-MCP: `cd services/mcp && pnpm test`, `pnpm typecheck`, `pnpm test:browser:built`。架构、数据语义与扩展方式见[统一 MCP](docs/architecture/unified-mcp.md)。
+Health: `pnpm --filter health-kdp test`、`typecheck`、`build`。
+MCP: `pnpm --filter @codepi/mcp test`、`typecheck`、`test:browser:built`。架构、数据语义与扩展方式见[统一 MCP](docs/architecture/unified-mcp.md)。
 
 The root `.npmrc` pins `legacy-peer-deps=true` and `registry=https://registry.npmjs.org/`. `pnpm install` from the repository root installs all workspace packages.
 

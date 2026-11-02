@@ -9,6 +9,8 @@ For implementation, review, integration/release or handoff, read the matching
 `.agents/skills/kdp-dev/SKILL.md`, `.agents/skills/kdp-review/SKILL.md`,
 `.agents/skills/kdp-release/SKILL.md` or
 `.agents/skills/kdp-handoff/SKILL.md`.
-Read `docs/development/README.md` for rule ownership and task routing.
+For ordinary development, the shared kdp-dev skill is sufficient after the
+root and target rules. Read `docs/development/README.md` only for routing,
+continuation, review, handoff or release.
 Loading a skill does not authorize Git or remote mutations.
 Paths above are relative to the repository root.

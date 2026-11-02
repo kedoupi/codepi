@@ -1,56 +1,18 @@
-# 任务与接续入口
+# 当前任务
 
-本页是任务导航，不复制完整日志或充当跨 worktree 的实时锁。摘要汇集至 2026-10-29
-的仓库记录与所有者反馈；继续工作前核对对应记录、当前源码和必要的远程状态。
-历史文件中的“待部署”“待配置”不自动等于今天的故障。
+这里只保留仍需开发、验证或所有者操作的事项。已完成的发布、迁移和客户端验收记录按年度放入[档案](../archive/README.md)，不再逐项堆在当前索引中。历史记录中的“待部署”或“待配置”不能覆盖后续源码和更新的证据。
 
-## 当前接续项
-
-
-| 工作 | 最近确认的状态 | 下一步与证据 |
+| 工作 | 当前事实 | 下一步 |
 | --- | --- | --- |
-| 2026-11-01 Agent 工作流精简与客户端接入验收 | 默认单 agent、按需协作/审查/发布的规则已落地；omp、Codex、Claude Code 真实只读接入通过，本地七项检查通过；尚未提交或同步主干 | [基线、文件清单与验证证据](2026-11-01-workflow-simplification.md)：客户端升级/配置变化后复测，提交与合并另行授权 |
-| 2026-10-28 Blog/MCP 参数与下架修复续验 | PR #218/#219 已合并；MCP 最新 `72f51a25`、Web `ed106b62` 已上线；最新两个 Observer 均 `healthy_reported`、无回滚；生产巡检仍有 GU/Project/Me/Health API 四项既有漂移 | [续验与发布证据](2026-10-28-blog-mcp-followup.md)：ChatGPT 需刷新工具 schema，真实投稿和四项漂移处理另行验收 |
-| 2026-10-28 MCP Blog 提交参数修复 | `c170a80` 已提交并直接推送 main，MCP 已发布 `76f3f4a9`；CI 重跑全绿，生产只读 schema 与匿名 smoke 通过；Observer 七轮 `healthy_reported`、无回滚 | [任务与发布证据](2026-10-28-mcp-blog-submit-schema.md)：ChatGPT 需刷新工具 schema，所有者实际投稿确认另行验收 |
-| 2026-10-27 Blog 审核体验（第 3 期） | 已实现并由生产 Web `0f62999df7b1` 承载；Blog/Desk migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-review-ux.md)：本地 49 项、浏览器与生产 smoke 已通过；未代替真实审核操作验收 |
-| 2026-10-27 Blog 内容模型与前台阅读（第 2 期） | 已实现并由生产 Web/MCP `0f62999df7b1` 承载；Blog migration 于 10-28 复核无待应用项 | [任务记录](2026-10-27-blog-content-model.md)：本次另补 MCP 分类/标签/头图必填 schema；生产只读契约已核验 |
-| 2026-10-27 Blog 审核基础（第 1 期） | PR #215 已合并；0003 迁移已应用，www 与 MCP 已发布；生产两篇测试稿已归档，审核队列仅剩真实稿件 | [任务记录](2026-10-27-blog-review-foundations.md)：生产 smoke 通过（blog 200、API 401、归档回执）；真实外部 MCP 客户端验收与发布后 Observer 观察待补 |
-| 2026-10-26 Blog Mermaid 图表支持 | PR #213 已合并为 `d233d1ab`，十个 Worker 已发布；生产双图桌面/手机验收、发布后/观察后巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [任务与发布证据](2026-10-26-blog-mermaid.md)：现有草稿无需重提交，仍保持待审核；未执行真实外部客户端或所有者持续使用确认，证据文档合并后无需重发 |
-| 2026-10-26 分支与依赖整理后的全量生产同步 | 从干净 detached 实时 main `cc0579cd` 持锁重发十个 Worker；43 项检查、生产 smoke、发布后/观察后全量巡检及七轮 Observer 均通过，`healthy_reported`、无回滚 | [发布证据](2026-10-26-full-sync-release.md)：未执行真实 Oura 对账/补采、Manus/Claude/ChatGPT/IDE 客户端验收或所有者实际使用确认；本 PR 仅回填文档，合并后无需重发业务 Worker |
-| Health 主睡眠缺失诊断 | PR #206 已合并，API/MCP 已上线；30 分钟观察 `healthy_reported`，真实 Oura 对账和数据修复均未执行 | [任务记录](2026-10-26-health-sleep-diagnosis.md)：继续定位同步覆盖与档案不一致；全局四项版本漂移及所有者实际使用确认仍待处理 |
-| www 页头统一与响应式验收 | PR #207 已合并并发布 `codepi-www`；35 组生产响应式 smoke、390px bsk 交互、14 项 CI checks 及 30 分钟 Ops 观察均通过 | [任务记录](2026-10-26-www-header-consistency.md)：观察 `release-634d43bccff3-header207` 为 `healthy_reported`、`rollback=null`，不代替实际用户使用确认 |
-| Blog Agent 写作与配图 | 实现、发布和 v4 备份已有日期化任务证据；配图上传、稿件修订与审核、响应式阅读、原件备份均在当前实现范围 | [任务记录](2026-10-26-blog-agent-images.md)：实际所有者持续使用与新客户端验收仍需单独记录，仓库配置不替代实时控制面核验 |
-| 仓库公开与全量重发 | 已改名 `kedoupi/codepi` 并公开；备份 Release/tag 已删除；十个 Worker 已重发；通知、备份、巡检、MCP 授权修复和浏览器验收均已通过 | [任务记录](2026-10-23-public-rename-redeploy.md)：真实邮件 OTP、Oura 重授权和 MCP 客户端重连待所有者操作 |
-| Ops Observer 正式工作流 | 第七至十九轮候选于 2026-10-25 合并 main 并全量发布十个 Worker（`7d0c814`）；Health 应用 0013/0014 索引迁移；观察 `release-7d0c81416a61-round19` 七轮完成，R2 summary 为 `healthy_reported`、无回滚，Issue #169 通知已核对 | [任务记录](2026-10-23-ops-observer.md)：PR #192/#193 已上线，Ops `22741311` 七轮观察 `healthy_reported`，真实自动回滚 `rollback_verified`；临时资源已清理；无人值守编排及用户实际使用确认仍待验收 |
-| Cloudflare 告警优化 | 已闭环：WAF 边缘拦截（含编码变体与 credentials.json）、incident 策略删除、MCP 403+warn（PR #145/#149）、巡检 423 修复（PR #151）、全部漂移 Worker 重发、codepi-blog 纳入九库备份（手动实例已回执）、monitor 连续 complete、无 active issue | [告警优化与发布](2026-10-22-cloudflare-alert-tuning.md)：开发活跃期合并共享代码即产生漂移告警，需随合并节奏发布 |
-| Workers Issues 自动告警 | 十个生产 Worker 的 20 条 service 自动规则已启用并复读核对；隔离异常自动触发、原策略发送和 Gmail 收件已验收，临时资源已清理 | [告警验收](2026-10-20-workers-issues.md)：首次自动链路已实测，复发条件本轮为配置核对；私钥异机保管保留 TODO |
-| Health 数据可视化 | 睡眠/7 天解读/对比页重构经 PR #117 合并并发布，API 与前端 smoke、生产巡检全部通过 | [重构与发布证据](2026-10-20-health-data-visualization.md)：线上真实数据浏览待用户确认 |
-| GitHub 跨平台备份（历史证据） | 2026-10-20 的私有 GitHub Release 副本仅保留为历史验收证据；`services/ops/src/offsite.mjs` 已下线，禁止把公开仓库 Release 当作备份通道。当前备份标准是私有 R2 v4 `manifest.json` 与 `reports/backup/r2-success.json`，覆盖九库及 GU/Me/Blog 三组原件 | [10-23 改名记录](2026-10-23-public-rename-redeploy.md)、[R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[历史验收](2026-10-20-github-offsite.md) |
-| Health 历史同步告警 | PR #111 已合并，Health API/MCP 已发布；真实账号 16 类旧告警归零，48 条历史记录保留，生产巡检 24/24 通过 | [修复与发布证据](2026-10-20-health-sync-alerts.md)：刷新设置页读取新状态，无需重新同步 |
-| 工程文档与 Agent 规范整理 | 本地整理、链接核对与受影响检查完成，经 PR #106 交付 | [本轮记录](2026-10-19-engineering-docs.md)：入口、规则、skills 与历史标记已校正；主干状态以 PR 为准，后续新任务从包含规范的 main 开始 |
-| Cloudflare 定时运维 | 私有 R2 v4 备份为现行通道，覆盖九库及 GU/Me/Blog 三组原件；GitHub Release 自动复制已退役，仅保留历史验收记录 | [R2 备份恢复 runbook](../cloudflare-backup-restore.md)、[公开与重发记录](2026-10-23-public-rename-redeploy.md)：每日 Cron 以实际回执为准；外部灾备副本及隔离恢复范围须另行核验 |
-| 统一 MCP / 五领域实现 | Health、Project、Me、GU、Blog 模块及显式 binding 已在当前实现中；Agent 兼容扩展已通过 PR #195 部署，生产观察 `healthy_reported` | [领域扩展](2026-10-20-codepi-mcp-domains.md)、[接入兼容](2026-10-25-mcp-agent-compat.md)、[Blog 记录](2026-10-26-blog-agent-images.md)：真实 Claude/Codex/CLI 客户端验收、LegacySse 生产使用和所有者持续使用不由本地配置推定 |
-| GU 线上工作台 | 真实投资资料已迁入 revision 1；六库及 112 份资料备份、GU 隔离恢复 11 表/132 行、全部原件鉴权下载通过；恢复修复经 PR #109 合入 main，两轮临时副本已清理 | [集成与清理结果](2026-10-19-gu-online.md#集成与清理结果)：GitHub 副本是历史验收材料；当前 v4 R2 完整清单、回执与隔离恢复证据见运维 runbook，自动研究与 GZH MCP 为后续产品讨论 |
-| Desk 真实使用验收 | Worker、D1 和所需 secret 名称已有后续发布证据；不能继续仅凭最初 P6 记录判断“未部署” | [首页迁移](2026-10-17-web-static-assets.md)、[资源登记表](../cloudflare-resource-registry.md)、[应用说明](../../../apps/web/README.md)：如继续此产品，核对登录后的三来源摘要，不因旧 TODO 重建资源或轮换凭证 |
-| 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标，未覆盖 Desk/MCP | 本轮仅记录：[Auth 使用限制](../../../services/auth/README.md#validation)。后续先更新目标和覆盖范围，再按授权执行真实邮件验收；不影响现行发布探针 |
+| Agent 工程流程精简 | 已完成第一轮单 agent 入口；本轮继续统一命令、分层检查、声明式映射与任务导航 | 完成本地验证和交付；提交、合并、发布另行授权 |
+| Blog/MCP 参数与下架修复续验 | PR #218/#219 已合并并发布；记录中有 GU、Project、Me、Health API 四项版本漂移 | 按[2026-10-28 续验记录](2026-10-28-blog-mcp-followup.md)核对真实客户端和漂移，不从旧记录直接执行发布 |
+| Health 主睡眠缺失诊断 | PR #206 已合并并发布，真实 Oura 对账和数据修复未执行 | 按[诊断记录](2026-10-26-health-sleep-diagnosis.md)继续数据侧定位，不修改真实数据作为普通开发步骤 |
+| 旧生产 SSO 验收脚本 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标且会发送真实邮件 | 使用时先更新目标与覆盖范围，并单独取得真实邮件授权 |
+| MCP / Blog / Desk 实际使用 | 实现和日期化发布证据已存在，真实客户端、所有者持续使用和部分专项验收不由本地测试证明 | 按各应用 README 和对应档案中的证据验收，不重建既有资源 |
 
-## 已落地阶段与历史接续关系
+## 使用约定
 
-| 主题 | 记录 |
-| --- | --- |
-| 四产品、迁域与旧资源退役 | [cutover](2026-10-15-codepi-cutover.md)、[Health 命名](2026-10-18-health-naming.md) |
-| workspace 与严格共享导出 | [workspace 修复](2026-10-16-workspace-release-repair.md)、[严格 exports](2026-10-17-shared-strict-exports.md) |
-| 私有应用 Svelte / Hono | [GU 前端](2026-10-17-gu-svelte-frontend.md)、[GZH 前端](2026-10-17-gzh-svelte-frontend.md)、[GU 路由](2026-10-17-gu-hono-router.md)、[Health API](2026-10-17-health-hono-api.md)、[Auth](2026-10-17-auth-hono.md) |
-| Workers Static Assets | [首页](2026-10-17-web-static-assets.md)、[GU](2026-10-17-gu-static-assets.md)、[GZH](2026-10-17-gzh-static-assets.md)、[Health 命名与收尾](2026-10-18-health-naming.md) |
-| Health 授权故障与早期备份 | [可靠性记录](2026-10-18-platform-reliability.md) → [MCP 运维补齐](2026-10-19-mcp-operations.md) → [CF 定时运维](2026-10-19-cloudflare-operations.md)；最新记录已确认 Health 同步新鲜度通过 |
-| Desk 最初实现 | [P6](p6-personal-desk.md)是历史实现记录；后续发布与配置看上表，不执行其中旧 Pages 命令 |
-
-待产品讨论的方向（如更广泛的公开内容 MCP、GZH 的 MCP 模块）不是自动开工清单。
-2026-10-20 已确认 Project、Me、GU 只读扩展；Blog 已有 owner 授权 MCP。GZH 与公开内容 MCP 的产品范围仍待确认。
-
-## 更新约定
-
-新工作单元使用 `YYYY-MM-DD-topic.md`；小修改可在现有任务或回复中记录，不为每次运行建文件。
-跨会话任务使用[交接模板](../agent-workflow.md#跨会话任务记录)，索引只在新增接续项或状态
-发生实质变化时更新。已结束记录保留证据；被后续任务替代时增加接续链接。
-摘要不替代 source SHA、实际检查、用户授权或生产验收。
+- 新增长任务或跨会话交接时新增 `YYYY-MM-DD-topic.md`；小修复只在回复中交付。
+- 状态改变时更新本表；完成任务只移动到档案索引，不复制完整日志。
+- 每个事项链接最新证据；无法确认线上状态时明确写“未核验”，不把旧快照当实时状态。
+- 记录不包含凭证、Cookie、私人业务数据或完整邮件内容。

@@ -1,44 +1,14 @@
-import { execFileSync, spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import os from 'node:os';
 import path from 'node:path';
+import { readBaseline } from './task-base.mjs';
+import { allApps, crossServiceRules, migrationDirs, packageCheck, packageCommands, specialRules, wranglerConfigs } from './check-plan.mjs';
 
 export const minimumNodeMajor = 24;
-export const appDirs = { web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', health: 'apps/health', auth: 'services/auth', mcp: 'services/mcp', ops: 'services/ops', project: 'apps/project', me: 'apps/me', cli: 'packages/cli' };
-export const staticApps = ['web'];
-export const privateApps = ['auth', 'gu', 'gzh', 'health', 'project', 'me', 'mcp', 'ops', 'cli'];
-const allApps = [...staticApps, ...privateApps];
+export const appDirs = Object.fromEntries(Object.entries(packageCommands).map(([app, config]) => [app, config.cwd]));
 const dirOf = app => appDirs[app];
 const root = fileURLToPath(new URL('../../', import.meta.url));
-export const allowedTopLevelDirs = ['.agents', '.claude', '.cursor', '.github', 'apps', 'docs', 'packages', 'scripts', 'services'];
-
-export function unexpectedTopLevelDirs(cwd) {
-  const listed = git(cwd, ['ls-files', '-co', '--exclude-standard', '-z']);
-  const roots = new Set();
-  for (const entry of listed.split('\0')) {
-    if (!entry) continue;
-    const slash = entry.indexOf('/');
-    if (slash > 0) roots.add(entry.slice(0, slash));
-  }
-  // git ls-files cannot see an empty directory, but an unignored root is still unexpected.
-  const unseen = readdirSync(cwd, { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && entry.name !== '.git' && !allowedTopLevelDirs.includes(entry.name) && !roots.has(entry.name))
-    .map(entry => entry.name);
-  for (const name of unignoredPaths(cwd, unseen)) roots.add(name);
-  return [...roots].filter(name => !allowedTopLevelDirs.includes(name)).sort();
-}
-
-function unignoredPaths(cwd, names) {
-  if (!names.length) return [];
-  const result = spawnSync('git', ['check-ignore', '-z', '--no-index', '--stdin'], {
-    cwd, input: `${names.join('\0')}\0`, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
-  });
-  if (result.error || (result.status !== 0 && result.status !== 1)) {
-    throw new Error(result.stderr?.trim() || result.error?.message || 'git check-ignore failed');
-  }
-  const ignored = new Set(result.stdout.split('\0').filter(Boolean));
-  return names.filter(name => !ignored.has(name));
-}
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -58,76 +28,34 @@ export function changedFiles(cwd, base = 'HEAD') {
   return { mergeBase, files: [...new Set(outputs.flatMap(out => out.split('\0').filter(Boolean)))].sort() };
 }
 
-export function makePlan(files) {
+function matches(file, rule) {
+  return rule.files?.includes(file) || rule.prefixes?.some(prefix => file.startsWith(prefix))
+    || rule.suffixes?.some(suffix => file.endsWith(suffix));
+}
+
+export function makePlan(files, tier = 'full') {
   const apps = new Set();
   const manual = [];
   let workflow = false;
   let sharedAuth = false;
   let cfGovernance = false;
-  const add = names => names.forEach(name => apps.add(name));
-  const addAll = () => { add(allApps); sharedAuth = true; };
-
-  const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-    'apps/project/wrangler.toml', 'apps/me/wrangler.toml',
-    'services/auth/wrangler.jsonc', 'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
-  const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
-    'apps/project/migrations/', 'apps/me/migrations/',
-    'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
   const touchesMigrations = files.some(file => migrationDirs.some(dir => file.startsWith(dir))
     || file.startsWith('scripts/agent/check-migrations'));
+  if (files.some(file => wranglerConfigs.includes(file))) cfGovernance = true;
   for (const file of files) {
-    if (file.startsWith('services/ops/') || file.startsWith('scripts/cloudflare/')
-      || file === '.github/workflows/deploy-platform.yml'
-      || ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)
-      || file === 'docs/development/cloudflare-resource-registry.md'
-      || file === 'docs/development/cloudflare-governance.md'
-      || wranglerConfigs.includes(file)) cfGovernance = true;
-  }
-
-  for (const file of files) {
-    if (file.startsWith('scripts/cloudflare/')) add(['ops']);
-    if (['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'].includes(file)) {
-      addAll();
-      workflow = true;
-    } else if (file.startsWith('scripts/agent/') || file.startsWith('scripts/cloudflare/') || file.startsWith('.agents/')
-      || file.startsWith('.claude/skills/') || file.startsWith('.cursor/rules/')
-      || ['CLAUDE.md', 'GEMINI.md', '.gitignore', '.github/copilot-instructions.md'].includes(file)
-      || file.startsWith('docs/development/')) {
-      workflow = true;
-    } else if (['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'].some(prefix => file.startsWith(prefix))) {
-      // Retirement and directory moves must validate the remaining consumers.
-      addAll();
-    } else if (file.startsWith('apps/oura/')) {
-      // A rename diff includes deleted paths from before the Health directory move.
-      add(['health']);
-    } else if (file.startsWith('docs/') || /(^|\/)(README|AGENTS)\.md$/.test(file) || /^(LICENSE|NOTICE\.md)$/.test(file)) {
+    const special = specialRules.find(rule => matches(file, rule));
+    if (special) {
+      if (special.documentation) continue;
+      special.apps?.forEach(app => apps.add(app));
+      workflow ||= special.workflow ?? false;
+      sharedAuth ||= special.sharedAuth ?? false;
+      cfGovernance ||= special.governance ?? false;
       continue;
-    } else if (file.startsWith('.github/')) {
-      addAll();
-      workflow = true;
-    } else if (file.startsWith('packages/shared/mcp/')) {
-      add(['web', 'health', 'gu', 'project', 'me', 'mcp', 'cli']);
-    } else if (file.startsWith('services/auth/') || file.startsWith('packages/shared/auth/')) {
-      add(['web', ...privateApps]);
-      sharedAuth = true;
-    } else if (file.startsWith('packages/shared/')) {
-      const staticOnly = ['layouts/', 'i18n/']
-        .some(prefix => file.startsWith(`packages/shared/${prefix}`))
-        || ['packages/shared/products.ts', 'packages/shared/privacy-redirects.js', 'packages/shared/sitemap-filter.js'].includes(file);
-      if (staticOnly) add(staticApps);
-      else addAll();
-    } else {
-      const app = allApps.find(name => file.startsWith(`${dirOf(name)}/`));
-      if (app) {
-        apps.add(app);
-        if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/shared/')) apps.add('mcp');
-        if (file.startsWith('apps/gu/worker/') || file.startsWith('apps/gu/migrations/')) apps.add('ops');
-        if (['apps/gu/worker/', 'apps/gu/migrations/', 'apps/project/worker/', 'apps/me/worker/',
-          'apps/project/migrations/', 'apps/me/migrations/'].some(prefix => file.startsWith(prefix))) apps.add('mcp');
-        if (file.startsWith('apps/me/worker/') || file.startsWith('apps/me/migrations/')) apps.add('ops');
-      }
-      else manual.push(file);
     }
+    const app = allApps.find(name => file.startsWith(`${dirOf(name)}/`));
+    if (!app) { manual.push(file); continue; }
+    apps.add(app);
+    for (const rule of crossServiceRules) if (rule.match(file)) rule.apps.forEach(name => apps.add(name));
   }
 
   const checks = [];
@@ -137,105 +65,92 @@ export function makePlan(files) {
     check('.', 'node', '--test', 'scripts/cloudflare/*.test.mjs');
     check('.', 'node', 'scripts/cloudflare/validate-governance.mjs');
   }
-  if (workflow) check('.', 'node', '--test', 'scripts/agent/check.test.mjs');
+  if (workflow) check('.', 'node', '--test', 'scripts/agent/*.test.mjs');
   if (workflow) check('.', 'node', 'scripts/agent/lint.mjs');
   if (touchesMigrations) {
     check('.', 'node', '--test', 'scripts/agent/check-migrations.test.mjs');
     check('.', 'node', 'scripts/agent/check-migrations.mjs');
   }
-  for (const app of staticApps.filter(app => apps.has(app))) {
-    if (app === 'web') {
-      check(dirOf(app), 'npm', 'test');
-      check(dirOf(app), 'npm', 'run', 'typecheck:desk');
-    }
-    check(dirOf(app), 'npm', 'run', 'build');
-    if (app === 'web') check(dirOf(app), 'npm', 'run', 'test:assets');
-  }
-  for (const app of privateApps.filter(app => apps.has(app))) {
-    if (app === 'health') {
-      check(dirOf(app), 'pnpm', 'test');
-      check(dirOf(app), 'pnpm', 'typecheck');
-      check(dirOf(app), 'pnpm', 'build');
-      check(dirOf(app), 'pnpm', 'test:assets');
-      check(dirOf(app), 'pnpm', 'test:browser:built');
-    } else if (app === 'ops') {
-      check(dirOf(app), 'pnpm', 'test');
-      check(dirOf(app), 'pnpm', 'build');
-      check(dirOf(app), 'pnpm', 'test:runtime');
-    } else if (app === 'mcp') {
-      check(dirOf(app), 'pnpm', 'test');
-      check(dirOf(app), 'pnpm', 'typecheck');
-      check(dirOf(app), 'pnpm', 'build');
-      check(dirOf(app), 'pnpm', 'test:browser:built');
-    } else {
-      check(dirOf(app), 'npm', 'test');
-      if (app === 'gu') check(dirOf(app), 'npm', 'run', 'test:scripts');
-      check(dirOf(app), 'npm', 'run', 'typecheck');
-      check(dirOf(app), 'npm', 'run', 'build');
-      if (app === 'gu') check(dirOf(app), 'npm', 'run', 'check:deploy', '--', '--mode', 'config');
+  for (const app of allApps.filter(name => apps.has(name))) {
+    for (const command of packageCommands[app].commands) {
+      if (tier === 'full' || command.tier === 'quick') checks.push(packageCheck(app, command));
     }
   }
-  if (sharedAuth) check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/auth/client.test.mjs');
+  if (sharedAuth && tier === 'full') check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/auth/client.test.mjs');
   return { apps: allApps.filter(app => apps.has(app)), checks, manual };
 }
 
-export function main(args = process.argv.slice(2), cwd = root) {
-  let base = 'HEAD';
-  let run = false;
+function runChecks(checks, cwd) {
+  const concurrency = Math.max(1, Math.min(4, os.availableParallelism() - 1, checks.length));
+  const results = new Array(checks.length);
+  let next = 0;
+  async function worker() {
+    while (next < checks.length) {
+      const index = next++;
+      const check = checks[index];
+      results[index] = await new Promise(resolve => {
+        const child = spawn(check.argv[0], check.argv.slice(1), { cwd, stdio: 'inherit', shell: false });
+        child.once('error', error => resolve({ check, error }));
+        child.once('close', code => resolve({ check, code }));
+      });
+    }
+  }
+  return Promise.all(Array.from({ length: concurrency }, worker)).then(() => results);
+}
+
+export async function main(args = process.argv.slice(2), cwd = root) {
+  let base = 'HEAD', run = false, task = false, all = false, explicitBase = false, quick = false, tier = 'quick';
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--help') {
-      console.log('Usage: node scripts/agent/check.mjs [--base REF] [--run]');
-      console.log('Default: preview uncommitted/untracked changes. --base adds commits since the merge-base.');
-      console.log('--run executes local checks only; dependencies must already be installed. No deploy or install.');
+      console.log('Usage: node scripts/agent/check.mjs [--base REF | --task | --all] [--run] [--quick]');
+      console.log('Default: preview quick checks for uncommitted/untracked changes.');
+      console.log('--task uses .agent/task-base and full checks. --all selects every package.');
+      console.log('--base selects full checks from a merge-base; --quick limits any scope.');
+      console.log('--run executes local checks only. No deploy or install.');
       return 0;
     }
     if (args[i] === '--run') run = true;
-    else if (args[i] === '--base' && args[i + 1] && !args[i + 1].startsWith('-')) base = args[++i];
+    else if (args[i] === '--task') { task = true; tier = 'full'; }
+    else if (args[i] === '--all') { all = true; tier = 'full'; }
+    else if (args[i] === '--quick') quick = true;
+    else if (args[i] === '--base' && args[i + 1] && !args[i + 1].startsWith('-')) {
+      base = args[++i];
+      explicitBase = true;
+      tier = 'full';
+    }
     else throw new Error(`Unknown option or missing value: ${args[i]}`);
   }
+  if ([task, all, explicitBase].filter(Boolean).length > 1) throw new Error('Use only one of --task, --all or --base.');
+  if (quick && (task || all || explicitBase)) throw new Error('--quick is only for uncommitted changes; full scopes cannot be weakened.');
+  if (task) base = readBaseline(cwd).commit;
 
-  const { mergeBase, files } = changedFiles(cwd, base);
-  const plan = makePlan(files);
-  const unexpected = unexpectedTopLevelDirs(cwd);
+  const { mergeBase, files } = all ? { mergeBase: 'all packages', files: allApps.map(app => `${dirOf(app)}/`) } : changedFiles(cwd, base);
+  const plan = makePlan(files, tier);
   console.log(`Review base: ${mergeBase}`);
-  console.log(`Changed files: ${files.length}; apps: ${plan.apps.join(', ') || '(none)'}`);
+  console.log(`Changed files: ${files.length}; apps: ${plan.apps.join(', ') || '(none)'}; mode: ${tier}`);
+  if (task) console.log(`Task baseline: ${base}`);
   for (const { cwd: directory, argv } of plan.checks) console.log(`[${directory}] ${argv.join(' ')}`);
   for (const file of plan.manual) console.log(`MANUAL: ${JSON.stringify(file)} has no check mapping.`);
-  if (unexpected.length) console.error(`Unexpected top-level paths: ${unexpected.join(', ')}`);
+  if (plan.manual.length) console.error('Unmapped paths need an explicit check strategy; no checks executed.');
   console.log('UI acceptance, live services and CI semantics require separate review when affected.');
-  if (!run) {
-    console.log('Preview only; no checks executed.');
-    return unexpected.length ? 1 : 0;
-  }
-  if (unexpected.length) {
-    console.error('Unexpected top-level paths need review; no checks executed.');
-    return 1;
-  }
-  if (plan.manual.length) {
-    console.error('Unmapped paths need an explicit check strategy; no checks executed.');
-    return 2;
-  }
+  if (!run) { console.log('Preview only; no checks executed.'); return plan.manual.length ? 2 : 0; }
+  if (plan.manual.length) return 2;
   if (!plan.checks.length) {
     console.log('No automated checks selected; this is not an acceptance result.');
     return 0;
   }
   if (Number(process.versions.node.split('.')[0]) < minimumNodeMajor) throw new Error(`Use Node ${minimumNodeMajor} or newer for the selected checks.`);
-  for (const { cwd: directory, argv } of plan.checks) {
-    console.log(`\nRunning [${directory}] ${argv.join(' ')}`);
-    const result = spawnSync(argv[0], argv.slice(1), {
-      cwd: path.resolve(cwd, directory), stdio: 'inherit', shell: false,
-    });
-    if (result.error || result.status !== 0) {
-      console.error(`FAILED [${directory}] ${argv.join(' ')}${result.error ? `: ${result.error.message}` : ''}`);
-      return 1;
-    }
-  }
-  console.log(`Passed ${plan.checks.length} selected local checks. Manual acceptance remains separate.`);
+  console.log(`Executing ${plan.checks.length} selected local checks in up to ${Math.min(4, plan.checks.length)} parallel workers.`);
+  const results = await runChecks(plan.checks, cwd);
+  const failed = results.filter(result => result.error || result.code !== 0);
+  for (const { check, error } of failed) console.error(`FAILED [${check.cwd}] ${check.argv.join(' ')}${error ? `: ${error.message}` : ''}`);
+  if (failed.length) return 1;
+  console.log(`Passed ${plan.checks.length} selected local checks in up to ${Math.min(4, plan.checks.length)} parallel workers. Manual acceptance remains separate.`);
   return 0;
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  try { process.exitCode = main(); }
+  try { process.exitCode = await main(); }
   catch (error) {
     // Git errors can contain paths but never require dumping repository contents.
     console.error(error.message);
