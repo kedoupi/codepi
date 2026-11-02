@@ -115,12 +115,14 @@ export const MODULES: ToolModule[] = [{
     }),
     healthTool("aggregate", {
       name: "health_aggregate", title: "Health statistics and period comparisons", annotations: query,
-      description: "Compute exact statistics over ALL saved records in each requested period, never a page sample. First derive one value per provider day using the catalog rules, then weight days equally. count is valid days; valid_records is contributing records. Only allowlisted metrics/operations; max 366 days per period. Returns both periods for comparison. Missing coverage is explicit. Stale data automatically enqueues background refresh unless refresh=false." + healthPaging,
+      description: "Compute exact statistics over all selected saved records in each requested period, never a page sample. First derive one value per provider day using the catalog rules, then weight days equally. Sleep defaults to sleep_scope=main (explicit long_sleep only, matching Health reports); use all only when intentionally including naps and rest. count is valid days; valid_records is contributing records. Only allowlisted metrics/operations; max 366 days per period. Returns both periods for comparison. Missing coverage is explicit. Stale data automatically enqueues background refresh unless refresh=false." + healthPaging,
       inputSchema: object({
         collection: { type: "string" }, from: date, to: date, refresh, ...healthCursor,
         metrics: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 12 },
         operations: { type: "array", items: { type: "string", enum: ["count", "mean", "min", "max", "sum"] }, minItems: 1, maxItems: 5 },
         interval: { type: "string", enum: ["period", "day", "week", "month"], default: "period" },
+        sleep_scope: { type: "string", enum: ["main", "all"], default: "main",
+          description: "Sleep collection only: main uses explicit long_sleep records; all includes naps and rest." },
         compare_from: date, compare_to: date,
       }, ["collection", "metrics"]),
     }),

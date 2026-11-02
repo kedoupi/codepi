@@ -157,9 +157,9 @@ test('an approved client re-authorizes without the consent screen until revoked'
 test('statistics scan all saved records with units, daily weighting and honest missingness', async t => {
   const f = await fixture(t), grant = await f.grant();
   for (let i = 1; i <= 25; i++) await f.record('sleep', '2026-01-01', 's' + i,
-    { total_sleep_duration: 100, average_hrv: 40 });
-  await f.record('sleep', '2026-01-02', 'next', { total_sleep_duration: 5000, average_hrv: 60 });
-  await f.record('sleep', '2026-01-03', 'missing', { total_sleep_duration: 100, average_hrv: null });
+    { type: 'long_sleep', total_sleep_duration: 100, average_hrv: 40 });
+  await f.record('sleep', '2026-01-02', 'next', { type: 'long_sleep', total_sleep_duration: 5000, average_hrv: 60 });
+  await f.record('sleep', '2026-01-03', 'missing', { type: 'long_sleep', total_sleep_duration: 100, average_hrv: null });
   await f.record('sleep', '2026-01-01', 'another-owner', { total_sleep_duration: 999999, average_hrv: 999 }, 'different-owner');
   await f.cover('sleep', '2026-01-01', '2026-01-04');
   const first = await f.tool(grant.access_token, 'health_query_records', {
@@ -193,6 +193,35 @@ test('statistics scan all saved records with units, daily weighting and honest m
   const spoof = await f.tool(grant.access_token, 'health_query_records', { collection: 'sleep', user_id: 'different-owner' });
   assert.equal(spoof.structuredContent.error, 'invalid_arguments');
   assert.equal(f.state.providerCalls, 0);
+});
+
+test('sleep statistics default to main sleep and expose an explicit all-period scope', async t => {
+  const f = await fixture(t), grant = await f.grant();
+  await f.record('sleep', '2026-01-01', 'main', {
+    type: 'long_sleep', total_sleep_duration: 25200, average_hrv: 40,
+  });
+  await f.record('sleep', '2026-01-01', 'nap', {
+    type: 'sleep', total_sleep_duration: 3600, average_hrv: 100,
+  });
+  await f.record('sleep', '2026-01-02', 'nap-only', {
+    type: 'late_nap', total_sleep_duration: 1800, average_hrv: 120,
+  });
+  await f.cover('sleep', '2026-01-01', '2026-01-02');
+  const args = {
+    collection: 'sleep', from: '2026-01-01', to: '2026-01-02',
+    metrics: ['total_sleep_duration', 'average_hrv'], operations: ['count', 'mean'], refresh: false,
+  };
+  const main = await f.tool(grant.access_token, 'health_aggregate', args);
+  assert.equal(main.structuredContent.sleep_scope, 'main');
+  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].mean, 25200);
+  assert.equal(main.structuredContent.periods[0].metrics[1].buckets[0].mean, 40);
+  assert.equal(main.structuredContent.periods[0].metrics[0].buckets[0].valid_records, 1);
+
+  const all = await f.tool(grant.access_token, 'health_aggregate', { ...args, sleep_scope: 'all' });
+  assert.equal(all.structuredContent.sleep_scope, 'all');
+  assert.equal(all.structuredContent.periods[0].metrics[0].buckets[0].mean, 15300);
+  assert.equal(all.structuredContent.periods[0].metrics[1].buckets[0].mean, 83.75);
+  assert.equal(all.structuredContent.periods[0].metrics[0].buckets[0].valid_records, 3);
 });
 
 test('stale queries enqueue durable deduplicated work, pagination and historical queries do not', async t => {

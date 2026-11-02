@@ -198,7 +198,7 @@ const NUMERIC = (path: string) => `CASE WHEN json_type(payload,'$.${path}') IN (
   THEN json_extract(payload,'$.${path}') END`;
 
 export async function aggregatePeriod(env: Env, userId: string, name: string, selected: Range,
-  metrics: string[], operations: string[], interval: string) {
+  metrics: string[], operations: string[], interval: string, sleepScope: "main" | "all" = "main") {
   const spec = collection(name);
   const definitions = HEALTH_METRICS[name] ?? [];
   const result: Record<string, unknown>[] = [];
@@ -216,12 +216,13 @@ export async function aggregatePeriod(env: Env, userId: string, name: string, se
         : `AVG(${value})`;
     const group = interval === "day" ? "day" : interval === "week" ? "date(day,'weekday 0','-6 days')"
       : interval === "month" ? "substr(day,1,7)||'-01'" : "'period'";
+    const scope = name === "sleep" && sleepScope === "main" ? " AND json_extract(payload,'$.type')='long_sleep'" : "";
     statements.push(env.DB.prepare(`WITH daily AS (
       SELECT day, ${daily} AS value,
         SUM(CASE WHEN ${value} IS NOT NULL ${definition.daily === "weighted_sleep_mean" ? `AND ${weight}>0` : ""} THEN 1 ELSE 0 END) AS samples
       FROM ${name === "daily_metrics"
         ? `(SELECT user_id,day,${SCORES_PAYLOAD} AS payload,'daily_metrics' AS collection FROM daily_cache)`
-        : "health_records"} WHERE user_id=? AND collection=? AND day>=? AND day<=? GROUP BY day
+        : "health_records"} WHERE user_id=? AND collection=? AND day>=? AND day<=?${scope} GROUP BY day
     ) SELECT ${group} AS bucket, COUNT(value) AS count, SUM(samples) AS sample_count,
       AVG(value) AS mean, MIN(value) AS min, MAX(value) AS max, SUM(value) AS sum
       FROM daily GROUP BY ${group} ORDER BY bucket`)
@@ -244,8 +245,11 @@ export async function aggregatePeriod(env: Env, userId: string, name: string, se
 }
 
 async function aggregate(env: Env, userId: string, args: Record<string, unknown>, now: number) {
-  validateArgs(args, ["collection", "from", "to", "metrics", "operations", "interval", "compare_from", "compare_to", "refresh"]);
+  validateArgs(args, ["collection", "from", "to", "metrics", "operations", "interval", "compare_from", "compare_to", "refresh", "sleep_scope"]);
   const spec = collection(args.collection);
+  const sleepScope = args.sleep_scope ?? "main";
+  if (spec.name !== "sleep" && args.sleep_scope !== undefined
+    || !["main", "all"].includes(String(sleepScope))) throw new ApiError("invalid_sleep_scope", 400);
   const today = spec.mode === "time" ? new Date(now).toISOString().slice(0, 10) : calendarDay(new Date(now));
   const selected = range(args.from, args.to, 366, 30, today);
   const metrics = fieldList(args.metrics);
@@ -262,10 +266,11 @@ async function aggregate(env: Env, userId: string, args: Record<string, unknown>
   if (typeof interval !== "string" || !["period", "day", "week", "month"].includes(interval)) throw new ApiError("invalid_interval", 400);
   if ((args.compare_from === undefined) !== (args.compare_to === undefined)) throw new ApiError("invalid_date_range", 400);
   const ranges = [selected, ...(args.compare_from !== undefined ? [range(args.compare_from, args.compare_to, 366, 7, today)] : [])];
-  const periods = await Promise.all(ranges.map(r => aggregatePeriod(env, userId, spec.name, r, metrics, operations, interval)));
+  const periods = await Promise.all(ranges.map(r => aggregatePeriod(env, userId, spec.name, r, metrics, operations, interval,
+    sleepScope as "main" | "all")));
   const state = await refresh(env, userId, spec.name, ranges, args.refresh !== false, now);
   return { ...meta(spec.name, ranges, now), interval, aggregation_basis: "daily values; equal weight per valid day",
-    periods, ...state };
+    ...(spec.name === "sleep" ? { sleep_scope: sleepScope } : {}), periods, ...state };
 }
 
 export async function executeHealthOperation(

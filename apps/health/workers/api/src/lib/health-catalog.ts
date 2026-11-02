@@ -76,6 +76,13 @@ export function healthCatalog() {
       : ["profile", "snapshot"].includes(collection.mode) ? "current snapshot, not historical"
       : "provider assigned local day",
     max_query_days: collection.mode === "time" ? 7 : 31,
+    ...(collection.name === "sleep" ? {
+      aggregate_sleep_scopes: {
+        default: "main",
+        main: "only records explicitly typed long_sleep; naps, rest and unmarked records are excluded",
+        all: "all sleep periods, including naps and rest; use only for total sleep across all periods",
+      },
+    } : {}),
     fields: [...new Set([...(fields[collection.name] ?? []), ...(HEALTH_METRICS[collection.name] ?? []).map(m => m.field)])],
     metrics: (HEALTH_METRICS[collection.name] ?? []).map(m => ({
       ...m,
