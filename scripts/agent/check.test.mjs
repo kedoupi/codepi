@@ -36,16 +36,16 @@ function fixture(t) {
   return { cwd, git, write, commit, base: git('rev-parse', 'HEAD') };
 }
 
-function runFixture(f, args, status = 0) {
+function runFixture(f, args, status = 0, file = 'apps/gzh/change.js', fakePnpm) {
   const bin = path.join(f.cwd, '.test-bin');
   const marker = path.join(bin, 'invocations.txt');
-  f.write('.test-bin/pnpm', `#!/usr/bin/env node
+  f.write('.test-bin/pnpm', fakePnpm || `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs');
 appendFileSync(${JSON.stringify(marker)}, process.argv.slice(2).join(' ') + '\\n');
 process.exit(${status});
 `);
   chmodSync(path.join(bin, 'pnpm'), 0o755);
-  f.write('apps/gzh/change.js');
+  f.write(file);
   const source = `import { main } from ${JSON.stringify(pathToFileURL(script).href)};
 process.exitCode = await main(JSON.parse(process.argv[1]), process.argv[2]);`;
   const result = spawnSync(process.execPath, ['--input-type=module', '--eval', source, JSON.stringify(args), f.cwd], {
@@ -207,6 +207,44 @@ test('failed parallel checks are all reported with nonzero exit', t => {
   const result = runFixture(fixture(t), ['--run'], 9);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /FAILED/);
+});
+
+test('built-artifact checks wait for their package build', t => {
+  const f = fixture(t);
+  f.write('apps/web/committed.txt');
+  f.commit();
+  f.write('.agent/task-base', `${f.base}\n`);
+  const result = runFixture(f, ['--task', '--run'], 0, undefined, `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+const args = process.argv.slice(2).join(' ');
+appendFileSync(${JSON.stringify(path.join(f.cwd, '.test-bin', 'invocations.txt'))}, 'start ' + args + '\\n');
+setTimeout(() => {
+  appendFileSync(${JSON.stringify(path.join(f.cwd, '.test-bin', 'invocations.txt'))}, 'end ' + args + '\\n');
+  process.exit(0);
+}, args.endsWith('build') ? 50 : 0);
+`);
+  assert.equal(result.status, 0, result.stderr);
+  const events = readFileSync(result.marker, 'utf8').trim().split('\n');
+  assert.ok(events.indexOf('end --filter web build') < events.indexOf('start --filter web test:assets'));
+});
+
+test('failed builds block dependent checks without stopping unrelated packages', t => {
+  const f = fixture(t);
+  f.write('apps/web/committed.txt');
+  f.write('apps/gzh/committed.txt');
+  f.commit();
+  f.write('.agent/task-base', `${f.base}\n`);
+  const result = runFixture(f, ['--task', '--run'], 0, undefined, `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+const args = process.argv.slice(2).join(' ');
+appendFileSync(${JSON.stringify(path.join(f.cwd, '.test-bin', 'invocations.txt'))}, args + '\\n');
+process.exit(args === '--filter web build' ? 1 : 0);
+`);
+  assert.equal(result.status, 1);
+  const invocations = readFileSync(result.marker, 'utf8').trim().split('\n');
+  assert.ok(!invocations.includes('--filter web test:assets'));
+  assert.ok(invocations.includes('--filter publish-desk build'));
+  assert.match(result.stderr, /SKIPPED \[apps\/web\].*test:assets/);
 });
 
 test('unmapped changes block execution instead of claiming a pass', t => {

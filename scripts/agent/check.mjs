@@ -83,19 +83,49 @@ export function makePlan(files, tier = 'full') {
 function runChecks(checks, cwd) {
   const concurrency = Math.max(1, Math.min(4, os.availableParallelism() - 1, checks.length));
   const results = new Array(checks.length);
-  let next = 0;
-  async function worker() {
-    while (next < checks.length) {
-      const index = next++;
-      const check = checks[index];
-      results[index] = await new Promise(resolve => {
+  const pending = new Set(checks.keys());
+  const running = new Map();
+  const indexes = new Map(checks.map((check, index) => [`${check.app}:${check.name}`, index]));
+  const dependencies = checks.map(check => {
+    if (!check.after) return [];
+    const dependency = indexes.get(`${check.app}:${check.after}`);
+    if (dependency === undefined) throw new Error(`Missing check dependency: ${check.app} ${check.name} after ${check.after}`);
+    return [dependency];
+  });
+
+  return (async () => {
+    while (pending.size || running.size) {
+      let progressed = false;
+      for (const index of [...pending]) {
+        const failedDependency = dependencies[index].find(dependency => results[dependency] && (results[dependency].skipped || results[dependency].error || results[dependency].code !== 0));
+        if (failedDependency !== undefined) {
+          results[index] = { check: checks[index], skipped: true, dependency: failedDependency };
+          pending.delete(index);
+          progressed = true;
+        }
+      }
+      for (const index of [...pending]) {
+        if (running.size >= concurrency) break;
+        if (dependencies[index].some(dependency => !results[dependency])) continue;
+        const check = checks[index];
+        pending.delete(index);
+        const promise = new Promise(resolve => {
         const child = spawn(check.argv[0], check.argv.slice(1), { cwd, stdio: 'inherit', shell: false });
         child.once('error', error => resolve({ check, error }));
         child.once('close', code => resolve({ check, code }));
-      });
+        }).then(result => {
+          results[index] = result;
+          running.delete(index);
+          return result;
+        });
+        running.set(index, promise);
+        progressed = true;
+      }
+      if (running.size) await Promise.race(running.values());
+      else if (pending.size && !progressed) throw new Error('Check dependency cycle detected');
     }
-  }
-  return Promise.all(Array.from({ length: concurrency }, worker)).then(() => results);
+    return results;
+  })();
 }
 
 export async function main(args = process.argv.slice(2), cwd = root) {
@@ -142,10 +172,14 @@ export async function main(args = process.argv.slice(2), cwd = root) {
   if (Number(process.versions.node.split('.')[0]) < minimumNodeMajor) throw new Error(`Use Node ${minimumNodeMajor} or newer for the selected checks.`);
   console.log(`Executing ${plan.checks.length} selected local checks in up to ${Math.min(4, plan.checks.length)} parallel workers.`);
   const results = await runChecks(plan.checks, cwd);
-  const failed = results.filter(result => result.error || result.code !== 0);
+  const failed = results.filter(result => !result.skipped && (result.error || result.code !== 0));
   for (const { check, error } of failed) console.error(`FAILED [${check.cwd}] ${check.argv.join(' ')}${error ? `: ${error.message}` : ''}`);
+  for (const { check, dependency } of results.filter(result => result.skipped)) {
+    const prerequisite = results[dependency].check;
+    console.error(`SKIPPED [${check.cwd}] ${check.argv.join(' ')}: prerequisite failed [${prerequisite.cwd}] ${prerequisite.argv.join(' ')}`);
+  }
   if (failed.length) return 1;
-  console.log(`Passed ${plan.checks.length} selected local checks in up to ${Math.min(4, plan.checks.length)} parallel workers. Manual acceptance remains separate.`);
+  console.log(`Passed ${results.length} selected local checks in up to ${Math.min(4, plan.checks.length)} parallel workers. Manual acceptance remains separate.`);
   return 0;
 }
 

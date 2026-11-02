@@ -1,18 +1,18 @@
 export const packageCommands = {
   web: { name: 'web', cwd: 'apps/web', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck:desk', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:assets', tier: 'full' },
+    { name: 'build', tier: 'full' }, { name: 'test:assets', after: 'build', tier: 'full' },
   ] },
   gu: { name: 'kdp-gu', cwd: 'apps/gu', commands: [
     { name: 'test', tier: 'quick' }, { name: 'test:scripts', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'check:deploy', args: ['--mode', 'config'], tier: 'full' },
+    { name: 'build', tier: 'full' }, { name: 'check:deploy', after: 'build', args: ['--mode', 'config'], tier: 'full' },
   ] },
   gzh: { name: 'publish-desk', cwd: 'apps/gzh', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
   ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:assets', tier: 'full' }, { name: 'test:browser:built', tier: 'full' },
+    { name: 'build', tier: 'full' }, { name: 'test:assets', after: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   project: { name: 'kdp-project', cwd: 'apps/project', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full' },
@@ -25,7 +25,7 @@ export const packageCommands = {
   ] },
   mcp: { name: '@codepi/mcp', cwd: 'services/mcp', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full' }, { name: 'test:browser:built', tier: 'full' },
+    { name: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
   ops: { name: '@codepi/ops', cwd: 'services/ops', commands: [
     { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full' }, { name: 'test:runtime', tier: 'full' },
@@ -64,6 +64,7 @@ export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml
 export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
   'apps/project/migrations/', 'apps/me/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
 
-export function packageCheck(app, { name, args = [] }) {
-  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app };
+export function packageCheck(app, command) {
+  const { name, args = [] } = command;
+  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app, name, after: command.after };
 }
