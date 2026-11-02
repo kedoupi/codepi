@@ -9,7 +9,7 @@
     "build": "wrangler deploy --dry-run --outdir=dist",
     "typecheck": "tsc --noEmit",
     "deploy": "node scripts/deploy.mjs",
-    "test": "pnpm --filter @health-kdp/api build && pnpm --filter @kedoupi/codepi build && pnpm build && node --test test/*.test.mjs",
+    "test": "pnpm --filter @health-kdp/api build && pnpm --filter @kedoupi/codepi build && pnpm build && node --test --test-concurrency=1 test/*.test.mjs",
     "test:browser:built": "node test/browser.mjs",
     "check:live": "node scripts/check-live.mjs"
   },

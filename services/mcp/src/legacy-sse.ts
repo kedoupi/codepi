@@ -30,6 +30,10 @@ const SESSION_ID = /^[0-9a-f]{64}$/;
 
 type Binding = Pick<TokenRow, "user_id" | "client_id" | "scope">;
 
+/** True when `granted` carries every scope in `required`. */
+const covers = (granted: string, required: string) =>
+  required.split(" ").filter(Boolean).every(scope => granted.split(" ").includes(scope));
+
 function unauthorized(env: Env) {
   const response = json({ error: "invalid_token" }, 401);
   response.headers.set("WWW-Authenticate",
@@ -122,7 +126,10 @@ export class LegacySse extends DurableObject<Env> {
     const bound = this.binding;
     if (!this.writer || !bound) return json({ error: "session_not_found" }, 404);
     // A session id alone never authorizes: the caller must be the same grant.
-    if (grant.user_id !== bound.user_id || grant.client_id !== bound.client_id || grant.scope !== bound.scope) {
+    // A refreshed grant may be wider than the one the stream opened with — the
+    // refresh path upgrades a legacy partial grant to the full scope set — so
+    // the session survives as long as the caller still holds every bound scope.
+    if (grant.user_id !== bound.user_id || grant.client_id !== bound.client_id || !covers(grant.scope, bound.scope)) {
       return json({ error: "session_grant_mismatch" }, 403);
     }
     // mcp() re-authenticates from the same header, bounds the body and checks Content-Type.

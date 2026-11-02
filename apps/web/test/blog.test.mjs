@@ -101,6 +101,44 @@ test('submissions validate category, tags, series and sources', async t => {
   assert.ok(guide.data.guide.categories.some(category => category.slug === 'digital-space'));
 });
 
+test('a submission that cannot name a cover uses the first embedded image', async t => {
+  const f = await deskFixture(t);
+  const image = await upload(f, '正文首图');
+  assert.equal(image.ok, true);
+  const body = `# 旧版客户端\n\n![正文首图](/blog/media/${image.data.id})\n\n正文内容。`;
+  // A client authorized before the cover and taxonomy fields existed sends
+  // neither: the cover falls back to the article's first image and the
+  // taxonomy is left to the owner during review.
+  const legacy = await rpc(f, 'submit', draft({ slug: 'legacy-cover', body_markdown: body,
+    cover_media_id: undefined, category: undefined, tags: undefined }));
+  assert.equal(legacy.ok, true);
+  const saved = await f.blog.prepare('SELECT cover_media_id,category,tags FROM blog_drafts WHERE slug=?').bind('legacy-cover').first();
+  assert.equal(saved.cover_media_id, image.data.id);
+  assert.equal(saved.category, null);
+  assert.deepEqual(JSON.parse(saved.tags), []);
+  assert.ok(legacy.data.warnings.some(warning => /分类/.test(warning)), JSON.stringify(legacy.data.warnings));
+  // An article without any image has no cover either.
+  const withoutImage = await rpc(f, 'submit', draft({ slug: 'legacy-no-image', body_markdown: '# 只有文字',
+    cover_media_id: undefined, category: undefined, tags: undefined }));
+  assert.deepEqual(withoutImage, { ok: false, error: 'cover_required', status: 400 });
+  // The legacy single tag still becomes the tag list.
+  const tagged = await rpc(f, 'submit', draft({ slug: 'legacy-tagged', body_markdown: body, tag: '旧标签',
+    cover_media_id: undefined, category: undefined, tags: undefined }));
+  assert.equal(tagged.ok, true);
+  assert.deepEqual(JSON.parse(await f.blog.prepare('SELECT tags FROM blog_drafts WHERE slug=?').bind('legacy-tagged').first('tags')), ['旧标签']);
+});
+
+test('an explicit empty tag list stays invalid while an omitted one is allowed', async t => {
+  const f = await deskFixture(t);
+  const image = await upload(f, '封面');
+  const body = `![封面](/blog/media/${image.data.id})`;
+  assert.deepEqual(await rpc(f, 'submit', draft({ slug: 'explicit-empty', body_markdown: body, tags: [] })),
+    { ok: false, error: 'invalid_arguments', status: 400 });
+  const omitted = await rpc(f, 'submit', draft({ slug: 'omitted-tags', body_markdown: body, tags: undefined }));
+  assert.equal(omitted.ok, true);
+  assert.deepEqual(JSON.parse(await f.blog.prepare('SELECT tags FROM blog_drafts WHERE slug=?').bind('omitted-tags').first('tags')), []);
+});
+
 test('desk manages categories and edits review metadata with revision checks', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   const initial = await (await f.call('/api/blog/categories', cookie)).json();

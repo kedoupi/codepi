@@ -56,7 +56,8 @@ export async function mcp(request: Request, env: Env) {
     } catch (error) {
       code = error instanceof HttpError ? error.code : "source_unavailable";
       const data = { error: code, request_id: requestId,
-        ...(error instanceof HttpError && (error.field || error.reason) ? { field: error.field, reason: error.reason } : {}) };
+        ...(error instanceof HttpError && (error.field || error.reason) ? { field: error.field, reason: error.reason } : {}),
+        ...(error instanceof HttpError && error.scope ? { scope: error.scope } : {}) };
       return { isError: true, content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
     } finally {
       console.log(JSON.stringify({ event: "mcp_tool", tool: tools(grant.scope).some(t => t.name === params.name) ? params.name : "unknown",
