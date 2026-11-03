@@ -53,35 +53,39 @@ function minuteSamples(input: StateInput, now?: number): Array<ActivitySample | 
   return result;
 }
 
-function phoneObservedAt(input: StateInput, minute: number): string | null {
-  const start = dayStartEpoch(input.date);
-  const at = start + minute * MS_PER_MINUTE;
-  const ids = new Set(input.subjectDeviceIds);
-  const observations = [
-    ...input.snapshots.filter(row => ids.has(row.device_id)).map(row => ({
-      at: Date.parse(row.observed_at), status: row.status,
-    })),
-    ...input.events.filter(row => ids.has(row.device_id)).map(row => ({
-      at: Date.parse(row.event_at), status: row.status ?? "offline",
-    })),
-  ].filter(row => Number.isFinite(row.at) && row.at <= at).sort((a, b) => a.at - b.at);
-  const latest = observations.at(-1);
-  if (!latest || at - latest.at > STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE) return null;
-  return latest.status === "online" || latest.status === "pending-offline" ? new Date(latest.at).toISOString() : null;
+/**
+ * 每分钟「最近一条且仍新鲜」的观测值。行只排序一次，游标单向前进，复杂度 O(N log N + 1440)。
+ */
+function perMinuteFresh<T>(rows: Array<{ at: number; value: T }>, start: number, freshMs: number): Array<T | null> {
+  const sorted = rows.filter(row => Number.isFinite(row.at)).sort((a, b) => a.at - b.at);
+  const result: Array<T | null> = new Array(MINUTES_PER_DAY).fill(null);
+  let index = 0;
+  let latest: { at: number; value: T } | null = null;
+  for (let minute = 0; minute < MINUTES_PER_DAY; minute += 1) {
+    const at = start + minute * MS_PER_MINUTE;
+    while (index < sorted.length && sorted[index].at <= at) latest = sorted[index++];
+    result[minute] = latest && at - latest.at <= freshMs ? latest.value : null;
+  }
+  return result;
 }
 
-function heartbeatAt(input: StateInput, minute: number): { present: boolean; scanOk: boolean } {
-  const start = dayStartEpoch(input.date);
-  const at = start + minute * MS_PER_MINUTE;
-  const rows = input.heartbeats
-    .map(row => ({ at: Date.parse(row.observed_at), scanOk: row.scan_ok === true }))
-    .filter(row => Number.isFinite(row.at) && row.at <= at)
-    .sort((a, b) => a.at - b.at);
-  const latest = rows.at(-1);
-  if (!latest || at - latest.at > STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE) {
-    return { present: false, scanOk: false };
-  }
-  return { present: true, scanOk: latest.scanOk };
+/** 本人手机每分钟是否被看到在家（online / pending-offline 且新鲜）。 */
+function phonePresenceByMinute(input: StateInput): boolean[] {
+  const ids = new Set(input.subjectDeviceIds);
+  const rows = [
+    ...input.snapshots.filter(row => ids.has(row.device_id))
+      .map(row => ({ at: Date.parse(row.observed_at), value: row.status })),
+    ...input.events.filter(row => ids.has(row.device_id))
+      .map(row => ({ at: Date.parse(row.event_at), value: row.status ?? "offline" })),
+  ];
+  return perMinuteFresh(rows, dayStartEpoch(input.date), STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE)
+    .map(status => status === "online" || status === "pending-offline");
+}
+
+/** 家中扫描每分钟的心跳：null 表示没有新鲜心跳，否则为 scan_ok。 */
+function heartbeatByMinute(input: StateInput): Array<boolean | null> {
+  const rows = input.heartbeats.map(row => ({ at: Date.parse(row.observed_at), value: row.scan_ok === true }));
+  return perMinuteFresh(rows, dayStartEpoch(input.date), STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE);
 }
 
 function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>, mappings: Record<string, AppCategory>) {
@@ -126,13 +130,16 @@ function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>
   };
 }
 
-function gapReason(day: DayComputation, input: StateInput, minute: number): GapReason {
-  const heartbeat = heartbeatAt(input, minute);
-  const phone = phoneObservedAt(input, minute);
-  const status = day.minuteStatuses[minute];
-  if (!heartbeat.present || !heartbeat.scanOk) return "home_scan_missing";
-  if (!phone && input.subjectDeviceIds.length > 0) return "phone_scan_missing";
-  if (status === "unknown" || status === "not_arrived") return "work_machine_missing";
+/**
+ * 未知分钟的缺口原因：
+ * 1. 家中扫描没有新鲜心跳或 scan_ok=false → home_scan_missing；
+ * 2. 心跳正常、已指定手机但手机没被看到 → phone_scan_missing；
+ * 3. 其余（心跳正常且手机已看到，或尚未指定手机）都归 work_machine_missing：
+ *    未指定手机时家里这一路本来就判断不了位置，能补上这一分钟的只有工作机。
+ */
+function gapReason(heartbeat: boolean | null, phoneSeen: boolean, phoneConfigured: boolean): GapReason {
+  if (heartbeat !== true) return "home_scan_missing";
+  if (phoneConfigured && !phoneSeen) return "phone_scan_missing";
   return "work_machine_missing";
 }
 
@@ -175,23 +182,23 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     }
   }
 
+  // 下班后 / 周末仍用工作机（设计口径）：工作日里工作机在家里网络且有键鼠的分钟都算（不论当天去没去公司、
+  // 是在上班前还是下班后）；休息日所有有键鼠的分钟都算。房间按当分钟状态拆分。
+  const workday = dayType(input.date) === "workday";
   let afterWorkWorkMachineMinutes = 0;
   let weekendWorkMachineMinutes = 0;
   for (let minute = 0; minute < samples.length; minute += 1) {
     const row = samples[minute];
     if (!row || !activeSample(row)) continue;
-    const isWeekend = dayType(input.date) === "restday";
-    const afterWork = dayType(input.date) === "workday" && lastOffice >= 0 && minute > lastOffice && row.net === "home";
-    const weekendWork = isWeekend;
-    if (afterWork || weekendWork) {
-      if (afterWork) afterWorkWorkMachineMinutes += 1;
-      if (weekendWork) weekendWorkMachineMinutes += 1;
-      const phone = phoneObservedAt(input, minute);
-      const room = phone ? (day.minuteStatuses[minute] === "bedroom" ? "卧室"
-        : day.minuteStatuses[minute] === "living_room" ? "客厅" : "房间未知") : "房间未知";
-      const target = afterWork ? afterWorkRoomMinutes : weekendRoomMinutes;
-      target[room] = (target[room] ?? 0) + 1;
-    }
+    const afterWork = workday && row.net === "home";
+    const weekendWork = !workday;
+    if (!afterWork && !weekendWork) continue;
+    if (afterWork) afterWorkWorkMachineMinutes += 1;
+    else weekendWorkMachineMinutes += 1;
+    const status = day.minuteStatuses[minute];
+    const room = status === "bedroom" ? "卧室" : status === "living_room" ? "客厅" : "房间未知";
+    const target = afterWork ? afterWorkRoomMinutes : weekendRoomMinutes;
+    target[room] = (target[room] ?? 0) + 1;
   }
 
   const covered = day.minuteStatuses.reduce((count, status) => count + (status !== "unknown" && status !== "not_arrived" ? 1 : 0), 0);
@@ -199,9 +206,12 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
   const gapReasonMinutes: Record<GapReason, number> = {
     home_scan_missing: 0, phone_scan_missing: 0, work_machine_missing: 0,
   };
+  const heartbeats = heartbeatByMinute(input);
+  const phoneSeen = phonePresenceByMinute(input);
+  const phoneConfigured = input.subjectDeviceIds.length > 0;
   for (let minute = 0; minute < day.minuteStatuses.length; minute += 1) {
     if (day.minuteStatuses[minute] !== "unknown") continue;
-    gapReasonMinutes[gapReason(day, input, minute)] += 1;
+    gapReasonMinutes[gapReason(heartbeats[minute], phoneSeen[minute], phoneConfigured)] += 1;
   }
   const firstOffice = day.minuteStatuses.findIndex(status => status === "office_active");
   const officeSpanMinutes = firstOffice >= 0 && lastOffice >= firstOffice ? lastOffice - firstOffice + 1 : null;
@@ -218,9 +228,10 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     arriveHomeMinute: findMoment("arrive_home"),
     returnBedroomMinute: findMoment("return_bedroom"),
     officeSpanMinutes,
-    focus: focusMetrics(day, samples, input.appCategories),
-    afterWorkWorkMachineMinutes: input.activity.length > 0 ? afterWorkWorkMachineMinutes : null,
-    weekendWorkMachineMinutes: input.activity.length > 0 ? weekendWorkMachineMinutes : null,
+    focus: day.channels.work ? focusMetrics(day, samples, input.appCategories)
+      : { segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null },
+    afterWorkWorkMachineMinutes: day.channels.work ? afterWorkWorkMachineMinutes : null,
+    weekendWorkMachineMinutes: day.channels.work ? weekendWorkMachineMinutes : null,
     afterWorkRoomMinutes,
     weekendRoomMinutes,
     appCategoryMinutes,
@@ -340,5 +351,7 @@ export async function upsertDailyRows(env: Env, rows: ReturnType<typeof dailyRow
       JSON.stringify(m.hourlyAppCategoryMinutes), m.topAppName, m.topAppMinutes, JSON.stringify(m.otherNetworkMinutes),
       m.coverage.ratio, JSON.stringify(m.coverage.gapReasonMinutes), m.dayType, rows.metrics.computedAt, rows.metrics.version,
     ),
+    // 落库即消费该日期的「设置变更待重算」标记。
+    env.DB.prepare("DELETE FROM settings_recompute_queue WHERE date=?").bind(rows.metrics.date),
   ]);
 }

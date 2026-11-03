@@ -345,8 +345,10 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   };
 
   // 缺失的一路数据只会让相关指标变成未知，不会被当成 0。
-  const phoneChannelUsable = deviceIds.size > 0 && phone.length > 0;
-  const workChannelUsable = activity.length > 0;
+  // 只看当天自己的数据：回看窗口里前一天的样本、同一批次里别的日子的样本都不算「这一路可用」。
+  const dayEnd = start + MINUTES_PER_DAY * MS_PER_MINUTE;
+  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at >= start && row.at < dayEnd);
+  const workChannelUsable = activity.some(item => item.at >= start && item.at < dayEnd);
   const homeKnown = phoneChannelUsable || workChannelUsable;
   if (phoneChannelUsable && workChannelUsable) {
     metrics.commuteToWorkMinutes = statuses.filter((value, index) => value === "commute" && (firstOffice < 0 || index < firstOffice)).length;
@@ -382,6 +384,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     metrics,
     appBreakdown: buildAppBreakdown(minuteOwnSample, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
+    channels: { work: workChannelUsable, phone: phoneChannelUsable },
   };
 }
 

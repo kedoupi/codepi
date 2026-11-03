@@ -106,6 +106,8 @@ export type DayComputation = {
   metrics: DayMetrics;
   appBreakdown: AppBreakdown[];
   keyboardMouseMinutes: { keyboard: number | null; pointer: number | null; both: number | null };
+  /** 当天自己有没有这一路数据（不含回看窗口与同批其他日期）。 */
+  channels: { work: boolean; phone: boolean };
 };
 
 export type DayType = "workday" | "restday";
