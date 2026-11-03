@@ -19,7 +19,8 @@
 - 已接入趋势、异常、质量与设置 GET/PUT API；设置变更会写入受影响日重算队列
 - 已补充其他网络命名、周末工作机统计、设置输入拒 secret 校验和分析纯函数测试
 - `apps/rhythm` 已通过 `npm test`（60 tests）、`npm run typecheck`、`npm run build`
+- 已通过 Cloudflare governance 与 migration 静态检查；cron 配置顺序已按仓库解析规则修正
 
 ## 当前状态
 
-- P4 数据层实现已完成首轮，待运行仓库级 `pnpm check` 并完成最终验收
+- P4 数据层实现已完成，仓库级脚本检查已按 `pnpm` 缺失限制改用等价 Node 命令完成
