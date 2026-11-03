@@ -134,6 +134,8 @@ export type DailyMetrics = DayMetrics & {
   focus: FocusMetrics;
   afterWorkWorkMachineMinutes: number | null;
   weekendWorkMachineMinutes: number | null;
+  afterWorkRoomMinutes: Record<string, number>;
+  weekendRoomMinutes: Record<string, number>;
   appCategoryMinutes: Record<AppCategory, number>;
   hourlyAppCategoryMinutes: Record<string, Record<AppCategory, number>>;
   topAppName: string | null;

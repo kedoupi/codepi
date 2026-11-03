@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   communication_interruptions INTEGER,
   after_work_work_machine_minutes INTEGER,
   weekend_work_machine_minutes INTEGER,
+  after_work_room_minutes_json TEXT NOT NULL,
+  weekend_room_minutes_json TEXT NOT NULL,
   app_category_minutes_json TEXT NOT NULL,
   hourly_app_category_minutes_json TEXT NOT NULL,
   top_app_name TEXT,
