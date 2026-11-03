@@ -42,9 +42,11 @@ export async function readUpstream<T>(env: Env, path: string, params: Record<str
     if (payload?.ok !== true || !Array.isArray(payload.rows)) throw upstreamError();
     rows.push(...payload.rows as T[]);
     cursor = typeof payload.nextCursor === "string" && payload.nextCursor.length > 0 ? payload.nextCursor : null;
-    if (!cursor) break;
+    if (!cursor) return rows;
   }
-  return rows;
+  // 翻满 UPSTREAM_MAX_PAGES 页仍有下一页：宁可报错，也不能用不完整的数据算出「看起来正常」的汇总。
+  console.error("upstream_truncated");
+  throw new AppError("upstream_unavailable", 502);
 }
 
 function text(value: unknown): string | null {

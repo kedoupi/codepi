@@ -56,6 +56,14 @@ export function shanghaiDate(value: string | number): string {
   return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
 }
 
+/**
+ * 日历日（YYYY-MM-DD，按北京时间理解）是星期几：0=周日 … 6=周六。
+ * 必须按 UTC 解析这个日历日再取 getUTCDay；按 `+08:00` 零点解析会落到前一天的 16:00Z，星期整体错一天。
+ */
+export function weekdayOf(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
 export function minuteLabel(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 }
@@ -345,8 +353,10 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   };
 
   // 缺失的一路数据只会让相关指标变成未知，不会被当成 0。
-  const phoneChannelUsable = deviceIds.size > 0 && phone.length > 0;
-  const workChannelUsable = activity.length > 0;
+  // 只看当天自己的数据：回看窗口里前一天的样本、同一批次里别的日子的样本都不算「这一路可用」。
+  const dayEnd = start + MINUTES_PER_DAY * MS_PER_MINUTE;
+  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at >= start && row.at < dayEnd);
+  const workChannelUsable = activity.some(item => item.at >= start && item.at < dayEnd);
   const homeKnown = phoneChannelUsable || workChannelUsable;
   if (phoneChannelUsable && workChannelUsable) {
     metrics.commuteToWorkMinutes = statuses.filter((value, index) => value === "commute" && (firstOffice < 0 || index < firstOffice)).length;
@@ -382,6 +392,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     metrics,
     appBreakdown: buildAppBreakdown(minuteOwnSample, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
+    channels: { work: workChannelUsable, phone: phoneChannelUsable },
   };
 }
 

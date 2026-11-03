@@ -11,7 +11,7 @@ import {
 
 const origin = "https://rhythm.test";
 const testDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" })
-  .format(new Date(Date.now() - 2 * 86400_000));
+  .format(new Date(Date.now() - 86400_000));
 const testStamp = (hour: number, minute: number) =>
   new Date(Date.parse(`${testDate}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+08:00`)).toISOString();
 type HttpOptions = { cookie?: string; method?: string; source?: string; body?: unknown };
@@ -132,7 +132,7 @@ it("当天接口返回压缩时间段、关键时刻、四个数字与应用构�
   expect(body.metrics).toHaveProperty("homeMinutes");
   expect(body.appBreakdown[0]).toMatchObject({ category: "开发" });
   expect(body.keyboardMouseMinutes).toEqual({ keyboard: 2, pointer: 2, both: 2 });
-  // 假上游两路都返回了过去日期的记录；只有对应数组为空时才应为 missing。
+  // 假上游两路都返回了昨天的记录；历史日汇总缺失时不会现场补算。
   expect(body.freshness.home).toMatchObject({ status: "stale" });
   expect(body.freshness.home.ageMinutes).toEqual(expect.any(Number));
   expect(body.freshness.work).toMatchObject({ status: "stale" });

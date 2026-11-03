@@ -9,6 +9,9 @@ routes = [
   { pattern = "rhythm.codepi.app", custom_domain = true }
 ]
 
+[triggers]
+crons = ["30 20 * * *"]
+
 [assets]
 directory = "./dist"
 binding = "ASSETS"
