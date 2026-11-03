@@ -1,3 +1,4 @@
+import { UPSTREAM_MAX_PAGES } from "../../worker/lib";
 import { describe, expect, it, vi } from "vitest";
 import {
   parseActivity, parseDevices, parseEvents, parseHeartbeats, parseSnapshots, readUpstream,
@@ -92,4 +93,18 @@ describe("上游只读调用", () => {
     for (const call of error.mock.calls) expect(JSON.stringify(call)).not.toContain("boom");
     error.mockRestore();
   });
+
+  it("翻满最大页数仍有下一页时报错，不静默截断", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let pages = 0;
+    const endless = envWith(async () => {
+      pages += 1;
+      return Response.json({ ok: true, rows: [{ sampled_at: "2026-11-03T09:00:00+08:00" }], nextCursor: String(pages) });
+    });
+    await expect(readUpstream(endless, UPSTREAM_ACTIVITY_SAMPLES_PATH)).rejects.toMatchObject({ code: "upstream_unavailable", status: 502 });
+    expect(pages).toBe(UPSTREAM_MAX_PAGES);
+    expect(error).toHaveBeenCalledWith("upstream_truncated");
+    error.mockRestore();
+  });
 });
+

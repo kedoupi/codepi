@@ -12,7 +12,11 @@ import type { Env } from "./types";
 
 const LOOKBACK_MINUTES = 30;
 const DAY_MS = 86400_000;
-const UPSTREAM_CHUNK_DAYS = 8;
+/**
+ * 每次向上游取 2 天：家中扫描对全部设备每 5 分钟上报一次快照，设备多时一天可达数千行；
+ * 2 天的量留在 UPSTREAM_MAX_PAGES × UPSTREAM_PAGE_LIMIT 以内，超出时 readUpstream 会报错而不是截断。
+ */
+const UPSTREAM_CHUNK_DAYS = 2;
 
 type RawStateRows = {
   activity: ReturnType<typeof parseActivity>;

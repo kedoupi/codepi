@@ -35,6 +35,8 @@ describe("设置输入校验", () => {
       .toEqual({ "1Password": "其他", "Token Viewer": "开发" });
     expect(() => parseSettingsUpdate({ ...valid, other_network_names: { "net-a": "ghp_abcdefghijklmnop" } })).toThrow("invalid_settings");
     expect(() => parseSettingsUpdate({ ...valid, app_categories: { "a\u0001b": "开发" } })).toThrow("invalid_settings");
+    expect(parseSettingsUpdate({ ...valid, anomaly_thresholds: { early_late_minutes: 40, commute_percent: 300 } }).anomalyThresholds.commutePercent).toBe(300);
+    expect(() => parseSettingsUpdate({ ...valid, anomaly_thresholds: { early_late_minutes: 40, commute_percent: 301 } })).toThrow("invalid_settings");
     expect(() => parseSettingsUpdate({ ...valid, app_categories: { ["x".repeat(201)]: "开发" } })).toThrow("invalid_settings");
   });
 });

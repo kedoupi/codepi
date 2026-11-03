@@ -140,7 +140,7 @@ export function parseSettingsUpdate(value: unknown): SettingsUpdate {
   const commutePercent = thresholds.commute_percent;
   if (!Number.isInteger(earlyLateMinutes) || !Number.isInteger(commutePercent)
     || (earlyLateMinutes as number) < 1 || (earlyLateMinutes as number) > 1440
-    || (commutePercent as number) < 1 || (commutePercent as number) > 1000) throw new Error("invalid_settings");
+    || (commutePercent as number) < 1 || (commutePercent as number) > 300) throw new Error("invalid_settings");
   return {
     subjectDeviceIds,
     appCategories,

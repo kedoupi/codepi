@@ -347,7 +347,9 @@ get("/api/trends", async c => {
   const selectedRows = rows.filter(row => row.date >= bounds.from);
   const currentWeekFrom = weekStart(bounds.end);
   const currentWeek = selectedRows.filter(row => row.date >= currentWeekFrom);
-  const previousWeek = rows.filter(row => row.date >= comparisonFrom && row.date < currentWeekFrom);
+  // 本周没过完时，上周也只取到同一个星期几，两边天数对等。
+  const previousTo = dateOffset(comparisonFrom, dateDistance(currentWeekFrom, bounds.end));
+  const previousWeek = rows.filter(row => row.date >= comparisonFrom && row.date <= previousTo);
   return json({
     range: bounds.range,
     from: bounds.from,
@@ -363,7 +365,7 @@ get("/api/trends", async c => {
       previous: averageAllMetrics(previousWeek),
       current_from: currentWeekFrom,
       previous_from: comparisonFrom,
-      previous_to: dateOffset(currentWeekFrom, -1),
+      previous_to: previousTo,
     },
   });
 });

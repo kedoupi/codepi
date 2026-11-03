@@ -114,7 +114,7 @@ describe("P4 接口", () => {
     const cookie = await h.login();
     const response = await h.send(`/api/admin/recompute?from=${busy}&to=${daysAgo(1)}`, { cookie, method: "POST" });
     expect(await response.json()).toMatchObject({ days_recomputed: 10 });
-    expect(h.upstreamCalls(UPSTREAM_ACTIVITY_SAMPLES_PATH)).toBe(2);   // 10 天 → 两块（8 + 2）
+    expect(h.upstreamCalls(UPSTREAM_ACTIVITY_SAMPLES_PATH)).toBe(5);   // 10 天 → 每块 2 天，共 5 块
     const busyRow = await env.DB.prepare("SELECT office_active_minutes, focus_segment_count FROM daily_metrics WHERE date=?").bind(busy).first();
     const quietRow = await env.DB.prepare("SELECT office_active_minutes, focus_segment_count, after_work_work_machine_minutes FROM daily_metrics WHERE date=?").bind(quiet).first();
     expect(busyRow?.office_active_minutes).toBeGreaterThan(0);
@@ -182,6 +182,10 @@ describe("P4 接口", () => {
     expect(trends.days).toHaveLength(7);
     expect(trends.days_available).toBe(6);
     expect(trends.days[0]).toMatchObject({ missing: true, metrics: null });
+    // 按周对比两边天数对等：上周只取到与本周同一个星期几
+    const span = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86400_000);
+    const week = trends.week_comparison;
+    expect(span(week.previous_from, week.previous_to)).toBe(span(week.current_from, trends.to));
 
     const withToday = await (await h.send(`/api/trends?range=7&end=${today}`, { cookie })).json() as Record<string, any>;
     expect(withToday.days.at(-1)).toMatchObject({ date: today, missing: false });
