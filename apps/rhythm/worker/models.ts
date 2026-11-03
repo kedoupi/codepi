@@ -107,6 +107,56 @@ export type DayComputation = {
   keyboardMouseMinutes: { keyboard: number | null; pointer: number | null; both: number | null };
 };
 
+export type DayType = "workday" | "restday";
+export type GapReason = "home_scan_missing" | "phone_scan_missing" | "work_machine_missing";
+
+export type FocusMetrics = {
+  segmentCount: number | null;
+  totalMinutes: number | null;
+  longestMinutes: number | null;
+  communicationInterruptions: number | null;
+};
+
+export type CoverageMetrics = {
+  ratio: number | null;
+  gapReasonMinutes: Record<GapReason, number>;
+};
+
+export type DailyMetrics = DayMetrics & {
+  statusMinutes: Record<RhythmStatus, number>;
+  wakeMinute: number | null;
+  leaveHomeMinute: number | null;
+  startWorkMinute: number | null;
+  leaveComputerMinute: number | null;
+  arriveHomeMinute: number | null;
+  returnBedroomMinute: number | null;
+  officeSpanMinutes: number | null;
+  focus: FocusMetrics;
+  afterWorkWorkMachineMinutes: number | null;
+  weekendWorkMachineMinutes: number | null;
+  appCategoryMinutes: Record<AppCategory, number>;
+  hourlyAppCategoryMinutes: Record<string, Record<AppCategory, number>>;
+  topAppName: string | null;
+  topAppMinutes: number | null;
+  otherNetworkMinutes: Record<string, number>;
+  coverage: CoverageMetrics;
+  dayType: DayType;
+};
+
+export type DailyStatusRow = {
+  date: string;
+  segments: StatusSegment[];
+  computedAt: string;
+  version: string;
+};
+
+export type DailyMetricsRow = {
+  date: string;
+  metrics: DailyMetrics;
+  computedAt: string;
+  version: string;
+};
+
 export type SourceFreshness = {
   latestAt: string | null;
   ageMinutes: number | null;
