@@ -88,6 +88,9 @@ function heartbeatByMinute(input: StateInput): Array<boolean | null> {
   return perMinuteFresh(rows, dayStartEpoch(input.date), STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE);
 }
 
+/** 专注段里允许连续缺几分钟采样（采样按分钟取整会有抖动），缺口本身不计入专注。 */
+const FOCUS_MISSING_SAMPLE_TOLERANCE = 2;
+
 function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>, mappings: Record<string, AppCategory>) {
   let current = 0;
   let segments = 0;
@@ -103,8 +106,20 @@ function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>
     }
     current = 0;
   };
+  let missingRun = 0;
   for (let minute = 0; minute < MINUTES_PER_DAY; minute += 1) {
     const office = day.minuteStatuses[minute] === "office_active";
+    if (office && !samples[minute]) {
+      // 这一分钟没有工作机采样：不知道在用什么 App，不计入专注；
+      // 只容忍采样时间抖动造成的短缺口，更长就结束本段，不把「未知」当成「没切到沟通」。
+      missingRun += 1;
+      if (missingRun > FOCUS_MISSING_SAMPLE_TOLERANCE) {
+        finish();
+        communicationOpen = false;
+      }
+      continue;
+    }
+    missingRun = 0;
     const communication = office && categoryOf(samples[minute], mappings) === "沟通";
     const eligible = office && !communication;
     if (eligible) {

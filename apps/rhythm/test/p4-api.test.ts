@@ -97,6 +97,11 @@ describe("P4 接口", () => {
     const missing = await (await h.send(`/api/day?date=${day}`, { cookie })).json() as Record<string, any>;
     expect(missing).toMatchObject({ date: day, missing: true, segments: [], moments: [], appBreakdown: [] });
     expect(missing.metrics.officeActiveMinutes).toBeNull();
+    expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null });
+    expect(missing.metrics.coverage.ratio).toBeNull();
+    expect(missing.metrics.afterWorkWorkMachineMinutes).toBeNull();
+    expect(missing.metrics.appCategoryMinutes).toEqual({});
+    expect(["workday", "restday"]).toContain(missing.metrics.dayType);
     expect(missing.freshness.home.status).toBe("missing");
     expect(missing.keyboardMouseMinutes).toEqual({ keyboard: null, pointer: null, both: null });
 

@@ -44,6 +44,25 @@ describe("每日指标", () => {
     });
   });
 
+  it("缺采样的分钟不计入专注，缺口超过 2 分钟就结束本段", () => {
+    const base = input();
+    const editorOnly = base.activity.map(row => ({ ...row, app_name: "示例编辑器" }));
+    // 09:10 缺 1 分钟：不打断，但这一分钟不计入专注
+    const shortGap = calculateDailyMetrics(
+      { ...base, activity: editorOnly.filter(row => !row.sampled_at.includes("T09:10:")) },
+      Date.parse("2026-11-03T01:30:00.000Z"),
+    );
+    expect(shortGap.metrics.focus.segmentCount).toBe(1);
+    expect(shortGap.metrics.focus.totalMinutes).toBe(29);
+    // 09:10–09:13 缺 4 分钟（仍在 5 分钟新鲜窗口内，状态是「在公司有操作」）：拆成 10 + 16，都不足 25 分钟
+    const longGap = calculateDailyMetrics(
+      { ...base, activity: editorOnly.filter(row => !/T09:1[0-3]:/.test(row.sampled_at)) },
+      Date.parse("2026-11-03T01:30:00.000Z"),
+    );
+    expect(longGap.metrics.statusMinutes.office_active).toBe(31);
+    expect(longGap.metrics.focus).toMatchObject({ segmentCount: 0, totalMinutes: 0, longestMinutes: 0 });
+  });
+
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");

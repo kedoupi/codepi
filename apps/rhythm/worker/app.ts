@@ -13,7 +13,7 @@ import {
 } from "./upstream";
 import type { Env } from "./types";
 import { dateDistance, dateOffset, loadStateInput, recomputeRange } from "./recompute";
-import { calculateDailyMetrics, DAILY_ALGORITHM_VERSION, readDailyMetrics, readDailyMetricsRange, readDailyStatus } from "./daily";
+import { calculateDailyMetrics, DAILY_ALGORITHM_VERSION, dayType, readDailyMetrics, readDailyMetricsRange, readDailyStatus } from "./daily";
 import {
   ANOMALY_BASELINE, ANOMALY_BASELINE_DAYS, averageAllMetrics, averageMetrics, findAnomalies, qualityDays, trendDays, weekStart,
 } from "./analysis";
@@ -206,10 +206,25 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   };
 }
 
-const EMPTY_DAY_METRICS = {
-  commuteToWorkMinutes: null, commuteHomeMinutes: null, officeActiveMinutes: null, homeMinutes: null,
-  bedroomMinutes: null, livingRoomMinutes: null, homeUnknownMinutes: null,
-};
+/** 缺失日的完整指标结构：标量为 null（未知），集合为空对象，不能被当成 0。 */
+function emptyDayMetrics(date: string) {
+  return {
+    commuteToWorkMinutes: null, commuteHomeMinutes: null, officeActiveMinutes: null, homeMinutes: null,
+    bedroomMinutes: null, livingRoomMinutes: null, homeUnknownMinutes: null,
+    statusMinutes: {},
+    wakeMinute: null, leaveHomeMinute: null, startWorkMinute: null,
+    leaveComputerMinute: null, arriveHomeMinute: null, returnBedroomMinute: null,
+    officeSpanMinutes: null,
+    focus: { segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null },
+    afterWorkWorkMachineMinutes: null, weekendWorkMachineMinutes: null,
+    afterWorkRoomMinutes: {}, weekendRoomMinutes: {},
+    appCategoryMinutes: {}, hourlyAppCategoryMinutes: {},
+    topAppName: null, topAppMinutes: null,
+    otherNetworkMinutes: {},
+    coverage: { ratio: null, gapReasonMinutes: {} },
+    dayType: dayType(date),
+  };
+}
 
 /** 历史日还没有汇总：保持和正常响应相同的结构，所有指标为 null（未知），由页面显示「还没有汇总」。 */
 function missingStoredDay(date: string, settings: RhythmSettings) {
@@ -223,7 +238,7 @@ function missingStoredDay(date: string, settings: RhythmSettings) {
     computedAt: null,
     segments: [],
     moments: [],
-    metrics: EMPTY_DAY_METRICS,
+    metrics: emptyDayMetrics(date),
     appBreakdown: [],
     keyboardMouseMinutes: { keyboard: null, pointer: null, both: null },
     freshness: {
