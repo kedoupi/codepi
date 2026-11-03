@@ -47,3 +47,6 @@ CREATE TABLE IF NOT EXISTS settings_recompute_queue (
   reason TEXT NOT NULL,
   queued_at TEXT NOT NULL
 );
+
+ALTER TABLE settings ADD COLUMN other_network_names TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE settings ADD COLUMN anomaly_thresholds TEXT NOT NULL DEFAULT '{"earlyLateMinutes":40,"commutePercent":50}';

@@ -2,15 +2,19 @@ import { Hono, type Handler } from "hono";
 import { ssoEnabled, ssoReady, SsoError } from "@kedoupi/shared/auth/client";
 import { authenticated, callback, login, logout } from "./auth";
 import { AppError, isoShanghai, json, validateDate } from "./lib";
-import type { Evidence, RhythmStatus, StateInput } from "./models";
-import { readSettings, type RhythmSettings } from "./settings";
+import type { Evidence, RhythmStatus } from "./models";
+import {
+  parseSettingsUpdate, publicSettings, readSettings, saveSettings, type RhythmSettings,
+} from "./settings";
 import { calculateDay, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
-  parseActivity, parseDevices, parseEvents, parseHeartbeats, parseSnapshots, readUpstream,
-  UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH, UPSTREAM_HOME_EVENTS_PATH,
-  UPSTREAM_HOME_HEARTBEATS_PATH, UPSTREAM_HOME_SNAPSHOTS_PATH,
+  parseActivity, parseDevices, parseHeartbeats, readUpstream, UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH,
+  UPSTREAM_HOME_HEARTBEATS_PATH,
 } from "./upstream";
 import type { Env } from "./types";
+import { dateDistance, dateOffset, loadStateInput, recomputeRange } from "./recompute";
+import { readDailyMetrics, readDailyMetricsRange, readDailyStatus } from "./daily";
+import { averageAllMetrics, averageMetrics, findAnomalies, qualityDays, trendDays, weekStart } from "./analysis";
 
 type AppEnv = { Bindings: Env };
 
@@ -29,8 +33,6 @@ export const RHYTHM_COLLECTION = [
 ];
 
 const HOME_SOURCE_FRESH_MINUTES = 10;
-const LOOKBACK_MINUTES = 30;
-
 export const app = new Hono<AppEnv>({ getPath: request => new URL(request.url).pathname });
 
 export function errorResponse(error: unknown) {
@@ -131,33 +133,11 @@ export function displayShanghaiTime(value: string | null): string | null {
 }
 
 async function loadDay(env: Env, date: string, settings: RhythmSettings, now: number) {
-  const start = dayStartEpoch(date);
-  const end = start + 1440 * 60_000;
-  const range = { from: isoShanghai(start - LOOKBACK_MINUTES * 60_000), to: isoShanghai(end) };
-  const [activityRaw, devicesRaw, snapshotsRaw, eventsRaw, heartbeatsRaw] = await Promise.all([
-    readUpstream(env, UPSTREAM_ACTIVITY_SAMPLES_PATH, range),
-    readUpstream(env, UPSTREAM_HOME_DEVICES_PATH),
-    readUpstream(env, UPSTREAM_HOME_SNAPSHOTS_PATH, range),
-    readUpstream(env, UPSTREAM_HOME_EVENTS_PATH, range),
-    readUpstream(env, UPSTREAM_HOME_HEARTBEATS_PATH),
-  ]);
-  const activity = parseActivity(activityRaw);
-  const devices = parseDevices(devicesRaw);
-  const snapshots = parseSnapshots(snapshotsRaw);
-  const events = parseEvents(eventsRaw);
-  const heartbeats = parseHeartbeats(heartbeatsRaw);
-  const input: StateInput = {
-    date,
-    activity,
-    devices,
-    snapshots,
-    events,
-    heartbeats,
-    subjectDeviceIds: settings.subjectDeviceIds,
-    appCategories: settings.appCategories,
-  };
+  const input = await loadStateInput(env, date, settings);
+  const { activity, heartbeats, snapshots } = input;
   const day = calculateDay(input, now);
   const today = shanghaiDate(now);
+  const start = dayStartEpoch(date);
   const currentMinute = today === date
     ? Math.min(1439, Math.max(0, Math.floor((now - start) / 60_000)))
     : -1;
@@ -223,13 +203,155 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   };
 }
 
+async function loadStoredDay(env: Env, date: string) {
+  const [status, metrics] = await Promise.all([readDailyStatus(env, date), readDailyMetrics(env, date)]);
+  if (!status || !metrics) return { date, missing: true };
+  return {
+    date,
+    timezone: "Asia/Shanghai",
+    missing: false,
+    computedAt: metrics.computedAt,
+    segments: status.segments.map(segment => ({
+      status: segment.status,
+      label: statusLabel(segment.status),
+      evidence: segment.evidence,
+      detail: "",
+      startMinute: segment.startMinute,
+      endMinute: segment.endMinute,
+      startLabel: minuteLabel(segment.startMinute),
+      endLabel: minuteLabel(segment.endMinute),
+      minutes: segment.endMinute - segment.startMinute + 1,
+    })),
+    metrics: metrics.metrics,
+    thresholds: STATE_THRESHOLDS,
+  };
+}
+
+function deviceCandidates(rawDevices: unknown[]) {
+  return parseDevices(rawDevices).map(device => ({
+    device_id: device.device_id,
+    vendor: device.vendor ?? null,
+    name: device.name ?? null,
+    room: device.room ?? null,
+  }));
+}
+
 get("/api/day", async c => {
   const url = new URL(c.req.url);
   const now = Date.now();
   const date = validateDate(url.searchParams.get("date"));
   if (date > shanghaiDate(now)) throw new AppError("invalid_date", 400);
   const settings = await readSettings(c.env);
+  if (dateDistance(date, shanghaiDate(now)) > 1) return json(await loadStoredDay(c.env, date));
   return json(await loadDay(c.env, date, settings, now));
+});
+
+function rangeBounds(url: URL, defaultRange: 7 | 30 = 7) {
+  const rawRange = url.searchParams.get("range");
+  const range = rawRange === null ? defaultRange : Number(rawRange);
+  if (range !== 7 && range !== 30) throw new AppError("invalid_range", 400);
+  const today = shanghaiDate(Date.now());
+  const end = url.searchParams.has("end")
+    ? validateDate(url.searchParams.get("end"))
+    : dateOffset(today, -1);
+  if (end > today) throw new AppError("invalid_date", 400);
+  return { range, end, from: dateOffset(end, -(range - 1)) };
+}
+
+get("/api/trends", async c => {
+  const bounds = rangeBounds(new URL(c.req.url));
+  const comparisonFrom = dateOffset(weekStart(bounds.end), -7);
+  const rows = await readDailyMetricsRange(c.env, comparisonFrom, bounds.end);
+  const selectedRows = rows.filter(row => row.date >= bounds.from);
+  const currentWeekFrom = weekStart(bounds.end);
+  const currentWeek = selectedRows.filter(row => row.date >= currentWeekFrom);
+  const previousWeek = rows.filter(row => row.date >= comparisonFrom && row.date < currentWeekFrom);
+  return json({
+    range: bounds.range,
+    from: bounds.from,
+    to: bounds.end,
+    days_available: selectedRows.length,
+    days: trendDays(bounds.from, bounds.end, selectedRows),
+    averages: {
+      workday: averageMetrics(selectedRows, "workday"),
+      restday: averageMetrics(selectedRows, "restday"),
+    },
+    week_comparison: {
+      current: averageAllMetrics(currentWeek),
+      previous: averageAllMetrics(previousWeek),
+      current_from: currentWeekFrom,
+      previous_from: comparisonFrom,
+      previous_to: dateOffset(currentWeekFrom, -1),
+    },
+  });
+});
+
+get("/api/anomalies", async c => {
+  const bounds = rangeBounds(new URL(c.req.url), 30);
+  const rows = await readDailyMetricsRange(c.env, bounds.from, bounds.end);
+  const settings = await readSettings(c.env);
+  const result = findAnomalies(rows, settings.anomalyThresholds);
+  return json({
+    range: bounds.range,
+    from: bounds.from,
+    to: bounds.end,
+    days_available: rows.length,
+    anomalies: result.anomalies,
+    insufficient_sample: result.insufficientSample,
+  });
+});
+
+get("/api/quality", async c => {
+  const bounds = rangeBounds(new URL(c.req.url), 30);
+  const rows = await readDailyMetricsRange(c.env, bounds.from, bounds.end);
+  return json({
+    range: bounds.range,
+    from: bounds.from,
+    to: bounds.end,
+    days_available: rows.length,
+    days: qualityDays(trendDays(bounds.from, bounds.end, rows)),
+  });
+});
+
+get("/api/settings", async c => {
+  const [settings, rawDevices] = await Promise.all([
+    readSettings(c.env),
+    readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH),
+  ]);
+  return json(publicSettings(settings, deviceCandidates(rawDevices)));
+});
+
+app.put("/api/settings", async c => {
+  const rawDevices = await readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH);
+  const candidates = deviceCandidates(rawDevices);
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new AppError("invalid_settings", 400);
+  }
+  let settings;
+  try {
+    settings = parseSettingsUpdate(body);
+  } catch {
+    throw new AppError("invalid_settings", 400);
+  }
+  const candidateIds = new Set(candidates.map(candidate => candidate.device_id));
+  if (settings.subjectDeviceIds.some(deviceId => !candidateIds.has(deviceId))) {
+    throw new AppError("invalid_settings", 400);
+  }
+  await saveSettings(c.env, settings);
+  return json(publicSettings(settings, candidates));
+});
+
+app.post("/api/admin/recompute", async c => {
+  const url = new URL(c.req.url);
+  const from = validateDate(url.searchParams.get("from"));
+  const to = validateDate(url.searchParams.get("to"));
+  if (from > to || dateDistance(from, to) >= 31) throw new AppError("invalid_range", 400);
+  if (to > shanghaiDate(Date.now())) throw new AppError("invalid_date", 400);
+  const rows = await recomputeRange(c.env, from, to, await readSettings(c.env));
+  return json({ from, to, days_recomputed: rows.length });
 });
 
 get("/api/sources", async c => {

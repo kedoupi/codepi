@@ -167,7 +167,10 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
       appMinutes.set(name, (appMinutes.get(name) ?? 0) + 1);
     }
     if (row?.net === "other" && activeSample(row)) {
-      const name = row.ssid?.trim() || row.net_key?.trim() || "未命名网络";
+      const rawName = row.ssid?.trim() || row.net_key?.trim() || "未命名网络";
+      const name = input.otherNetworkNames?.[row.net_key?.trim() || ""]
+        || input.otherNetworkNames?.[row.ssid?.trim() || ""]
+        || rawName;
       otherNetworkMinutes[name] = (otherNetworkMinutes[name] ?? 0) + 1;
     }
   }
@@ -179,9 +182,10 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     if (!row || !activeSample(row)) continue;
     const isWeekend = dayType(input.date) === "restday";
     const afterWork = dayType(input.date) === "workday" && lastOffice >= 0 && minute > lastOffice && row.net === "home";
-    if (afterWork || (isWeekend && row.net === "home")) {
+    const weekendWork = isWeekend;
+    if (afterWork || weekendWork) {
       if (afterWork) afterWorkWorkMachineMinutes += 1;
-      if (isWeekend) weekendWorkMachineMinutes += 1;
+      if (weekendWork) weekendWorkMachineMinutes += 1;
       const phone = phoneObservedAt(input, minute);
       const room = phone ? (day.minuteStatuses[minute] === "bedroom" ? "卧室"
         : day.minuteStatuses[minute] === "living_room" ? "客厅" : "房间未知") : "房间未知";
@@ -259,7 +263,10 @@ export async function readDailyStatus(env: Env, date: string): Promise<DailyStat
 export async function readDailyMetrics(env: Env, date: string): Promise<DailyMetricsRow | null> {
   const row = await env.DB.prepare("SELECT * FROM daily_metrics WHERE date=?")
     .bind(date).first<Record<string, unknown>>();
-  if (!row) return null;
+  return row ? parseDailyMetricsRow(row) : null;
+}
+
+function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | null {
   try {
     const json = (key: string) => JSON.parse(String(row[key] ?? "{}"));
     const metrics: DailyMetrics = {
@@ -303,6 +310,13 @@ export async function readDailyMetrics(env: Env, date: string): Promise<DailyMet
   } catch {
     return null;
   }
+}
+
+export async function readDailyMetricsRange(env: Env, from: string, to: string): Promise<DailyMetricsRow[]> {
+  const result = await env.DB.prepare(
+    "SELECT * FROM daily_metrics WHERE date >= ? AND date <= ? ORDER BY date",
+  ).bind(from, to).all<Record<string, unknown>>();
+  return result.results.map(parseDailyMetricsRow).filter((row): row is DailyMetricsRow => row !== null);
 }
 
 export async function upsertDailyRows(env: Env, rows: ReturnType<typeof dailyRows>): Promise<void> {

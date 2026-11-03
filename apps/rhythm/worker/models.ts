@@ -75,6 +75,7 @@ export type StateInput = {
   heartbeats: Heartbeat[];
   subjectDeviceIds: string[];
   appCategories: Record<string, AppCategory>;
+  otherNetworkNames?: Record<string, string>;
 };
 
 export type StatusSegment = { status: DayStatus; startMinute: number; endMinute: number; evidence: Evidence };
