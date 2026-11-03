@@ -61,7 +61,7 @@ function averageMap(rows: DailyMetricsRow[], pick: (metrics: DailyMetrics) => Re
   return Object.fromEntries([...sums.entries()].map(([key, value]) => [key, value.total / value.count]));
 }
 
-function averageFiltered(rows: DailyMetricsRow[], filtered: DailyMetricsRow[], dayType: DayType | "all"): MetricAverage {
+function averageFiltered(filtered: DailyMetricsRow[], dayType: DayType | "all"): MetricAverage {
   const first = (field: NumericMetric) => average(filtered.map(row => row.metrics[field]));
   return {
     days: filtered.length,
@@ -86,11 +86,11 @@ function averageFiltered(rows: DailyMetricsRow[], filtered: DailyMetricsRow[], d
 }
 
 export function averageMetrics(rows: DailyMetricsRow[], dayType: DayType): MetricAverage {
-  return averageFiltered(rows, rows.filter(row => row.metrics.dayType === dayType), dayType);
+  return averageFiltered(rows.filter(row => row.metrics.dayType === dayType), dayType);
 }
 
 export function averageAllMetrics(rows: DailyMetricsRow[]): MetricAverage {
-  return averageFiltered(rows, rows, "all");
+  return averageFiltered(rows, "all");
 }
 
 export function trendDays(from: string, to: string, rows: DailyMetricsRow[]): TrendDay[] {

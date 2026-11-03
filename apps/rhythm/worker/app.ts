@@ -203,13 +203,28 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   };
 }
 
-async function loadStoredDay(env: Env, date: string) {
+async function loadStoredDay(env: Env, date: string, settings: RhythmSettings) {
   const [status, metrics] = await Promise.all([readDailyStatus(env, date), readDailyMetrics(env, date)]);
   if (!status || !metrics) return { date, missing: true };
+  const categoryEntries = Object.entries(metrics.metrics.appCategoryMinutes)
+    .filter(([, minutes]) => minutes > 0)
+    .sort(([, left], [, right]) => right - left);
+  const categoryTotal = categoryEntries.reduce((sum, [, minutes]) => sum + minutes, 0);
+  const momentFields = [
+    ["wakeMinute", "起床", "seen"],
+    ["leaveHomeMinute", "离家", "inferred"],
+    ["startWorkMinute", "开始办公", "seen"],
+    ["leaveComputerMinute", "离开电脑", "inferred"],
+    ["arriveHomeMinute", "到家", "seen"],
+    ["returnBedroomMinute", "回卧室", "seen"],
+  ] as const;
   return {
     date,
     timezone: "Asia/Shanghai",
     missing: false,
+    generatedAt: metrics.computedAt,
+    phoneConfigured: settings.subjectDeviceIds.length > 0,
+    current: null,
     computedAt: metrics.computedAt,
     segments: status.segments.map(segment => ({
       status: segment.status,
@@ -222,7 +237,31 @@ async function loadStoredDay(env: Env, date: string) {
       endLabel: minuteLabel(segment.endMinute),
       minutes: segment.endMinute - segment.startMinute + 1,
     })),
+    moments: momentFields.flatMap(([field, label, evidence]) => {
+      const minute = metrics.metrics[field];
+      return minute === null ? [] : [{
+        kind: field.replace("Minute", "").replace("leaveHome", "leave_home")
+          .replace("startWork", "start_work").replace("leaveComputer", "leave_computer")
+          .replace("arriveHome", "arrive_home").replace("returnBedroom", "return_bedroom"),
+        label,
+        detail: `${minuteLabel(minute)} 来自每日汇总`,
+        evidence,
+        minute,
+        time: minuteLabel(minute),
+      }];
+    }),
     metrics: metrics.metrics,
+    appBreakdown: categoryEntries.map(([category, minutes]) => ({
+      category,
+      minutes,
+      share: categoryTotal > 0 ? minutes / categoryTotal : 0,
+      apps: [],
+    })),
+    keyboardMouseMinutes: { keyboard: null, pointer: null, both: null },
+    freshness: {
+      home: { latestAt: null, ageMinutes: null, status: "missing" as const },
+      work: { latestAt: null, ageMinutes: null, status: "missing" as const },
+    },
     thresholds: STATE_THRESHOLDS,
   };
 }
@@ -242,7 +281,7 @@ get("/api/day", async c => {
   const date = validateDate(url.searchParams.get("date"));
   if (date > shanghaiDate(now)) throw new AppError("invalid_date", 400);
   const settings = await readSettings(c.env);
-  if (dateDistance(date, shanghaiDate(now)) > 1) return json(await loadStoredDay(c.env, date));
+  if (dateDistance(date, shanghaiDate(now)) > 1) return json(await loadStoredDay(c.env, date, settings));
   return json(await loadDay(c.env, date, settings, now));
 });
 

@@ -20,7 +20,8 @@
 - 已补充其他网络命名、周末工作机统计、设置输入拒 secret 校验和分析纯函数测试
 - `apps/rhythm` 已通过 `npm test`（60 tests）、`npm run typecheck`、`npm run build`
 - 已通过 Cloudflare governance 与 migration 静态检查；cron 配置顺序已按仓库解析规则修正
+- 已补齐历史汇总日响应的关键时刻、App 分类、键鼠占位与来源新鲜度字段，保持与当天接口契约一致
 
 ## 当前状态
 
-- P4 数据层实现已完成，仓库级脚本检查已按 `pnpm` 缺失限制改用等价 Node 命令完成
+- P4 数据层实现已完成，应用、治理与迁移检查均通过；`pnpm check` 因环境缺少 `pnpm` 未能直接执行
