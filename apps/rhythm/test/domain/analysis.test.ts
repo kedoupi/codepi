@@ -60,10 +60,35 @@ describe("趋势、异常和可信度分析", () => {
       metrics("2026-10-26"), metrics("2026-10-27"), metrics("2026-10-28"),
       metrics("2026-10-29"), metrics("2026-10-30"), metrics("2026-11-02", 600, 90),
     ];
-    const result = findAnomalies(rows, { earlyLateMinutes: 40, commutePercent: 50 });
+    const result = findAnomalies(rows, { earlyLateMinutes: 40, commutePercent: 50 }, "2026-11-02");
     expect(result.anomalies).toHaveLength(1);
     expect(result.anomalies[0].reasons.map(reason => reason.metric)).toEqual(["开始办公", "上班通勤"]);
+    expect(result.anomalies[0].sampleDays).toBe(5);
     expect(result.insufficientSample).toHaveLength(0);
+  });
+
+  it("基线只用该日之前近 30 天的同类日，之后的日子与休息日不参与", () => {
+    const rest = (date: string) => {
+      const row = metrics(date, 900, 0);
+      row.metrics.dayType = "restday";
+      return row;
+    };
+    const rows = [
+      metrics("2026-09-01", 300),   // 超过 30 天，不进基线
+      metrics("2026-10-26"), metrics("2026-10-27"), metrics("2026-10-28"), metrics("2026-10-29"),
+      rest("2026-11-01"),           // 休息日不进工作日基线
+      metrics("2026-11-02"),
+      metrics("2026-11-03", 900),   // 之后的异常日不能拉偏 11-02 的基线
+    ];
+    const result = findAnomalies(rows, { earlyLateMinutes: 40, commutePercent: 50 }, "2026-11-02");
+    expect(result.anomalies.map(item => item.date)).toEqual(["2026-11-03"]);
+    expect(result.insufficientSample.map(item => [item.date, item.sampleDays])).toEqual([["2026-11-02", 4]]);
+  });
+
+  it("区间开头样本不足时列出原因，不判异常", () => {
+    const result = findAnomalies([metrics("2026-10-26"), metrics("2026-10-27", 900)], { earlyLateMinutes: 40, commutePercent: 50 });
+    expect(result.anomalies).toHaveLength(0);
+    expect(result.insufficientSample.map(item => item.sampleDays)).toEqual([0, 1]);
   });
 
   it("覆盖率档位只接受有效比例", () => {

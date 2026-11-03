@@ -128,15 +128,30 @@ export type Anomaly = {
   reasons: AnomalyReason[];
 };
 
+export const ANOMALY_BASELINE_DAYS = 30;
+export const ANOMALY_MIN_PEERS = 5;
+export const ANOMALY_BASELINE = "该日之前近 30 天的同类日（工作日 / 休息日）平均；同类日不足 5 天时不判断。";
+
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00+08:00`) - Date.parse(`${from}T00:00:00+08:00`)) / 86400_000);
+}
+
+/**
+ * 和平时比：基线是「该日之前近 30 天」的同类日，不含该日本身和它之后的日子。
+ * `rows` 需要包含被判断区间之前 30 天的汇总；只对 `targetFrom` 及之后的日子给出结论。
+ */
 export function findAnomalies(
   rows: DailyMetricsRow[],
   thresholds: { earlyLateMinutes: number; commutePercent: number },
+  targetFrom = rows[0]?.date ?? "",
 ): { anomalies: Anomaly[]; insufficientSample: Array<{ date: string; dayType: DayType; sampleDays: number; reason: string }> } {
   const anomalies: Anomaly[] = [];
   const insufficientSample: Array<{ date: string; dayType: DayType; sampleDays: number; reason: string }> = [];
   for (const row of rows) {
-    const peers = rows.filter(peer => peer.date !== row.date && peer.metrics.dayType === row.metrics.dayType);
-    if (peers.length < 5) {
+    if (row.date < targetFrom) continue;
+    const peers = rows.filter(peer => peer.metrics.dayType === row.metrics.dayType && peer.date < row.date
+      && daysBetween(peer.date, row.date) <= ANOMALY_BASELINE_DAYS);
+    if (peers.length < ANOMALY_MIN_PEERS) {
       insufficientSample.push({ date: row.date, dayType: row.metrics.dayType, sampleDays: peers.length, reason: "同类日样本不足 5 天" });
       continue;
     }
