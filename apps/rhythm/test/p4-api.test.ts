@@ -188,7 +188,10 @@ describe("P4 接口", () => {
     expect(span(week.previous_from, week.previous_to)).toBe(span(week.current_from, trends.to));
 
     const withToday = await (await h.send(`/api/trends?range=7&end=${today}`, { cookie })).json() as Record<string, any>;
-    expect(withToday.days.at(-1)).toMatchObject({ date: today, missing: false });
+    expect(withToday.days.at(-1)).toMatchObject({ date: today, missing: false, partial: true });
+    // 今天没过完，不进平均值：只有已过完的忙碌日参与
+    const averagedDays = withToday.averages.workday.days + withToday.averages.restday.days;
+    expect(averagedDays).toBe(withToday.days.filter((day: { missing: boolean; partial: boolean }) => !day.missing && !day.partial).length);
     expect(await env.DB.prepare("SELECT date FROM daily_metrics WHERE date=?").bind(today).first()).toBeNull();
 
     const quality = await (await h.send(`/api/quality?range=7&end=${today}`, { cookie })).json() as Record<string, any>;
@@ -204,6 +207,19 @@ describe("P4 接口", () => {
 
     expect((await h.send("/api/trends?range=14", { cookie })).status).toBe(400);
     expect((await h.send("/api/trends?range=7")).status).toBe(401);
+  });
+
+  it("来源页按时间范围读取上游（只读接口要求时序资源必须带 from/to）", async () => {
+    const h = harness([today]);
+    const cookie = await h.login();
+    expect((await h.send("/api/sources", { cookie })).status).toBe(200);
+    const ranged = h.statusRead.mock.calls.map(([input]) => new URL(String(input)))
+      .filter(url => url.pathname !== UPSTREAM_HOME_DEVICES_PATH);
+    expect(ranged.length).toBeGreaterThan(0);
+    for (const url of ranged) {
+      expect(url.searchParams.get("from"), url.pathname).not.toBeNull();
+      expect(url.searchParams.get("to"), url.pathname).not.toBeNull();
+    }
   });
 
   it("定时任务重算昨天及之前两天，读设置失败只记错误码", async () => {

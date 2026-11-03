@@ -1,4 +1,5 @@
 import type { DailyMetrics, DailyMetricsRow, DayType } from "./models";
+import { weekdayOf } from "./state";
 
 const MOMENT_FIELDS = [
   ["leaveHomeMinute", "离家"],
@@ -106,12 +107,12 @@ export function trendDays(from: string, to: string, rows: DailyMetricsRow[]): Tr
   return result;
 }
 
+/** 该日所在周的周一（YYYY-MM-DD）。按 UTC 日历日计算，避免时区把星期算错一天。 */
 export function weekStart(date: string): string {
-  const epoch = Date.parse(`${date}T00:00:00+08:00`);
-  const weekday = new Date(epoch).getUTCDay();
+  const epoch = Date.parse(`${date}T00:00:00Z`);
+  const weekday = weekdayOf(date);
   const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" })
-    .format(new Date(epoch + mondayOffset * 86400_000));
+  return new Date(epoch + mondayOffset * 86400_000).toISOString().slice(0, 10);
 }
 
 export type AnomalyReason = {

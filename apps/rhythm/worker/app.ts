@@ -345,8 +345,11 @@ get("/api/trends", async c => {
   const comparisonFrom = dateOffset(weekStart(bounds.end), -7);
   const rows = await metricsRows(c.env, comparisonFrom, bounds.end, await readSettings(c.env));
   const selectedRows = rows.filter(row => row.date >= bounds.from);
+  // 今天还没过完：只在逐日列表里展示，不进平均值与按周对比。
+  const today = shanghaiDate(Date.now());
+  const completeRows = selectedRows.filter(row => row.date < today);
   const currentWeekFrom = weekStart(bounds.end);
-  const currentWeek = selectedRows.filter(row => row.date >= currentWeekFrom);
+  const currentWeek = completeRows.filter(row => row.date >= currentWeekFrom);
   // 本周没过完时，上周也只取到同一个星期几，两边天数对等。
   const previousTo = dateOffset(comparisonFrom, dateDistance(currentWeekFrom, bounds.end));
   const previousWeek = rows.filter(row => row.date >= comparisonFrom && row.date <= previousTo);
@@ -355,10 +358,10 @@ get("/api/trends", async c => {
     from: bounds.from,
     to: bounds.end,
     days_available: selectedRows.length,
-    days: trendDays(bounds.from, bounds.end, selectedRows),
+    days: trendDays(bounds.from, bounds.end, selectedRows).map(day => ({ ...day, partial: day.date === today })),
     averages: {
-      workday: averageMetrics(selectedRows, "workday"),
-      restday: averageMetrics(selectedRows, "restday"),
+      workday: averageMetrics(completeRows, "workday"),
+      restday: averageMetrics(completeRows, "restday"),
     },
     week_comparison: {
       current: averageAllMetrics(currentWeek),
@@ -374,7 +377,9 @@ get("/api/anomalies", async c => {
   const bounds = rangeBounds(new URL(c.req.url), 30);
   const settings = await readSettings(c.env);
   // 基线要用到区间之前 30 天的同类日。
-  const rows = await metricsRows(c.env, dateOffset(bounds.from, -ANOMALY_BASELINE_DAYS), bounds.end, settings);
+  // 异常只判断已经过完的日子：今天的时刻和通勤还没定型，容易误报。
+  const lastComplete = bounds.end < shanghaiDate(Date.now()) ? bounds.end : dateOffset(shanghaiDate(Date.now()), -1);
+  const rows = await metricsRows(c.env, dateOffset(bounds.from, -ANOMALY_BASELINE_DAYS), lastComplete, settings);
   const result = findAnomalies(rows, settings.anomalyThresholds, bounds.from);
   return json({
     range: bounds.range,
@@ -448,7 +453,7 @@ get("/api/sources", async c => {
   const range = { from: isoShanghai(now - 24 * 60 * 60 * 1000), to: isoShanghai(now) };
   const [activityRaw, heartbeatsRaw] = await Promise.all([
     readUpstream(c.env, UPSTREAM_ACTIVITY_SAMPLES_PATH, range),
-    readUpstream(c.env, UPSTREAM_HOME_HEARTBEATS_PATH),
+    readUpstream(c.env, UPSTREAM_HOME_HEARTBEATS_PATH, range),   // 只读接口要求时序资源必须带范围
   ]);
   const activity = parseActivity(activityRaw);
   const heartbeats = parseHeartbeats(heartbeatsRaw);

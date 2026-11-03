@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { coverageTier, findAnomalies, qualityDays, trendDays } from "../../worker/analysis";
+import { coverageTier, findAnomalies, qualityDays, trendDays, weekStart } from "../../worker/analysis";
+import { dayType } from "../../worker/daily";
 import type { DailyMetrics, DailyMetricsRow } from "../../worker/models";
 
 function metrics(date: string, startWorkMinute = 540, commuteToWorkMinutes = 30): DailyMetricsRow {
@@ -97,4 +98,17 @@ describe("趋势、异常和可信度分析", () => {
     expect(coverageTier(0.95)).toBe("medium");
     expect(coverageTier(0.94)).toBe("low");
   });
+
+  it("星期按日历日计算：周一是工作日、周六是休息日，周一所在周从周一开始", () => {
+    expect(dayType("2026-11-02")).toBe("workday");   // 周一
+    expect(dayType("2026-11-06")).toBe("workday");   // 周五
+    expect(dayType("2026-11-07")).toBe("restday");   // 周六
+    expect(dayType("2026-11-08")).toBe("restday");   // 周日
+    expect(weekStart("2026-11-02")).toBe("2026-11-02");
+    expect(weekStart("2026-11-07")).toBe("2026-11-02");
+    expect(weekStart("2026-11-08")).toBe("2026-11-02");
+    expect(weekStart("2026-11-09")).toBe("2026-11-09");
+    expect(weekStart("2026-01-01")).toBe("2025-12-29");
+  });
 });
+

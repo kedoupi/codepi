@@ -115,5 +115,20 @@ describe("每日指标", () => {
     }
     expect(performance.now() - started).toBeLessThan(5000);
   });
+
+  it("周一按工作日、周六按休息日落库与统计", () => {
+    const home = (date: string) => ({
+      sampled_at: `${date}T20:00:00+08:00`, net: "home" as const, idle_sec: 5, locked: false,
+      key_idle_sec: 5, pointer_idle_sec: 5, app_name: "示例编辑器",
+    });
+    const monday = dailyRows({ ...input(), date: "2026-11-02", activity: [home("2026-11-02")] });
+    expect(monday.metrics.metrics.dayType).toBe("workday");
+    expect(monday.metrics.metrics.afterWorkWorkMachineMinutes).toBe(1);
+    expect(monday.metrics.metrics.weekendWorkMachineMinutes).toBe(0);
+    const saturday = dailyRows({ ...input(), date: "2026-11-07", activity: [home("2026-11-07")] });
+    expect(saturday.metrics.metrics.dayType).toBe("restday");
+    expect(saturday.metrics.metrics.weekendWorkMachineMinutes).toBe(1);
+    expect(saturday.metrics.metrics.afterWorkWorkMachineMinutes).toBe(0);
+  });
 });
 

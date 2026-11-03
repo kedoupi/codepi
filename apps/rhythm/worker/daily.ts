@@ -1,4 +1,4 @@
-import { calculateDay, dayStartEpoch, shanghaiDate, STATE_THRESHOLDS } from "./state";
+import { calculateDay, dayStartEpoch, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
 import type {
   ActivitySample, AppCategory, DailyMetrics, DailyMetricsRow, DailyStatusRow, DayComputation,
   DayType, GapReason, RhythmStatus, StateInput,
@@ -29,8 +29,8 @@ function categoryOf(row: ActivitySample | null, mappings: Record<string, AppCate
   return "其他";
 }
 
-function dayType(date: string): DayType {
-  const weekday = new Date(`${date}T00:00:00+08:00`).getUTCDay();
+export function dayType(date: string): DayType {
+  const weekday = weekdayOf(date);
   return weekday >= 1 && weekday <= 5 ? "workday" : "restday";
 }
 

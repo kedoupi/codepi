@@ -56,6 +56,14 @@ export function shanghaiDate(value: string | number): string {
   return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
 }
 
+/**
+ * 日历日（YYYY-MM-DD，按北京时间理解）是星期几：0=周日 … 6=周六。
+ * 必须按 UTC 解析这个日历日再取 getUTCDay；按 `+08:00` 零点解析会落到前一天的 16:00Z，星期整体错一天。
+ */
+export function weekdayOf(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
 export function minuteLabel(minute: number): string {
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
 }
