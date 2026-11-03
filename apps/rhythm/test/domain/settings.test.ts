@@ -29,4 +29,13 @@ describe("设置输入校验", () => {
     })).toThrow("invalid_settings");
     expect(() => parseSettingsUpdate({ ...valid, extra: true })).toThrow("invalid_settings");
   });
+
+  it("App 名等键只校验长度与字符，含 password 的 App 名可以归类；值仍拒收像 secret 的内容", () => {
+    expect(parseSettingsUpdate({ ...valid, app_categories: { "1Password": "其他", "Token Viewer": "开发" } }).appCategories)
+      .toEqual({ "1Password": "其他", "Token Viewer": "开发" });
+    expect(() => parseSettingsUpdate({ ...valid, other_network_names: { "net-a": "ghp_abcdefghijklmnop" } })).toThrow("invalid_settings");
+    expect(() => parseSettingsUpdate({ ...valid, app_categories: { "a\u0001b": "开发" } })).toThrow("invalid_settings");
+    expect(() => parseSettingsUpdate({ ...valid, app_categories: { ["x".repeat(201)]: "开发" } })).toThrow("invalid_settings");
+  });
 });
+

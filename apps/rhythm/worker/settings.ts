@@ -93,9 +93,14 @@ function parseThresholds(value: string | null): RhythmSettings["anomalyThreshold
   }
 }
 
-function safeSettingText(value: unknown): value is string {
+function plainSettingText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= MAX_TEXT_LENGTH
-    && !/[\u0000-\u001f\u007f]/.test(value) && !SECRET_LIKE.test(value.trim());
+    && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+/** 值（设备 id、自定义网络名）另外拒收像 secret 的内容；键（App 名、网络标识）只校验长度与字符，避免误伤「1Password」这类 App。 */
+function safeSettingText(value: unknown): value is string {
+  return plainSettingText(value) && !SECRET_LIKE.test(value.trim());
 }
 
 function strictStringMap(value: unknown, categoryValues = false): Record<string, string> {
@@ -104,7 +109,7 @@ function strictStringMap(value: unknown, categoryValues = false): Record<string,
   if (entries.length > MAX_MAP_ENTRIES) throw new Error("invalid_settings");
   const result: Record<string, string> = {};
   for (const [key, item] of entries) {
-    if (!safeSettingText(key) || !safeSettingText(item)) throw new Error("invalid_settings");
+    if (!plainSettingText(key) || !safeSettingText(item)) throw new Error("invalid_settings");
     if (categoryValues && !(CATEGORIES as string[]).includes(item)) throw new Error("invalid_settings");
     result[key.trim()] = item.trim();
   }
@@ -144,8 +149,18 @@ export function parseSettingsUpdate(value: unknown): SettingsUpdate {
   };
 }
 
-export function publicSettings(settings: RhythmSettings, candidates: DeviceCandidate[]) {
+export type PendingRecompute = { days: number; from: string | null; to: string | null };
+
+export async function readPendingRecompute(env: Env): Promise<PendingRecompute> {
+  const row = await env.DB.prepare(
+    "SELECT COUNT(*) AS days, MIN(date) AS first, MAX(date) AS last FROM settings_recompute_queue",
+  ).first<{ days: number; first: string | null; last: string | null }>();
+  return { days: row?.days ?? 0, from: row?.first ?? null, to: row?.last ?? null };
+}
+
+export function publicSettings(settings: RhythmSettings, candidates: DeviceCandidate[], pending?: PendingRecompute) {
   return {
+    pending_recompute_days: pending ?? { days: 0, from: null, to: null },
     subject_device_ids: settings.subjectDeviceIds,
     device_candidates: candidates,
     app_categories: settings.appCategories,
@@ -168,7 +183,8 @@ export async function saveSettings(env: Env, settings: SettingsUpdate, reason = 
       JSON.stringify(settings.otherNetworkNames), JSON.stringify(settings.anomalyThresholds), updatedAt,
     ),
     env.DB.prepare(
-      "INSERT INTO settings_recompute_queue (date, reason, queued_at) SELECT date, ?, ? FROM daily_metrics "
+      // INSERT…SELECT 接 upsert 时 SELECT 必须带 WHERE，否则 SQLite 会把 ON 当成 JOIN 条件（解析歧义）。
+      "INSERT INTO settings_recompute_queue (date, reason, queued_at) SELECT date, ?, ? FROM daily_metrics WHERE true "
       + "ON CONFLICT(date) DO UPDATE SET reason=excluded.reason, queued_at=excluded.queued_at",
     ).bind(reason, updatedAt),
   ]);
