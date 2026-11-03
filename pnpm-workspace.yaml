@@ -4,6 +4,7 @@ packages:
   - apps/gzh
   - apps/project
   - apps/me
+  - apps/rhythm
   - apps/health
   - apps/health/apps/*
   - apps/health/workers/*

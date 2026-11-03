@@ -36,6 +36,18 @@ export const products = [
     note: "健康空间的新入口，保留原有数据与同步。",
   },
   {
+    id: "rhythm",
+    name: "作息 Rhythm",
+    shortName: "作息",
+    description: "看清自己一天的作息与工作节奏。",
+    detail: "把家中设备与工作机的只读信号，整理成一条可以回看的时间线，并公开每个结论的判断方法与口径。",
+    href: "https://rhythm.codepi.app/",
+    hostname: "rhythm.codepi.app",
+    icon: "calendar",
+    access: "本人使用",
+    note: "私人作息分析，进入后需要登录。",
+  },
+  {
     id: "gu",
     name: "投资理财 GU",
     shortName: "投资理财",

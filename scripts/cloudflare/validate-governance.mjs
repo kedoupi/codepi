@@ -11,7 +11,7 @@ const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
   'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
-  'project.codepi.app', 'me.codepi.app']);
+  'project.codepi.app', 'me.codepi.app', 'rhythm.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 // staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
@@ -335,7 +335,15 @@ function checkService(spec, cfg, index, violations) {
     if (env.servicesMalformed) at(`${envName} has malformed service binding declaration`);
     for (const binding of env.duplicateServiceBindings) at(`${envName} has duplicate service binding "${binding}"`);
     const expected = new Map(expectedServices(envName));
+    const placeholders = spec.placeholderServiceBindings ?? {};
     for (const { binding, service, entrypoint } of env.servicesAll) {
+      const placeholder = placeholders[binding];
+      if (placeholder) {
+        if (service !== placeholder || entrypoint !== undefined) {
+          at(`${envName} placeholder service binding ${binding} must be ${placeholder} without an entrypoint`);
+        }
+        continue;
+      }
       if (entrypoint !== spec.serviceEntrypoints?.[binding]) at(`${envName} service binding ${binding} has wrong entrypoint`);
       if (!expected.has(binding)) at(`${envName} has unexpected service binding "${binding}"`);
       else if (service !== expected.get(binding)) at(`${envName} service binding "${binding}" must be ${expected.get(binding)}, got ${service}`);
@@ -343,6 +351,13 @@ function checkService(spec, cfg, index, violations) {
     for (const [binding, service] of expected) {
       if (!env.servicesAll.some(entry => entry.binding === binding && entry.service === service)) {
         at(`${envName} service binding "${binding}" is missing (expected ${service})`);
+      }
+    }
+    // 占位绑定必须在配置里显式声明：真实上游服务名由部署流程注入，
+    // 仓库里只能保留占位名，但绑定本身不能被静默删掉。
+    for (const [binding, placeholder] of Object.entries(placeholders)) {
+      if (!env.servicesAll.some(entry => entry.binding === binding && entry.service === placeholder)) {
+        at(`${envName} placeholder service binding "${binding}" is missing (expected ${placeholder})`);
       }
     }
   };
@@ -611,6 +626,7 @@ function checkService(spec, cfg, index, violations) {
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
+        rhythm: ['https://rhythm.codepi.app/api/auth/callback'],
       },
     };
     for (const [envName, env] of environments) {
@@ -634,8 +650,11 @@ function checkService(spec, cfg, index, violations) {
   const refs = [[prod.name, 'production', spec.kind === 'pages' ? 'pages' : 'worker', 'name',
     allowPlannedWorker]];
   for (const [envName, env] of environments) {
-    for (const service of env.servicesAll) refs.push([service.service, envName, 'worker',
-      `service binding ${service.binding}`, allowPlannedServices.has(service.binding)]);
+    for (const service of env.servicesAll) {
+      if (spec.placeholderServiceBindings?.[service.binding]) continue;
+      refs.push([service.service, envName, 'worker',
+        `service binding ${service.binding}`, allowPlannedServices.has(service.binding)]);
+    }
     for (const pattern of env.routePatterns) {
       const host = pattern.replace(/\/.*$/, '');
       refs.push([host, envName, 'host', 'route host', allowPlannedHosts.has(host)]);
@@ -679,6 +698,13 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       allowPlanned: { worker: true, d1: true, hosts: ['me.codepi.app'], r2: ['codepi-me-imports'] },
       routesRequired: true, requiredRoutes: { prod: ['me.codepi.app'] },
       customDomainRoutes: ['me.codepi.app'],
+      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    { id: 'rhythm', file: 'apps/rhythm/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-rhythm',
+      d1Name: 'codepi-rhythm', envKey: 'staging', provisionOnRelease: true, authClientId: 'rhythm',
+      allowPlanned: { worker: true, d1: true, hosts: ['rhythm.codepi.app'] },
+      routesRequired: true, requiredRoutes: { prod: ['rhythm.codepi.app'] },
+      customDomainRoutes: ['rhythm.codepi.app'],
+      placeholderServiceBindings: { STATUS_READ: 'status-read-placeholder' },
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', envKey: 'staging',
       provisionOnRelease: true, allowPlanned: { d1: true, r2: ['codepi-blog-uploads'] },
