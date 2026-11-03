@@ -4,7 +4,7 @@ import { authenticated, callback, login, logout } from "./auth";
 import { AppError, isoShanghai, json, validateDate } from "./lib";
 import type { Evidence, RhythmStatus } from "./models";
 import {
-  parseSettingsUpdate, publicSettings, readSettings, saveSettings, type RhythmSettings,
+  parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
 import { calculateDay, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
@@ -13,8 +13,11 @@ import {
 } from "./upstream";
 import type { Env } from "./types";
 import { dateDistance, dateOffset, loadStateInput, recomputeRange } from "./recompute";
-import { readDailyMetrics, readDailyMetricsRange, readDailyStatus } from "./daily";
-import { averageAllMetrics, averageMetrics, findAnomalies, qualityDays, trendDays, weekStart } from "./analysis";
+import { calculateDailyMetrics, DAILY_ALGORITHM_VERSION, readDailyMetrics, readDailyMetricsRange, readDailyStatus } from "./daily";
+import {
+  ANOMALY_BASELINE, ANOMALY_BASELINE_DAYS, averageAllMetrics, averageMetrics, findAnomalies, qualityDays, trendDays, weekStart,
+} from "./analysis";
+import type { DailyMetricsRow } from "./models";
 
 type AppEnv = { Bindings: Env };
 
@@ -203,9 +206,37 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   };
 }
 
+const EMPTY_DAY_METRICS = {
+  commuteToWorkMinutes: null, commuteHomeMinutes: null, officeActiveMinutes: null, homeMinutes: null,
+  bedroomMinutes: null, livingRoomMinutes: null, homeUnknownMinutes: null,
+};
+
+/** 历史日还没有汇总：保持和正常响应相同的结构，所有指标为 null（未知），由页面显示「还没有汇总」。 */
+function missingStoredDay(date: string, settings: RhythmSettings) {
+  return {
+    date,
+    timezone: "Asia/Shanghai",
+    missing: true,
+    generatedAt: null,
+    phoneConfigured: settings.subjectDeviceIds.length > 0,
+    current: null,
+    computedAt: null,
+    segments: [],
+    moments: [],
+    metrics: EMPTY_DAY_METRICS,
+    appBreakdown: [],
+    keyboardMouseMinutes: { keyboard: null, pointer: null, both: null },
+    freshness: {
+      home: { latestAt: null, ageMinutes: null, status: "missing" as const },
+      work: { latestAt: null, ageMinutes: null, status: "missing" as const },
+    },
+    thresholds: STATE_THRESHOLDS,
+  };
+}
+
 async function loadStoredDay(env: Env, date: string, settings: RhythmSettings) {
   const [status, metrics] = await Promise.all([readDailyStatus(env, date), readDailyMetrics(env, date)]);
-  if (!status || !metrics) return { date, missing: true };
+  if (!status || !metrics) return missingStoredDay(date, settings);
   const categoryEntries = Object.entries(metrics.metrics.appCategoryMinutes)
     .filter(([, minutes]) => minutes > 0)
     .sort(([, left], [, right]) => right - left);
@@ -285,6 +316,18 @@ get("/api/day", async c => {
   return json(await loadDay(c.env, date, settings, now));
 });
 
+/**
+ * 读取 [from, end] 的每日汇总；end 是今天时，今天那一行按需实时计算（只算到现在），不落库。
+ */
+async function metricsRows(env: Env, from: string, end: string, settings: RhythmSettings): Promise<DailyMetricsRow[]> {
+  const now = Date.now();
+  const today = shanghaiDate(now);
+  const stored = await readDailyMetricsRange(env, from, end < today ? end : dateOffset(today, -1));
+  if (end < today || from > today) return stored;
+  const { metrics } = calculateDailyMetrics(await loadStateInput(env, today, settings), now);
+  return [...stored, { date: today, metrics, computedAt: new Date(now).toISOString(), version: DAILY_ALGORITHM_VERSION }];
+}
+
 function rangeBounds(url: URL, defaultRange: 7 | 30 = 7) {
   const rawRange = url.searchParams.get("range");
   const range = rawRange === null ? defaultRange : Number(rawRange);
@@ -300,7 +343,7 @@ function rangeBounds(url: URL, defaultRange: 7 | 30 = 7) {
 get("/api/trends", async c => {
   const bounds = rangeBounds(new URL(c.req.url));
   const comparisonFrom = dateOffset(weekStart(bounds.end), -7);
-  const rows = await readDailyMetricsRange(c.env, comparisonFrom, bounds.end);
+  const rows = await metricsRows(c.env, comparisonFrom, bounds.end, await readSettings(c.env));
   const selectedRows = rows.filter(row => row.date >= bounds.from);
   const currentWeekFrom = weekStart(bounds.end);
   const currentWeek = selectedRows.filter(row => row.date >= currentWeekFrom);
@@ -327,14 +370,16 @@ get("/api/trends", async c => {
 
 get("/api/anomalies", async c => {
   const bounds = rangeBounds(new URL(c.req.url), 30);
-  const rows = await readDailyMetricsRange(c.env, bounds.from, bounds.end);
   const settings = await readSettings(c.env);
-  const result = findAnomalies(rows, settings.anomalyThresholds);
+  // 基线要用到区间之前 30 天的同类日。
+  const rows = await metricsRows(c.env, dateOffset(bounds.from, -ANOMALY_BASELINE_DAYS), bounds.end, settings);
+  const result = findAnomalies(rows, settings.anomalyThresholds, bounds.from);
   return json({
     range: bounds.range,
     from: bounds.from,
     to: bounds.end,
-    days_available: rows.length,
+    baseline: ANOMALY_BASELINE,
+    days_available: rows.filter(row => row.date >= bounds.from).length,
     anomalies: result.anomalies,
     insufficient_sample: result.insufficientSample,
   });
@@ -342,7 +387,7 @@ get("/api/anomalies", async c => {
 
 get("/api/quality", async c => {
   const bounds = rangeBounds(new URL(c.req.url), 30);
-  const rows = await readDailyMetricsRange(c.env, bounds.from, bounds.end);
+  const rows = await metricsRows(c.env, bounds.from, bounds.end, await readSettings(c.env));
   return json({
     range: bounds.range,
     from: bounds.from,
@@ -353,11 +398,12 @@ get("/api/quality", async c => {
 });
 
 get("/api/settings", async c => {
-  const [settings, rawDevices] = await Promise.all([
+  const [settings, rawDevices, pending] = await Promise.all([
     readSettings(c.env),
     readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH),
+    readPendingRecompute(c.env),
   ]);
-  return json(publicSettings(settings, deviceCandidates(rawDevices)));
+  return json(publicSettings(settings, deviceCandidates(rawDevices), pending));
 });
 
 app.put("/api/settings", async c => {
@@ -380,7 +426,7 @@ app.put("/api/settings", async c => {
     throw new AppError("invalid_settings", 400);
   }
   await saveSettings(c.env, settings);
-  return json(publicSettings(settings, candidates));
+  return json(publicSettings(settings, candidates, await readPendingRecompute(c.env)));
 });
 
 app.post("/api/admin/recompute", async c => {
@@ -388,7 +434,8 @@ app.post("/api/admin/recompute", async c => {
   const from = validateDate(url.searchParams.get("from"));
   const to = validateDate(url.searchParams.get("to"));
   if (from > to || dateDistance(from, to) >= 31) throw new AppError("invalid_range", 400);
-  if (to > shanghaiDate(Date.now())) throw new AppError("invalid_date", 400);
+  // 只能重算到昨天：今天没过完，未到的分钟不能当缺口落库。
+  if (to >= shanghaiDate(Date.now())) throw new AppError("invalid_date", 400);
   const rows = await recomputeRange(c.env, from, to, await readSettings(c.env));
   return json({ from, to, days_recomputed: rows.length });
 });

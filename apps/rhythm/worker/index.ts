@@ -13,7 +13,8 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext) {
     const yesterday = dateOffset(shanghaiDate(Date.now()), -1);
     const from = dateOffset(yesterday, -2);
-    ctx.waitUntil(recomputeRange(env, from, yesterday, await readSettings(env))
+    ctx.waitUntil(readSettings(env)
+      .then(settings => recomputeRange(env, from, yesterday, settings))
       .catch(() => console.error("daily_recompute_failed")));
   },
 } satisfies ExportedHandler<Env>;
