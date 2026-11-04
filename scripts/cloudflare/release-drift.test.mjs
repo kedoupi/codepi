@@ -45,6 +45,9 @@ test('release scope separates Health Workers, includes shared dependencies, and 
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/about.md']), ['web', 'mcp']);
   assert.deepEqual(affectedWorkers(['apps/web/src/pages/docs/example.md']), ['web', 'mcp']);
   assert.deepEqual(affectedWorkers(['apps/gu/worker/index.ts']), ['gu', 'mcp']);
+  assert.deepEqual(affectedWorkers(['apps/rhythm/worker/index.ts']), ['rhythm']);
+  assert.deepEqual(affectedWorkers(['apps/rhythm/migrations/0002_daily_summary.sql']), ['rhythm']);
+  assert.ok(affectedWorkers(['packages/shared/products.ts']).includes('rhythm'));
   assert.deepEqual(affectedWorkers(['services/auth/scripts/build.mjs']).sort(), Object.keys(WORKERS).sort());
   for (const file of ['services/ops/src/operations.mjs', 'scripts/cloudflare/traffic-monitor.mjs',
     'scripts/cloudflare/observability-api.mjs', 'scripts/cloudflare/rollback-worker.mjs',

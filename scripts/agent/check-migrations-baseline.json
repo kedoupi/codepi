@@ -38,6 +38,8 @@
   },
   "notApplied": [
     "services/mcp/migrations/0004_oauth_maintenance.sql",
+    "apps/rhythm/migrations/0001_init.sql",
+    "apps/rhythm/migrations/0002_daily_summary.sql",
     "apps/project/migrations/0003_workbench.sql"
   ],
   "generated": "2026-10-29",

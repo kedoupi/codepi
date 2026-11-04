@@ -9,7 +9,7 @@
 
 ## 只读上游
 
-上游通过通用 service binding `STATUS_READ` 访问（`wrangler.toml` 里 `service` 是占位，部署时注入）：
+上游通过通用 service binding `STATUS_READ` 访问（`wrangler.toml` 里 `service` 是占位，发布时由 `deploy-domain.mjs --app rhythm` 从本机环境变量 `RHYTHM_STATUS_READ_SERVICE` 注入临时配置，见 [本地发布](../../docs/development/local-release.md#rhythm-首发)）：
 
 | 资源 | 用途 |
 |---|---|

@@ -23,6 +23,7 @@ export const MIGRATION_DIRS = {
   'services/auth/migrations': 'services/auth',
   'services/mcp/migrations': 'services/mcp',
   'apps/health/migrations': 'apps/health',
+  'apps/rhythm/migrations': 'apps/rhythm',
 };
 
 // Pre-guard history we deliberately tolerate; anything beyond this list fails.

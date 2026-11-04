@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:browser": "npm run build && npm run test:browser:built",
     "test:browser:built": "node scripts/browser-smoke.mjs",
+    "deploy": "pnpm build && node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm",
     "db:local": "wrangler d1 migrations apply codepi-rhythm --local",
     "db:seed:local": "wrangler d1 execute codepi-rhythm --local --file=local/seed-settings.sql"
   },

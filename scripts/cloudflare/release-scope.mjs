@@ -1,6 +1,6 @@
 export const WORKERS = {
   auth: 'codepi-auth', web: 'codepi-www', gu: 'codepi-gu', gzh: 'codepi-gzh',
-  project: 'codepi-project', me: 'codepi-me',
+  project: 'codepi-project', me: 'codepi-me', rhythm: 'codepi-rhythm',
   'health-api': 'codepi-health-api', 'health-web': 'codepi-health', mcp: 'codepi-mcp', ops: 'codepi-ops',
 };
 const all = Object.keys(WORKERS);
@@ -36,6 +36,7 @@ export function affectedWorkers(files) {
     else if (file.startsWith('apps/web/')) add(['web', 'mcp']);
     else if (file.startsWith('apps/gu/')) add(['gu', 'mcp']);
     else if (file.startsWith('apps/gzh/')) add(['gzh']);
+    else if (file.startsWith('apps/rhythm/')) add(['rhythm']);   // no MCP module; reads data via STATUS_READ
     else add(all); // Unknown build inputs must not silently bypass monitoring.
   }
   return [...affected];
