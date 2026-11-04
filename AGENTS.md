@@ -7,6 +7,7 @@ This is the shared project contract for all coding agents. Tool-specific entry f
 - Ordinary development follows the agent-team loop by default (see "Agent 协作适配"); the executor reads the root and target-directory rules plus `.agents/skills/kdp-dev/SKILL.md`, which describes the execution steps. No task document or allocation table is required. Use [development navigation](docs/development/README.md) only for continuation, review, handoff or release.
 - Before editing `apps/`, `services/` or `packages/`, read the target directory's local `AGENTS.md`; inspect implementations, callers and tests.
 - Confirm the real Git root, starting SHA, existing changes and allowed paths. Preserve unrelated work. Ordinary work does not require an agent allocation table.
+- Tool entry files (`CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, `.github/copilot-instructions.md`) point to this file and hold no separate project rules; `.claude/skills/` entries load the canonical workflows in `.agents/skills/`. Tool entry points: `docs/development/agent-compatibility.md`; rule ownership and task routing: `docs/development/README.md`. Loading a skill does not authorize Git or remote mutations.
 
 ## Project boundary
 
