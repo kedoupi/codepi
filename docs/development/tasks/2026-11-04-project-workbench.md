@@ -27,7 +27,11 @@ Project 与 MCP；项目仓库合并后自动推送（长期许可只覆盖待�
 
 ## 上线前（需所有者另行授权）
 
-1. 按 [备份与恢复](../cloudflare-backup-restore.md) 导出生产 `codepi-project`（当前 2 个项目、0 条交接）。
-2. 远程应用 `0003_workbench.sql`，部署 `codepi-project` 与 `codepi-mcp`，删除不再使用的 `GITHUB_TOKEN` secret，更新资源登记（Cron 已移除）。
+1. 按 [备份与恢复](../cloudflare-backup-restore.md) 导出生产 `codepi-project`（2026-11-04 读 MCP：2 个项目、0 条交接）；
+   确认所有项目 id 只含小写字母、数字、连字符且不超过 64 字符（新表 CHECK，不满足会让迁移整体失败回滚）。
+2. 顺序：先远程应用 `0003_workbench.sql`，紧接着部署 `codepi-project`，再部署 `codepi-mcp`。迁移到部署之间旧 Worker
+   的 15 分钟 Cron 和旧 MCP 工具会读到已删除的表并报错（Cron 失败只记日志）；部署完成后恢复。反过来先部署会让新代码
+   读不存在的表，更糟。然后删除不再使用的 `GITHUB_TOKEN` secret，从 `scripts/agent/check-migrations-baseline.json` 的
+   `notApplied` 移入基线，更新资源登记（Cron 已移除）。
 3. 网页建项目拿令牌，由项目仓库配置推送；首次推送后读回今天页、`work_overview` 与 `get_context`。
 4. 客户端需重新读取 MCP 工具列表；旧工具名 `projects_list` 不再存在。

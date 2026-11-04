@@ -57,10 +57,12 @@ function opt(value: unknown, code: string, max: number): string | null {
 
 function date(value: unknown, code: string): string | null {
   if (value === undefined || value === null || value === "") return null;
-  if (typeof value !== "string" || !DATE.test(value) || !Number.isFinite(Date.parse(`${value}T00:00:00Z`))) {
+  // Date.parse rolls 2026-02-31 over to March; require the day to survive a round trip.
+  const parsed = typeof value === "string" && DATE.test(value) ? Date.parse(`${value}T00:00:00Z`) : NaN;
+  if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== value) {
     throw new AppError(code, 422);
   }
-  return value;
+  return value as string;
 }
 
 function list(value: unknown, code: string, max: number): unknown[] {
@@ -120,6 +122,8 @@ export async function parseIngest(body: Record<string, unknown>): Promise<Ingest
     const sha = opt(source.sha, "invalid_source", 40);
     if (sha && !/^[0-9a-f]{7,40}$/.test(sha)) throw new AppError("invalid_source", 422);
 
+    // A missing list would mark every open task done; an empty list must be explicit.
+    if (!Array.isArray(body.tasks)) throw new AppError("invalid_tasks", 422);
     const seen = new Set<string>();
     const tasks: IngestTask[] = [];
     const rawTasks = list(body.tasks, "invalid_tasks", LIMITS.tasks);
@@ -222,10 +226,14 @@ export async function applyIngest(env: Env, projectId: string, payload: IngestPa
   const last = await env.DB.prepare(
     "SELECT content_hash FROM snapshots WHERE project_id=? ORDER BY id DESC LIMIT 1",
   ).bind(projectId).first<{ content_hash: string }>();
+  const cutoff = new Date(Date.now() - DONE_RETENTION_DAYS * 86400_000).toISOString();
+  const pruneDone = env.DB.prepare("DELETE FROM tasks WHERE project_id=? AND done_at IS NOT NULL AND done_at<?")
+    .bind(projectId, cutoff);
   if (last?.content_hash === contentHash) {
     await env.DB.batch([
       env.DB.prepare("UPDATE projects SET last_push_at=? WHERE id=?").bind(pushedAt, projectId),
       env.DB.prepare("UPDATE ingest_tokens SET last_used_at=? WHERE project_id=?").bind(pushedAt, projectId),
+      pruneDone,
     ]);
     return { project: projectId, content_hash: contentHash, deduplicated: true, tasks: payload.tasks.length,
       newly_done: 0, pushed_at: pushedAt };
@@ -235,7 +243,6 @@ export async function applyIngest(env: Env, projectId: string, payload: IngestPa
   const doneCount = await env.DB.prepare(`SELECT COUNT(*) AS n FROM tasks
     WHERE project_id=?1 AND done_at IS NULL AND key NOT IN (SELECT value FROM json_each(?2))`)
     .bind(projectId, keys).first<{ n: number }>();
-  const cutoff = new Date(Date.now() - DONE_RETENTION_DAYS * 86400_000).toISOString();
   const tasksJson = JSON.stringify(payload.tasks.map(task => ({ ...task, related: JSON.stringify(task.related) })));
   const project = payload.project;
 
@@ -274,11 +281,11 @@ export async function applyIngest(env: Env, projectId: string, payload: IngestPa
     env.DB.prepare(`DELETE FROM snapshots WHERE project_id=?1 AND id NOT IN
       (SELECT id FROM snapshots WHERE project_id=?1 ORDER BY id DESC LIMIT ?2)`)
       .bind(projectId, SNAPSHOT_KEEP),
-    env.DB.prepare("DELETE FROM tasks WHERE project_id=? AND done_at IS NOT NULL AND done_at<?")
-      .bind(projectId, cutoff),
-    env.DB.prepare(`UPDATE projects SET name=COALESCE(?2,name), rules_path=?3, adapter_json=?4,
-        source_sha=?5, source_branch=?6, last_push_at=?7, updated_at=?7 WHERE id=?1`)
-      .bind(projectId, project.name, project.rules_path, project.adapter ? JSON.stringify(project.adapter) : null,
+    pruneDone,
+    // The display name belongs to the web page (set at creation, renamed there); a push never overwrites it.
+    env.DB.prepare(`UPDATE projects SET rules_path=?2, adapter_json=?3,
+        source_sha=?4, source_branch=?5, last_push_at=?6, updated_at=?6 WHERE id=?1`)
+      .bind(projectId, project.rules_path, project.adapter ? JSON.stringify(project.adapter) : null,
         payload.source.sha, payload.source.branch, pushedAt),
     env.DB.prepare("UPDATE ingest_tokens SET last_used_at=? WHERE project_id=?").bind(pushedAt, projectId),
   ]);

@@ -70,17 +70,26 @@ function byUrgency(a: TaskRow, b: TaskRow) {
   const an = a.need_kind === "none" ? 1 : 0;
   const bn = b.need_kind === "none" ? 1 : 0;
   if (an !== bn) return an - bn;
+  return byIdentity(a, b);
+}
+
+/** Total order tie-break so pages and revisions never depend on SQLite row order. */
+function byIdentity(a: TaskRow, b: TaskRow) {
   if (a.project_id !== b.project_id) return a.project_id < b.project_id ? -1 : 1;
-  return a.position - b.position;
+  if (a.position !== b.position) return a.position - b.position;
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
 export async function listTasks(env: Env, filter: TaskFilter = {}, now = new Date()): Promise<TaskRow[]> {
-  const where: string[] = ["p.status<>'archived'"];
+  const where: string[] = [];
   const params: unknown[] = [];
   if (filter.project) {
+    // Naming a project reads it even when archived; the cross-project views leave archived projects out.
     const project = await resolveProject(env, filter.project);
     where.push("t.project_id=?");
     params.push(project.id);
+  } else {
+    where.push("p.status<>'archived'");
   }
   if (!filter.includeDone) where.push("t.done_at IS NULL");
   if (filter.status) {
@@ -101,10 +110,10 @@ export async function listTasks(env: Env, filter: TaskFilter = {}, now = new Dat
     params.push(addDays(today(now), filter.dueWithinDays));
   }
   const rows = await env.DB.prepare(`SELECT t.* FROM tasks t JOIN projects p ON p.id=t.project_id
-    WHERE ${where.join(" AND ")}`).bind(...params).all<TaskRow>();
+    WHERE ${where.join(" AND ")} ORDER BY t.project_id, t.position, t.key`).bind(...params).all<TaskRow>();
   const open = rows.results.filter(row => !row.done_at).sort(byUrgency);
   const done = rows.results.filter(row => row.done_at)
-    .sort((a, b) => (a.done_at! < b.done_at! ? 1 : -1));
+    .sort((a, b) => (a.done_at! !== b.done_at! ? (a.done_at! < b.done_at! ? 1 : -1) : byIdentity(a, b)));
   return [...open, ...done];
 }
 

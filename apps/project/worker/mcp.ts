@@ -8,7 +8,7 @@ import {
   type SourceSummary,
 } from "@kedoupi/shared/mcp/contract";
 import { parseHandoffInput, saveHandoff } from "./handoffs";
-import { AppError, assertKeys, DATA_NOTICE, integer, oneOf, projectUrl, text } from "./lib";
+import { AppError, assertKeys, DATA_NOTICE, integer, jsonBytes, oneOf, projectUrl, shorten, text } from "./lib";
 import { resolveProject } from "./projects";
 import { buildSummary } from "./summary";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind } from "./types";
@@ -19,6 +19,35 @@ const BUDGET = MCP_LIMITS.detail;
 function failure(error: unknown): DomainReply {
   if (error instanceof AppError) return { ok: false, error: error.code, status: error.status };
   return { ok: false, error: "internal_error", status: 500 };
+}
+
+const TEXT_FIELDS = ["what", "impact", "advice", "need"] as const;
+
+/**
+ * A task at every field limit can exceed the detail budget on its own. Drop
+ * handoffs first, then shorten the longest text field (and related paths)
+ * step by step; name each shortened part in `truncated`. Full text stays on
+ * the web page.
+ */
+export function fitTask(data: Awaited<ReturnType<typeof getTask>>) {
+  const result = fit({ ...data, task: { ...data.task, related: [...data.task.related] } }, ["handoffs"], BUDGET - 256);
+  const truncated = new Set(result.truncated ?? []);
+  const task = result.task;
+  while (jsonBytes(result) > BUDGET - 256) {
+    const longest = TEXT_FIELDS
+      .filter(field => (task[field]?.length ?? 0) > 80)
+      .sort((a, b) => (task[b]!.length) - (task[a]!.length))[0];
+    if (longest) {
+      task[longest] = shorten(task[longest]!, Math.floor(task[longest]!.length * 0.7));
+      truncated.add(`task.${longest}`);
+    } else if (task.related.length) {
+      task.related.pop();
+      truncated.add("task.related");
+    } else {
+      break;
+    }
+  }
+  return truncated.size ? { ...result, truncated: [...truncated] } : result;
 }
 
 function optional<T>(value: unknown, parse: (value: unknown) => T): T | undefined {
@@ -50,7 +79,8 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
   try {
     if (input.operation === "overview") {
       assertKeys(args, []);
-      const data = fit(await overview(env, { limit: 15 }), ["recently_done", "branches", "due_soon", "need_you"], BUDGET);
+      const data = fit(await overview(env, { limit: 15 }),
+        ["recently_done", "branches", "due_soon", "projects", "need_you"], BUDGET);
       return { ok: true, data: { ...data, notice: DATA_NOTICE } };
     }
     if (input.operation === "task_list") {
@@ -81,8 +111,7 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
       assertKeys(args, ["project", "key"]);
       const project = text(args.project, "project_required", { max: 200 })!;
       const key = text(args.key, "invalid_key", { max: 64 })!;
-      const data = await getTask(env, project, key);
-      return { ok: true, data: { ...fit(data, ["handoffs"], BUDGET), notice: DATA_NOTICE } };
+      return { ok: true, data: { ...fitTask(await getTask(env, project, key)), notice: DATA_NOTICE } };
     }
     if (input.operation === "project_get") {
       assertKeys(args, ["project"]);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
   import Icon from "./Icon.svelte";
   import TokenReveal from "./TokenReveal.svelte";
@@ -10,6 +11,21 @@
   let busy = $state(false);
   let error = $state("");
   let created = $state<{ project: string; token: string } | null>(null);
+  let first = $state<HTMLInputElement | null>(null);
+
+  // Same keyboard contract as the task drawer: focus moves in, Escape closes, focus returns.
+  onMount(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    first?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    addEventListener("keydown", onKey);
+    return () => {
+      removeEventListener("keydown", onKey);
+      opener?.focus?.();
+    };
+  });
 
   const MESSAGES: Record<string, string> = {
     project_exists: "这个 ID 已经有项目了。",
@@ -44,7 +60,7 @@
   {:else}
     <form class="form" onsubmit={submit}>
       <label for="add-id">ID <small>用在推送地址里，例如 mybrain</small></label>
-      <input id="add-id" required maxlength="64" pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?" bind:value={id} />
+      <input id="add-id" required maxlength="64" pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?" bind:value={id} bind:this={first} />
       <label for="add-name">名称</label>
       <input id="add-name" required maxlength="120" bind:value={name} />
       <label for="add-repo">GitHub 仓库 <small>可选，owner/repo，便于命令行识别</small></label>

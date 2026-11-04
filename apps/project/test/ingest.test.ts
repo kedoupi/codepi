@@ -53,6 +53,9 @@ describe("ingest", () => {
       [samplePayload({ extra: true }), "invalid_arguments"],
       [samplePayload({ tasks: [{ ...sampleTasks()[0], status: "执行" }] }), "invalid_task_status"],
       [samplePayload({ tasks: [{ ...sampleTasks()[0], due: "2026-13-40" }] }), "invalid_task_due"],
+      [samplePayload({ tasks: [{ ...sampleTasks()[0], due: "2026-02-31" }] }), "invalid_task_due"],
+      [samplePayload({ changelog: [{ date: "2026-04-31", title: "不存在的日子" }] }), "invalid_changelog"],
+      [samplePayload({ tasks: undefined }), "invalid_tasks"],
       [samplePayload({ tasks: [sampleTasks()[0], sampleTasks()[0]] }), "duplicate_task"],
       [samplePayload({ tasks: [{ ...sampleTasks()[0], need_kind: "maybe" }] }), "invalid_need_kind"],
       [samplePayload({ branches: [{ name: "a", ahead: -1 }] }), "invalid_branch"],
@@ -123,6 +126,30 @@ describe("ingest", () => {
     await push("codepi", token, samplePayload({ tasks: sampleTasks().slice(0, 3) }));
     const gone = await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE title='示例想法'").first<{ n: number }>();
     expect(gone?.n).toBe(0);
+  });
+
+  it("prunes long-done tasks on an unchanged push too", async () => {
+    await push("codepi", token, samplePayload({ tasks: sampleTasks().slice(0, 3) }));
+    await push("codepi", token, samplePayload({ tasks: sampleTasks().slice(0, 2) }));
+    const old = new Date(Date.now() - (DONE_RETENTION_DAYS + 1) * 86400_000).toISOString();
+    await env.DB.prepare("UPDATE tasks SET done_at=? WHERE title='修复示例缺陷'").bind(old).run();
+    const same = await push("codepi", token, samplePayload({ tasks: sampleTasks().slice(0, 2) }));
+    expect(await same.json()).toMatchObject({ deduplicated: true });
+    const gone = await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE title='修复示例缺陷'").first<{ n: number }>();
+    expect(gone?.n).toBe(0);
+  });
+
+  it("an explicit empty task list marks everything done, a missing one is rejected", async () => {
+    await push("codepi", token, samplePayload());
+    const empty = await push("codepi", token, samplePayload({ tasks: [] }));
+    expect(await empty.json()).toMatchObject({ newly_done: 4, tasks: 0 });
+  });
+
+  it("keeps the name set on the web page when a push carries another name", async () => {
+    await env.DB.prepare("UPDATE projects SET name='网页上的名字' WHERE id='codepi'").run();
+    await push("codepi", token, samplePayload());
+    const row = await env.DB.prepare("SELECT name FROM projects WHERE id='codepi'").first<{ name: string }>();
+    expect(row?.name).toBe("网页上的名字");
   });
 
   it("uses a stable key from category and title when none is supplied", async () => {

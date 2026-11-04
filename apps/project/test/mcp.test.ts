@@ -92,6 +92,35 @@ describe("ProjectMcp", () => {
     expect(await owner("task_get", { project: "codepi", key: "nope" })).toMatchObject({ ok: false, error: "task_not_found" });
   });
 
+  it("task_get stays within budget when every text field is at its limit", async () => {
+    const full = { title: "满长任务", status: "doing", category: "流程", need_kind: "attend",
+      what: "满".repeat(2000), impact: "长".repeat(2000), advice: "字".repeat(2000), need: "段".repeat(500),
+      related: Array.from({ length: 20 }, (_, i) => `docs/${i}-${"x".repeat(280)}.md`) };
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [full] })), env);
+    const key = (await data("task_list")).tasks[0].key;
+    for (let i = 0; i < 5; i++) await data("handoff_save", handoffArgs({ task: key, summary: "交".repeat(2000), next: "接".repeat(2000) }));
+    const task = await data("task_get", { project: "codepi", key });
+    expect(task.truncated).toEqual(expect.arrayContaining(["handoffs", "task.what"]));
+    expect(task.task.title).toBe("满长任务");
+  });
+
+  it("overview stays within budget with many long-named projects", async () => {
+    for (let i = 0; i < 80; i++) await seedProject(`p${i}`, `很长的项目名称`.repeat(15), `owner/${"r".repeat(150)}${i}`);
+    const overview = await data("overview");
+    expect(overview.truncated).toContain("projects");
+  });
+
+  it("reads an archived project's tasks when it is named, and orders done tasks stably", async () => {
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
+    await env.DB.prepare("UPDATE projects SET status='archived' WHERE id='codepi'").run();
+    expect((await data("task_list")).total).toBe(0);
+    const named = await data("task_list", { project: "codepi", include_done: true });
+    expect(named.total).toBe(4);
+    const again = await data("task_list", { project: "codepi", include_done: true });
+    expect(again.revision).toBe(named.revision);
+    expect(again.tasks.map((t: { key: string }) => t.key)).toEqual(named.tasks.map((t: { key: string }) => t.key));
+  });
+
   it("project_get returns the rules entry, adapter and branches without fragment paging", async () => {
     const card = await data("project_get", { project: "codepi" });
     expect(card.project).toMatchObject({ rules_path: "AGENTS.md", adapter: { acceptance: ["pnpm check"] } });

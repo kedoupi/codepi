@@ -37,17 +37,29 @@
   }
   onMount(load);
 
+  let actionError = $state("");
+
   async function rotate() {
-    const result = await api(`/api/projects/${encodeURIComponent(id)}/token`, { method: "POST" });
-    token = String(result.token);
-    confirmRotate = false;
-    await load();
+    actionError = "";
+    try {
+      const result = await api(`/api/projects/${encodeURIComponent(id)}/token`, { method: "POST" });
+      token = String(result.token);
+      confirmRotate = false;
+      await load();
+    } catch {
+      actionError = "没有生成新令牌，旧令牌仍然有效。请稍后再试。";
+    }
   }
 
   async function setStatus(status: ProjectStatus) {
-    await api(`/api/projects/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } });
-    await load();
-    await onChanged();
+    actionError = "";
+    try {
+      await api(`/api/projects/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } });
+      await load();
+      await onChanged();
+    } catch {
+      actionError = "状态没有改成，请稍后再试。";
+    }
   }
 
   const total = $derived(card ? STATUS_ORDER.reduce((sum, state) => sum + (card!.counts.by_status[state] || 0), 0) : 0);
@@ -157,6 +169,7 @@
         {/each}
       </dd>
     </dl>
+    {#if actionError}<p class="inline-alert" role="alert">{actionError}</p>{/if}
     {#if token}
       <TokenReveal {token} project={card.project.id} />
     {:else if confirmRotate}

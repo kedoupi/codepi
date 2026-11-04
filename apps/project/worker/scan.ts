@@ -13,7 +13,8 @@ const PATTERNS: RegExp[] = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
   /[?&](?:token|key|secret|password|passwd|sig|signature|auth)=[^&\s"']{8,}/i,
-  /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']?[^\s"']{12,}/i,
+  // Labelled secrets only when the value looks like a machine string, not prose (CJK text has no spaces).
+  /\b(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["']?[A-Za-z0-9_\-+/=.~!@#$%^&*]{12,}/i,
 ];
 
 export function findSecret(value: unknown, path = ""): string | null {
