@@ -264,13 +264,13 @@ MODULES.push({
       inputSchema: object({ slug: text(80, 1), view: { type: "string", enum: ["draft", "published"] }, offset: pageArgs.offset, limit: { type: "integer", minimum: 1, maximum: 8000 }, expected_revision: { type: "integer", minimum: 1 } }, ["slug"]),
     }),
     domainTool(e => e.BLOG, "media_upload", "blog.write", {
-      name: "blog_upload_image", title: "Upload a small blog image", annotations: write,
-      description: "Upload PNG/JPEG/WebP bytes as plain base64 (no data URL), up to 192 KiB decoded. Requires descriptive alt text. Returns image id, Markdown and URL; private until referenced by a published article. Larger files: use blog_create_image_upload. Do not include credentials or private content in public articles.",
-      inputSchema: object({ data_base64: text(262144, 1), alt: text(500, 1) }, ["data_base64", "alt"]),
+      name: "blog_upload_image", title: "Upload an inline blog image", annotations: write,
+      description: "Upload PNG/JPEG/WebP bytes as plain base64 (no data URL), up to 1 MiB decoded. Requires descriptive alt text. Returns image id, Markdown and URL; private until referenced by a published article. This is the fallback for Agents that cannot make external HTTP PUT requests. Larger files: use blog_create_image_upload. Do not include credentials or private content in public articles.",
+      inputSchema: object({ data_base64: text(Math.ceil(MCP_LIMITS.blogInlineImage / 3) * 4, 1), alt: text(500, 1) }, ["data_base64", "alt"]),
     }),
     domainTool(e => e.BLOG, "media_upload_start", "blog.write", {
       name: "blog_create_image_upload", title: "Create a one-file image upload", annotations: write,
-      description: "For a local/generated PNG/JPEG/WebP up to 8 MiB: obtain a 10-minute single-use PUT URL and scoped Authorization header. Send raw file bytes with returned headers; HTTP response returns image id, Markdown and URL. Never send the MCP credential to this URL. If this Agent cannot make HTTP PUT requests, use blog_upload_image for a smaller image.",
+      description: "For a local/generated PNG/JPEG/WebP up to 8 MiB: obtain a 10-minute single-use PUT URL and scoped Authorization header. Send raw file bytes with returned headers; HTTP response returns image id, Markdown and URL. Never send the MCP credential to this URL. If this Agent cannot make HTTP PUT requests, use blog_upload_image for images up to 1 MiB.",
       inputSchema: object({ alt: text(500, 1), bytes: { type: "integer", minimum: 1, maximum: 8388608 }, content_type: { type: "string", enum: ["image/png", "image/jpeg", "image/webp"] } }, ["alt", "bytes", "content_type"]),
     }),
     domainTool(e => e.BLOG, "submit", "blog.write", {

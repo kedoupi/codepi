@@ -19,6 +19,7 @@ export interface Env {
   SSO_CLIENT_SECRET_MCP?: string;
   SSO_CLIENT_SECRET_PROJECT?: string;
   SSO_CLIENT_SECRET_ME?: string;
+  SSO_CLIENT_SECRET_RHYTHM?: string;
   SSO_EXTRA_REDIRECT_URIS?: string;
   AUTH_ORIGIN: string;
   ENVIRONMENT: string;

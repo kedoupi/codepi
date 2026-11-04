@@ -1,6 +1,8 @@
+// locks：测试脚本会顺带构建（并先清空）其他包的产物时，声明共享产物名；同名锁的检查不并行运行，
+// 否则一个检查读取 dist 时另一个正在重建它（2026-11-04 实测 CLI dist/config.js 缺失）。
 export const packageCommands = {
   web: { name: 'web', cwd: 'apps/web', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck:desk', tier: 'quick' },
+    { name: 'test', tier: 'quick', locks: ['auth-dist'] }, { name: 'typecheck:desk', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full' },
     { name: 'test:browser:desk:built', after: 'build', tier: 'full' },
   ] },
@@ -13,7 +15,8 @@ export const packageCommands = {
   ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full' }, { name: 'test:browser:built', after: 'build', tier: 'full' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full', locks: ['health-api-dist'] },
+    { name: 'test:browser:built', after: 'build', tier: 'full', locks: ['health-api-dist'] },
   ] },
   project: { name: 'kdp-project', cwd: 'apps/project', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
@@ -23,18 +26,23 @@ export const packageCommands = {
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
     { name: 'test:browser:built', after: 'build', tier: 'full' },
   ] },
-  auth: { name: 'kdp-auth', cwd: 'services/auth', commands: [
+  rhythm: { name: 'kdp-rhythm', cwd: 'apps/rhythm', commands: [
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+    { name: 'test:browser:built', after: 'build', tier: 'full' },
+  ] },
+  auth: { name: 'kdp-auth', cwd: 'services/auth', commands: [
+    { name: 'test', tier: 'quick', locks: ['auth-dist'] }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
   mcp: { name: '@codepi/mcp', cwd: 'services/mcp', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
-    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:browser:built', after: 'build', tier: 'full' },
+    // test 会先构建 Health API、CLI 和 MCP 自己（见 services/mcp/package.json），与读写这些产物的检查互斥
+    { name: 'test', tier: 'quick', locks: ['health-api-dist', 'cli-dist', 'mcp-dist'] }, { name: 'typecheck', tier: 'quick' },
+    { name: 'build', tier: 'full', exclusive: true }, { name: 'test:browser:built', after: 'build', tier: 'full', locks: ['mcp-dist'] },
   ] },
   ops: { name: '@codepi/ops', cwd: 'services/ops', commands: [
     { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true }, { name: 'test:runtime', tier: 'full' },
   ] },
   cli: { name: '@kedoupi/codepi', cwd: 'packages/cli', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+    { name: 'test', tier: 'quick', locks: ['cli-dist'] }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
 };
 
@@ -62,14 +70,14 @@ export const specialRules = [
 ];
 
 export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
-  'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'services/auth/wrangler.jsonc',
+  'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'apps/rhythm/wrangler.toml', 'services/auth/wrangler.jsonc',
   'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
 export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
-  'apps/project/migrations/', 'apps/me/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
+  'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
 
 export function packageCheck(app, command) {
   const { name, args = [] } = command;
-  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app, name, after: command.after, exclusive: command.exclusive };
+  return { cwd: packageCommands[app].cwd, argv: ['pnpm', '--filter', packageCommands[app].name, name, ...args], app, name, after: command.after, exclusive: command.exclusive, locks: command.locks ?? [] };
 }
 
 export function ciPlan(files) {

@@ -42,7 +42,7 @@
 | [旧架构基线](architecture/architecture-baseline.md)、[P1 计划](architecture/p1-implementation-plan.md)、[Phase 1 记录](architecture/phase1-delivery-record.md) | 旧工具站阶段；workspace、Workers、本地发布等决策已被现行工程架构替代 |
 | [应用并仓记录](architecture/product-apps-monorepo-migration.md)、[公众号合一记录](architecture/wechat-desk-unification.md)、[Health 域名迁移](architecture/health-domain-migration.md) | 用于理解迁移原因；当前目录和域名看根 README |
 | [AdSense 历史记录](architecture/adsense-review-hardening-record.md) | 已退出的广告/增长方向，不作为新开发约束 |
-| `superpowers/specs/`、`superpowers/plans/` | 提案与阶段计划；使用前核对用户决定、当前实现和后续任务证据 |
+| `superpowers/specs/`、`superpowers/plans/` | 提案与阶段计划；使用前核对用户决定、当前实现和后续任务证据。其中 `2026-05-07-kdp-tools-init`、`2026-05-08-calc-phase1-adsense-ready`、`2026-05-14-ai-tools-quality-launch` 对应已退役的工具站、计算器与广告方案，仅作历史，不据此恢复 |
 | `development/tasks/` 中的旧任务 | 保留当次验证与故障记录；后续进展通过索引或文件顶部的接续链接定位 |
 
 ## 维护方式

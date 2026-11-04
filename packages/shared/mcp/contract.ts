@@ -43,7 +43,8 @@ export const BLOG_OPERATIONS = ["list", "get", "guide", "submit", "retract", "me
 export type BlogOperation = typeof BLOG_OPERATIONS[number];
 export type BlogService = DomainService<BlogOperation>;
 
-export const MCP_LIMITS = { overview: 4 * 1024, detail: 12 * 1024, context: 8 * 1024, importChunk: 24 * 1024, blogBody: 96 * 1024 } as const;
+export const MCP_LIMITS = { overview: 4 * 1024, detail: 12 * 1024, context: 8 * 1024, importChunk: 24 * 1024, blogBody: 96 * 1024,
+  blogInlineImage: 1024 * 1024 } as const;
 export function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }

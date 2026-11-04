@@ -79,6 +79,15 @@ test('shared and authentication changes preserve their full consumer coverage', 
   assert.deepEqual(makePlan(['packages/shared/mcp/contract.ts']).apps, ['web', 'gu', 'health', 'project', 'me', 'mcp', 'cli']);
 });
 
+test('any shared change runs the registry invariants in quick and full tiers', () => {
+  const registry = plan => plan.checks.some(check => check.argv.includes('packages/shared/registry.test.mjs'));
+  for (const file of ['packages/shared/products.ts', 'packages/shared/auth/clients.ts', 'packages/shared/i18n/config.js']) {
+    assert.ok(registry(makePlan([file])), file);
+    assert.ok(registry(makePlan([file], 'quick')), `${file} quick`);
+  }
+  assert.equal(registry(makePlan(['apps/web/src/pages/index.astro'])), false);
+});
+
 test('domain changes select their actual MCP and Ops consumers', () => {
   assert.deepEqual(makePlan(['apps/health/workers/api/src/index.ts']).apps, ['health', 'mcp']);
   assert.deepEqual(makePlan(['apps/gu/worker/materials.ts']).apps, ['gu', 'mcp', 'ops']);
@@ -236,6 +245,36 @@ setTimeout(() => {
   assert.equal(result.status, 0, result.stderr);
   const events = readFileSync(result.marker, 'utf8').trim().split('\n');
   assert.ok(events.indexOf('end --filter web build') < events.indexOf('start --filter web test:assets'));
+});
+
+test('checks sharing a build-artifact lock never overlap', t => {
+  const f = fixture(t);
+  f.write('packages/shared/registry.test.mjs', "import test from 'node:test';\ntest('fixture registry', () => {});\n");
+  const base = f.commit();   // 夹具里的登记测试属于基线，不算本次改动
+  f.write('packages/shared/mcp/committed.ts');
+  f.commit();
+  f.write('.agent/task-base', `${base}\n`);
+  const log = path.join(f.cwd, '.test-bin', 'invocations.txt');
+  const result = runFixture(f, ['--task', '--run'], 0, undefined, `#!/usr/bin/env node
+const { appendFileSync } = require('node:fs');
+const args = process.argv.slice(2).join(' ');
+appendFileSync(${JSON.stringify(log)}, 'start ' + args + '\\n');
+setTimeout(() => {
+  appendFileSync(${JSON.stringify(log)}, 'end ' + args + '\\n');
+  process.exit(0);
+}, args.endsWith(' test') ? 80 : 0);
+`);
+  assert.equal(result.status, 0, result.stderr);
+  const events = readFileSync(result.marker, 'utf8').trim().split('\n');
+  const span = name => [events.indexOf(`start ${name}`), events.indexOf(`end ${name}`)];
+  const disjoint = (a, b) => a[1] < b[0] || b[1] < a[0];
+  const mcp = span('--filter @codepi/mcp test');
+  assert.ok(mcp[0] >= 0, events.join('\n'));
+  for (const other of ['--filter @kedoupi/codepi test', '--filter @codepi/mcp test:browser:built']) {
+    assert.ok(disjoint(mcp, span(other)), `${other} overlapped the MCP test that rebuilds its artifacts`);
+  }
+  assert.ok(disjoint(span('--filter web test'), span('--filter kdp-auth test')), 'web and auth tests both rebuild Auth');
+  assert.ok(Object.values(packageCommands).flatMap(config => config.commands).some(command => command.locks?.length));
 });
 
 test('failed builds block dependent checks without stopping unrelated packages', t => {

@@ -79,6 +79,8 @@ export function makePlan(files, tier = 'full') {
     }
   }
   if (sharedAuth && tier === 'full') check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/auth/client.test.mjs');
+  // 共享登记数据（产品、SSO 客户端、跳转、站点地图）的不变量：纯数据、很快，quick 与 full 都跑
+  if (files.some(file => file.startsWith('packages/shared/'))) check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/registry.test.mjs');
   return { apps: allApps.filter(app => apps.has(app)), checks, manual };
 }
 
@@ -112,6 +114,7 @@ function runChecks(checks, cwd) {
         if (dependencies[index].some(dependency => !results[dependency])) continue;
         if (checks[index].exclusive && running.size) continue;
         if ([...running.keys()].some(other => checks[other].exclusive)) continue;
+        if ((checks[index].locks ?? []).some(lock => [...running.keys()].some(other => (checks[other].locks ?? []).includes(lock)))) continue;
         const check = checks[index];
         pending.delete(index);
         const promise = new Promise(resolve => {
