@@ -32,20 +32,28 @@
     { id: "quality", label: "数据可信度", group: "rhythm" },
   ] as const;
 
+  // 快速切换 7/30 天时，只采用最后一次请求的结果，较早的响应晚到也丢弃。
+  let requestId = 0;
+
   async function load() {
+    const current = ++requestId;
+    const wanted = range;
     loading = true;
     message = "";
     try {
-      [trends, anomalies, quality] = await Promise.all([
-        api<TrendsPayload>(`/api/trends?range=${range}`),
-        api<AnomaliesPayload>(`/api/anomalies?range=${range}`),
-        api<QualityPayload>(`/api/quality?range=${range}`),
+      const result = await Promise.all([
+        api<TrendsPayload>(`/api/trends?range=${wanted}`),
+        api<AnomaliesPayload>(`/api/anomalies?range=${wanted}`),
+        api<QualityPayload>(`/api/quality?range=${wanted}`),
       ]);
+      if (current !== requestId) return;
+      [trends, anomalies, quality] = result;
     } catch (error) {
+      if (current !== requestId) return;
       trends = null; anomalies = null; quality = null;
       message = (error as Error).message;
     } finally {
-      loading = false;
+      if (current === requestId) loading = false;
     }
   }
 

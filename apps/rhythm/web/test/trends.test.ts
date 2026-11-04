@@ -91,6 +91,7 @@ function stub(range: { value: 7 | 30 } = { value: 7 }) {
 
 afterEach(() => {
   cleanup();
+  history.replaceState(null, "", "/trend");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -156,6 +157,33 @@ describe("Rhythm 趋势页", () => {
     await waitFor(() => expect(calls).toContain("/api/trends?range=30"));
     expect(calls).toContain("/api/quality?range=30");
     expect(location.search).toBe("?range=30");
+  });
+
+  it("快速切换范围时，晚到的旧响应不会覆盖新结果", async () => {
+    let releaseSeven: (() => void) | null = null;
+    let sevenRequests = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      const thirty = path.includes("range=30");
+      if (!thirty && path.startsWith("/api/trends") && ++sevenRequests === 2) {
+        await new Promise<void>(resolve => { releaseSeven = resolve; });
+      }
+      if (path.startsWith("/api/trends")) return response({ ...trendsPayload(thirty ? 30 : 7), from: thirty ? "2026-10-06" : "2026-10-29" });
+      if (path.startsWith("/api/anomalies")) return response({ range: 7, from: "x", to: "x", baseline: "基线", days_available: 0, anomalies: [], insufficient_sample: [] });
+      return response({ range: 7, from: "x", to: "x", days_available: 0, days: [] });
+    }));
+    render(App);
+    await screen.findByText(/2026-10-29 至/);
+    await fireEvent.click(screen.getByRole("button", { name: "近 30 天" }));
+    await screen.findByText(/2026-10-06 至/);
+    await fireEvent.click(screen.getByRole("button", { name: "近 7 天" }));   // 第二次 7 天请求被挂起
+    await fireEvent.click(screen.getByRole("button", { name: "近 30 天" }));
+    await screen.findByText(/2026-10-06 至/);
+    (releaseSeven as (() => void) | null)?.();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(screen.getByText(/2026-10-06 至/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "近 30 天" }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("手机标签在作息与工作之间切换", async () => {
