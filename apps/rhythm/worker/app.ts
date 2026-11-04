@@ -522,7 +522,7 @@ app.use("*", async (c, next) => {
 
 app.get("/robots.txt", () => new Response("User-agent: *\nDisallow: /\n"));
 
-app.on(["GET", "HEAD"], ["/", "/trend", "/sources", "/login"], async c => {
+app.on(["GET", "HEAD"], ["/", "/trend", "/sources", "/settings", "/login"], async c => {
   const origin = new URL(c.req.url).origin;
   if (c.req.path !== "/login" && !await authenticated(c.req.raw, c.env)) {
     return Response.redirect(`${origin}/login?return=${encodeURIComponent(c.req.path)}`, 302);
