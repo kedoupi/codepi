@@ -15,8 +15,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "@kedoupi/shared": "workspace:*",
-    "hono": "^4.9.8",
+    "hono": "^4.13.14",
     "typescript": "^7.0.2",
-    "wrangler": "^4.151.1"
+    "wrangler": "^4.156.0"
   }
 }

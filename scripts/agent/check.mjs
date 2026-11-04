@@ -79,6 +79,8 @@ export function makePlan(files, tier = 'full') {
     }
   }
   if (sharedAuth && tier === 'full') check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/auth/client.test.mjs');
+  // 共享登记数据（产品、SSO 客户端、跳转、站点地图）的不变量：纯数据、很快，quick 与 full 都跑
+  if (files.some(file => file.startsWith('packages/shared/'))) check('.', 'node', '--experimental-strip-types', '--test', 'packages/shared/registry.test.mjs');
   return { apps: allApps.filter(app => apps.has(app)), checks, manual };
 }
 

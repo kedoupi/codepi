@@ -79,6 +79,15 @@ test('shared and authentication changes preserve their full consumer coverage', 
   assert.deepEqual(makePlan(['packages/shared/mcp/contract.ts']).apps, ['web', 'gu', 'health', 'project', 'me', 'mcp', 'cli']);
 });
 
+test('any shared change runs the registry invariants in quick and full tiers', () => {
+  const registry = plan => plan.checks.some(check => check.argv.includes('packages/shared/registry.test.mjs'));
+  for (const file of ['packages/shared/products.ts', 'packages/shared/auth/clients.ts', 'packages/shared/i18n/config.js']) {
+    assert.ok(registry(makePlan([file])), file);
+    assert.ok(registry(makePlan([file], 'quick')), `${file} quick`);
+  }
+  assert.equal(registry(makePlan(['apps/web/src/pages/index.astro'])), false);
+});
+
 test('domain changes select their actual MCP and Ops consumers', () => {
   assert.deepEqual(makePlan(['apps/health/workers/api/src/index.ts']).apps, ['health', 'mcp']);
   assert.deepEqual(makePlan(['apps/gu/worker/materials.ts']).apps, ['gu', 'mcp', 'ops']);
@@ -240,9 +249,11 @@ setTimeout(() => {
 
 test('checks sharing a build-artifact lock never overlap', t => {
   const f = fixture(t);
+  f.write('packages/shared/registry.test.mjs', "import test from 'node:test';\ntest('fixture registry', () => {});\n");
+  const base = f.commit();   // 夹具里的登记测试属于基线，不算本次改动
   f.write('packages/shared/mcp/committed.ts');
   f.commit();
-  f.write('.agent/task-base', `${f.base}\n`);
+  f.write('.agent/task-base', `${base}\n`);
   const log = path.join(f.cwd, '.test-bin', 'invocations.txt');
   const result = runFixture(f, ['--task', '--run'], 0, undefined, `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs');
