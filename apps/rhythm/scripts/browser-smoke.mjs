@@ -110,68 +110,91 @@ function centralFixture() {
   };
 }
 
-/** Synthetic upstream: one ordinary workday, no real host, device or network name. */
+/**
+ * Synthetic upstream, generated per requested day: ordinary workdays, home-only rest days and one
+ * workday that starts 100 minutes late (so the trends page has an anomaly). No real host, device or network name.
+ */
 function statusReadFixture() {
   const state = { fail: false, calls: [] };
   const now = Date.now();
   const today = shanghaiDate(now);
-  const day = today;
   const currentMinute = Math.max(0, Math.min(1439, shanghaiMinute(now)));
-  const activityLimit = Math.max(0, currentMinute - 9);
-  const stamp = (minute, offset = 0) => {
-    const total = minute * 60_000 + offset;
-    const local = new Date(Date.parse(`${day}T00:00:00+08:00`) + total);
-    return local.toISOString();
-  };
-  const rowsFor = pathname => {
-    const resource = pathname.slice(pathname.lastIndexOf("/") + 1);
+  const weekday = date => new Date(`${date}T00:00:00Z`).getUTCDay();
+  const isWorkday = date => weekday(date) >= 1 && weekday(date) <= 5;
+  const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
+  const lateDay = [3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
+  const stamp = (day, minute) => new Date(Date.parse(`${day}T00:00:00+08:00`) + minute * 60_000).toISOString();
+
+  function dayRows(day, resource) {
+    const isToday = day === today;
+    const limit = isToday ? currentMinute : 1439;
+    const activityLimit = isToday ? Math.max(0, currentMinute - 9) : 1439;
+    const shift = day === lateDay ? 100 : 0;
+    const jitter = (Number(day.slice(-2)) % 4) * 5;
+    const rows = [];
     if (resource === "activity_samples") {
-      const rows = [];
-      for (let minute = 0; minute <= Math.min(450, activityLimit); minute += 1) {
-        rows.push({ sampled_at: stamp(minute), net: "home", idle_sec: 900, locked: false });
+      if (!isWorkday(day)) {
+        for (let minute = 600; minute <= Math.min(660, activityLimit); minute += 1) {
+          rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" });
+        }
+        return rows;
       }
-      for (let minute = 520; minute <= Math.min(1085, activityLimit); minute += 1) {
+      for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
+        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: false });
+      }
+      for (let minute = 520 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
         rows.push({
-          sampled_at: stamp(minute), net: "office", idle_sec: 30, locked: false,
+          sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: false,
           key_idle_sec: 20, pointer_idle_sec: 40,
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
       for (let minute = 1170; minute <= Math.min(1439, activityLimit); minute += 1) {
-        rows.push({ sampled_at: stamp(minute), net: "home", idle_sec: 900, locked: false });
+        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: false });
       }
       return rows;
     }
+    if (resource === "snapshots") {
+      const homeAllDay = !isWorkday(day);
+      for (let minute = 0; minute <= limit; minute += 10) {
+        if (!homeAllDay && minute > 420 + shift && minute < 1170) continue;
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", observed_at: stamp(day, minute), status: "online", room: minute < 1170 ? "卧室" : "客厅" });
+      }
+      return rows;
+    }
+    if (resource === "heartbeats") {
+      for (let minute = 0; minute <= Math.min(1430, limit); minute += 10) {
+        rows.push({ source_id: "home-scanner", observed_at: stamp(day, minute), scan_ok: true, device_count: 2 });
+      }
+      return rows;
+    }
+    return rows;
+  }
+
+  const rowsFor = url => {
+    const resource = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
     if (resource === "devices") {
       return [{ source_id: "home-scanner", device_id: "dev-a", name: "示例手机", vendor: "示例厂商", room: "卧室", current_status: "online" }];
     }
-    if (resource === "snapshots") {
-      const rows = [];
-      for (let minute = 0; minute <= Math.min(420, currentMinute); minute += 10) {
-        rows.push({ source_id: "home-scanner", device_id: "dev-a", observed_at: stamp(minute), status: "online", room: "卧室" });
-      }
-      for (let minute = 1170; minute <= Math.min(1430, currentMinute); minute += 10) {
-        rows.push({ source_id: "home-scanner", device_id: "dev-a", observed_at: stamp(minute), status: "online", room: "客厅" });
-      }
-      return rows;
-    }
     if (resource === "events") return [];
-    if (resource === "heartbeats") {
-      const rows = [];
-      for (let minute = 0; minute <= Math.min(1430, currentMinute); minute += 10) {
-        rows.push({ source_id: "home-scanner", observed_at: stamp(minute), scan_ok: true, device_count: 2 });
-      }
-      return rows;
+    const from = Date.parse(url.searchParams.get("from") || "");
+    const to = Date.parse(url.searchParams.get("to") || "");
+    assert.ok(Number.isFinite(from) && Number.isFinite(to), `${resource}: time-series reads carry from/to`);
+    const rows = [];
+    for (let day = shanghaiDate(from); day <= shanghaiDate(to) && day <= today; day = addDays(day, 1)) {
+      rows.push(...dayRows(day, resource));
     }
-    return [];
+    const at = row => Date.parse(row.sampled_at ?? row.observed_at);
+    return rows.filter(row => at(row) >= from && at(row) <= to);
   };
   return {
     state,
+    lateDay,
     async fetch(request) {
       const url = new URL(request.url);
       state.calls.push(url.pathname);
       if (state.fail) return new Response("synthetic upstream outage", { status: 503 });
-      return Response.json({ ok: true, resource: url.pathname, rows: rowsFor(url.pathname) });
+      return Response.json({ ok: true, resource: url.pathname, rows: rowsFor(url) });
     },
   };
 }
@@ -352,6 +375,32 @@ async function assertNoRawHtml(page, label) {
   assert.equal(state.marker, null, `${label}: data did not execute as HTML`);
 }
 
+async function sectionVisible(page, heading) {
+  return page.evaluate(text => {
+    const match = [...document.querySelectorAll("h2")].find(item => item.textContent.trim() === text);
+    return Boolean(match && match.getClientRects().length);
+  }, heading);
+}
+
+async function setColorScheme(page, value) {
+  await page.cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value }] });
+}
+
+async function assertTheme(page, label, expected) {
+  const theme = await page.evaluate(() => ({
+    attribute: document.documentElement.dataset.theme ?? null,
+    background: getComputedStyle(document.documentElement).backgroundColor,
+  }));
+  assert.equal(theme.attribute, expected, `${label}: data-theme follows the system`);
+  if (expected === "dark") assert.equal(theme.background, "rgb(36, 35, 33)", `${label}: dark background token applied`);
+}
+
+/** 整页截图（趋势、设置页较长），用于人工验收。 */
+async function fullScreenshot(page, name) {
+  const { data } = await page.cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+  await writeFile(join(artifacts, name), Buffer.from(data, "base64"));
+}
+
 async function screenshot(page, name) {
   await page.screenshot({ path: name });
 }
@@ -377,7 +426,7 @@ function expectedUpstreamError(event) {
 function isRhythmApiPath(value) {
   try {
     const pathname = new URL(value).pathname;
-    return pathname === "/api/day" || pathname === "/api/sources";
+    return pathname === "/api/day" || pathname === "/api/sources" || pathname === "/api/settings";
   } catch {
     return false;
   }
@@ -483,6 +532,67 @@ async function main() {
     await assertLayout(page, "desktop sources upstream failure", 1440);
     upstream.state.fail = false;
 
+    // 趋势：先按合成历史补算 28 天（异常判断需要之前至少 5 个同类日），再在真实 Worker/D1 上读趋势
+    const historyFrom = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 28 * 86400_000).toISOString().slice(0, 10);
+    const historyTo = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
+    const recomputed = await page.evaluate(async ([from, to]) => {
+      const response = await fetch(`/api/admin/recompute?from=${from}&to=${to}`, { method: "POST", credentials: "same-origin" });
+      return { status: response.status, body: await response.json() };
+    }, [historyFrom, historyTo]);
+    assert.equal(recomputed.status, 200, "owner can recompute synthetic history");
+    assert.equal(recomputed.body.days_recomputed, 28, "28 history days recomputed");
+    await page.goto(`${origin}/trend`);
+    await waitText(page, "每天各状态各占几小时");
+    await waitText(page, "本周和上周");
+    for (const heading of ["作息叠图", "通勤、几点、在电脑前", "在公司用电脑", "工作节奏", "在家", "和平时不一样的日子", "数据可信度"]) {
+      assert.ok(await sectionVisible(page, heading), `desktop trends shows ${heading}`);
+    }
+    const trendState = await page.evaluate(() => ({
+      bars: document.querySelectorAll("#status-hours .bar").length,
+      filled: document.querySelectorAll("#status-hours rect[data-series]").length,
+      overlayRows: document.querySelectorAll("#overlay .bar").length,
+      anomalies: document.querySelectorAll(".anomaly-list li").length,
+      anomalyText: document.querySelector(".anomaly-list")?.textContent ?? "",
+    }));
+    assert.equal(trendState.bars, 8, "7 days plus the workday average");
+    assert.ok(trendState.filled > 0, "recomputed days are drawn, not hatched");
+    assert.equal(trendState.overlayRows, 7, "desktop overlay has one row per day");
+    assert.equal(trendState.anomalies, 1, "exactly the synthetic late workday is unusual");
+    assert.match(trendState.anomalyText, /比平时/, "the late workday reason is in plain language");
+    await page.evaluate(() => document.querySelector("#status-hours .bar")?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await page.waitForFunction(() => (document.querySelector("#status-hours .chart-detail")?.textContent ?? "").includes("小时"));
+    await assertLayout(page, "desktop trends 7", 1440);
+    await assertNoRawHtml(page, "desktop trends");
+    await fullScreenshot(page, "desktop-trends-7.png");
+    await clickText(page, "近 30 天");
+    await page.waitForFunction(() => location.search === "?range=30" && document.querySelectorAll("#status-hours .bar").length === 31);
+    await waitText(page, "不足 30 天");
+    await assertLayout(page, "desktop trends 30", 1440);
+    await fullScreenshot(page, "desktop-trends-30.png");
+
+    // 设置：保存成功与上游失败
+    await page.goto(`${origin}/settings`);
+    await waitText(page, "本人手机");
+    await page.evaluate(() => {
+      const input = [...document.querySelectorAll("input[type=number]")][0];
+      input.value = "45";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await clickText(page, "保存设置");
+    await waitText(page, "已保存。");
+    const saved = await db.prepare("SELECT anomaly_thresholds FROM settings WHERE id='default'").first();
+    assert.equal(JSON.parse(saved.anomaly_thresholds).earlyLateMinutes, 45, "settings PUT persisted through the real Worker");
+    await waitText(page, "需要重算");
+    await assertLayout(page, "desktop settings", 1440);
+    await assertNoRawHtml(page, "desktop settings");
+    await fullScreenshot(page, "desktop-settings.png");
+    upstream.state.fail = true;
+    await clickText(page, "保存设置");
+    await page.waitForFunction(() => (document.querySelector(".form-actions .error-text")?.textContent ?? "").includes("数据暂不可用"));
+    assert.ok(!(await page.evaluate(() => document.body.innerText.includes("已保存。"))), "failed save does not claim success");
+    await screenshot(page, "desktop-settings-failure.png");
+    upstream.state.fail = false;
+
     // 移动端 390px
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
@@ -499,9 +609,53 @@ async function main() {
     await assertNoRawHtml(page, "mobile sources");
     await screenshot(page, "mobile-sources.png");
 
+    await page.goto(`${origin}/trend`);
+    await waitText(page, "每天各状态各占几小时");
+    await assertLayout(page, "mobile trends rhythm tab", 390);
+    assert.ok(!(await sectionVisible(page, "工作节奏")), "mobile rhythm tab hides work modules");
+    assert.ok(await page.evaluate(() => !document.querySelector("#overlay .overlay-chart")?.getClientRects().length), "mobile hides the overlay chart");
+    await fullScreenshot(page, "mobile-trends-rhythm.png");
+    await clickText(page, "工作");
+    await page.waitForFunction(() => document.querySelector(".trend-sections")?.getAttribute("data-tab") === "work");
+    assert.ok(await sectionVisible(page, "工作节奏"), "mobile work tab shows work modules");
+    assert.ok(!(await sectionVisible(page, "每天各状态各占几小时")), "mobile work tab hides rhythm modules");
+    await page.waitForFunction(() => {
+      const selected = document.querySelector('.tabs [aria-selected="true"]');
+      return selected && getComputedStyle(selected).backgroundColor === getComputedStyle(document.querySelector(".segmented [aria-pressed=\"true\"]")).backgroundColor;
+    });
+    await assertLayout(page, "mobile trends work tab", 390);
+    await fullScreenshot(page, "mobile-trends-work.png");
+
+    await page.goto(`${origin}/settings`);
+    await waitText(page, "本人手机");
+    await assertLayout(page, "mobile settings", 390);
+    await fullScreenshot(page, "mobile-settings.png");
+
+    // 深色模式跟随系统
+    await setColorScheme(page, "dark");
+    await page.goto(`${origin}/trend`);
+    await waitText(page, "每天各状态各占几小时");
+    await assertTheme(page, "mobile dark trends", "dark");
+    await assertLayout(page, "mobile dark trends", 390);
+    await fullScreenshot(page, "mobile-trends-dark.png");
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/trend`);
+    await waitText(page, "每天各状态各占几小时");
+    await assertTheme(page, "desktop dark trends", "dark");
+    await fullScreenshot(page, "desktop-trends-dark.png");
+    await page.goto(`${origin}/settings`);
+    await waitText(page, "本人手机");
+    await fullScreenshot(page, "desktop-settings-dark.png");
+    await setColorScheme(page, "light");
+    await page.goto(`${origin}/`);
+    await waitText(page, "上班通勤（上限）");
+    await assertTheme(page, "desktop light today", "light");
+
     const expectedStatuses = browser.page.diagnostics.filter(event =>
       event.method === "Network.responseReceived" && expectedUpstreamError(event));
-    assert.equal(expectedStatuses.length, 2, "both upstream failures used the real endpoint");
+    assert.equal(expectedStatuses.length, 3, "day, sources and settings upstream failures used the real endpoints");
     const failures = browser.page.diagnostics.filter(event => {
       if (event.method === "Runtime.exceptionThrown") return true;
       if (event.method === "Log.entryAdded") {
@@ -525,6 +679,9 @@ async function main() {
     await writeFile(join(artifacts, "acceptance.json"), JSON.stringify({
       origin,
       viewports: ["1440x1000 desktop", "390x844 mobile"],
+      color_schemes: ["light", "dark"],
+      history_days: 28,
+      late_day: upstream.lateDay,
       sso: auth.state,
       upstream_calls: [...new Set(upstream.state.calls)],
       expected_upstream_errors: expectedStatuses.length,
@@ -535,7 +692,7 @@ async function main() {
     for (const name of failureArtifacts.filter(name => name !== "console-network.json")) {
       await rm(join(artifacts, name), { force: true });
     }
-    process.stdout.write("Rhythm browser smoke passed (desktop + 390px mobile; real Worker/D1; synthetic SSO and STATUS_READ)\n");
+    process.stdout.write("Rhythm browser smoke passed (today, sources, trends, settings; desktop + 390px mobile; light + dark; real Worker/D1; synthetic SSO and STATUS_READ)\n");
   } catch (error) {
     failure = error;
     if (browser) await browser.page.saveDiagnostics(error);

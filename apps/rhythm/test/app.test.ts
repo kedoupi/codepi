@@ -111,6 +111,20 @@ it("只有统一登录通过后才能读取当天数据与来源", async () => {
   expect((await sso.send("/api/me", { cookie })).status).toBe(200);
 });
 
+it("页面路由（含设置页）未登录跳去登录，登录后返回页面壳", async () => {
+  const sso = setupSso();
+  for (const path of ["/trend", "/settings"]) {
+    const anonymous = await sso.send(path);
+    expect(anonymous.status).toBe(302);
+    expect(anonymous.headers.get("Location")).toContain(`/login?return=${encodeURIComponent(path)}`);
+  }
+  const cookie = await sso.login();
+  const assets = vi.fn(async () => new Response("<!doctype html>", { headers: { "Content-Type": "text/html" } }));
+  const shell = await worker.fetch(request("/settings", { cookie }), { ...sso.bindings, ASSETS: { fetch: assets } as unknown as Fetcher });
+  expect(shell.status).toBe(200);
+  expect(assets).toHaveBeenCalledOnce();
+});
+
 it("当天接口返回压缩时间段、关键时刻、四个数字与应用构成", async () => {
   await env.DB.prepare(
     "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",

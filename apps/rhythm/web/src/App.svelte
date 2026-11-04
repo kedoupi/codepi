@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { CODEPI_SYMBOL_PNG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
   import { api, dateText, displayShanghaiTime } from "./lib/api";
+  import Settings from "./lib/Settings.svelte";
+  import Trends from "./lib/Trends.svelte";
   import type { DayStatus, Evidence, RhythmStatus } from "../../worker/models";
 
   type Segment = {
@@ -40,7 +42,7 @@
   let date = $state(new URLSearchParams(location.search).get("date") ?? today);
   let selectedSegment = $state<Segment | null>(null);
   const page = location.pathname === "/login" ? "/login" : location.pathname;
-  const nav = [["/", "今天"], ["/trend", "趋势"], ["/sources", "来源"]];
+  const nav = [["/", "今天"], ["/trend", "趋势"], ["/sources", "来源"], ["/settings", "设置"]];
   const timelineLegend: Array<{ status: DayStatus; label: string }> = [
     { status: "bedroom", label: "卧室" },
     { status: "living_room", label: "客厅" },
@@ -85,7 +87,7 @@
       await api("/api/me");
       auth = "ready";
       if (page === "/sources") await loadSources();
-      else if (page !== "/trend") await loadDay();
+      else if (page !== "/trend" && page !== "/settings") await loadDay();
     } catch (error) {
       if (auth !== "anonymous") auth = "error";
       message = (error as Error).message;
@@ -156,8 +158,9 @@
         {#if auth === "loading"}<div class="empty" role="status">正在读取 Rhythm…</div>
         {:else if auth === "error"}<div class="empty"><h1>暂时无法读取</h1><p>数据会在连接恢复后重新加载。</p><button onclick={load}>重试</button></div>
         {:else if page === "/trend"}
-          <section class="page-heading"><div><p class="eyebrow">趋势 / TREND</p><h1>趋势</h1><p class="muted">连续多天的节奏比较将在第四期开发。</p></div></section>
-          <section class="panel placeholder"><span class="badge">第四期开发</span><h2>先把今天看清楚</h2><p>本期先保证每日状态、来源和判断口径清晰可回看。</p></section>
+          <Trends />
+        {:else if page === "/settings"}
+          <Settings />
         {:else if page === "/sources"}
           <section class="page-heading"><div><p class="eyebrow">来源 / SOURCES</p><h1>来源与口径</h1><p class="muted">两路只读信号，按北京时间解释。</p></div></section>
           {#if sources}
@@ -174,7 +177,7 @@
             <div class="date-controls"><button aria-label="前一天" onclick={() => shiftDate(-1)}>← 前一天</button><button aria-label="后一天" onclick={() => shiftDate(1)} disabled={date >= today}>后一天 →</button></div>
           </section>
           {#if day}
-            {#if !day.phoneConfigured}<div class="notice"><strong>未指定手机</strong><span>家里部分记为未知；设置页将在第四期开发，本期只读取本地设置。</span></div>{/if}
+            {#if !day.phoneConfigured}<div class="notice"><strong>未指定手机</strong><span>家里部分记为未知；到 <a href="/settings">设置</a> 里选择本人手机。</span></div>{/if}
             {#if day.current}<section class="current-card" data-status={day.current.status}><div><span class="eyebrow">当前状态 · {day.current.time}</span><h2>{day.current.label}</h2><span class:inferred={day.current.evidence === "inferred"} class="evidence">{evidenceLabel(day.current.evidence)}</span></div><p>{day.current.live ? "正在按最近一分钟的信号显示。" : "所选日期的最后一个可判断状态。"}</p></section>{/if}
             <section class="panel timeline-panel"><div class="section-heading"><div><h2>0–24 点时间线</h2><p class="muted">斜纹表示未知，颜色表示状态类别；段太窄时用点按或悬停查看明细。</p></div><span class="fine muted">{day.segments.length} 段</span></div><div class="timeline" aria-label="当天状态时间线">{#each day.segments as segment}<button class="timeline-segment" class:unknown={segment.status === "unknown"} data-status={segment.status} style={`--segment-minutes:${segment.minutes}`} onclick={() => (selectedSegment = segment)} aria-pressed={selectedSegment === segment} title={`${segment.startLabel}–${segment.endLabel} ${segment.label} · ${evidenceLabel(segment.evidence)}${segment.detail ? ` · ${segment.detail}` : ""}`} aria-label={`${segment.startLabel} 到 ${segment.endLabel}，${segment.label}，${evidenceLabel(segment.evidence)}`}><span>{segment.label}</span></button>{/each}</div><div class="timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><div class="timeline-legend" aria-label="时间线图例">{#each timelineLegend as item}<span><i class:unknown={item.status === "unknown"} data-status={item.status}></i>{item.label}</span>{/each}</div>{#if selectedSegment}<p class="timeline-detail"><strong>{selectedSegment.startLabel}–{selectedSegment.endLabel} {selectedSegment.label}</strong><span class:inferred={selectedSegment.evidence === "inferred"}>{evidenceLabel(selectedSegment.evidence)}</span><span>{selectedSegment.minutes} 分钟</span>{#if selectedSegment.detail}<span>{selectedSegment.detail}</span>{/if}</p>{/if}<p class="chart-conclusion">今天的时间线把可观察信号与推断区间分开，缺少数据时保持未知。</p></section>
             <section class="metric-grid"><article class="metric-card"><span>上班通勤（上限）</span><strong>{metricText(day.metrics.commuteToWorkMinutes)}</strong><small>推断 · 含到公司后未开电脑的时间</small></article><article class="metric-card"><span>下班通勤（上限）</span><strong>{metricText(day.metrics.commuteHomeMinutes)}</strong><small>推断 · 含离开电脑后的时间</small></article><article class="metric-card"><span>在电脑前</span><strong>{metricText(day.metrics.officeActiveMinutes)}</strong><small>公司网络且有键鼠活动</small></article><article class="metric-card"><span>在家</span><strong>{metricText(day.metrics.homeMinutes)}</strong><small>卧室 {metricText(day.metrics.bedroomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 客厅 {metricText(day.metrics.livingRoomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 未分房间 {metricText(day.metrics.homeUnknownMinutes)}</small></article></section>
