@@ -33,7 +33,11 @@ routes = [{ pattern = "${app}.codepi.app", custom_domain = true }]
 directory = "./dist"
 binding = "ASSETS"
 run_worker_first = true
-[[d1_databases]]
+${Object.entries(domain.services ?? {}).map(([binding, { placeholder }]) => `[[services]]
+binding = "${binding}"
+# injected at release time
+service = "${placeholder}"
+`).join('')}[[d1_databases]]
 binding = "DB"
 database_name = "${domain.database}"
 migrations_dir = "migrations"
@@ -82,12 +86,48 @@ function wranglerArgs(call) {
   return call.args[0] === 'exec' && call.args[1] === 'wrangler' ? call.args.slice(2) : call.args;
 }
 
+const upstreamEnv = { RHYTHM_STATUS_READ_SERVICE: 'codepi-upstream-synthetic' };
+
+test('rhythm refuses to release without a valid upstream Worker before any Wrangler call', async t => {
+  assert.deepEqual(DOMAINS.rhythm.services, {
+    STATUS_READ: { placeholder: 'status-read-placeholder', env: 'RHYTHM_STATUS_READ_SERVICE' },
+  });
+  const f = await fixture(t, 'rhythm');
+  for (const [env, pattern] of [
+    [{}, /RHYTHM_STATUS_READ_SERVICE must name/],
+    [{ RHYTHM_STATUS_READ_SERVICE: 'Not_A_Worker' }, /not a valid Worker name/],
+    [{ RHYTHM_STATUS_READ_SERVICE: '-leading' }, /not a valid Worker name/],
+    [{ RHYTHM_STATUS_READ_SERVICE: 'status-read-placeholder' }, /still equals the placeholder/],
+  ]) {
+    const e = executor({ databaseName: 'codepi-rhythm' });
+    await assert.rejects(deployDomain('rhythm', { cwd: f.cwd, execute: e.execute, env }), pattern);
+    assert.equal(e.calls.length, 0, 'no Wrangler command may run');
+  }
+});
+
+test('rhythm source must keep exactly one placeholder STATUS_READ binding', async t => {
+  const f = await fixture(t, 'rhythm');
+  const config = path.join(f.appDir, 'wrangler.toml');
+  const original = await readFile(config, 'utf8');
+  for (const [source, pattern] of [
+    [original.replace('service = "status-read-placeholder"', 'service = "codepi-hardcoded"'), /keep the reviewed placeholder/],
+    [original.replace('binding = "STATUS_READ"', 'binding = "OTHER"'), /declared exactly once/],
+    [original + '[[services]]\nbinding = "STATUS_READ"\nservice = "status-read-placeholder"\n', /declared exactly once/],
+  ]) {
+    await writeFile(config, source);
+    f.git('-c', 'core.hooksPath=/dev/null', 'commit', '-qam', 'variant');
+    const e = executor({ databaseName: 'codepi-rhythm' });
+    await assert.rejects(deployDomain('rhythm', { cwd: f.cwd, execute: e.execute, env: upstreamEnv }), pattern);
+    assert.equal(e.calls.length, 0);
+  }
+});
+
 test('deploy-domain supports the required --app form and injects one exact-name D1 into a temporary config', async t => {
   for (const app of Object.keys(DOMAINS)) {
     const f = await fixture(t, app);
     let rendered;
     const e = executor({ databaseName: DOMAINS[app].database, inspect: text => { rendered = text; } });
-    const result = await deployDomain(app, { cwd: f.cwd, execute: e.execute });
+    const result = await deployDomain(app, { cwd: f.cwd, execute: e.execute, env: upstreamEnv });
     assert.equal(result.app, app);
     assert.equal(result.database, DOMAINS[app].database);
     assert.equal(result.database_id, databaseId);
@@ -109,6 +149,13 @@ test('deploy-domain supports the required --app form and injects one exact-name 
     assert.equal(e.calls.filter(call => wranglerArgs(call)[0] === 'd1'
       && wranglerArgs(call)[1] === 'migrations').length, 1);
     assert.ok(!(await readFile(path.join(f.appDir, 'wrangler.toml'), 'utf8')).includes('database_id'));
+    for (const { placeholder } of Object.values(DOMAINS[app].services ?? {})) {
+      assert.ok(rendered.includes('service = "codepi-upstream-synthetic"'), `${app} injects the upstream Worker`);
+      assert.ok(!rendered.includes(placeholder), `${app} temporary config keeps no placeholder`);
+      assert.ok((await readFile(path.join(f.appDir, 'wrangler.toml'), 'utf8')).includes(placeholder),
+        `${app} reviewed source keeps its placeholder`);
+      assert.ok(!JSON.stringify(result).includes('codepi-upstream-synthetic'), `${app} evidence omits the private name`);
+    }
     const leftover = execFileSync('find', [path.join(f.appDir, '.wrangler'), '-mindepth', '1', '-maxdepth', '1'],
       { encoding: 'utf8' }).trim();
     assert.equal(leftover, '');

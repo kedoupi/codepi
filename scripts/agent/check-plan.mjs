@@ -73,7 +73,7 @@ export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml
   'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'apps/rhythm/wrangler.toml', 'services/auth/wrangler.jsonc',
   'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
 export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
-  'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
+  'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/', 'apps/rhythm/migrations/'];
 
 export function packageCheck(app, command) {
   const { name, args = [] } = command;

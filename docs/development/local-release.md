@@ -83,6 +83,7 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gzh <完整sourceSHA>` |
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
 | Project / Me | `apps/project` / `apps/me` | `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app <project或me> --sha <完整sourceSHA>`；首次初始化按末节执行 |
+| Rhythm | `apps/rhythm` | 先设置本机环境变量 `RHYTHM_STATUS_READ_SERVICE`（所有者私有上游 Worker 名，不入库、不打印）→ `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA>`；首发见末节「Rhythm 首发」 |
 | MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
 | Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
@@ -259,3 +260,13 @@ Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署
 当前全部已支持 scope，授权页不再逐项选择。
 真实验收包含 Claude 手机端、Codex、codepi CLI，逐项记录权限隔离、刷新、撤销和接力。
 计划、代码、发布和真实客户端状态分别填写[任务记录](tasks/2026-10-20-codepi-mcp-domains.md)。
+
+## Rhythm 首发
+
+以下仅在所有者授权 Rhythm 首次上线时执行；之后的普通更新按上表 Rhythm 行。
+
+1. 前置：私有上游只读 Worker（`STATUS_READ` 指向的服务）已在同一账户部署并读回；Auth 已带 `rhythm` SSO 客户端发布，`SSO_CLIENT_SECRET_RHYTHM` 已在 Auth 与 `codepi-rhythm` 两侧按 [治理规范](cloudflare-governance.md) 写入同一值（只记 secret 名称）。
+2. 在发布 shell 设置 `RHYTHM_STATUS_READ_SERVICE`。`deploy-domain.mjs` 在任何 Wrangler 调用前校验：源 `wrangler.toml` 恰有一个 `STATUS_READ` 绑定且仍是占位 `status-read-placeholder`、环境变量是合法 Worker 名且不等于占位；真实名只写进临时配置，不改源文件、不进输出证据。
+3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，上传 Worker、绑定 `rhythm.codepi.app` 与每日 Cron。
+4. 验收：匿名访问跳转登录、本人登录后今天页显示数据或「数据暂不可用」（上游失败不得显示假数据）、Cron 已登记；记录 Worker 版本与 D1 UUID。
+5. 首发成功后，把 `apps/rhythm/migrations/*.sql` 从 `scripts/agent/check-migrations-baseline.json` 的 `notApplied` 移入 `files` 并冻结哈希。
