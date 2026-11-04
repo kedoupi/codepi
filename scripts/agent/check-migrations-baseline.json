@@ -26,22 +26,21 @@
     "apps/project/migrations/0001_init.sql": "8dd7fdb2402f6d8a2d3791268e8059365ffffdb768466f34d3c79995d98ec9cb",
     "apps/project/migrations/0002_project_sync_fixes.sql": "6a8b29536a15c87fe964a2894dea8430b4ace1be6999257f690f56361775c664",
     "apps/project/migrations/0003_workbench.sql": "531ba27fca45c502f463c5ef7a28d96c5b41f7550c0ee9b9d3c4076869e2f521",
-    "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
+    "apps/rhythm/migrations/0001_init.sql": "c75be3dd5a5876ca22375a1f79e4665c0c9a4c329250b631a2b4d994d3191033",
+    "apps/rhythm/migrations/0002_daily_summary.sql": "b106ca3e0ac0a29a76ff789605b7ba3ea438eaa52e379d988101c7fb4f21709b",
     "apps/web/migrations-blog/0001_blog.sql": "1605cca4f1ce5bb4d87e45821a3178dfb95cded9b8dfe49b8467f0dd6c751fd3",
     "apps/web/migrations-blog/0002_blog_media.sql": "fa237b69fccf8d44602db9052eb1a4a5b5307374793672133c14763db6adad14",
     "apps/web/migrations-blog/0003_blog_review.sql": "1d001b85c170bed0ab01d9062f5f021a3ac91d60da2cf967910b304b7ab9813d",
     "apps/web/migrations-blog/0004_blog_taxonomy.sql": "73728a75ff373aa0876bb5c0dcd52d96e91b99be5779433ae9d4d09f840e158c",
     "apps/web/migrations-blog/0005_blog_revisions.sql": "8378ab369336d55b3bbed0866d82d498ab9062476645121608240f13040c6ced",
+    "apps/web/migrations/0001_desk_sso.sql": "2a07547c2e820128f26ce8ef474278dd33d4fb42c1a36da8ba4e3dfd6c6e97fc",
     "services/auth/migrations/0001_auth.sql": "778e2d750a26f2d9ba94bbdc85e8910ae66478fcad4d146146a7c76ea4cf66d6",
     "services/mcp/migrations/0001_mcp.sql": "0fd5f65c887c3e219820771bbe789f40090c7c7a5dee04ba526125d2382a909c",
     "services/mcp/migrations/0002_client_auth.sql": "ddd6b70acf6c5e566b37efb9a177ed5c92f166613eb3365fbfc62f0653aad81f",
     "services/mcp/migrations/0003_personal_tokens.sql": "0e508cc0947e4c53b8fde761d5a334be6cfddc6a3c350936234ac10c6766ec76",
     "services/mcp/migrations/0004_oauth_maintenance.sql": "1b26c700e87ba47c989b0d660c0cf3c121cff10579ae8d7d71d8ac0c3d78165d"
   },
-  "notApplied": [
-    "apps/rhythm/migrations/0001_init.sql",
-    "apps/rhythm/migrations/0002_daily_summary.sql"
-  ],
+  "notApplied": [],
   "generated": "2026-10-29",
   "note": "Frozen SHA-256 for every applied migration; unbaselined files fail closed."
 }
