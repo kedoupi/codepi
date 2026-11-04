@@ -8,7 +8,7 @@ const version = '11111111-1111-4111-8111-111111111111';
 const updated = '22222222-2222-4222-8222-222222222222';
 const ok = result => Response.json({ success: true, result });
 
-function fixture({ failAt, unready = false, undeployed = false, client = 'mcp', pairingReady = true } = {}) {
+function fixture({ failAt, unready = false, undeployed = false, client = 'mcp', pairingReady = true, healthSource } = {}) {
   const writes = [];
   const worker = `codepi-${client}`;
   const origin = `https://${client}.codepi.app`;
@@ -19,7 +19,7 @@ function fixture({ failAt, unready = false, undeployed = false, client = 'mcp', 
         ? { ok: !unready, service: worker, build: 'a'.repeat(12) }
         : client === 'project'
           ? { ok: !unready, build: 'a'.repeat(12), sso_enabled: true, sso_ready: pairingReady }
-          : { ok: !unready, source: 'me', sso_enabled: true, sso_ready: pairingReady };
+          : { ok: !unready, source: healthSource ?? client, sso_enabled: true, sso_ready: pairingReady };
       return Response.json(health, { status: unready ? 503 : 200 });
     }
     const script = target.pathname.match(/scripts\/([^/]+)/)[1];
@@ -65,7 +65,7 @@ test('pairing selects exactly one new client and never rotates another Auth regi
     assert.equal(f.writes[0].text, f.writes[1].text);
     assert.ok(!f.writes.some(write => /MCP|GU|OURA|GZH|DESK/.test(write.name)));
   }
-  await assert.rejects(pairClientSecret({ client: 'other', env, request: fixture().request }), /mcp, project or me/);
+  await assert.rejects(pairClientSecret({ client: 'other', env, request: fixture().request }), /one of: mcp, project, me, rhythm/);
 });
 
 test('new clients cannot report successful pairing from local liveness alone', async () => {
@@ -111,4 +111,18 @@ test('MCP readiness requires ok, identity and build, rather than just HTTP 200',
     { ok: true, service: 'codepi-mcp', build: 'local' },
   ]) await assert.rejects(checkMcpHealth({ request: async () => Response.json(body) }));
   await assert.rejects(checkMcpHealth({ expectedBuild: 'b'.repeat(12), request: fixture().request }), /differs/);
+});
+
+test('rhythm pairs only its two exact secrets and needs its own ready health', async () => {
+  const f = fixture({ client: 'rhythm' });
+  const result = await pairClientSecret({ client: 'rhythm', env, request: f.request });
+  assert.equal(result.paired, true);
+  assert.deepEqual(f.writes.map(w => [w.script, w.name]),
+    [['codepi-auth', 'SSO_CLIENT_SECRET_RHYTHM'], ['codepi-rhythm', 'AUTH_CLIENT_SECRET']]);
+  assert.equal(f.writes[0].text, f.writes[1].text, 'one value for both sides');
+  for (const options of [{ healthSource: 'me' }, { pairingReady: false }, { unready: true }]) {
+    const bad = fixture({ client: 'rhythm', ...options });
+    await assert.rejects(pairClientSecret({ client: 'rhythm', env, request: bad.request }), /readiness did not pass/,
+      JSON.stringify(options));
+  }
 });

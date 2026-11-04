@@ -19,7 +19,13 @@ export const PAIRING_CLIENTS = Object.freeze({
     worker: 'codepi-me', authSecret: 'SSO_CLIENT_SECRET_ME', origin: 'https://me.codepi.app',
     identified: body => body?.source === 'me' && body?.sso_enabled === true && body?.sso_ready === true,
   },
+  rhythm: {
+    worker: 'codepi-rhythm', authSecret: 'SSO_CLIENT_SECRET_RHYTHM', origin: 'https://rhythm.codepi.app',
+    identified: body => body?.source === 'rhythm' && body?.sso_enabled === true && body?.sso_ready === true,
+  },
 });
+const clientList = Object.keys(PAIRING_CLIENTS).join(', ');
+const usage = `Usage: pair-mcp-secret.mjs --rotate [--client ${Object.keys(PAIRING_CLIENTS).join('|')}] (explicitly authorized credential rotation only)`;
 
 async function checkPairingHealth(client, request) {
   const target = PAIRING_CLIENTS[client];
@@ -36,7 +42,7 @@ async function checkPairingHealth(client, request) {
 // Cross-Worker writes are not atomic. An incomplete operation must fail loudly.
 export async function pairClientSecret({ client = 'mcp', env = process.env, request = fetch } = {}) {
   const target = PAIRING_CLIENTS[client];
-  assert.ok(target, 'pairing client must be mcp, project or me');
+  assert.ok(target, `pairing client must be one of: ${clientList}`);
   const targets = [
     { script: 'codepi-auth', secret: target.authSecret },
     { script: target.worker, secret: 'AUTH_CLIENT_SECRET' },
@@ -76,17 +82,17 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
   let lock;
   try {
     const args = process.argv.slice(2);
-    assert.ok(args.includes('--rotate'), 'Usage: pair-mcp-secret.mjs --rotate [--client mcp|project|me] (explicitly authorized credential rotation only)');
+    assert.ok(args.includes('--rotate'), usage);
     let client = 'mcp';
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--rotate') continue;
       if (args[i] === '--client' && args[i + 1] && !args[i + 2]?.startsWith('--')) {
         client = args[++i];
       } else {
-        throw new Error('Usage: pair-mcp-secret.mjs --rotate [--client mcp|project|me] (explicitly authorized credential rotation only)');
+        throw new Error(usage);
       }
     }
-    assert.ok(Object.hasOwn(PAIRING_CLIENTS, client), 'pairing client must be mcp, project or me');
+    assert.ok(Object.hasOwn(PAIRING_CLIENTS, client), `pairing client must be one of: ${clientList}`);
     const cwd = fileURLToPath(new URL('../../', import.meta.url));
     const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, encoding: 'utf8' }).trim();
     const target = path.join(common, 'codepi-production-release.lock');
