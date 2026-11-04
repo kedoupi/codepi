@@ -25,7 +25,15 @@ Project 与 MCP；项目仓库合并后自动推送（长期许可只覆盖待�
 见分支上的 agent-team 测试日志与审查记录；`node scripts/agent/check.mjs --base main --run` 为验收命令。
 浏览器冒烟覆盖 1440px 与 390px。真实 SSO、真实推送、生产迁移与客户端连接均未验证。
 
-## 上线前（需所有者另行授权）
+## 发布记录（2026-11-04 周三，所有者授权）
+
+源码 `64d0754`（已推送 origin/main）。发布锁内依次：治理与迁移检查、`check.mjs --base 634d43bccff3 --run` 51 项通过（首轮因主工作区残留旧 `.svelte-check` 缓存失败，清缓存后通过）；
+本机导出生产 `codepi-project`（项目 id 均合规、交接 0 条）；Web `35bd7003`（desk/blog 无待迁移，check-pages 通过）；
+Project `c5e7549a`（应用 0003，2 个项目行保留，旧同步表删除；health、匿名 401、页面跳登录、无令牌 ingest 401 通过）；
+MCP `f39133c1`（应用 0004_oauth_maintenance，check:live 通过）；删除 `GITHUB_TOKEN`（Project 版本 `04d4aa4f`）；
+0003 与 mcp 0004 移入迁移基线。本次 Web/MCP 同时带上 main 上此前待发布的 Blog 1 MiB 与依赖升级。待办：所有者建项目与令牌后首次推送并读回。
+
+## 上线步骤（已按此执行）
 
 1. 按 [备份与恢复](../cloudflare-backup-restore.md) 导出生产 `codepi-project`（2026-11-04 读 MCP：2 个项目、0 条交接）；
    确认所有项目 id 只含小写字母、数字、连字符且不超过 64 字符（新表 CHECK，不满足会让迁移整体失败回滚）。

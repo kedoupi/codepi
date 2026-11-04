@@ -4,7 +4,7 @@
 
 | 工作 | 当前事实 | 下一步 |
 | --- | --- | --- |
-| Project 重做为个人工作台（含 MCP） | 2026-11-04 在 `team/project-workbench` 实现：推送 ingest、四页工作台、MCP 改为 work_overview / task_list / task_get / project_get，CLI 迁移；本地测试，未合并、未部署 | 按[任务记录](2026-11-04-project-workbench.md)审查合并；上线（备份、远程迁移、部署、建令牌）另行授权 |
+| Project 重做为个人工作台（含 MCP） | 2026-11-04 已合并（`64d0754`）并发布 Web、Project（含 0003 迁移）、MCP，匿名与 smoke 验收通过，`GITHUB_TOKEN` 已删除 | 所有者建项目与推送令牌后首次推送，读回网页、`work_overview`、`get_context`；见[任务记录](2026-11-04-project-workbench.md) |
 | Blog/MCP 参数与下架修复续验 | PR #218/#219 已合并并发布；记录中有 GU、Project、Me、Health API 四项版本漂移 | 按[2026-10-28 续验记录](2026-10-28-blog-mcp-followup.md)核对真实客户端和漂移，不从旧记录直接执行发布 |
 | Health 主睡眠缺失诊断 | PR #206 已合并并发布，真实 Oura 对账和数据修复未执行 | 按[诊断记录](2026-10-26-health-sleep-diagnosis.md)继续数据侧定位，不修改真实数据作为普通开发步骤 |
 | Rhythm 作息页面待发布 | 2026-11-04 已合并进 main（`cce31e3`，P1–P4：今天、数据源、每日汇总、趋势、设置），全量检查 50 项通过；未部署，数据侧（MyBrain 的 home-status / status-read Worker 与 m1 上报）也未部署 | 与 MyBrain 数据侧一起按 [本地发布](../local-release.md) 另行授权发布并真实验收 |
