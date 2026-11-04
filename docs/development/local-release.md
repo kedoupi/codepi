@@ -269,4 +269,5 @@ Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署
 2. 在发布 shell 设置 `RHYTHM_STATUS_READ_SERVICE`。`deploy-domain.mjs` 在任何 Wrangler 调用前校验：源 `wrangler.toml` 恰有一个 `STATUS_READ` 绑定且仍是占位 `status-read-placeholder`、环境变量是合法 Worker 名且不等于占位；真实名只写进临时配置，不改源文件、不进输出证据。
 3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，上传 Worker、绑定 `rhythm.codepi.app` 与每日 Cron。
 4. 验收：匿名访问跳转登录、本人登录后今天页显示数据或「数据暂不可用」（上游失败不得显示假数据）、Cron 已登记；记录 Worker 版本与 D1 UUID。
-5. 首发成功后，把 `apps/rhythm/migrations/*.sql` 从 `scripts/agent/check-migrations-baseline.json` 的 `notApplied` 移入 `files` 并冻结哈希。
+5. Ops 的定时监控会逐个检查 `release-scope.mjs` 的 `WORKERS`（含 `codepi-rhythm`）：同一轮发布里 Ops 必须在 Rhythm 首发成功之后再发（`release:plan` 已把 rhythm 排在 ops 之前）；若 Rhythm 首发推迟，Ops 也推迟，否则监控会持续把未部署的 `codepi-rhythm` 报为失败。
+6. 首发成功后，把 `apps/rhythm/migrations/*.sql` 从 `scripts/agent/check-migrations-baseline.json` 的 `notApplied` 移入 `files` 并冻结哈希。

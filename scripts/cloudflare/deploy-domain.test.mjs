@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { deployDomain, DOMAINS } from './deploy-domain.mjs';
+import { deployDomain, DOMAINS, resolveServices } from './deploy-domain.mjs';
 
 const databaseId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const version = '11111111-1111-4111-8111-111111111111';
@@ -115,6 +115,7 @@ test('rhythm source must keep exactly one placeholder STATUS_READ binding', asyn
     [original + '[[services]]\nbinding = "STATUS_READ"\nservice = "status-read-placeholder"\n', /declared exactly once/],
     // review round 1: a second block reusing the placeholder, or a repeated service line in the same block
     [original + '[[services]]\nbinding = "OTHER"\nservice = "status-read-placeholder"\n', /appear exactly once/],
+    [original + "[[services]]\nbinding = \"OTHER\"\nservice = 'status-read-placeholder'\n", /appear exactly once/],   // review round 2
     [original.replace('service = "status-read-placeholder"', 'service = "status-read-placeholder"\nservice = "status-read-placeholder"'),
       /appear exactly once/],
     [original.replace('service = "status-read-placeholder"', 'service = "status-read-placeholder"\nservice = "codepi-other"'),
@@ -230,4 +231,12 @@ test('deploy-domain rechecks remote main after discovery before remote mutation'
   );
   assert.equal(e.calls.filter(call => ['create', 'migrations', 'deploy'].includes(wranglerArgs(call)[1]
     ?? wranglerArgs(call)[0])).length, 0);
+});
+
+test('the reviewed apps/rhythm/wrangler.toml passes the release preflight', async () => {
+  const source = await readFile(new URL('../../apps/rhythm/wrangler.toml', import.meta.url), 'utf8');
+  const resolved = resolveServices(DOMAINS.rhythm, source, { RHYTHM_STATUS_READ_SERVICE: 'codepi-upstream-synthetic' });
+  assert.deepEqual(Object.keys(resolved), ['STATUS_READ']);
+  assert.match(resolved.STATUS_READ.block, /binding = "STATUS_READ"/);
+  assert.ok(!resolved.STATUS_READ.block.includes('codepi-auth'), 'the AUTH binding is untouched');
 });

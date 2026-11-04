@@ -64,7 +64,7 @@ export function resolveServices(domain, source, env = process.env) {
       `${binding} must keep the reviewed placeholder service "${placeholder}" in source`);
     // The placeholder may appear exactly once in the whole file (no second block, no repeated
     // service line), so injection cannot leave a placeholder behind in the temporary config.
-    assert.equal(source.split(`"${placeholder}"`).length - 1, 1,
+    assert.equal(source.split(placeholder).length - 1, 1,   // unquoted: also catches TOML single quotes
       `placeholder "${placeholder}" must appear exactly once in the Wrangler config`);
     assert.equal((matches[0].text.match(/^\s*service\s*=/gm) ?? []).length, 1,
       `${binding} must declare its service exactly once`);
@@ -118,7 +118,7 @@ function renderConfig(source, appDir, databaseId, services = {}) {
         text = text.replace(block, () => injected);
       }
       for (const { placeholder } of Object.values(services)) {
-        assert.ok(!text.includes(`"${placeholder}"`), 'temporary config still contains a service placeholder');
+        assert.ok(!text.includes(placeholder), 'temporary config still contains a service placeholder');
       }
       return text;
     },
