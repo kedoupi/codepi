@@ -7,7 +7,7 @@
   import {
     APP_CATEGORIES, GAP_REASONS, STATUS_GROUPS, TIER_LABELS,
     anomalyReasonText, average, categorySegments, clockText, completeDays, dayTypeText, deltaText, durationText,
-    hourlyCategoryAverage, hoursText, isNumber, momentStats, percentText, shortDate, statusGroups, sumMaps, topApps,
+    hourlyCategoryAverage, hoursText, shortDuration, isNumber, momentStats, percentText, shortDate, statusGroups, sumMaps, topApps,
     weekComparisonRows, weekdayText,
     type AnomaliesPayload, type QualityPayload, type Segment, type TrendDay, type TrendsPayload,
   } from "./trends";
@@ -196,19 +196,6 @@
   </div>
 
   <div class="trend-sections" data-tab={tab}>
-    <section class="panel week-panel" data-group="rhythm">
-      <div class="section-heading"><div><h2>本周和上周</h2><p class="muted">本周 {trends.week_comparison.current_from} 起（{trends.week_comparison.current.days} 天） vs 上周同期（{trends.week_comparison.previous.days} 天），按日平均。</p></div></div>
-      <div class="table-scroll">
-        <table class="compare-table">
-          <thead><tr><th scope="col">指标</th><th scope="col">本周</th><th scope="col">上周</th><th scope="col">变化</th></tr></thead>
-          <tbody>
-            {#each weekComparisonRows(trends.week_comparison) as row}
-              <tr><th scope="row">{row.label}</th><td>{row.kind === "count" ? (isNumber(row.current) ? row.current.toFixed(1) : "未知") : durationText(row.current)}</td><td>{row.kind === "count" ? (isNumber(row.previous) ? row.previous.toFixed(1) : "未知") : durationText(row.previous)}</td><td>{deltaText(row.delta, row.kind)}</td></tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </section>
 
     <section class="panel" id="status-hours" data-group="rhythm">
       <div class="section-heading"><div><h2>每天各状态各占几小时</h2><p class="muted">每根柱子合计 24 小时，斜纹是未知；最右是工作日平均。</p></div></div>
@@ -217,8 +204,21 @@
       <p class="chart-conclusion">{statusConclusion}</p>
     </section>
 
+    <section class="panel week-panel" data-group="rhythm">
+      <div class="section-heading"><div><h2>本周和上周</h2><p class="muted">本周 {trends.week_comparison.current_from} 起（{trends.week_comparison.current.days} 天） vs 上周同期（{trends.week_comparison.previous.days} 天），按日平均。</p></div></div>
+      <div class="table-scroll">
+        <table class="compare-table">
+          <thead><tr><th scope="col">指标</th><th scope="col">本周</th><th scope="col">上周</th><th scope="col">变化</th></tr></thead>
+          <tbody>
+            {#each weekComparisonRows(trends.week_comparison) as row}
+              <tr><th scope="row">{row.label}</th><td>{row.kind === "count" ? (isNumber(row.current) ? row.current.toFixed(1) : "未知") : shortDuration(row.current)}</td><td>{row.kind === "count" ? (isNumber(row.previous) ? row.previous.toFixed(1) : "未知") : shortDuration(row.previous)}</td><td>{deltaText(row.delta, row.kind)}</td></tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
     <section class="panel" id="overlay" data-group="rhythm">
-      <div class="section-heading"><div><h2>作息叠图</h2><p class="muted">每天一条：橙色是离家到到家，绿色是开始办公到离开电脑，浅蓝是全天没出门。</p></div></div>
+      <div class="section-heading"><div><h2>作息叠图</h2><p class="muted desktop-only">每天一条：橙色是离家到到家，绿色是开始办公到离开电脑，浅蓝是全天没出门。</p><p class="muted mobile-only">手机上只显示文字摘要，完整叠图请在电脑上看。</p></div></div>
       <div class="desktop-only"><RhythmOverlay {days} /></div>
       <p class="chart-conclusion">{overlaySummary}</p>
     </section>
@@ -234,11 +234,11 @@
         {#each moments as moment}
           <div class="moment-range" aria-label={`${moment.label}：最早 ${clockText(moment.min)}，最晚 ${clockText(moment.max)}，平均 ${clockText(moment.avg)}，${moment.days} 天`}>
             <span>{moment.label}</span>
-            <svg viewBox="0 0 240 16" aria-hidden="true">
-              <rect class="track" x="0" y="6" width="240" height="4" rx="2"></rect>
+            <svg width="100%" height="16" aria-hidden="true">
+              <rect class="track" x="0" y="6" width="100%" height="4" rx="2"></rect>
               {#if moment.min !== null && moment.max !== null && moment.avg !== null}
-                <rect class="range" x={(moment.min / 1440) * 240} y="4" width={Math.max(2, ((moment.max - moment.min) / 1440) * 240)} height="8" rx="4"></rect>
-                <circle class="avg" cx={(moment.avg / 1440) * 240} cy="8" r="5"></circle>
+                <rect class="range" x={`${(moment.min / 1440) * 100}%`} y="4" width={`${Math.max(0.5, ((moment.max - moment.min) / 1440) * 100)}%`} height="8" rx="4"></rect>
+                <circle class="avg" cx={`${(moment.avg / 1440) * 100}%`} cy="8" r="5"></circle>
               {/if}
             </svg>
             <strong>{moment.days ? `${clockText(moment.min)}–${clockText(moment.max)} · 平均 ${clockText(moment.avg)}` : "未知"}</strong>

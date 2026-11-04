@@ -117,6 +117,14 @@ export function durationText(minutes: number | null | undefined): string {
   return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`;
 }
 
+/** 表格里用的紧凑写法：「1时17分」「45分」。 */
+export function shortDuration(minutes: number | null | undefined): string {
+  if (!isNumber(minutes)) return "未知";
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  return hours ? `${hours}时${String(rounded % 60).padStart(2, "0")}分` : `${rounded}分`;
+}
+
 export function hoursText(minutes: number | null | undefined): string {
   if (!isNumber(minutes)) return "未知";
   return `${(minutes / 60).toFixed(1)} 小时`;
@@ -231,7 +239,7 @@ export function deltaText(delta: number | null, kind: "duration" | "count"): str
   const rounded = kind === "count" ? Math.round(delta * 10) / 10 : Math.round(delta);
   if (rounded === 0) return "持平";
   const sign = rounded > 0 ? "多" : "少";
-  return kind === "count" ? `${sign} ${Math.abs(rounded)}` : `${sign} ${durationText(Math.abs(rounded))}`;
+  return kind === "count" ? `${sign} ${Math.abs(rounded)}` : `${sign} ${shortDuration(Math.abs(rounded))}`;
 }
 
 export const GAP_REASONS: Record<string, string> = {
