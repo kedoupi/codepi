@@ -21,7 +21,7 @@
     "hono": "^4.13.14"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/vitest-pool-workers": "^0.8.71",
     "@cloudflare/workers-types": "latest",
     "@kedoupi/shared": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
