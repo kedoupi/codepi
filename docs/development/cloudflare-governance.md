@@ -96,7 +96,7 @@ Observer 报告属于私有运维元数据：仅允许 release/version 身份、
 agent/开发者在本机执行构建、迁移、Cloudflare API 发布和线上验收。
 操作入口为 [本地发布操作](local-release.md)，复用各应用的 workspace-locked
 Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权本次合并与部署时
-不重复询问；普通开发任务仍不隐含合并或生产变更权限。
+不重复询问；普通开发任务仍不隐含 push、发布或生产变更权限。
 
 - 发布源必须为干净、已合并且与实时远程 main 一致的 SHA；串行单一发布者，
   每次远程变更前复核源码与 main，拒绝陈旧或并发发布。
