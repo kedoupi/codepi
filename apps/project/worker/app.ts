@@ -1,31 +1,13 @@
 import { Hono, type Handler } from "hono";
 import { ssoEnabled, ssoReady, ssoErrorResponse, SsoError } from "@kedoupi/shared/auth/client";
 import { authenticated, callbackSso, loginSso, logout } from "./auth";
-import { buildCard } from "./card";
-import { syncProject, SyncTooFrequent } from "./github";
-import { handoffPage, parseHandoffInput, saveHandoff } from "./handoffs";
-import {
-  AppError,
-  assertKeys,
-  bodyJson,
-  integer,
-  json,
-  localDev,
-  oneOf,
-  projectUrl,
-  text,
-} from "./lib";
-import {
-  isConfiguredForSync,
-  isProjectStatus,
-  listProjects,
-  resolveProject,
-  updateProject,
-} from "./projects";
-import type { Env, ProjectStatus } from "./types";
+import { applyIngest, assertNoSecrets, authenticateIngest, INGEST_BODY_LIMIT, parseIngest } from "./ingest";
+import { AppError, assertKeys, bodyJson, integer, json, localDev, oneOf, text } from "./lib";
+import { createProject, isProjectStatus, projectSummaries, resolveProject, rotateToken, updateProject } from "./projects";
+import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind, type ProjectStatus } from "./types";
+import { activityLog, getTask, listTasks, overview, projectCard } from "./work";
 
 type AppEnv = { Bindings: Env };
-const HANDOFF_BODY_LIMIT = 128 * 1024;
 
 export const app = new Hono<AppEnv>({
   getPath: request => new URL(request.url).pathname,
@@ -33,7 +15,7 @@ export const app = new Hono<AppEnv>({
 
 export function errorResponse(error: unknown): Response {
   if (error instanceof AppError) {
-    return json({ error: error.code }, error.status);
+    return json({ error: error.code, ...(error.details ? { details: error.details } : {}) }, error.status);
   }
   if (error instanceof SsoError) return ssoErrorResponse(error);
   if (error instanceof SyntaxError) return json({ error: "invalid_json" }, 400);
@@ -66,6 +48,17 @@ getApi("/api/health", async c => {
 getApi("/api/auth/login", c => loginSso(c.req.raw, c.env));
 getApi("/api/auth/callback", c => callbackSso(c.req.raw, c.env));
 
+// Machine push from a project's own repository. Bearer project token, no
+// browser session and no Origin header; registered before the browser guards.
+app.post("/api/ingest/:project", async c => {
+  const projectId = c.req.param("project") || "";
+  await authenticateIngest(c.env, projectId, c.req.header("Authorization"));
+  const body = await bodyJson(c.req.raw, INGEST_BODY_LIMIT);
+  assertNoSecrets(body);
+  const payload = await parseIngest(body);
+  return json(await applyIngest(c.env, projectId, payload));
+});
+
 app.use("*", async (c, next) => {
   if (["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method) &&
     c.req.header("Origin") !== new URL(c.req.url).origin) {
@@ -87,61 +80,56 @@ app.use("*", async (c, next) => {
 
 getApi("/api/me", () => json({ ok: true, authenticated: true }));
 
-getApi("/api/projects", async c => {
-  const raw = c.req.query("status");
-  if (raw !== undefined && !isProjectStatus(raw)) {
-    throw new AppError("invalid_arguments", 400);
-  }
-  return json(await listProjects(c.env, raw as ProjectStatus | undefined));
+getApi("/api/overview", async c => json(await overview(c.env, { limit: 50, dated: true })));
+
+getApi("/api/tasks", async c => {
+  const query = (name: string) => c.req.query(name) || undefined;
+  const status = query("status");
+  const need = query("need");
+  const rows = await listTasks(c.env, {
+    project: query("project"),
+    status: status === undefined ? undefined : oneOf(status, WORK_STATUSES, "invalid_status"),
+    need: need === undefined ? undefined : oneOf(need, [...NEED_KINDS, "any"] as const, "invalid_need") as NeedKind | "any",
+    category: query("category"),
+    includeDone: query("include_done") === "1",
+  });
+  return json({
+    as_of: new Date().toISOString(),
+    tasks: rows.map(row => ({
+      project: row.project_id, key: row.key, title: row.title, status: row.status, category: row.category,
+      due: row.due, need_kind: row.need_kind, done_at: row.done_at,
+    })),
+  });
 });
 
-getApi("/api/projects/:id/handoffs", async c => {
-  const project = await resolveProject(c.env, c.req.param("id") || "");
-  const limit = integer(c.req.query("limit"), { min: 1, max: 50, fallback: 20 });
-  return json(await handoffPage(c.env, project.id, {
-    before: c.req.query("before") || null,
-    beforeId: c.req.query("before_id") || null,
-    limit,
-  }));
+getApi("/api/tasks/:project/:key", async c =>
+  json(await getTask(c.env, c.req.param("project") || "", c.req.param("key") || "", 20)));
+
+getApi("/api/projects", async c => {
+  const raw = c.req.query("status");
+  if (raw !== undefined && !isProjectStatus(raw)) throw new AppError("invalid_arguments", 400);
+  return json({ as_of: new Date().toISOString(), projects: await projectSummaries(c.env, raw as ProjectStatus | undefined) });
 });
 
 getApi("/api/projects/:id", async c => {
   const project = await resolveProject(c.env, c.req.param("id") || "");
-  const handoffs = integer(c.req.query("handoffs"), { min: 1, max: 20, fallback: 20 });
-  const taskId = c.req.query("task_id") || undefined;
-  return json(await buildCard(c.env, project, { handoffs, taskId }));
+  return json(await projectCard(c.env, project, { changelog: 30, handoffs: 20, token: true }));
 });
 
-app.patch("/api/projects/:id/card", async c => {
+getApi("/api/log", async c => {
+  const days = integer(c.req.query("days"), { min: 1, max: 90, fallback: 30 });
+  return json(await activityLog(c.env, { days, project: c.req.query("project") || undefined }));
+});
+
+app.post("/api/projects", async c => {
+  const body = await bodyJson(c.req.raw, 8 * 1024);
+  assertKeys(body, ["id", "name", "repo"]);
+  return json(await createProject(c.env, { id: body.id, name: body.name, repo: body.repo }), 201);
+});
+
+app.post("/api/projects/:id/token", async c => {
   const project = await resolveProject(c.env, c.req.param("id") || "");
-  const body = await bodyJson(c.req.raw, 32 * 1024);
-  assertKeys(body, ["field", "value"]);
-  const field = oneOf(body.field, ["goal", "scope", "conventions", "pitfalls"], "invalid_field");
-  if (!Object.hasOwn(body, "value")) throw new AppError("invalid_value", 400);
-  if (body.value !== null && typeof body.value !== "string") {
-    throw new AppError("invalid_value", 400);
-  }
-  if (body.value === null) {
-    await c.env.DB.prepare(`UPDATE card_fields SET edited_value=NULL,
-      edited_base_sha=NULL, edited_at=NULL WHERE project_id=? AND field=?`)
-      .bind(project.id, field).run();
-  } else {
-    const value = text(body.value, "invalid_value", { max: 4000 })!;
-    await c.env.DB.prepare(`INSERT INTO card_fields
-      (project_id,field,edited_value,edited_base_sha,edited_at) VALUES (?,?,?,
-        (SELECT auto_sha FROM card_fields WHERE project_id=? AND field=?),?)
-      ON CONFLICT(project_id,field) DO UPDATE SET edited_value=excluded.edited_value,
-        edited_base_sha=excluded.edited_base_sha, edited_at=excluded.edited_at`)
-      .bind(
-        project.id,
-        field,
-        value,
-        project.id,
-        field,
-        new Date().toISOString(),
-      ).run();
-  }
-  return json({ ok: true });
+  return json(await rotateToken(c.env, project));
 });
 
 app.patch("/api/projects/:id", async c => {
@@ -156,46 +144,7 @@ app.patch("/api/projects/:id", async c => {
     ...(hasStatus ? { status: body.status as ProjectStatus } : {}),
     ...(hasName ? { name: text(body.name, "invalid_name", { max: 120 })! } : {}),
   });
-  return json({ ok: true, project: updated });
-});
-
-app.post("/api/projects/:id/handoffs", async c => {
-  const project = await resolveProject(c.env, c.req.param("id") || "");
-  const body = await bodyJson(c.req.raw, HANDOFF_BODY_LIMIT);
-  const input = parseHandoffInput(body, {
-    projectId: project.id,
-    clientId: "web",
-    clientName: "项目看板",
-    via: "web",
-  });
-  const result = await saveHandoff(c.env, input);
-  return json({
-    id: result.handoff.id,
-    project: project.id,
-    task_id: result.handoff.task_id,
-    status: result.handoff.status,
-    created_at: result.handoff.at,
-    url: projectUrl(c.env, project.id),
-    deduplicated: result.deduplicated,
-  }, result.deduplicated ? 200 : 201);
-});
-
-app.post("/api/projects/:id/sync", async c => {
-  const project = await resolveProject(c.env, c.req.param("id") || "");
-  if (!isConfiguredForSync(c.env, project.repo)) {
-    throw new AppError("project_not_syncable", 409);
-  }
-  try {
-    return json(await syncProject(c.env, project));
-  } catch (error) {
-    if (!(error instanceof SyncTooFrequent)) throw error;
-    return json({
-      error: "sync_too_frequent",
-      retry_after: error.retryAfter,
-    }, 429, {
-      "Retry-After": String(error.retryAfter),
-    });
-  }
+  return json({ ok: true, project: { id: updated.id, name: updated.name, status: updated.status } });
 });
 
 app.use("*", async (c, next) => {
@@ -213,7 +162,7 @@ function indexAsset(request: Request, env: Env) {
 
 app.on(["GET", "HEAD"], ["/login"], c => indexAsset(c.req.raw, c.env));
 
-app.on(["GET", "HEAD"], ["/", "/p/:id"], async c => {
+app.on(["GET", "HEAD"], ["/", "/board", "/log", "/p/:id"], async c => {
   if (!await authenticated(c.req.raw, c.env)) {
     const target = new URL("/login", c.req.url);
     target.searchParams.set("return", `${c.req.path}${new URL(c.req.url).search}`);

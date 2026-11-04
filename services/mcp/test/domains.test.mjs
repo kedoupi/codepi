@@ -7,16 +7,16 @@ test('real named RPC: project handoffs preserve two clients and parallel tasks',
   const f = await fixture(t);
   const first = await f.grant({ scope: 'context.read projects.read projects.write' });
   const second = await f.grant({ scope: 'projects.write' });
-  const args = { project: 'synthetic/repo', task_id: 'task-a', status: 'in_progress',
+  const args = { project: 'synthetic/repo', task: 'task-a', status: 'in_progress',
     summary: 'Synthetic change', next: 'Review change', branch: 'codex/synthetic-a',
     base_sha: 'a'.repeat(40), request_id: 'synthetic-a' };
   const saved = await f.tool(first.access_token, 'project_handoff_save', args);
   assert.equal(saved.isError, undefined, JSON.stringify(saved.structuredContent));
   assert.equal((await f.tool(first.access_token, 'project_handoff_save', args)).isError, undefined);
   assert.equal((await f.tool(second.access_token, 'project_handoff_save', {
-    ...args, task_id: 'task-b', branch: 'codex/synthetic-b', request_id: 'synthetic-b',
+    project: 'synthetic-repo', task: 'task-b', status: 'blocked', summary: 'No remote', next: 'Wait', request_id: 'synthetic-b',
   })).isError, undefined);
-  const rows = (await f.projectDb.prepare('SELECT task_id,client_id,client_name FROM handoffs ORDER BY task_id').all()).results;
+  const rows = (await f.projectDb.prepare('SELECT task_key,client_id,client_name FROM handoffs ORDER BY task_key').all()).results;
   assert.equal(rows.length, 2);
   assert.equal(rows[0].client_id, first.client.client_id);
   assert.equal(rows[1].client_id, second.client.client_id);
@@ -100,38 +100,37 @@ test('real named RPC: blog source appears only with a blog.read grant', async t 
   assert.equal((await f.tool(noBlog.access_token, 'get_context')).structuredContent.sources.find(s => s.id === 'blog'), undefined);
 });
 
-test('project lists stay bounded and expose forward pagination through the MCP schema', async t => {
-  const f = await fixture(t), grant = await f.grant({ scope: 'projects.read projects.write' });
+test('work tools read pushed tasks through the named RPC with bounded, unpaged replies', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'context.read projects.read projects.write' });
+  const overview = await f.tool(grant.access_token, 'work_overview', {});
+  assert.equal(overview.isError, undefined, JSON.stringify(overview.structuredContent));
+  assert.equal(overview.structuredContent.counts.need_you, 1);
+  assert.equal(overview.structuredContent.need_you[0].title, '合成待办');
+  assert.ok(Buffer.byteLength(JSON.stringify(overview.structuredContent)) <= 12 * 1024);
+  const list = await f.tool(grant.access_token, 'task_list', { need: 'decide', limit: 10 });
+  assert.equal(list.isError, undefined, JSON.stringify(list.structuredContent));
+  assert.equal(list.structuredContent.tasks.length, 1);
+  assert.match(list.structuredContent.revision, /^[a-f0-9]{64}$/);
+  assert.equal(list.structuredContent.next_offset, null);
+  assert.equal((await f.tool(grant.access_token, 'task_list', { status: '执行' })).isError, true);
+  const detail = await f.tool(grant.access_token, 'task_get', { project: 'synthetic/repo', key: 'synthetic-task' });
+  assert.equal(detail.structuredContent.task.what, '合成说明');
   const saved = await f.tool(grant.access_token, 'project_handoff_save', {
-    project: 'synthetic/repo', task_id: 'synthetic-long-list', status: 'in_progress',
+    project: 'synthetic-repo', task: 'synthetic-task', status: 'in_progress',
     summary: '合成'.repeat(1000), next: '下一步'.repeat(600), blockers: '合成阻塞'.repeat(400),
-    files: Array.from({ length: 20 }, (_, index) => `${index}-${'x'.repeat(290)}`),
-    branch: 'codex/synthetic-list', base_sha: 'a'.repeat(40), request_id: 'synthetic-long-list',
+    files: Array.from({ length: 20 }, (_, index) => `${index}-${'x'.repeat(290)}`), request_id: 'synthetic-long',
   });
-  assert.equal(saved.isError, undefined);
-  await f.projectDb.prepare('INSERT INTO projects(id,repo,name) VALUES(?,?,?)')
-    .bind('synthetic-another', 'synthetic/another', 'Another synthetic project').run();
-  const projects = [];
-  let offset = 0;
-  let revision;
-  for (let page = 0; page < 3; page++) {
-    const result = await f.tool(grant.access_token, 'projects_list', {
-      offset, limit: 1, ...(revision ? { revision } : {}),
-    });
-    assert.equal(result.isError, undefined, JSON.stringify(result.structuredContent));
-    const data = result.structuredContent;
-    revision ??= data.revision;
-    assert.match(revision, /^[a-f0-9]{64}$/);
-    assert.equal(data.revision, revision);
-    assert.ok(Buffer.byteLength(JSON.stringify(data)) <= 12 * 1024);
-    assert.equal(data.projects.length, 1);
-    projects.push(...data.projects);
-    if (data.next_offset === null) break;
-    assert.ok(Number.isSafeInteger(data.next_offset) && data.next_offset > offset);
-    offset = data.next_offset;
+  assert.equal(saved.isError, undefined, JSON.stringify(saved.structuredContent));
+  const card = await f.tool(grant.access_token, 'project_get', { project: 'synthetic-repo' });
+  assert.equal(card.isError, undefined);
+  assert.equal(card.structuredContent.pagination, undefined);
+  assert.ok(Buffer.byteLength(JSON.stringify(card.structuredContent)) <= 12 * 1024);
+  assert.equal(card.structuredContent.counts.need_you, 1);
+  const context = await f.tool(grant.access_token, 'get_context', { focus: 'project' });
+  const project = context.structuredContent.sources.find(source => source.id === 'project');
+  assert.equal(project.summary.metrics[0].label, '需要你');
+  assert.deepEqual(project.next_tools, ['work_overview', 'task_list']);
+  for (const retired of ['projects_list']) {
+    assert.equal((await f.tool(grant.access_token, retired, {})).isError, true, retired);
   }
-  assert.deepEqual(projects.map(project => project.repo).sort(), ['synthetic/another', 'synthetic/repo']);
-  const latest = projects.find(project => project.repo === 'synthetic/repo').latest_handoff;
-  assert.equal(latest.task_id, 'synthetic-long-list');
-  assert.equal(latest.files, undefined);
 });

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CredentialStore } from '../../../packages/cli/dist/config.js';
 import { callMcpTool } from '../../../packages/cli/dist/mcp.js';
-import { expandProjectListPages } from '../../../packages/cli/dist/project-list.js';
+import { expandTaskPages } from '../../../packages/cli/dist/task-list.js';
 import { fixture, ORIGIN } from './runtime.mjs';
 
 test('real CLI SDK client reads context, writes task handoffs, refreshes and reports restricted grants', async t => {
@@ -33,31 +33,29 @@ test('real CLI SDK client reads context, writes task handoffs, refreshes and rep
   const rotated = await store.read();
   assert.notEqual(rotated.tokens.refresh_token, grant.refresh_token);
   assert.equal(rotated.tokens.scope, f.allScopes);
-  const args = { project: 'synthetic/repo', task_id: 'cli-integration', status: 'ready_for_review',
+  const args = { project: 'synthetic/repo', task: 'cli-integration', status: 'ready_for_review',
     summary: 'Synthetic integration', next: 'Review', branch: 'codex/cli-integration',
     base_sha: 'a'.repeat(40), request_id: 'cli-integration' };
   assert.equal((await call('project_handoff_save', args)).structured.status, 'ready_for_review');
   const card = (await call('project_get', { project: args.project })).structured;
-  assert.equal(card.task_progress[0].task_id, args.task_id);
-  assert.equal(card.task_progress[0].latest.client, 'Synthetic client');
+  assert.equal(card.handoffs[0].task, args.task);
+  assert.equal(card.handoffs[0].client, 'Synthetic client');
   await f.projectDb.batch(Array.from({ length: 25 }, (_, index) => f.projectDb.prepare(
-    'INSERT INTO projects(id,repo,name,status) VALUES(?,?,?,?)',
-  ).bind(`cli-list-${index}`, `synthetic/list-${index}`, `Synthetic ${index}`, 'paused')));
+    "INSERT INTO tasks(project_id,key,title,status,category,need_kind,position,first_seen,last_seen) VALUES('synthetic-repo',?,?,'idea','流程','none',?,'2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')",
+  ).bind(`cli-${index}`, `合成任务 ${index}`, index)));
   const offsets = [];
   const listPage = async (offset, revision) => {
     offsets.push(offset);
-    const page = await call('projects_list', { status: 'paused', limit: 10, offset, ...(revision ? { revision } : {}) });
+    const page = await call('task_list', { status: 'idea', limit: 10, offset, ...(revision ? { revision } : {}) });
     assert.ok(Buffer.byteLength(JSON.stringify(page.structured)) <= 12 * 1024);
     return page;
   };
   const firstListPage = await listPage(0);
-  const list = await expandProjectListPages(firstListPage, listPage);
+  const list = await expandTaskPages(firstListPage, listPage);
   assert.deepEqual(offsets, [0, 10, 20]);
-  assert.equal(list.structured.projects.length, 25);
-  assert.equal(new Set(list.structured.projects.map(project => project.id)).size, 25);
-  assert.ok(list.structured.projects.every(project => project.status === 'paused'));
-  await f.projectDb.prepare("UPDATE projects SET status='active' WHERE id=?")
-    .bind(firstListPage.structured.projects[0].id).run();
+  assert.equal(list.structured.tasks.length, 25);
+  assert.equal(new Set(list.structured.tasks.map(task => task.key)).size, 25);
+  await f.projectDb.prepare("UPDATE tasks SET status='doing' WHERE key='cli-0'").run();
   await assert.rejects(listPage(10, firstListPage.structured.revision),
     error => error.exitCode === 4 && /cursor_stale/.test(error.message));
   const reader = await f.grant({ scope: 'projects.read' });

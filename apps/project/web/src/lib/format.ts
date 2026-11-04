@@ -1,98 +1,78 @@
-import type { CardTaskStatus } from "../../../worker/types";
+import type { NeedKind, ProjectSummary, WorkStatus } from "./types";
 
-const dateTime = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
-
-export function time(value: string | null | undefined, now = Date.now()): string {
-  if (!value) return "尚未同步";
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed)) return "时间未记录";
-  const delta = now - parsed;
-  if (delta >= 0 && delta < 24 * 3600_000) {
-    if (delta < 3600_000) {
-      const minutes = Math.max(1, Math.floor(delta / 60_000));
-      return `${minutes} 分钟前`;
-    }
-    return `${Math.floor(delta / 3600_000)} 小时前`;
-  }
-  return dateTime.format(new Date(parsed));
-}
-
-export function absoluteTime(value: string | null | undefined): string {
-  if (!value) return "尚未同步";
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? dateTime.format(new Date(parsed)) : "时间未记录";
-}
-
-export function shortSha(value: string | null | undefined): string {
-  return value ? value.slice(0, 10) : "未记录";
-}
-
-export const statusLabels: Record<CardTaskStatus, string> = {
-  in_progress: "进行中",
-  blocked: "受阻",
-  ready_for_review: "待审查",
-  done: "已完成",
-  unknown: "状态未知",
+export const STATUS_ORDER: WorkStatus[] = ["decide", "doing", "bug", "verify", "idea"];
+export const STATUS_LABEL: Record<WorkStatus, string> = {
+  decide: "待决定", doing: "执行", bug: "缺陷", verify: "待确认", idea: "想法",
+};
+export const NEED_LABEL: Record<NeedKind, string> = {
+  decide: "决定", attend: "到场", authorize: "授权", confirm: "确认", none: "无需你",
+};
+export const NEED_ORDER: NeedKind[] = ["attend", "decide", "authorize", "confirm", "none"];
+export const HANDOFF_LABEL: Record<string, string> = {
+  in_progress: "进行中", blocked: "受阻", ready_for_review: "待审查", done: "完成",
 };
 
-export const projectStatusLabels = {
-  active: "进行中",
-  paused: "暂停",
-  archived: "归档",
-} as const;
-
-export const sourceLabels = {
-  commits: "提交",
-  pulls: "Pull requests",
-  issues: "Issues",
-  agents_md: "AGENTS.md",
-  tasks: "任务记录",
-} as const;
-
-export function syncError(value: string | null): string {
-  if (!value) return "";
-  if (value === "rate_limited") return "GitHub 限流，稍后自动重试";
-  if (value === "github_forbidden") return "GitHub 凭证无权限或已过期";
-  if (value === "github_unavailable") return "GitHub 暂时无法连接";
-  if (value === "github_write_failed") return "同步结果写入失败";
-  return "同步失败";
+/** Whole days from `today` (YYYY-MM-DD, owner's calendar) to `due`. */
+export function daysUntil(due: string, today: string): number {
+  return Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400_000);
 }
 
-export function safeExternal(value: string | null | undefined): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
-  } catch {
-    return null;
-  }
+export function dueText(due: string, today: string): string {
+  const n = daysUntil(due, today);
+  if (n < 0) return `逾期 ${-n} 天`;
+  if (n === 0) return "今天";
+  if (n === 1) return "明天";
+  return `${n} 天后`;
 }
 
-export function repoHref(repo: string): string {
-  const parts = repo.split("/");
-  return parts.length === 2
-    ? `https://github.com/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}`
-    : "https://github.com";
+export type DueTone = "late" | "soon" | "near" | "far";
+export function dueTone(due: string, today: string): DueTone {
+  const n = daysUntil(due, today);
+  if (n < 0) return "late";
+  if (n <= 3) return "soon";
+  if (n <= 7) return "near";
+  return "far";
 }
 
-export function commitHref(repo: string, sha: string): string {
-  return `${repoHref(repo)}/commit/${encodeURIComponent(sha)}`;
+export function monthDay(day: string): string {
+  return `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}`;
 }
 
-export function pullHref(repo: string, pr: string): string | null {
-  if (/^https:\/\//.test(pr)) return safeExternal(pr);
-  if (/^\d+$/.test(pr)) return `${repoHref(repo)}/pull/${pr}`;
-  return null;
+const WEEK = "日一二三四五六";
+export function longDay(day: string): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日 周${WEEK[date.getUTCDay()]}`;
 }
 
-export function blobHref(repo: string, branch: string, path: string): string {
-  const encoded = path.split("/").map(encodeURIComponent).join("/");
-  return `${repoHref(repo)}/blob/${encodeURIComponent(branch)}/${encoded}`;
+export function shortTime(value: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return "—";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(parsed);
+}
+
+export function ago(value: string | null, now = Date.now()): string {
+  if (!value) return "从未";
+  const minutes = Math.round((now - Date.parse(value)) / 60000);
+  if (!Number.isFinite(minutes)) return "—";
+  if (minutes < 1) return "刚刚";
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} 小时前`;
+  return `${Math.round(hours / 24)} 天前`;
+}
+
+/** Stable colour slot per project, by registry order, so filters never repaint survivors. */
+export function projectSlot(projects: ProjectSummary[], id: string): number {
+  const index = projects.findIndex(project => project.id === id);
+  return index < 0 ? 0 : index % 5;
+}
+
+/** Stable colour slot per category within the board, by first appearance. */
+export function categorySlots(categories: string[]): Map<string, number> {
+  const slots = new Map<string, number>();
+  for (const category of categories) if (!slots.has(category)) slots.set(category, slots.size % 5);
+  return slots;
 }

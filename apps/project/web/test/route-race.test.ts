@@ -3,96 +3,62 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/sv
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
 
-const project = (id: string, name = id.toUpperCase()) => ({
-  id, repo: `synthetic/${id}`, name, status: "active" as const,
-  last_activity_at: "2026-10-24T00:00:00Z", url: `https://example.test/${id}`,
-  latest_handoff: null,
-});
+const overview = {
+  as_of: "2026-11-04T06:00:00Z",
+  today: "2026-11-04",
+  counts: { open: 2, need_you: 1, overdue: 0, due_7d: 1, branches: 0, done_7d: 0 },
+  need_you: [{ project: "alpha", key: "a", title: "选择示例方案", status: "decide", category: "流程", due: "2026-11-05",
+    need_kind: "decide", done_at: null }],
+  due_soon: [],
+  dated: [],
+  recently_done: [],
+  branches: [],
+  projects: [{ id: "alpha", name: "Alpha", repo: null, status: "active", last_push_at: "2026-11-04T06:00:00Z",
+    open: 2, need_you: 1, branches: 0, url: "" }],
+};
 
-const card = (id: string, name = id.toUpperCase()) => ({
-  as_of: "2026-10-24T00:00:00Z",
-  project: { id, repo: `synthetic/${id}`, name, status: "active" as const,
-    default_branch: "main", url: `https://example.test/${id}` },
-  goal: { value: null, auto_value: null, source: "none" as const, agents_md_changed: false },
-  scope: { value: null, auto_value: null, source: "none" as const, agents_md_changed: false },
-  conventions: { value: null, auto_value: null, source: "none" as const, agents_md_changed: false },
-  pitfalls: { value: null, auto_value: null, source: "none" as const, agents_md_changed: false },
-  progress: null, task_progress: [], recent_handoffs: [], recent_commits: [], open_prs: [],
-  recently_merged: [], open_issues: [], active_tasks: [],
-  sync: { commits: { last_ok_at: null, error: null }, pulls: { last_ok_at: null, error: null },
-    issues: { last_ok_at: null, error: null }, agents_md: { last_ok_at: null, error: null },
-    tasks: { last_ok_at: null, error: null } }, notice: "",
-});
-
-type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(done => { resolve = done; });
-  return { promise, resolve };
-}
-
-function json(value: unknown): Response {
-  return Response.json(value);
-}
-
-function backend(ids: string[]) {
-  const detail = new Map<string, Deferred<Response>>();
-  const fetchMock = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+function backend() {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const path = String(input);
-    if (path === "/api/me") return Promise.resolve(json({ authenticated: true }));
-    if (path === "/api/projects") return Promise.resolve(json({
-      as_of: "2026-10-24T00:00:00Z", projects: ids.map(id => project(id)),
-    }));
-    const match = path.match(/^\/api\/projects\/([^/?]+)\?handoffs=20$/);
-    if (match) {
-      const id = decodeURIComponent(match[1]);
-      let pending = detail.get(id);
-      if (!pending) { pending = deferred<Response>(); detail.set(id, pending); }
-      return pending.promise;
+    calls.push(path);
+    if (path === "/api/me") return Response.json({ authenticated: true });
+    if (path === "/api/projects") return Response.json({ projects: overview.projects });
+    if (path === "/api/overview") return Response.json(overview);
+    if (path === "/api/tasks/alpha/a") {
+      return Response.json({ project: { id: "alpha" }, task: { ...overview.need_you[0], what: "示例说明", impact: null, advice: "示例建议",
+        need: "决定", source: "docs/a.md", related: [], recorded: "2026-11-01", first_seen: "", last_seen: "" }, handoffs: [] });
     }
-    if (path.includes("/handoffs?")) return Promise.resolve(json({
-      handoffs: [], next_before: null, next_before_id: null,
-    }));
-    return Promise.reject(new Error(`Unhandled request ${path}`));
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return { detail, fetchMock };
-}
-
-function mountList() {
-  window.history.replaceState(null, "", "/?list=1");
-  render(App);
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }));
+  return calls;
 }
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  history.replaceState(null, "", "/");
 });
 
-describe("project route request revisions", () => {
-  it("keeps the list when a slow detail response finishes after returning home", async () => {
-    const api = backend(["a"]);
-    mountList();
-    await screen.findByRole("button", { name: /A/ });
-    await fireEvent.click(screen.getByRole("button", { name: /A/ }));
-    await fireEvent.click(screen.getByRole("button", { name: "项目" }));
-    await screen.findByRole("heading", { name: "在手项目" });
-    api.detail.get("a")!.resolve(json(card("a")));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "在手项目" })).toBeTruthy());
-    expect(screen.queryByRole("heading", { name: "A" })).toBeNull();
+describe("App routing", () => {
+  it("opens a task drawer from the inbox, keeps it in the address and closes with Escape", async () => {
+    backend();
+    render(App);
+    await fireEvent.click(await screen.findByRole("button", { name: /选择示例方案/ }));
+    expect(new URL(location.href).searchParams.get("task")).toBe("alpha/a");
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.textContent).toContain("示例说明"));
+    expect(dialog.textContent).toContain("建议");
+    await fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(new URL(location.href).searchParams.get("task")).toBeNull();
   });
 
-  it("keeps the newest detail when switching projects quickly", async () => {
-    const api = backend(["a", "b"]);
-    mountList();
-    await screen.findByRole("button", { name: /A/ });
-    await fireEvent.click(screen.getByRole("button", { name: /A/ }));
-    window.history.pushState(null, "", "/p/b");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-    api.detail.get("b")!.resolve(json(card("b")));
-    expect(await screen.findByRole("heading", { name: "B" })).toBeTruthy();
-    api.detail.get("a")!.resolve(json(card("a")));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "B" })).toBeTruthy());
-    expect(screen.queryByRole("heading", { name: "A" })).toBeNull();
+  it("deep-links straight to a task from a summary link", async () => {
+    history.replaceState(null, "", "/board?task=alpha%2Fa");
+    backend();
+    render(App);
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(dialog.textContent).toContain("示例建议"));
   });
 });

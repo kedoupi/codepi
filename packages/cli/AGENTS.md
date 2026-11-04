@@ -8,7 +8,6 @@
 - OAuth metadata 的 issuer、授权、token、注册、撤销端点必须与受信任 server 同 origin；只有 loopback 开发服务器可使用 HTTP。回调固定 `127.0.0.1`、随机端口和 `/callback`，严格校验 state。
 - `connect` 只输出当前官方客户端配置/命令，不写入配置、不执行安装、不添加桥接器。模板集中在 `src/connect.ts`，更新时核对官方文档。
 - `init` 必须先打印内容，只有显式 `--yes` 才写；以 `<!-- codepi:start -->` 保持幂等。其他命令不得修改仓库文件。
-- 项目/交接命令参数以 MCP 工具 schema 为准；`project_get` 的 `--cursor`、`--task-id`、`--handoffs` 直接透传。`handoff` 的 `task`、`status`、`summary`、`next` 必填，branch 和完整 40 位 base SHA 从 Git 推导时失败要给出可操作的参数错误；`--pr` 最多 500 字符，`--request-id` 最多 100 字符。
-- `projects_list` 的 `--status` 筛选必须在续页时保留；沿 `next_offset` 读取全部页面并携带首屏 64 位 SHA-256 `revision`，各页 revision 必须一致。续页缺失或变化、未推进/重复游标、重复项目必须失败，不得静默返回部分列表。
-- `project_get` 的 `project_card_json_v1` 分页必须在内存中沿 `next_cursor` 读取、校验字节数并拼接完整 JSON 后才可输出；保持相同的 `project`、`handoffs`、`task_id`，限制页数与总字节。`cursor_stale`、游标重复或不完整 JSON 必须报错并要求重启，不得打印半张卡片。
+- 工作台命令参数以 MCP 工具 schema 为准：`work` → `work_overview`，`tasks` → `task_list`，`project` → `project_get`，`project list` → `work_overview.projects`，`handoff` → `project_handoff_save`。`handoff` 的 `task`、`status`、`summary`、`next` 必填；branch 和 base SHA 能从 Git 推导就带上，推导不出就省略，显式传入的 `--base` 必须是完整 40 位；`--pr` 最多 500 字符，`--request-id` 最多 100 字符。
+- `task_list` 的筛选必须在续页时保留；沿 `next_offset` 读取全部页面并携带首屏 64 位 SHA-256 `revision`，各页 revision 必须一致。revision 变化、未推进游标、重复任务必须失败，不得静默返回部分列表。
 - 测试使用本地合成数据。必须实际运行 `pnpm build`、`pnpm typecheck`、`pnpm test`；UI、真实 OAuth、生产 MCP 和客户端连接验收不能由本地单测代替。

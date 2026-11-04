@@ -111,7 +111,7 @@ export async function fixture(t, options = {}) {
         env: {
           DB: { type: 'd1', name: `${name}-db` },
           ...(name === 'me' ? { IMPORTS: { type: 'r2', name: 'synthetic-me-imports' } } : {}),
-          ...values({ SSO_ENABLED: '1', AUTH_CLIENT_ID: name, PROJECT_REPOS: 'synthetic/repo',
+          ...values({ SSO_ENABLED: '1', AUTH_CLIENT_ID: name,
             PROJECT_ORIGIN: 'https://project.example', ME_ORIGIN: 'https://me.example', ENVIRONMENT: 'test' }),
         },
       },
@@ -146,6 +146,11 @@ export async function fixture(t, options = {}) {
       await target.batch(sql.split(';').filter(s => s.trim()).map(s => target.prepare(s)));
     }
   }
+  // Projects are created by their owner, not from configuration. Seed one synthetic project with one open task.
+  await projectDb.batch([
+    projectDb.prepare("INSERT INTO projects (id,name,repo,status,created_at,updated_at,last_push_at) VALUES ('synthetic-repo','Synthetic','synthetic/repo','active','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z','2026-11-04T00:00:00Z')"),
+    projectDb.prepare("INSERT INTO tasks (project_id,key,title,status,category,due,need_kind,need,what,first_seen,last_seen) VALUES ('synthetic-repo','synthetic-task','合成待办','decide','流程','2026-11-05','decide','决定','合成说明','2026-11-01T00:00:00Z','2026-11-04T00:00:00Z')"),
+  ]);
   const worker = await runtime.getWorker('mcp');
   const health = await runtime.getWorker('health');
   const at = (path, options = {}) => worker.fetch(origin + path, { redirect: 'manual', ...options });

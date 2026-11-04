@@ -1,6 +1,6 @@
 # CodePi CLI
 
-`@kedoupi/codepi` 是 CodePi MCP 的官方命令行客户端。它让任何能执行 shell 的编码 agent 读取概览和项目卡、写入任务交接，不新增服务端接口。
+`@kedoupi/codepi` 是 CodePi MCP 的官方命令行客户端。它让任何能执行 shell 的编码 agent 读取工作台（要所有者出手的事、待办、项目卡）、写入任务交接，不新增服务端接口。
 
 ## 命令
 
@@ -8,50 +8,45 @@
 codepi login [--scopes context.read,projects.read,projects.write] [--server URL] [--json]
 codepi logout [--server URL] [--json]
 codepi context [--server URL] [--json]
-codepi project list [--status active|paused|archived] [--server URL] [--json]
-codepi project [--repo owner/repo] [--cursor CURSOR] [--task-id ID] [--handoffs N] [--server URL] [--json]
-codepi handoff --task ID --status STATUS --summary TEXT --next TEXT [options]
+codepi work [--server URL] [--json]
+codepi tasks [--repo PROJECT] [--status S] [--need N] [--include-done] [--server URL] [--json]
+codepi project list [--server URL] [--json]
+codepi project [--repo PROJECT] [--server URL] [--json]
+codepi handoff --task KEY --status STATUS --summary TEXT --next TEXT [options]
 codepi connect <tool> [--server URL]
 codepi init [--yes] [--json]
 ```
 
 默认 server 为 `https://mcp.codepi.app`，也可使用 `CODEPI_SERVER` 或 `--server`。默认登录 scope 为 `context.read projects.read projects.write`。
 
+`codepi work` 调 `work_overview`：需要你的事（标出决定 / 到场 / 授权 / 确认和截止日）、
+7 天内到期、最近 7 天完成和进行中分支；服务端截短了列表时会提示用 `codepi tasks` 看全部。
+
+`codepi tasks` 调 `task_list`，`--status` 为 `decide`、`doing`、`bug`、`verify`、`idea`，
+`--need` 为 `any`、`none`、`decide`、`attend`、`authorize`、`confirm`。CLI 沿 `next_offset`
+读取全部页面并带上首屏 64 位 SHA-256 `revision`；revision 变化、游标不推进或任务重复时以
+退出码 `4` 失败，不输出部分列表。
+
+`codepi project` 调 `project_get`，输出规则入口、Agent 协作适配段（隔离、提交、验收、合并）、
+按状态计数、分支和每个任务最新交接；`codepi project list` 列出各项目的未完成数、需要你数和最近推送。
+
+`PROJECT` 是项目 ID 或 `owner/repo`；不传时读取 `git remote get-url origin`（支持 GitHub SCP、
+HTTPS 和 SSH URL）。没有 GitHub 远端的仓库请传 `--repo <项目 ID>`。
+
 `handoff` 要求：
 
-- `--task`：任务或操作 ID。
+- `--task`：任务键（`codepi tasks` 里的 key）或自由任务 ID。
 - `--status`：`in_progress`、`blocked`、`ready_for_review`、`done`。
 - `--summary`：本次做了什么；传 `-` 从 stdin 读取。
 - `--next`：下一步；`done` 时可说明完成情况。
-- `--branch`：默认读取当前 Git 分支；detached HEAD 或读取失败时必须显式传入。
-- `--base`：完整的 40 位 Git SHA；默认执行 `git merge-base HEAD origin/main`，无 `origin/main` 时必须显式传入。
+- `--branch`：默认读取当前 Git 分支，读不到就省略。
+- `--base`：完整的 40 位 Git SHA；默认执行 `git merge-base HEAD origin/main`，算不出就省略。
 
 可选参数为 `--blockers`、`--files a,b`（可重复或使用 `--file`）、`--commit`、`--pr`、`--repo` 和 `--request-id`。`--pr` 最多 500 字符；未传 `--request-id` 时自动生成 UUID，手工传入最多 100 字符。最终 `project_handoff_save` 参数包含：
 
 ```text
-project task_id status summary next blockers files branch base_sha commit pr request_id
+project task status summary next blockers files branch? base_sha? commit pr request_id
 ```
-
-项目识别读取 `git remote get-url origin`，支持 GitHub SCP、HTTPS 和 SSH URL。无法识别时使用 `--repo owner/repo`。`project_get` 可选传入 `--cursor`、`--task-id` 和 `--handoffs`，分别透传为工具参数 `cursor`、`task_id` 和 `handoffs`。
-
-项目卡超过 MCP 详情上限时，`project_get` 会返回
-`project_card_json_v1` 分页块。CLI 会保留相同的 `project`、`handoffs` 和
-`task_id`，按 `next_cursor` 读取全部页面，校验 UTF-8 字节数后拼接
-`pagination.chunk`，只有完整 JSON 解析成功才输出卡片。页数或总字节超出安全上限、
-分页游标重复、以及 `cursor_stale` 都会使命令以退出码 `4` 失败，不输出半张卡片；
-遇到 `cursor_stale` 请重新运行 `codepi project`，不要复用旧 `--cursor`。
-
-`codepi project list` 将 `--status` 作为筛选条件传给 `projects_list`，并按返回的
-`next_offset` 读取全部分页后再渲染。首屏返回的 64 位 SHA-256 `revision` 会随
-`--status` 和 `offset` 一起传给后续页面；页面缺失或 revision 变化时以
-`cursor_stale` 失败，不输出部分列表。默认每页数量由服务端决定；CLI 会限制页数和
-项目总数，拒绝未推进或重复的 `next_offset`，并拒绝分页期间重复出现的项目，避免
-静默漏掉其他项目。列表只包含有界摘要，完整交接和任务进度请用 `codepi project`
-或 `project_get` 读取。
-
-默认文本输出按 `task_progress` 展示所有并行任务，而不是只取最新一条；每项包含
-状态、summary、next、blockers、分支和完整 base SHA。旧响应没有 `task_progress` 时
-回退到 `progress`。
 
 ## 凭证与刷新
 
@@ -134,9 +129,8 @@ pnpm test
 - 全链路合成登录：DCR、PKCE、随机 loopback 端口、state 校验和 token 落盘；
 - loopback 回调 state 拒绝、DCR 请求和 metadata origin；
 - 官方 MCP SDK 的 JSON/SSE 响应、401 单次重试、403 scope 和工具错误映射；
-- 官方 SDK 假服务器的超大项目卡分块、游标续页、完整 JSON 重组和
-  `cursor_stale` 无半卡输出；
-- `projects_list` 的 `status` 筛选、`revision` 一致性、`next_offset` 全量续页、重复/不推进游标拒绝；
+- `task_list` 的 `revision` 一致性、`next_offset` 全量续页、重复任务与不推进游标拒绝；
+- `work`、`tasks`、`project`、`project list` 的文本渲染与参数校验，无远端仓库的交接；
 - Git remote 解析、凭证权限/隔离、`init` 幂等和 CLI 端到端。
 
 真实登录、生产 MCP 和客户端连接仍需用户现场验收。

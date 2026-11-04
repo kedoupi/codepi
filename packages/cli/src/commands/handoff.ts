@@ -56,16 +56,14 @@ export async function handoff(options: HandoffOptions, io: Io = process): Promis
   if (files.some((file) => file.length > 300)) throw argumentError("每个 file 最多 300 字符。");
 
   const repo = (options.repo ?? await detectRepo(options.cwd))?.trim();
-  if (!repo) throw argumentError("无法识别项目仓库；请传 --repo owner/repo。");
+  if (!repo) throw argumentError("无法识别项目；请传 --repo（项目 ID 或 owner/repo）。");
   if (repo.length > 200) throw argumentError("--repo 最多 200 字符。");
+  // Branch and base are context, not identity: repositories without a remote still record handoffs.
   const branch = options.branch?.trim() || await currentBranch(options.cwd);
-  if (!branch) throw argumentError("无法从 Git 读取 branch；请传 --branch。");
-  if (branch.length > 200) throw argumentError("--branch 最多 200 字符。");
+  if (branch && branch.length > 200) throw argumentError("--branch 最多 200 字符。");
   const baseSha = (options.base?.trim() || await defaultBaseSha(options.cwd))?.toLowerCase();
-  if (!baseSha) {
-    throw argumentError("无法计算 `git merge-base HEAD origin/main`；请传 --base。");
-  }
-  if (!/^[0-9a-f]{40}$/.test(baseSha)) {
+  if (options.base !== undefined && !baseSha) throw argumentError("--base 不能为空。");
+  if (baseSha && !/^[0-9a-f]{40}$/.test(baseSha)) {
     throw argumentError("--base 必须是完整 40 位十六进制 Git SHA。");
   }
   if (options.commit) assertSha(options.commit, "--commit");
@@ -84,15 +82,15 @@ export async function handoff(options: HandoffOptions, io: Io = process): Promis
   }
   const args: Record<string, unknown> = {
     project: repo,
-    task_id: taskId,
+    task: taskId,
     status: options.status,
     summary,
     next,
     files,
-    branch,
-    base_sha: baseSha,
     request_id: requestId,
   };
+  if (branch) args.branch = branch;
+  if (baseSha) args.base_sha = baseSha;
   if (options.blockers?.trim()) args.blockers = options.blockers.trim();
   if (options.commit) args.commit = options.commit.toLowerCase();
   if (pr) args.pr = pr;

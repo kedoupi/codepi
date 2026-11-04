@@ -17,7 +17,7 @@ export async function readDocument(
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const name = args.tool as string, original = { ...(args.arguments as Record<string, unknown> ?? {}) };
-  if (!["health_get_catalog", "health_query_records", "health_aggregate", "health_get_sync_status", "project_get"].includes(name)) {
+  if (!["health_get_catalog", "health_query_records", "health_aggregate", "health_get_sync_status"].includes(name)) {
     throw new HttpError("tool_not_available", 403);
   }
   if (Object.hasOwn(original, "cursor")) throw new HttpError("invalid_arguments");

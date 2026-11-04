@@ -6,7 +6,7 @@ import { handoff } from "./commands/handoff.js";
 import { init } from "./commands/init.js";
 import { login } from "./commands/login.js";
 import { logout } from "./commands/logout.js";
-import { project } from "./commands/project.js";
+import { project, tasks, work } from "./commands/project.js";
 import {
   CliError,
   EXIT,
@@ -21,8 +21,10 @@ Usage:
   codepi login [--scopes a,b] [--server URL] [--json]
   codepi logout [--server URL] [--json]
   codepi context [--server URL] [--json]
-  codepi project [list] [--status active|paused|archived] [--repo owner/repo] [--cursor CURSOR] [--task-id ID] [--handoffs N] [--server URL] [--json]
-  codepi handoff --task ID --status STATUS --summary TEXT --next TEXT [options]
+  codepi work [--server URL] [--json]
+  codepi tasks [--repo PROJECT] [--status S] [--need N] [--include-done] [--server URL] [--json]
+  codepi project [list] [--repo PROJECT] [--server URL] [--json]
+  codepi handoff --task KEY --status STATUS --summary TEXT --next TEXT [options]
   codepi connect <tool> [--server URL]
   codepi init [--yes] [--json]
 
@@ -32,19 +34,29 @@ Global:
   -h, --help      Show help
   --version       Show version
 
+work:
+  What needs you across all projects (work_overview).
+
+tasks:
+  --repo PROJECT  Project id or owner/repo; default all projects
+  --status S      decide | doing | bug | verify | idea
+  --need N        any | none | decide | attend | authorize | confirm
+  --include-done  Include recently finished tasks
+  Follows task_list next_offset to completion before any output.
+
 project:
-  list follows projects_list next_offset to completion.
-  Oversized project cards are followed to completion before any output.
+  PROJECT defaults to the GitHub origin of the current repository.
+  list shows every project with open and need-you counts.
 
 handoff:
-  --task ID       Required operation/task identifier
+  --task KEY      Required task key from codepi tasks, or a free task id
   --status S      in_progress | blocked | ready_for_review | done
   --summary TEXT  Required; use "-" to read stdin
   --next TEXT     Required next step (for done, explain completion)
   --blockers TEXT Optional blockers
   --files a,b     Optional changed files; may repeat
-  --branch B      Defaults to the current Git branch; detached HEAD needs --branch
-  --base SHA      Defaults to git merge-base HEAD origin/main
+  --branch B      Defaults to the current Git branch when there is one
+  --base SHA      Defaults to git merge-base HEAD origin/main when available
   --commit SHA    Optional 7-40 hex commit
   --pr VALUE      Optional PR reference, at most 500 characters
   --request-id ID Optional retry id, at most 100 characters; otherwise UUID
@@ -61,9 +73,8 @@ const OPTIONS = {
   debug: { type: "boolean" },
   scopes: { type: "string" },
   repo: { type: "string" },
-  cursor: { type: "string" },
-  "task-id": { type: "string" },
-  handoffs: { type: "string" },
+  need: { type: "string" },
+  "include-done": { type: "boolean" },
   task: { type: "string" },
   status: { type: "string" },
   summary: { type: "string" },
@@ -88,9 +99,8 @@ type Values = {
   debug?: boolean;
   scopes?: string;
   repo?: string;
-  cursor?: string;
-  "task-id"?: string;
-  handoffs?: string;
+  need?: string;
+  "include-done"?: boolean;
   task?: string;
   status?: string;
   summary?: string;
@@ -160,47 +170,32 @@ export async function runCli(argv = process.argv.slice(2)): Promise<number> {
         if (extras.length > 1 || (extras.length === 1 && extras[0] !== "list")) {
           throw argumentError("用法：codepi project [list]");
         }
-        const taskId = values["task-id"]?.trim();
-        if (values["task-id"] !== undefined && !taskId) {
-          throw argumentError("--task-id 不能为空。");
-        }
-        if (taskId && taskId.length > 200) throw argumentError("--task-id 最多 200 字符。");
-        const cursor = values.cursor?.trim();
-        if (values.cursor !== undefined && !cursor) {
-          throw argumentError("--cursor 不能为空。");
-        }
-        if (cursor && cursor.length > 2048) throw argumentError("--cursor 最多 2048 字符。");
-        const projectStatus = values.status?.trim();
-        if (values.status !== undefined && !projectStatus) {
-          throw argumentError("--status 不能为空。");
-        }
-        if (projectStatus && !["active", "paused", "archived"].includes(projectStatus)) {
-          throw argumentError("--status 必须是 active、paused 或 archived。");
-        }
-        let handoffs: number | undefined;
-        if (values.handoffs !== undefined) {
-          if (!/^[0-9]+$/.test(values.handoffs)) {
-            throw argumentError("--handoffs 必须是 1-20 的整数。");
-          }
-          handoffs = Number(values.handoffs);
-          if (!Number.isSafeInteger(handoffs) || handoffs < 1 || handoffs > 20) {
-            throw argumentError("--handoffs 必须是 1-20 的整数。");
-          }
+        if (values.status !== undefined || values.need !== undefined) {
+          throw argumentError("--status、--need 用于 `codepi tasks`。");
         }
         await project({
           server,
           json,
           list: extras[0] === "list",
           ...(values.repo === undefined ? {} : { repo: values.repo }),
-          ...(cursor === undefined ? {} : { cursor }),
-          ...(taskId === undefined ? {} : { taskId }),
-          ...(handoffs === undefined ? {} : { handoffs }),
-          ...(projectStatus === undefined
-            ? {}
-            : { status: projectStatus as "active" | "paused" | "archived" }),
         });
         return EXIT.OK;
       }
+      case "work":
+        assertExtras(command, extras, 0);
+        await work({ server, json });
+        return EXIT.OK;
+      case "tasks":
+        assertExtras(command, extras, 0);
+        await tasks({
+          server,
+          json,
+          ...(values.repo === undefined ? {} : { repo: values.repo }),
+          ...(values.status === undefined ? {} : { status: values.status }),
+          ...(values.need === undefined ? {} : { need: values.need }),
+          ...(values["include-done"] ? { includeDone: true } : {}),
+        });
+        return EXIT.OK;
       case "handoff": {
         assertExtras(command, extras, 0);
         if (!values.task) throw argumentError("handoff 必须传 --task。");

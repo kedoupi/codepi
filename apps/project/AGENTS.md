@@ -1,13 +1,14 @@
 # Project 开发边界
 
-- Project 是一个私有产品：`web/` 是 Svelte 看板，`worker/` 是 Hono Worker 与 `ProjectMcp`，`migrations/` 是应用自有 D1。页面、API 与 RPC 共用这一份领域数据，不把数据拆到其他应用。
-- 只通过命名 RPC `ProjectMcp.execute` / `ProjectMcp.summary` 向 `services/mcp` 提供能力，操作限定为 `list`、`get`、`handoff_save`。不要增加公网 MCP 路由、静态入口或通用 RPC 转发。
-- 浏览器只走 `@kedoupi/shared/auth/client` 严格 SSO，不增加本地登录旁路。生产 `AUTH_CLIENT_ID=project` 要求统一登录中心登记对应 client、callback 与 secret；共享 client allowlist 必须继续包含 `project`。
-- D1 保存共享 SSO 表、项目卡、只追加交接、GitHub 事件、任务文档索引和同步状态。不要在代码或迁移中写入虚构的远程资源 ID。GitHub token 只从 `GITHUB_TOKEN` secret 读取，权限保持只读；不保存其他凭证，不把交接正文、token 或 provider 原始错误写入日志。
-- 交接必须带 `task_id`、四种状态之一、`branch`、40 位 `base_sha`；`commit`、`pr`、`request_id` 可选。交接只追加；每个任务分别取最新一条，项目卡同时给出所有任务的 `task_progress`。重复 `request_id` 只在内容相同时幂等。
-- GitHub 同步逐来源记录成功游标、失败 checkpoint 和错误码。Link 分页失败时不得推进已完成高水位；429 后停止本轮后续来源。手动与定时同步共用 D1 租约；长任务续租，每次 GitHub 请求和领域写入前验证所有权，失去租约后不得继续请求或写入。任务状态只映射到四种状态或 `unknown`。
-- MCP 列表每页返回筛选后完整排序摘要的 64 位 SHA-256 `revision`；`offset > 0` 必须带首屏值，筛选、顺序或摘要变化时返回 `cursor_stale`，不得静默漏项。
-- `project_get` 超过 12 KiB 时返回有界 UTF-8 JSON 分页；每页必须重复 `as_of` 和完整 `project` 元数据并计入 12 KiB，调用方按序拼接 `pagination.chunk`。不得静默裁掉交接、任务或仓库字段；游标使用 SHA-256，卡片变化后旧游标必须失败。`SourceSummary` 不超过 4 KiB，且不输出 `privateMetric`。
-- 所有页面文本按纯文本节点渲染，不渲染 Markdown 或 HTML，不使用 `{@html}`。保持 `style-src 'self'`，不写内联 `style`；浏览器变更必须同源并经过 SSO 会话。
-- 本地检查：`pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm test:browser:built`。测试只使用合成项目、交接与 GitHub 响应；浏览器冒烟覆盖桌面与 390px 单栏，但真实 SSO、同步和线上验收必须分别记录，不能用构建通过代替。
-- 根 workspace 与 lockfile 由集成负责人维护；本应用集成时必须成为 workspace 成员并使用既有依赖版本。
+- Project 是私有工作台：`web/` 是 Svelte 页面，`worker/` 是 Hono Worker 与 `ProjectMcp`，`migrations/` 是应用自有 D1。页面、ingest、API 与 RPC 共用这一份领域数据。
+- 待办的唯一真源是各项目自己的仓库；这里只收快照和展示。第一期网页不提供待办编辑接口，不要加。
+- 推送只走 `POST /api/ingest/:project` + 项目令牌。令牌只存 SHA-256，只在建项目或重新生成时返回一次；不要在日志、响应、测试快照里出现令牌原文。错误令牌与未知项目必须不可区分（同为 401 `invalid_token`）。
+- ingest 必须先做凭据形态扫描（`worker/scan.ts`），命中返回 422 且只回报字段路径；新增推送字段时扫描自动覆盖整个请求体，不要绕过。schema 用 `assertKeys` 严格校验，未知字段 422。
+- 写入用 `json_each` 的少量批量语句（D1 每条语句最多 100 个绑定参数），不要按任务逐条循环写。
+- 只通过命名 RPC `ProjectMcp.execute` / `ProjectMcp.summary` 向 `services/mcp` 提供能力，操作限定为 `overview`、`task_list`、`task_get`、`project_get`、`handoff_save`，与 `packages/shared/mcp/contract.ts` 的 `PROJECT_OPERATIONS` 一致。不加公网 MCP 路由或通用转发。
+- 每个 MCP 回复不超过 `MCP_LIMITS.detail`（12 KiB），用 `fit()` 截短列表并写 `truncated`，计数保持准确；`task_list` 的 `revision` 覆盖筛选与完整结果，续页缺首屏 revision 或结果变化返回 `cursor_stale`，不得静默漏项。`SourceSummary` 不超过 4 KiB，不输出 `privateMetric`。
+- 交接只追加；`request_id` 只在内容相同时幂等。`branch`、`base_sha` 可选，给出时 `base_sha` 必须是 40 位小写十六进制。
+- 浏览器只走 `@kedoupi/shared/auth/client` 严格 SSO，不加本地登录旁路；除 ingest 外的写请求都要同源 Origin。
+- 所有页面文本按纯文本节点渲染，不用 `{@html}`；保持 `style-src 'self'`，不写内联 `style`，图表用 SVG 属性与 class。颜色只用 CodePi token 与 `style.css` 里的 `--wb-*`、`--slot-*`。
+- 本地检查：`pnpm test`、`pnpm typecheck`、`pnpm build`、`pnpm test:browser:built`。测试只用合成项目、任务与交接；真实 SSO、真实推送和线上验收要分别记录，不能用构建通过代替。
+- 部署、远程迁移、建令牌不属于普通开发；`0003_workbench.sql` 会删除旧同步表，上线前先导出生产 D1。

@@ -21,7 +21,7 @@
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
 | `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
-| `apps/project/` | `project.codepi.app` | `codepi-project` | 项目卡、任务交接与 GitHub 同步 |
+| `apps/project/` | `project.codepi.app` | `codepi-project` | 个人工作台：各项目推送的待办、需要你的事、分支、变更与任务交接 |
 | `apps/me/` | `me.codepi.app` | `codepi-me` | 确认区、个人资料与经历 |
 | `apps/rhythm/` | `rhythm.codepi.app` | `codepi-rhythm` | 私人作息时间线、关键时刻与来源口径 |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，客户端表见 shared/auth/clients.ts |
