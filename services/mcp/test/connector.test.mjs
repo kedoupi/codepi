@@ -448,6 +448,29 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   assert.equal(current.body?.result?.structuredContent?.reason, 'required');
 });
 
+test('blog inline upload carries the original ChatGPT-sized image without an external PUT', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const jpeg = Buffer.from('/9j/wAALCAABAAEBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/90ABAAB/9oACAEBAAA/AP38r//Z', 'base64');
+  let remaining = 236961 - jpeg.length;
+  const chunks = [jpeg.subarray(0, 2)];
+  while (remaining) {
+    let size = Math.min(65537, remaining);
+    if (remaining - size > 0 && remaining - size < 4) size -= 4;
+    const comment = Buffer.alloc(size);
+    comment[0] = 0xff; comment[1] = 0xfe; comment.writeUInt16BE(size - 2, 2);
+    chunks.push(comment); remaining -= size;
+  }
+  const original = Buffer.concat([...chunks, jpeg.subarray(2)]);
+  const uploaded = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_upload_image', arguments: { alt: 'ChatGPT 原尺寸合成封面', data_base64: original.toString('base64') },
+  });
+  assert.equal(uploaded.status, 200);
+  assert.equal(uploaded.body?.result?.structuredContent?.bytes, 236961, JSON.stringify(uploaded.body));
+  const image = uploaded.body.result.structuredContent;
+  const stored = await f.blogDb.prepare('SELECT sha256 FROM blog_media WHERE id=?').bind(image.id).first();
+  assert.equal(stored.sha256, Buffer.from(await crypto.subtle.digest('SHA-256', original)).toString('hex'));
+});
+
 test('a client on the first blog_submit schema reaches the real Blog worker', async t => {
   const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
   const uploaded = await f.rpc(grant.access_token, 'tools/call', {

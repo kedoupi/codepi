@@ -74,7 +74,7 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 
 工具顺序：`blog_guide`（写作与配图规范）→ `blog_list(view=submissions)` → `blog_get` → 上传配图 → `blog_submit` → 主人在 `/desk/` 审核。`blog_get` 默认读取草稿，`view=published` 读取公开快照。长正文按 `next_offset` 读取，并沿用首屏 `revision` 作为 `expected_revision`，避免混合版本。`blog_list` 只返回摘要。
 
-- `blog_upload_image({data_base64,alt})`：PNG、JPEG、WebP，原文件不超过 192 KiB。传普通 base64，不带 `data:` 前缀。
+- `blog_upload_image({data_base64,alt})`：PNG、JPEG、WebP，原文件不超过 1 MiB。传普通 base64，不带 `data:` 前缀；无法访问外部 PUT URL 的 Agent 也使用此方式。
 - `blog_create_image_upload({alt,bytes,content_type})`：原文件最多 8 MiB，返回十分钟有效的单次 PUT 地址及专用 headers；Agent 发送原文件字节（不是 multipart），HTTP 返回图片结果。不发送 MCP Bearer。没有 HTTP PUT 能力的 Agent 使用前一种方式。
 - 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 使用图片 id。每稿最多 30 张不同图片（含封面）。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
 - `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`、`cover_media_id`、`category`、`tags`，可选 `tag`（旧单标签，映射进 tags）、`series`、`sources`。每篇必须有头图，建议 2.35:1、1800×766 或更大；比例或尺寸不达标不阻断提交，在返回的 `warnings` 中提示。`category` 只能取 `blog_guide` 返回的分类 slug（Desk「管理分类」维护，最多 8 个）；`tags` 1–5 个由 AI 提议；`sources` 为 `{title,url}`（仅 https），在文末「资料来源」展示。新文章可省略 `base_revision` 或传 `0`；更新已有稿件必须传 `blog_get` 返回的 `revision`，版本不一致会被拒绝。重试同一次提交沿用 `request_id`。`is_test=true` 仅用于联调：测试稿件不进入 Desk 审核队列、不能发布，恢复后才可审核。

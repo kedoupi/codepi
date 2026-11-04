@@ -1,4 +1,6 @@
 /** Single source of truth for the blog_guide MCP tool. Keep rules consistent with server/blog.ts. */
+import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
+
 export const BLOG_GUIDE = {
   version: 1,
   workflow: [
@@ -22,7 +24,7 @@ export const BLOG_GUIDE = {
   images: {
     formats: ["image/png", "image/jpeg", "image/webp"],
     max_bytes: 8388608,
-    inline_base64_max_bytes: 196608,
+    inline_base64_max_bytes: MCP_LIMITS.blogInlineImage,
     max_images_per_article: 30,
     cover: {
       required: true,

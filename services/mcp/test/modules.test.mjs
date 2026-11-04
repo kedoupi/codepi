@@ -123,6 +123,17 @@ test('blog_submit schema requires fields enforced by the Blog worker', () => {
   assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'cover_media_id', 'category', 'tags']);
 });
 
+test('blog inline image schema matches the shared one-MiB domain limit', async () => {
+  const { MCP_LIMITS } = await import('@kedoupi/shared/mcp/contract');
+  const upload = tools('blog.write').find(tool => tool.name === 'blog_upload_image');
+  const maxLength = Math.ceil(MCP_LIMITS.blogInlineImage / 3) * 4;
+  assert.equal(upload.inputSchema.properties.data_base64.maxLength, maxLength);
+  const env = { BLOG: { execute: async () => ({ ok: true, data: {} }) } };
+  await assert.rejects(callTool(env, ctx('blog.write'), 'blog_upload_image', {
+    alt: 'Oversized', data_base64: 'A'.repeat(maxLength + 1),
+  }), error => error.field === '/data_base64' && error.reason === 'maxLength');
+});
+
 test('a client on the first blog_submit schema still reaches the Blog worker', async () => {
   const calls = [];
   const env = { BLOG: { async execute(request) { calls.push(request); return { ok: true, data: { slug: request.args.slug, revision: 1 } }; } } };
