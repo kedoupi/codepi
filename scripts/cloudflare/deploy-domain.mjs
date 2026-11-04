@@ -11,7 +11,15 @@ export const DOMAINS = Object.freeze({
   mcp: { appDir: 'services/mcp', worker: 'codepi-mcp', database: 'codepi-mcp' },
   project: { appDir: 'apps/project', worker: 'codepi-project', database: 'codepi-project' },
   me: { appDir: 'apps/me', worker: 'codepi-me', database: 'codepi-me' },
+  // STATUS_READ points at the owner's private upstream Worker. The reviewed source keeps a
+  // placeholder; the real name comes from the release machine's environment and only reaches
+  // the temporary config, never the repository or the printed evidence.
+  rhythm: {
+    appDir: 'apps/rhythm', worker: 'codepi-rhythm', database: 'codepi-rhythm',
+    services: { STATUS_READ: { placeholder: 'status-read-placeholder', env: 'RHYTHM_STATUS_READ_SERVICE' } },
+  },
 });
+const workerName = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 
 function git(cwd, args) {
@@ -35,7 +43,41 @@ function checkMigrations(directory) {
   });
 }
 
-function renderConfig(source, appDir, databaseId) {
+// Resolve declared placeholder service bindings before any remote call: each declared binding
+// must exist exactly once as a [[services]] block whose service is still the reviewed placeholder,
+// and the release environment must supply a valid Worker name for it.
+function serviceBlocks(source) {
+  return [...source.matchAll(/^\[\[services\]\][^\n]*\n(?:(?!\[)[^\n]*(?:\n|$))*/gm)].map(([text]) => ({
+    text,
+    binding: text.match(/^\s*binding\s*=\s*"([^"]+)"/m)?.[1],
+    service: text.match(/^\s*service\s*=\s*"([^"]+)"/m)?.[1],
+  }));
+}
+
+export function resolveServices(domain, source, env = process.env) {
+  const resolved = {};
+  const blocks = serviceBlocks(source);
+  for (const [binding, { placeholder, env: name }] of Object.entries(domain.services ?? {})) {
+    const matches = blocks.filter(block => block.binding === binding);
+    assert.equal(matches.length, 1, `${binding} must be declared exactly once as a [[services]] binding`);
+    assert.equal(matches[0].service, placeholder,
+      `${binding} must keep the reviewed placeholder service "${placeholder}" in source`);
+    // The placeholder may appear exactly once in the whole file (no second block, no repeated
+    // service line), so injection cannot leave a placeholder behind in the temporary config.
+    assert.equal(source.split(placeholder).length - 1, 1,   // unquoted: also catches TOML single quotes
+      `placeholder "${placeholder}" must appear exactly once in the Wrangler config`);
+    assert.equal((matches[0].text.match(/^\s*service\s*=/gm) ?? []).length, 1,
+      `${binding} must declare its service exactly once`);
+    const value = env[name];
+    assert.ok(value, `${name} must name the ${binding} upstream Worker for this release`);
+    assert.match(value, workerName, `${name} is not a valid Worker name`);
+    assert.notEqual(value, placeholder, `${name} still equals the placeholder`);
+    resolved[binding] = { block: matches[0].text, placeholder, value };
+  }
+  return resolved;
+}
+
+function renderConfig(source, appDir, databaseId, services = {}) {
   const config = { source, databaseId };
   assert.equal((source.match(/^main\s*=\s*"[^"]+"/gm) ?? []).length, 1, 'Wrangler config must declare main once');
   assert.equal((source.match(/^database_name\s*=\s*"[^"]+"/gm) ?? []).length, 1,
@@ -69,6 +111,14 @@ function renderConfig(source, appDir, databaseId) {
       if (!idLines.length) {
         text = text.replace(/^database_name\s*=\s*"([^"]+)"/m, line =>
           `${line}\ndatabase_id = ${JSON.stringify(databaseId)}`);
+      }
+      for (const { block, value } of Object.values(services)) {
+        assert.ok(text.includes(block), 'service binding block changed while rendering');
+        const injected = block.replace(/^(\s*service\s*=\s*)"[^"]+"/m, (_, lead) => `${lead}${JSON.stringify(value)}`);
+        text = text.replace(block, () => injected);
+      }
+      for (const { placeholder } of Object.values(services)) {
+        assert.ok(!text.includes(placeholder), 'temporary config still contains a service placeholder');
       }
       return text;
     },
@@ -137,7 +187,7 @@ function parseOptions(args) {
 }
 
 export async function deployDomain(app, {
-  sha, provisionD1 = false, cwd = root, execute = spawnSync, previousVersion,
+  sha, provisionD1 = false, cwd = root, execute = spawnSync, env = process.env, previousVersion,
   migrationApplied, secretChanged, bindingChanged, externalSideEffects,
 } = {}) {
   for (const [name, value] of Object.entries({ migrationApplied, secretChanged, bindingChanged, externalSideEffects })) {
@@ -145,7 +195,7 @@ export async function deployDomain(app, {
   }
   if (previousVersion !== undefined) assert.match(previousVersion, uuid, 'previousVersion must be a Worker version ID');
   const domain = DOMAINS[app];
-  assert.ok(domain, 'expected --app mcp|project|me');
+  assert.ok(domain, `expected --app ${Object.keys(DOMAINS).join('|')}`);
   const appDir = path.join(cwd, domain.appDir);
   const head = git(cwd, ['rev-parse', 'HEAD']);
   sha ??= head;
@@ -161,10 +211,11 @@ export async function deployDomain(app, {
     `Wrangler config does not identify ${domain.worker}`);
   assert.match(source, new RegExp(`^database_name\\s*=\\s*"${domain.database}"$`, 'm'),
     `Wrangler config does not reserve ${domain.database}`);
+  const services = resolveServices(domain, source, env);
   const migrationDirectory = path.join(appDir, 'migrations');
   const migrations = await checkMigrations(migrationDirectory);
   const databaseId = await resolveD1(domain.database, { appDir, provisionD1, execute, assertRemote });
-  const config = renderConfig(source, appDir, databaseId);
+  const config = renderConfig(source, appDir, databaseId, services);
   await mkdir(path.join(appDir, '.wrangler'), { recursive: true });
   const work = await mkdtemp(path.join(appDir, '.wrangler', 'release-'));
   try {
@@ -226,7 +277,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
         break;
       }
     }
-    assert.ok(options.app, 'Usage: deploy-domain.mjs --app <mcp|project|me> [--sha <full-source-SHA>] [evidence flags]');
+    assert.ok(options.app, `Usage: deploy-domain.mjs --app <${Object.keys(DOMAINS).join('|')}> [--sha <full-source-SHA>] [evidence flags]`);
     console.log(JSON.stringify(await deployDomain(options.app, options)));
   } catch (error) {
     console.error(error.message);
