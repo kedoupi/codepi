@@ -112,6 +112,7 @@ function runChecks(checks, cwd) {
         if (dependencies[index].some(dependency => !results[dependency])) continue;
         if (checks[index].exclusive && running.size) continue;
         if ([...running.keys()].some(other => checks[other].exclusive)) continue;
+        if ((checks[index].locks ?? []).some(lock => [...running.keys()].some(other => (checks[other].locks ?? []).includes(lock)))) continue;
         const check = checks[index];
         pending.delete(index);
         const promise = new Promise(resolve => {
