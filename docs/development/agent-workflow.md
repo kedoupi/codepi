@@ -53,4 +53,6 @@ pnpm --filter web test       # 需要时单独运行目标应用命令
 
 并行任务才需要共享分配表，至少包含负责人、worktree、允许路径、公共接口负责人和依赖。共享契约只有一个写入者。任务文档不是锁，也不扩大 Git 或远程授权。
 
+所有者要求「Claude 实现、Codex 审查、测试终端验收」的多 Agent 协作时，使用其本机的 `agent-team` 流程（skill 不在本仓库，按需在本机建 `.claude/skills/agent-team` 链接，不提交）；隔离、提交、验收与合并方式只写在[根 AGENTS.md 的「Agent 协作适配」](../../AGENTS.md#agent-协作适配)，本页其余约定照常适用。
+
 审查固定提交 SHA；未提交时固定基线、停止写入并列明文件清单。发布、合并和本地验证分别记录，不相互推定。完整协作细节按需查看 [kdp-review](../../.agents/skills/kdp-review/SKILL.md)、[kdp-handoff](../../.agents/skills/kdp-handoff/SKILL.md) 和 [kdp-release](../../.agents/skills/kdp-release/SKILL.md)。
