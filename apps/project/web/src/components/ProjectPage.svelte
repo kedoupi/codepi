@@ -21,7 +21,8 @@
   let token = $state<string | null>(null);
   let confirmRotate = $state(false);
 
-  async function load() {
+  async function load(opts: { keepPage?: boolean } = {}) {
+    error = "";
     try {
       const [detail, list, overview] = await Promise.all([
         api(`/api/projects/${encodeURIComponent(id)}`),
@@ -32,10 +33,14 @@
       tasks = list.tasks as TaskBrief[];
       today = String(overview.today);
     } catch (cause) {
+      if (opts.keepPage && card) {
+        actionError = "页面没有刷新成功，上面的数字可能是旧的。";
+        return;
+      }
       error = cause instanceof Error && cause.message === "project_not_found" ? "没有这个项目。" : "读取失败。";
     }
   }
-  onMount(load);
+  onMount(() => void load());
 
   let actionError = $state("");
 
@@ -45,17 +50,19 @@
       const result = await api(`/api/projects/${encodeURIComponent(id)}/token`, { method: "POST" });
       token = String(result.token);
       confirmRotate = false;
-      await load();
     } catch {
       actionError = "没有生成新令牌，旧令牌仍然有效。请稍后再试。";
+      return;
     }
+    // The new token is shown only once: a failed refresh must not hide it.
+    await load({ keepPage: true });
   }
 
   async function setStatus(status: ProjectStatus) {
     actionError = "";
     try {
       await api(`/api/projects/${encodeURIComponent(id)}`, { method: "PATCH", body: { status } });
-      await load();
+      await load({ keepPage: true });
       await onChanged();
     } catch {
       actionError = "状态没有改成，请稍后再试。";

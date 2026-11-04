@@ -104,6 +104,20 @@ describe("ProjectMcp", () => {
     expect(task.task.title).toBe("满长任务");
   });
 
+  it("task_get terminates and fits when a field is full of astral characters", async () => {
+    const astral = { title: "表情满长", status: "doing", category: "流程", need_kind: "none",
+      what: "😀".repeat(2000), impact: "长".repeat(2000), advice: "字".repeat(2000) };
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [astral] })), env);
+    const key = (await data("task_list")).tasks[0].key;
+    const task = await data("task_get", { project: "codepi", key });
+    expect(task.truncated).toContain("task.what");
+  });
+
+  it("project_get of an archived project still shows its branches", async () => {
+    await env.DB.prepare("UPDATE projects SET status='archived' WHERE id='codepi'").run();
+    expect((await data("project_get", { project: "codepi" })).branches).toHaveLength(1);
+  });
+
   it("overview stays within budget with many long-named projects", async () => {
     for (let i = 0; i < 80; i++) await seedProject(`p${i}`, `很长的项目名称`.repeat(15), `owner/${"r".repeat(150)}${i}`);
     const overview = await data("overview");

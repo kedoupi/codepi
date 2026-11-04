@@ -155,7 +155,7 @@ export async function getTask(env: Env, projectRef: string, key: string, handoff
 
 async function branchRows(env: Env, projectId?: string) {
   const rows = await env.DB.prepare(`SELECT b.* FROM branches b JOIN projects p ON p.id=b.project_id
-    WHERE p.status<>'archived' ${projectId ? "AND b.project_id=?" : ""}
+    WHERE ${projectId ? "b.project_id=?" : "p.status<>'archived'"}
     ORDER BY b.last_commit_at DESC, b.name`).bind(...(projectId ? [projectId] : [])).all<BranchRow>();
   return rows.results.map(row => ({
     project: row.project_id,
@@ -244,15 +244,16 @@ export async function projectCard(env: Env, project: ProjectRow, opts: { changel
 export async function activityLog(env: Env, opts: { days: number; project?: string }, now = new Date()) {
   const since = addDays(today(now), -opts.days);
   const project = opts.project ? await resolveProject(env, opts.project) : null;
-  const scope = project ? "AND c.project_id=?" : "";
+  // A named project is read even when archived, as in listTasks.
+  const scope = (alias: string) => (project ? `${alias}.project_id=?` : "p.status<>'archived'");
   const [entries, done] = await Promise.all([
     env.DB.prepare(`SELECT c.* FROM changelog_entries c JOIN projects p ON p.id=c.project_id
-      WHERE p.status<>'archived' AND c.date>=? ${scope} ORDER BY c.date DESC, c.project_id, c.position LIMIT 300`)
-      .bind(since, ...(project ? [project.id] : [])).all<ChangelogRow>(),
+      WHERE ${scope("c")} AND c.date>=? ORDER BY c.date DESC, c.project_id, c.position LIMIT 300`)
+      .bind(...(project ? [project.id] : []), since).all<ChangelogRow>(),
     env.DB.prepare(`SELECT t.* FROM tasks t JOIN projects p ON p.id=t.project_id
-      WHERE p.status<>'archived' AND t.done_at IS NOT NULL AND t.done_at>=? ${scope.replace("c.", "t.")}
+      WHERE ${scope("t")} AND t.done_at IS NOT NULL AND t.done_at>=?
       ORDER BY t.done_at DESC LIMIT 200`)
-      .bind(`${since}T00:00:00Z`, ...(project ? [project.id] : [])).all<TaskRow>(),
+      .bind(...(project ? [project.id] : []), `${since}T00:00:00Z`).all<TaskRow>(),
   ]);
   const items = [
     ...entries.results.map(row => ({ kind: "change" as const, project: row.project_id, date: row.date,

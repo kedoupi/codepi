@@ -33,12 +33,14 @@ export function fitTask(data: Awaited<ReturnType<typeof getTask>>) {
   const result = fit({ ...data, task: { ...data.task, related: [...data.task.related] } }, ["handoffs"], BUDGET - 256);
   const truncated = new Set(result.truncated ?? []);
   const task = result.task;
+  // Count code points, the same unit shorten() cuts by, so every step shrinks the field and the loop ends.
+  const points = (value: string | null) => (value ? Array.from(value).length : 0);
   while (jsonBytes(result) > BUDGET - 256) {
     const longest = TEXT_FIELDS
-      .filter(field => (task[field]?.length ?? 0) > 80)
-      .sort((a, b) => (task[b]!.length) - (task[a]!.length))[0];
+      .filter(field => points(task[field]) > 80)
+      .sort((a, b) => points(task[b]) - points(task[a]))[0];
     if (longest) {
-      task[longest] = shorten(task[longest]!, Math.floor(task[longest]!.length * 0.7));
+      task[longest] = shorten(task[longest]!, Math.floor(points(task[longest]) * 0.7));
       truncated.add(`task.${longest}`);
     } else if (task.related.length) {
       task.related.pop();
