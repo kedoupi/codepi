@@ -30,7 +30,7 @@ pnpm --filter web test       # 需要时单独运行目标应用命令
 
 ## 影响范围
 
-应用命令和跨服务依赖集中在 `scripts/agent/check-plan.mjs`；新增应用、共享消费者或检查命令只修改该配置并补充回归测试。`scripts/agent/check.mjs` 只负责计算范围、选择 quick/full 并执行，独立检查最多并行四路；CI 通过 `scripts/agent/ci-plan.mjs` 复用同一配置，不另维护路径正则。发布范围仍由 `scripts/cloudflare/release-scope.mjs` 单独表达 Health 前后端和运行时依赖，不将测试范围直接当作发布范围。
+应用命令和跨服务依赖集中在 `scripts/agent/check-plan.mjs`；新增应用、共享消费者或检查命令只修改该配置并补充回归测试。`scripts/agent/check.mjs` 只负责计算范围、选择 quick/full 并执行，独立检查最多并行四路；构建为独占检查，测试脚本会顺带重建其他包产物时在配置里声明 `locks`，同名锁的检查不并行（2026-11-04：MCP 测试重建 CLI 曾与 CLI 测试并发撞 `dist`）；CI 通过 `scripts/agent/ci-plan.mjs` 复用同一配置，不另维护路径正则。发布范围仍由 `scripts/cloudflare/release-scope.mjs` 单独表达 Health 前后端和运行时依赖，不将测试范围直接当作发布范围。
 
 - 普通应用：只检查自己的测试、类型、构建及专属验证。
 - Health API / Health shared：追加 MCP。

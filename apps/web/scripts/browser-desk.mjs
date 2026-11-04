@@ -151,7 +151,14 @@ try {
     document.dispatchEvent(new Event('visibilitychange'));
     document.querySelector('#desk-retry').click();
   });
+  // 状态文字在触发前就已是「概览已读取」，不能只等它：先等新的 me 请求真正到达，再等页面完成，
+  // 最后留出一段时间让可能的重复请求出现，才断言只发了一次（负载高时原写法会早于请求计数）。
+  for (const deadline = Date.now() + 10_000; deskMeRequests === initialDeskMeRequests;) {
+    if (Date.now() > deadline) throw new Error('Desk retry did not request /api/desk/me within 10s');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
+  await new Promise(resolve => setTimeout(resolve, 500));
   assert.equal(deskMeRequests, initialDeskMeRequests + 1, 'concurrent initialize triggers share one me request');
   const appearance = await page.evaluate(() => ({
     font: getComputedStyle(document.body).fontFamily,
