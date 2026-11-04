@@ -115,7 +115,8 @@
     return `上班通勤平均 ${durationText(to)}、下班通勤平均 ${durationText(home)}；都是上限，含到公司后还没开电脑、离开电脑后还没走的时间。`;
   });
 
-  const appItems = $derived(dayItems(day => categorySegments(day.metrics?.appCategoryMinutes)));
+  // 工作机当天没有数据（在电脑前为未知）时，App 类别也是未知，不画成 0。
+  const appItems = $derived(dayItems(day => isNumber(day.metrics?.officeActiveMinutes) ? categorySegments(day.metrics?.appCategoryMinutes) : null));
   const hourly = $derived(hourlyCategoryAverage(days));
   const hourlyItems = $derived<BarItem[]>(hourly.map(hour => ({
     key: hour.hour, label: hour.hour, title: `${hour.hour}:00–${hour.hour}:59（${hour.days} 天平均）`,
@@ -123,7 +124,9 @@
   })));
   const apps = $derived(topApps(days));
   const appConclusion = $derived.by(() => {
-    const totals = APP_CATEGORIES.map(category => ({ category, minutes: complete.reduce((sum, day) => sum + (day.metrics.appCategoryMinutes[category] ?? 0), 0) }));
+    const officeDays = complete.filter(day => isNumber(day.metrics.officeActiveMinutes));
+    if (!officeDays.length) return "这段时间工作机没有可用的采样，App 构成未知。";
+    const totals = APP_CATEGORIES.map(category => ({ category, minutes: officeDays.reduce((sum, day) => sum + (day.metrics.appCategoryMinutes[category] ?? 0), 0) }));
     const all = totals.reduce((sum, item) => sum + item.minutes, 0);
     if (!all) return "这段时间没有公司网络且有键鼠的采样。";
     const top = [...totals].sort((left, right) => right.minutes - left.minutes)[0];
@@ -152,9 +155,14 @@
     const value = m.dayType === "workday" ? m.afterWorkWorkMachineMinutes : m.weekendWorkMachineMinutes;
     return single(m.dayType === "workday" ? "commute" : "other_network", m.dayType === "workday" ? "在家用工作机" : "休息日用工作机", value);
   }));
+  // 只合计工作机有数据的日子；一天都没有时显示「未知」，不写成 0。
+  function knownTotal(values: Array<number | null>): number | null {
+    const known = values.filter(isNumber);
+    return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
+  }
   const overflowTotals = $derived({
-    workday: complete.reduce((sum, day) => sum + (day.metrics.afterWorkWorkMachineMinutes ?? 0), 0),
-    restday: complete.reduce((sum, day) => sum + (day.metrics.weekendWorkMachineMinutes ?? 0), 0),
+    workday: knownTotal(complete.filter(day => day.metrics.dayType === "workday").map(day => day.metrics.afterWorkWorkMachineMinutes)),
+    restday: knownTotal(complete.filter(day => day.metrics.dayType === "restday").map(day => day.metrics.weekendWorkMachineMinutes)),
     workdays: complete.filter(day => isNumber(day.metrics.afterWorkWorkMachineMinutes)).length,
     restdays: complete.filter(day => isNumber(day.metrics.weekendWorkMachineMinutes)).length,
   });
@@ -286,7 +294,7 @@
       <BarChart items={focusItems} format={durationText} label="每天专注总时长" />
       <h3>在家与休息日仍用工作机</h3>
       <BarChart items={overflowItems} format={durationText} label="在家或休息日用工作机分钟" />
-      <p class="chart-conclusion">工作日在家用工作机合计 {durationText(overflowTotals.workday)}（{overflowTotals.workdays} 天，含上班前在家用的时间），休息日合计 {durationText(overflowTotals.restday)}（{overflowTotals.restdays} 天）。家里暂不区分房间。</p>
+      <p class="chart-conclusion">工作日在家用工作机合计 {durationText(overflowTotals.workday)}（{overflowTotals.workdays} 天有工作机数据，含上班前在家用的时间），休息日合计 {durationText(overflowTotals.restday)}（{overflowTotals.restdays} 天有工作机数据）。家里暂不区分房间。</p>
     </section>
 
     <section class="panel" id="home" data-group="rhythm">

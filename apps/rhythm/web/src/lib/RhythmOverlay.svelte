@@ -23,8 +23,17 @@
   function describe(day: TrendDay): string {
     const head = `${shortDate(day.date)} ${weekdayText(day.date)} · ${dayTypeText(day.dayType)}`;
     if (!day.metrics) return `${head}：没有汇总（未知）`;
+    if (!known(day.metrics)) return `${head}：数据不足，画不出作息（未知）`;
     const m = day.metrics;
     return `${head}：离家 ${clockText(m.leaveHomeMinute)}，开始办公 ${clockText(m.startWorkMinute)}，离开电脑 ${clockText(m.leaveComputerMinute)}，到家 ${clockText(m.arriveHomeMinute)}${day.partial ? "（今天还没过完）" : ""}`;
+  }
+
+  /** 这一天能不能画：有出门 / 办公区间，或确定全天在家；否则整行画成未知斜纹。 */
+  function known(m: NonNullable<TrendDay["metrics"]>): boolean {
+    const out = m.leaveHomeMinute !== null && m.arriveHomeMinute !== null && m.arriveHomeMinute > m.leaveHomeMinute;
+    const office = m.startWorkMinute !== null && m.leaveComputerMinute !== null && m.leaveComputerMinute > m.startWorkMinute;
+    const home = m.leaveHomeMinute === null && m.startWorkMinute === null && (m.homeMinutes ?? 0) > 0;
+    return out || office || home;
   }
 
   function toggle(date: string) { selected = selected === date ? null : date; }
@@ -58,7 +67,7 @@
         <title>{describe(day)}</title>
         <text class="tick row-label" x="0" y={top + rowHeight - 4}>{shortDate(day.date)} {weekdayText(day.date)}</text>
         <rect class="hit" x={pct(left)} y={top} width={pct(plotWidth)} height={rowHeight}></rect>
-        {#if !m}
+        {#if !m || !known(m)}
           <rect x={pct(left)} y={top} width={pct(plotWidth)} height={rowHeight} fill={`url(#${patternId})`}></rect>
         {:else}
           <rect class="track" x={pct(left)} y={top} width={pct(plotWidth)} height={rowHeight}></rect>

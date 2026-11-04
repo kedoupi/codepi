@@ -159,6 +159,32 @@ describe("Rhythm 趋势页", () => {
     expect(location.search).toBe("?range=30");
   });
 
+  it("工作机没有数据的日子：App 类别与叠图画成未知，合计不写 0", async () => {
+    const noWork = metrics({
+      officeActiveMinutes: null, officeSpanMinutes: null, startWorkMinute: null, leaveComputerMinute: null,
+      leaveHomeMinute: null, arriveHomeMinute: null, commuteToWorkMinutes: null, commuteHomeMinutes: null,
+      homeMinutes: null, afterWorkWorkMachineMinutes: null, appCategoryMinutes: {}, hourlyAppCategoryMinutes: {},
+      topAppName: null, topAppMinutes: null, focus: { segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null },
+    });
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      if (path.startsWith("/api/trends")) return response({ ...trendsPayload(7), days: [day("2026-11-02", noWork)], days_available: 1 });
+      if (path.startsWith("/api/anomalies")) return response({ range: 7, from: "x", to: "x", baseline: "基线", days_available: 1, anomalies: [], insufficient_sample: [] });
+      return response({ range: 7, from: "x", to: "x", days_available: 1, days: [] });
+    }));
+    render(App);
+    await screen.findByRole("heading", { name: "在公司用电脑" });
+    const appBar = document.querySelector('#apps [aria-label="每天 App 类别分钟"] .bar')!;
+    expect(appBar.getAttribute("aria-label")).toContain("没有数据（未知）");
+    expect(appBar.querySelector("rect[data-series]")).toBeNull();
+    expect(screen.getByText("这段时间工作机没有可用的采样，App 构成未知。")).toBeTruthy();
+    expect(screen.getByText(/工作日在家用工作机合计 未知（0 天有工作机数据/)).toBeTruthy();
+    const overlayRow = document.querySelector("#overlay .bar")!;
+    expect(overlayRow.getAttribute("aria-label")).toContain("数据不足，画不出作息（未知）");
+    expect(overlayRow.querySelector("rect[data-series]")).toBeNull();
+  });
+
   it("快速切换范围时，晚到的旧响应不会覆盖新结果", async () => {
     let releaseSeven: (() => void) | null = null;
     let sevenRequests = 0;
