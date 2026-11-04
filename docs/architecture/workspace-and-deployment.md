@@ -132,9 +132,9 @@ GU 的业务逻辑、线上版本与私有原件仍归 GU；历史迁移和恢�
 
 ## Agent 开发与发布
 
-普通开发默认一个 agent 复用当前 checkout，不要求 worktree、任务文档或分配表。
+普通开发默认走 agent-team 流程：执行者在任务 worktree 与任务分支里工作，不要求任务文档或分配表。
 独立写入、跨会话交接或审查时按[开发与验证](../development/agent-workflow.md)处理。
-生产发布统一遵循[本地发布操作](../development/local-release.md)；提交、合并、部署和迁移不随普通开发自动执行。
+生产发布统一遵循[本地发布操作](../development/local-release.md)；任务分支提交和验收审查通过后的本地 main 合并属于开发流程；push、部署和迁移不随之自动执行。
 
 ## 技术栈方向
 

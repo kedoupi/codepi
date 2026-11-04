@@ -1,6 +1,6 @@
 # 开发导航
 
-普通开发只需根与目标目录 `AGENTS.md` 加 `.agents/skills/kdp-dev/SKILL.md`；本页用于按风险选路，不要求每次加载全部流程。默认一个 agent，不默认启动协作、审查或发布。
+普通开发只需根与目标目录 `AGENTS.md` 加 `.agents/skills/kdp-dev/SKILL.md`；本页用于按风险选路，不要求每次加载全部流程。默认走 agent-team 流程（见根 `AGENTS.md`「Agent 协作适配」）；发布需所有者授权。
 
 | 要做什么 | 入口 |
 | --- | --- |

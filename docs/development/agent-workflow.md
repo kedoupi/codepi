@@ -1,6 +1,6 @@
 # 开发与验证
 
-普通开发使用一个 agent，不需要分配表、任务文档或独立 worktree。根 `AGENTS.md`、目标目录 `AGENTS.md` 和 `kdp-dev` 已包含日常入口；只有续做、跨工具交接、独立审查或发布时才使用本导航的其他文档。
+普通开发默认走 agent-team 流程：lead 与所有者讨论并出计划，只读 agent 核验，执行者在任务 worktree 里实现，测试终端验收、独立只读审查通过后由 lead 合并到本地 main；不需要分配表或任务文档。根 `AGENTS.md`、目标目录 `AGENTS.md` 和 `kdp-dev` 已包含日常入口；只有续做、跨工具交接、独立审查或发布时才使用本导航的其他文档。
 
 ## 日常开发
 
@@ -8,7 +8,7 @@
 2. 读取目标实现、调用方和邻近测试，确定根因后做最小完整修改。
 3. 从仓库根运行 `pnpm check`：只检查当前未提交改动，执行测试和类型检查等快速项。
 4. UI 或关键交互另外做对应浏览器验收；远程授权、生产数据和真实邮件不属于本地自动检查。
-5. 交付改动、实际结果和未覆盖路径。未经授权不 commit、push、merge、deploy 或执行迁移。
+5. 交付改动、实际结果和未覆盖路径。任务分支内可提交；合并本地 main 须验收与审查通过；push、deploy、迁移需所有者授权。
 
 ```bash
 pnpm install --frozen-lockfile  # 首次或 lockfile 变化后
@@ -53,6 +53,6 @@ pnpm --filter web test       # 需要时单独运行目标应用命令
 
 并行任务才需要共享分配表，至少包含负责人、worktree、允许路径、公共接口负责人和依赖。共享契约只有一个写入者。任务文档不是锁，也不扩大 Git 或远程授权。
 
-所有者要求「Claude 实现、Codex 审查、测试终端验收」的多 Agent 协作时，使用其本机的 `agent-team` 流程（skill 不在本仓库，按需在本机建 `.claude/skills/agent-team` 链接，不提交）；隔离、提交、验收与合并方式只写在[根 AGENTS.md 的「Agent 协作适配」](../../AGENTS.md#agent-协作适配)，本页其余约定照常适用。
+多 Agent 协作（lead 出计划与分派、执行者实现、测试终端验收、独立只读审查）默认使用所有者本机的 `agent-team` 流程（skill 不在本仓库，按需在本机建 `.claude/skills/agent-team` 链接，不提交）；最多 3 轮审查，通过后 lead 自动合并到本地 main，push 与发布需所有者授权；隔离、提交、验收与合并方式只写在[根 AGENTS.md 的「Agent 协作适配」](../../AGENTS.md#agent-协作适配)，本页其余约定照常适用。
 
 审查固定提交 SHA；未提交时固定基线、停止写入并列明文件清单。发布、合并和本地验证分别记录，不相互推定。完整协作细节按需查看 [kdp-review](../../.agents/skills/kdp-review/SKILL.md)、[kdp-handoff](../../.agents/skills/kdp-handoff/SKILL.md) 和 [kdp-release](../../.agents/skills/kdp-release/SKILL.md)。

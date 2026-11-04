@@ -14,4 +14,4 @@ description: 核对 codepi 旧分支或 worktree 是否已归并、集成有效�
 5. 正常发布从干净且等于远程 main 的源码在本机执行，按 [本地发布操作](../../../docs/development/local-release.md) 持锁、验证、按依赖发布并记录证据。按每个服务上次成功发布以来的累计改动确定范围，Health 前后端分别记录；MCP/Ops 是支撑服务而非额外产品。Actions 只做附加验证，不把合并当成上线，纯文档修改不单独触发业务重发。
 6. 输出候选判定、版本与证据、实际完成的 Git/部署/验收/清理步骤，以及保留项和阻塞。明确本地 main、远程 main 与云端 deployment 的区别；未执行阶段不宣称完成。
 
-本 skill 不授予 commit、push、merge、部署、密钥更新、删除数据或给其他会话发消息的权限。跨会话续做按 [kdp-handoff](../kdp-handoff/SKILL.md) 留下事实，不保存凭证或私人数据。
+agent-team 任务分支的提交和验收后的本地 main 合并不属于发布动作。本 skill 不授予 commit、push、merge、部署、密钥更新、删除数据或给其他会话发消息的权限。跨会话续做按 [kdp-handoff](../kdp-handoff/SKILL.md) 留下事实，不保存凭证或私人数据。
