@@ -30,7 +30,7 @@ pnpm --filter web test       # 需要时单独运行目标应用命令
 
 ## 影响范围
 
-应用命令和跨服务依赖集中在 `scripts/agent/check-plan.mjs`；新增应用、共享消费者或检查命令只修改该配置并补充回归测试。`scripts/agent/check.mjs` 只负责计算范围、选择 quick/full 并执行，独立检查最多并行四路；CI 通过 `scripts/agent/ci-plan.mjs` 复用同一配置，不另维护路径正则。发布范围仍由 `scripts/cloudflare/release-scope.mjs` 单独表达 Health 前后端和运行时依赖，不将测试范围直接当作发布范围。
+应用命令和跨服务依赖集中在 `scripts/agent/check-plan.mjs`；新增应用、共享消费者或检查命令只修改该配置并补充回归测试。`scripts/agent/check.mjs` 只负责计算范围、选择 quick/full 并执行，独立检查最多并行四路；构建为独占检查，测试脚本会顺带重建其他包产物时在配置里声明 `locks`，同名锁的检查不并行（2026-11-04：MCP 测试重建 CLI 曾与 CLI 测试并发撞 `dist`）；CI 通过 `scripts/agent/ci-plan.mjs` 复用同一配置，不另维护路径正则。发布范围仍由 `scripts/cloudflare/release-scope.mjs` 单独表达 Health 前后端和运行时依赖，不将测试范围直接当作发布范围。
 
 - 普通应用：只检查自己的测试、类型、构建及专属验证。
 - Health API / Health shared：追加 MCP。
@@ -52,5 +52,7 @@ pnpm --filter web test       # 需要时单独运行目标应用命令
 短任务在回复中交付即可。只有长任务、换 agent 或并行写入时才建立 `docs/development/tasks/<task-id>.md`，记录目标、基线、worktree、允许路径、验证证据和下一步；当前待办写入[任务索引](tasks/README.md)，已结束记录按年度放入[档案](archive/README.md)。
 
 并行任务才需要共享分配表，至少包含负责人、worktree、允许路径、公共接口负责人和依赖。共享契约只有一个写入者。任务文档不是锁，也不扩大 Git 或远程授权。
+
+所有者要求「Claude 实现、Codex 审查、测试终端验收」的多 Agent 协作时，使用其本机的 `agent-team` 流程（skill 不在本仓库，按需在本机建 `.claude/skills/agent-team` 链接，不提交）；隔离、提交、验收与合并方式只写在[根 AGENTS.md 的「Agent 协作适配」](../../AGENTS.md#agent-协作适配)，本页其余约定照常适用。
 
 审查固定提交 SHA；未提交时固定基线、停止写入并列明文件清单。发布、合并和本地验证分别记录，不相互推定。完整协作细节按需查看 [kdp-review](../../.agents/skills/kdp-review/SKILL.md)、[kdp-handoff](../../.agents/skills/kdp-handoff/SKILL.md) 和 [kdp-release](../../.agents/skills/kdp-release/SKILL.md)。
