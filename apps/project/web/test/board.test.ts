@@ -1,137 +1,84 @@
+// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import FieldCard from "../src/components/FieldCard.svelte";
-import HandoffTimeline from "../src/components/HandoffTimeline.svelte";
-import ProgressPanel from "../src/components/ProgressPanel.svelte";
-import ProjectList from "../src/components/ProjectList.svelte";
-import type { Handoff } from "../src/lib/types";
+import Board from "../src/components/Board.svelte";
+import Countdown from "../src/components/Countdown.svelte";
+import type { ProjectSummary, TaskBrief } from "../src/lib/types";
 
-afterEach(cleanup);
+const projects: ProjectSummary[] = [
+  { id: "alpha", name: "Alpha", repo: null, status: "active", last_push_at: "2026-11-04T06:00:00Z", open: 3, need_you: 2, branches: 0, url: "" },
+  { id: "beta", name: "Beta", repo: "synthetic/beta", status: "active", last_push_at: null, open: 1, need_you: 0, branches: 0, url: "" },
+];
+const task = (overrides: Partial<TaskBrief>): TaskBrief => ({
+  project: "alpha", key: "k", title: "示例", status: "doing", category: "流程", due: null, need_kind: "none", done_at: null, ...overrides,
+});
+const tasks: TaskBrief[] = [
+  task({ key: "a", title: "选择示例方案", status: "decide", need_kind: "decide", due: "2026-11-05" }),
+  task({ key: "b", title: "续费示例", status: "doing", need_kind: "attend", due: "2026-11-02", category: "基础设施" }),
+  task({ key: "c", title: "示例想法", status: "idea" }),
+  task({ project: "beta", key: "d", title: "Beta 缺陷", status: "bug", category: "网关" }),
+  task({ key: "e", title: "刚做完", status: "doing", done_at: new Date().toISOString() }),
+];
 
-function handoff(overrides: Partial<Handoff> = {}): Handoff {
-  return {
-    id: "handoff-1",
-    task_id: "task-a",
-    status: "in_progress",
-    client: "Codex",
-    summary: "Implemented the project card.",
-    next: "Run the integration checks.",
-    blockers: null,
-    files: [],
-    branch: "codex/task-a",
-    base_sha: "abbafdfe2d04966d66dad2f4f0084075f040caaf",
-    commit: null,
-    pr: null,
-    at: "2026-10-20T04:00:00Z",
-    ...overrides,
-  };
+function mockFetch() {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input);
+    if (path.startsWith("/api/tasks")) return Response.json({ as_of: "", tasks });
+    if (path === "/api/overview") return Response.json({ today: "2026-11-04" });
+    return Response.json({ error: "not_found" }, { status: 404 });
+  }));
 }
 
-describe("project board components", () => {
-  it("edits and resets an AGENTS.md card field", async () => {
-    const onSave = vi.fn(async () => {});
-    const onReset = vi.fn(async () => {});
-    render(FieldCard, {
-      props: {
-        name: "goal",
-        label: "目标",
-        field: {
-          value: "Edited value",
-          auto_value: "New automatic value",
-          source: "edited",
-          agents_md_changed: true,
-        },
-        onSave,
-        onReset,
-      },
-    });
-    expect(screen.getByText("AGENTS.md 有更新")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button", { name: "编辑" }));
-    const editor = screen.getByRole("textbox", { name: "编辑目标" });
-    await fireEvent.input(editor, { target: { value: "Next owner text" } });
-    await fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith("goal", "Next owner text"));
-    expect(onSave).toHaveBeenCalledTimes(1);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  history.replaceState(null, "", "/");
+});
 
-    render(FieldCard, {
-      props: {
-        name: "scope",
-        label: "范围",
-        field: { value: "Edited scope", auto_value: "Auto", source: "edited", agents_md_changed: false },
-        onSave,
-        onReset,
-      },
-    });
-    await fireEvent.click(screen.getAllByRole("button", { name: "恢复自动提取" }).at(-1)!);
-    await waitFor(() => expect(onReset).toHaveBeenCalledWith("scope"));
+describe("Board", () => {
+  it("groups tasks into status columns plus recently done and filters by need", async () => {
+    mockFetch();
+    const onOpen = vi.fn();
+    render(Board, { projects, onOpen });
+    await screen.findByText("选择示例方案");
+    const column = (label: string) => screen.getByRole("region", { name: label });
+    expect(column("待决定").textContent).toContain("选择示例方案");
+    expect(column("执行").textContent).toContain("续费示例");
+    expect(column("缺陷").textContent).toContain("Beta 缺陷");
+    expect(column("最近完成").textContent).toContain("刚做完");
+    await fireEvent.click(screen.getByRole("button", { name: "只看需要你" }));
+    await waitFor(() => expect(column("想法").textContent).not.toContain("示例想法"));
+    expect(column("最近完成").textContent).not.toContain("刚做完");
+    await fireEvent.click(screen.getByText("续费示例"));
+    expect(onOpen).toHaveBeenCalledWith("alpha", "b");
   });
 
-  it("renders user text as text rather than executable HTML", async () => {
-    const payload = "<script>window.__project_pwned = true</script>";
-    const { container } = render(HandoffTimeline, {
-      props: {
-        handoffs: [handoff({ summary: payload })],
-        hasMore: false,
-        loading: false,
-        onLoadMore: async () => {},
-      },
-    });
-    expect(screen.getByText(payload)).toBeTruthy();
-    expect(container.querySelector("script")).toBeNull();
-    expect((window as unknown as { __project_pwned?: boolean }).__project_pwned).toBeUndefined();
+  it("filters from a heat-map cell and clears it again", async () => {
+    mockFetch();
+    render(Board, { projects, onOpen: vi.fn() });
+    await screen.findByText("选择示例方案");
+    await fireEvent.click(screen.getByRole("button", { name: "网关 缺陷 1 条" }));
+    await waitFor(() => expect(screen.queryByText("选择示例方案")).toBeNull());
+    expect(screen.getByText("Beta 缺陷")).toBeTruthy();
+    await fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
+    await screen.findByText("选择示例方案");
   });
 
-  it("keeps duplicate file names from breaking the timeline key", () => {
-    render(HandoffTimeline, {
-      props: {
-        handoffs: [handoff({ files: ["same.txt", "same.txt"] })],
-        hasMore: false,
-        loading: false,
-        onLoadMore: async () => {},
-      },
-    });
-    expect(screen.getAllByText("same.txt")).toHaveLength(2);
+  it("reads the due filter from the address", async () => {
+    history.replaceState(null, "", "/board?due=late");
+    mockFetch();
+    render(Board, { projects, onOpen: vi.fn() });
+    await screen.findByText("续费示例");
+    expect(screen.queryByText("选择示例方案")).toBeNull();
   });
+});
 
-  it("shows task-specific progress instead of only one global handoff", () => {
-    render(ProgressPanel, {
-      props: {
-        repo: "kedoupi/codepi",
-        taskProgress: [
-          { task_id: "task-a", status: "in_progress", latest: handoff() },
-          {
-            task_id: "task-b",
-            status: "blocked",
-            latest: handoff({ id: "handoff-2", task_id: "task-b", summary: "Task B summary" }),
-          },
-        ],
-      },
-    });
-    expect(screen.getByText("task-a")).toBeTruthy();
-    expect(screen.getByText("task-b")).toBeTruthy();
-    expect(screen.getByText("Task B summary")).toBeTruthy();
-  });
-
-  it("shows an empty progress state and the project list next step", () => {
-    render(ProgressPanel, { props: { repo: "kedoupi/codepi", taskProgress: [] } });
-    expect(screen.getByText("还没有任务交接")).toBeTruthy();
-    cleanup();
-    render(ProjectList, {
-      props: {
-        asOf: "2026-10-20T04:00:00Z",
-        projects: [{
-          id: "kedoupi-codepi",
-          repo: "kedoupi/codepi",
-          name: "codepi",
-          status: "active",
-          last_activity_at: "2026-10-20T04:00:00Z",
-          url: "https://project.codepi.app/p/kedoupi-codepi",
-          latest_handoff: handoff({ next: "Continue with the board." }),
-        }],
-        onOpen: vi.fn(),
-      },
-    });
-    expect(screen.getByText(/Continue with the board/)).toBeTruthy();
-    expect(screen.getByText("codepi")).toBeTruthy();
+describe("Countdown", () => {
+  it("draws one bar per dated task and labels overdue days", () => {
+    render(Countdown, { tasks, today: "2026-11-04", onOpen: vi.fn() });
+    const rows = screen.getAllByRole("button");
+    expect(rows).toHaveLength(2);
+    expect(rows[1].getAttribute("aria-label")).toContain("逾期 2 天");
+    expect(rows[0].getAttribute("aria-label")).toContain("需要你决定");
   });
 });

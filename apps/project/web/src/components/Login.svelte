@@ -15,16 +15,9 @@
       <span>kedoupi<small>codepi · 项目工作台</small></span>
     </div>
     <div class="login-statement">
-      <span class="eyebrow">PROJECT / CONTINUITY</span>
-      <h1>让下一个会话，<br />从明确的任务边界开始。</h1>
-      <p>项目卡、任务交接、GitHub 动静汇聚在同一张工作台上。</p>
-    </div>
-    <div class="login-diagram" aria-hidden="true">
-      <span class="diagram-node node-a">AGENTS.md</span>
-      <span class="diagram-line line-a"></span>
-      <span class="diagram-node node-b">task: mcp</span>
-      <span class="diagram-line line-b"></span>
-      <span class="diagram-node node-c">next step</span>
+      <span class="eyebrow">个人工作台</span>
+      <h1>所有项目要做的事，<br />一处看。</h1>
+      <p>待办、要你拍板的事、进行中的分支和最近做完的事，由各个仓库推上来。</p>
     </div>
     <p class="login-foot">{PRODUCT_BRAND} · 私人项目空间</p>
   </section>
@@ -32,7 +25,7 @@
     <div class="login-card">
       <span class="eyebrow">仅本人访问</span>
       <h2>进入项目工作台</h2>
-      <p class="muted">通过 {PRODUCT_BRAND} 统一登录。项目看板与 AI 交接使用同一身份。</p>
+      <p class="muted">通过 {PRODUCT_BRAND} 统一登录。</p>
       {#if authError}
         <p class="inline-alert" role="alert">登录未完成，请重新尝试。</p>
       {/if}

@@ -12,7 +12,7 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 | 所有者 | named RPC | 权威数据 | MCP 能力 |
 | --- | --- | --- | --- |
 | Health API | `HealthMcp` | Health D1 与同步队列 | catalog、records、aggregate、sync status |
-| Project | `ProjectMcp` | 独立 D1；GitHub 自动提取与追加交接 | projects_list、project_get、project_handoff_save |
+| Project | `ProjectMcp` | 独立 D1；各仓库推送的待办、分支、变更快照与追加交接 | work_overview、task_list、task_get、project_get、project_handoff_save |
 | Me | `MeMcp` | 独立 D1；私有 R2 导入原文 | memory_search/save/import、profile、timeline、proposal |
 | GU | `GuMcp` | `gu_workspace_head` 指向的线上版本 | portfolio、cash、trades、rules、reports |
 | Blog（Web Worker） | `BlogMcp` | Web Worker 自有 Blog D1/R2 | 博客查询、草稿与审核辅助；发布仍需 owner 审核 |
@@ -55,16 +55,17 @@ Health 超限响应使用 `health_data_json_v1` JSON 片段分页；保持原参
 
 ## Project 与 CLI
 
-项目卡合并 AGENTS.md 自动字段和本人编辑值；记录提取 SHA，自动源变化时提示。
-交接按 task_id 分组，状态为 in_progress/blocked/ready_for_review/done；解析不出的仓库
-任务状态显示 unknown。每条记录包含分支、base SHA，可关联 commit 和 PR，不用“最新一条”
-覆盖多个并行任务。写入只追加；重复请求使用相同 request_id。
-项目列表只返回有界摘要，使用 `offset/limit` 和 `next_offset` 分页；续页必须携带
-首屏内容哈希 `revision`，列表期间变化返回 `cursor_stale`，不得输出漏项的部分列表。完整交接通过
-`project_get` 读取，不能借列表绕过 12 KiB 详情预算。
-
-GitHub 只读同步按 Link 翻页，分页失败保留断点，完成前不推进高水位游标。
-缺少授权、限流、未同步和数据为空分别显示，不伪造仓库进度。
+2026-11-04 起 Project 是个人工作台（[任务](../development/tasks/2026-11-04-project-workbench.md)）：
+各项目仓库合并后用项目令牌推送 `workbench.v1` 快照（待办、分支、changelog），Worker 做凭据形态扫描、
+按内容哈希幂等，消失的待办记为完成；GitHub 拉取同步已删除。待办以仓库为唯一真源，网页与 MCP 只读。
+`work_overview` 是开工入口：需要所有者决定、到场、授权、确认的事按截止排序，逾期与 7 天内到期、
+进行中分支、最近 7 天完成。`task_list` 返回紧凑行，使用 `offset/limit`、`next_offset` 和覆盖筛选与结果的
+`revision`，列表变化返回 `cursor_stale`，不得输出漏项的部分列表；`task_get` 读一条待办的四项文字与交接。
+`project_get` 返回规则入口与 Agent 协作适配段（隔离、提交、验收、合并）、按状态计数、分支、近期变更标题和
+每个任务最新交接。所有回复都在 12 KiB 内，超出时截短列表并写 `truncated`，不再使用片段分页，
+`read_document` 只服务 Health。
+交接挂在任务键或自由任务 ID 上，状态为 in_progress/blocked/ready_for_review/done；分支、base SHA、
+commit、PR 可选，没有远端的仓库也能写。写入只追加；重复请求使用相同 request_id。
 
 `packages/cli` 使用锁定版本的官方 SDK 和 Node 内置模块，不自己实现 JSON-RPC/SSE。
 凭证按 server 隔离，目录 0700、文件 0600、原子替换。刷新使用同进程单一任务和跨进程锁，
@@ -73,7 +74,8 @@ loopback 只有 HTTP IP 的端口可变；scheme、IP、path、query 必须相�
 授权码和换 token 仍绑定授权时的实际 URI。
 
 `codepi init` 默认预览，必须 --yes 才修改仓库；`connect` 只打印配置。
-交接需显式 task/status/branch/base SHA；猜不出 repo 或基线时失败并说明缺失参数。
+交接需显式 task/status/summary/next；项目取 `--repo` 或 Git origin，猜不出时失败并说明缺失参数；
+分支和 base SHA 能从 Git 推导时附带，推导不出就省略。
 
 ## Me
 

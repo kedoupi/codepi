@@ -234,12 +234,13 @@ test('blog optional nulls are advertised and omitted before RPC without mutating
 test('domain writes receive grant identity, enforce schema and reject spoofed identity', async () => {
   let received;
   const env = { PROJECT: { execute: async request => { received = request; return { ok: true, data: { id: 'synthetic' } }; } } };
-  const args = { project: 'synthetic/repo', task_id: 'task-1', status: 'in_progress', summary: 'Done', next: 'Next',
-    branch: 'codex/synthetic', base_sha: 'a'.repeat(40) };
+  const args = { project: 'synthetic/repo', task: 'task-1', status: 'in_progress', summary: 'Done', next: 'Next' };
   await callTool(env, ctx('projects.write'), 'project_handoff_save', args);
   assert.equal(received.client, 'synthetic-client');
   assert.equal(received.clientName, 'Synthetic');
-  for (const invalid of [{ ...args, user_id: 'other' }, { ...args, status: 'maybe' }, { ...args, task_id: '' }]) {
+  assert.equal(received.operation, 'handoff_save');
+  for (const invalid of [{ ...args, user_id: 'other' }, { ...args, status: 'maybe' }, { ...args, task: '' },
+    { ...args, task_id: 'old-name' }, { ...args, base_sha: 'abc' }]) {
     await assert.rejects(callTool(env, ctx('projects.write'), 'project_handoff_save', invalid), /invalid_arguments/);
   }
 });

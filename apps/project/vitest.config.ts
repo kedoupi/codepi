@@ -19,7 +19,6 @@ export default defineConfig({
               AUTH_CLIENT_SECRET: "test-project-sso-secret-not-for-production",
               AUTH_ORIGIN: "https://auth.codepi.app",
               PROJECT_ORIGIN: "https://project.codepi.app",
-              PROJECT_REPOS: "kedoupi/codepi",
               BUILD_SHA: "test",
             },
           },

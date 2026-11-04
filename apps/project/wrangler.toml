@@ -19,11 +19,7 @@ SSO_ENABLED = "1"
 AUTH_CLIENT_ID = "project"
 AUTH_ORIGIN = "https://auth.codepi.app"
 PROJECT_ORIGIN = "https://project.codepi.app"
-PROJECT_REPOS = "kedoupi/codepi"
 BUILD_SHA = "local"
-
-[triggers]
-crons = ["*/15 * * * *"]
 
 [[services]]
 binding = "AUTH"

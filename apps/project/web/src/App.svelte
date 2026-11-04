@@ -1,324 +1,202 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { CODEPI_SYMBOL_PNG, PRODUCT_BRAND } from "@kedoupi/shared/brand";
-  import { api, ApiError, currentReturn } from "./lib/api";
-  import type {
-    Handoff,
-    HandoffDraft,
-    HandoffsResponse,
-    ProjectCard,
-    ProjectListItem,
-    ProjectListResponse,
-    ProjectStatus,
-  } from "./lib/types";
+  import { CODEPI_SYMBOL_PNG } from "@kedoupi/shared/brand";
+  import { api, ApiError } from "./lib/api";
+  import type { ProjectSummary } from "./lib/types";
+  import { projectSlot } from "./lib/format";
+  import Icon from "./components/Icon.svelte";
   import Login from "./components/Login.svelte";
-  import ProjectDetail from "./components/ProjectDetail.svelte";
-  import ProjectList from "./components/ProjectList.svelte";
+  import Today from "./components/Today.svelte";
+  import Board from "./components/Board.svelte";
+  import ProjectPage from "./components/ProjectPage.svelte";
+  import Log from "./components/Log.svelte";
+  import TaskDrawer from "./components/TaskDrawer.svelte";
+  import AddProject from "./components/AddProject.svelte";
   import "./style.css";
 
-  type View = "loading" | "login" | "list" | "detail" | "error";
+  type Route = { view: "today" } | { view: "board" } | { view: "log" } | { view: "project"; id: string } | { view: "login" };
 
-  let view = $state<View>("loading");
-  let projects = $state<ProjectListItem[]>([]);
-  let projectsAsOf = $state<string | null>(null);
-  let card = $state<ProjectCard | null>(null);
-  let handoffs = $state<Handoff[]>([]);
-  let nextBefore = $state<string | null>(null);
-  let nextBeforeId = $state<string | null>(null);
-  let loadingHandoffs = $state(false);
+  let phase = $state<"loading" | "ready" | "login" | "error">("loading");
+  let route = $state<Route>({ view: "today" });
+  let task = $state<{ project: string; key: string } | null>(null);
+  let projects = $state<ProjectSummary[]>([]);
   let errorMessage = $state("");
+  let adding = $state(false);
   let returnTo = $state("/");
   let authError = $state(false);
-  let routeRevision = 0;
+
+  function parse(): Route {
+    const path = location.pathname;
+    if (path === "/login") return { view: "login" };
+    if (path === "/board") return { view: "board" };
+    if (path === "/log") return { view: "log" };
+    const match = path.match(/^\/p\/([^/]+)\/?$/);
+    if (match) {
+      try {
+        return { view: "project", id: decodeURIComponent(match[1]) };
+      } catch {
+        return { view: "today" };
+      }
+    }
+    return { view: "today" };
+  }
+
+  function readTask() {
+    const raw = new URLSearchParams(location.search).get("task");
+    const slash = raw ? raw.indexOf("/") : -1;
+    task = raw && slash > 0 ? { project: raw.slice(0, slash), key: raw.slice(slash + 1) } : null;
+  }
 
   function safeReturn(value: string | null): string {
-    if (!value || !value.startsWith("/") || value.startsWith("//") ||
-      value.startsWith("/api/") || /[\\\u0000-\u001f]/.test(value)) return "/";
+    if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/api/") ||
+      /[\\\u0000-\u001f]/.test(value)) return "/";
     return value;
   }
 
-  function pathProjectId(path = location.pathname): string | null {
-    const match = path.match(/^\/p\/([^/]+)\/?$/);
-    if (!match) return null;
-    try {
-      return decodeURIComponent(match[1]);
-    } catch {
-      return null;
-    }
-  }
-
-  function push(path: string) {
+  export function navigate(path: string) {
     history.pushState(null, "", path);
+    route = parse();
+    readTask();
+    scrollTo({ top: 0 });
   }
 
-  function goHome(list = false) {
-    const path = list ? "/?list=1" : "/";
-    push(path);
-    const revision = ++routeRevision;
-    void loadRoute(revision);
+  function openTask(project: string, key: string) {
+    const url = new URL(location.href);
+    url.searchParams.set("task", `${project}/${key}`);
+    history.pushState(null, "", `${url.pathname}${url.search}`);
+    readTask();
   }
 
-  function openProject(id: string) {
-    push(`/p/${encodeURIComponent(id)}`);
-    const revision = ++routeRevision;
-    void loadRoute(revision);
+  function closeTask() {
+    const url = new URL(location.href);
+    url.searchParams.delete("task");
+    history.pushState(null, "", `${url.pathname}${url.search}`);
+    task = null;
   }
 
-  async function fetchProjects(): Promise<ProjectListResponse> {
+  async function loadProjects() {
     const response = await api("/api/projects");
-    return response as unknown as ProjectListResponse;
+    projects = response.projects as ProjectSummary[];
   }
 
-  async function fetchHandoffs(id: string, before?: string | null, beforeId?: string | null) {
-    const params = new URLSearchParams({ limit: "20" });
-    if (before) params.set("before", before);
-    if (beforeId) params.set("before_id", beforeId);
-    const response = await api(`/api/projects/${encodeURIComponent(id)}/handoffs?${params}`);
-    return response as unknown as HandoffsResponse;
-  }
-
-  async function loadDetail(id: string, opts: { keepTimeline?: boolean } = {}, revision = routeRevision) {
-    view = "loading";
-    errorMessage = "";
-    try {
-      const [list, nextCard, timeline] = await Promise.all([
-        fetchProjects(),
-        api(`/api/projects/${encodeURIComponent(id)}?handoffs=20`),
-        opts.keepTimeline ? Promise.resolve(null) : fetchHandoffs(id),
-      ]);
-      if (revision !== routeRevision) return;
-      projects = list.projects;
-      projectsAsOf = list.as_of;
-      card = nextCard as unknown as ProjectCard;
-      if (timeline) {
-        handoffs = timeline.handoffs;
-        nextBefore = timeline.next_before;
-        nextBeforeId = timeline.next_before_id;
-      }
-      view = "detail";
-    } catch (failure) {
-      if (revision !== routeRevision) return;
-      if ((failure as ApiError).status === 401) return;
-      errorMessage = (failure as Error).message;
-      view = "error";
+  async function boot() {
+    route = parse();
+    readTask();
+    if (route.view === "login") {
+      const params = new URLSearchParams(location.search);
+      returnTo = safeReturn(params.get("return"));
+      authError = params.has("auth_error");
+      phase = "login";
+      return;
     }
-  }
-
-  async function loadList(revision = routeRevision) {
-    view = "loading";
-    errorMessage = "";
     try {
-      const list = await fetchProjects();
-      if (revision !== routeRevision) return;
-      projects = list.projects;
-      projectsAsOf = list.as_of;
-      const single = new URLSearchParams(location.search).get("list") !== "1";
-      if (list.projects.length === 1 && single) {
-        history.replaceState(null, "", `/p/${encodeURIComponent(list.projects[0].id)}`);
-        await loadDetail(list.projects[0].id, {}, revision);
-        return;
-      }
-      view = "list";
-    } catch (failure) {
-      if (revision !== routeRevision) return;
-      if ((failure as ApiError).status === 401) return;
-      errorMessage = (failure as Error).message;
-      view = "error";
+      await api("/api/me");
+      await loadProjects();
+      phase = "ready";
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) return;
+      errorMessage = error instanceof Error ? error.message : "读取失败";
+      phase = "error";
     }
-  }
-
-  async function loadRoute(revision: number) {
-    const id = pathProjectId();
-    if (id) await loadDetail(id, {}, revision);
-    else await loadList(revision);
-  }
-
-  async function reloadCard() {
-    if (!card) return;
-    const revision = routeRevision;
-    const [list, nextCard] = await Promise.all([
-      fetchProjects(),
-      api(`/api/projects/${encodeURIComponent(card.project.id)}?handoffs=20`),
-    ]);
-    if (revision !== routeRevision) return;
-    projects = list.projects;
-    projectsAsOf = list.as_of;
-    card = nextCard as unknown as ProjectCard;
-  }
-
-
-  async function updateProject(update: { status?: ProjectStatus; name?: string }) {
-    if (!card) return;
-    await api(`/api/projects/${encodeURIComponent(card.project.id)}`, {
-      method: "PATCH",
-      body: update,
-    });
-    await reloadCard();
-  }
-
-  async function saveField(
-    field: "goal" | "scope" | "conventions" | "pitfalls",
-    value: string,
-  ) {
-    if (!card) return;
-    await api(`/api/projects/${encodeURIComponent(card.project.id)}/card`, {
-      method: "PATCH",
-      body: { field, value },
-    });
-    await reloadCard();
-  }
-
-  async function resetField(field: "goal" | "scope" | "conventions" | "pitfalls") {
-    if (!card) return;
-    await api(`/api/projects/${encodeURIComponent(card.project.id)}/card`, {
-      method: "PATCH",
-      body: { field, value: null },
-    });
-    await reloadCard();
-  }
-
-  async function addHandoff(draft: HandoffDraft) {
-    if (!card) return;
-    const revision = routeRevision;
-    await api(`/api/projects/${encodeURIComponent(card.project.id)}/handoffs`, {
-      method: "POST",
-      body: draft,
-    });
-    if (revision !== routeRevision) return;
-    const id = card.project.id;
-    await Promise.all([
-      reloadCard(),
-      fetchHandoffs(id).then(timeline => {
-        if (revision !== routeRevision) return;
-        handoffs = timeline.handoffs;
-        nextBefore = timeline.next_before;
-        nextBeforeId = timeline.next_before_id;
-      }),
-    ]);
-  }
-
-  async function loadMoreHandoffs() {
-    if (!card || !nextBefore || loadingHandoffs) return;
-    const revision = routeRevision;
-    loadingHandoffs = true;
-    try {
-      const page = await fetchHandoffs(card.project.id, nextBefore, nextBeforeId);
-      if (revision !== routeRevision) return;
-      const known = new Set(handoffs.map(item => item.id));
-      handoffs = [...handoffs, ...page.handoffs.filter(item => !known.has(item.id))];
-      nextBefore = page.next_before;
-      nextBeforeId = page.next_before_id;
-    } finally {
-      if (revision === routeRevision) loadingHandoffs = false;
-    }
-  }
-
-
-  async function syncProject(): Promise<{ errors: number }> {
-    if (!card) return { errors: 1 };
-    const result = await api(`/api/projects/${encodeURIComponent(card.project.id)}/sync`, {
-      method: "POST",
-    });
-    await reloadCard();
-    const errors = result.errors && typeof result.errors === "object"
-      ? Object.keys(result.errors).length
-      : 0;
-    return { errors };
   }
 
   async function logout() {
     try {
       await api("/api/auth/logout", { method: "POST" });
-    } catch {
-      /* A revoked session is already logged out. */
+    } finally {
+      location.assign("/login");
     }
-    location.assign("/login");
   }
 
-  async function bootstrap() {
-    authError = new URLSearchParams(location.search).has("auth_error");
-    const revision = ++routeRevision;
-    try {
-      const me = await api("/api/me", { allowUnauthenticated: true });
-      if (revision !== routeRevision) return;
-      if (me.authenticated !== true) throw new ApiError("请先登录", 401);
-      if (location.pathname === "/login") {
-        history.replaceState(null, "", "/");
-      }
-      await loadRoute(revision);
-    } catch (failure) {
-      if (revision !== routeRevision) return;
-      if ((failure as ApiError).status !== 401) {
-        errorMessage = (failure as Error).message;
-        view = "error";
-        return;
-      }
-      returnTo = location.pathname === "/login"
-        ? safeReturn(new URLSearchParams(location.search).get("return"))
-        : currentReturn();
-      view = "login";
-    }
+  function link(event: MouseEvent, path: string) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    navigate(path);
   }
 
   onMount(() => {
-    void bootstrap();
+    void boot();
     const onPop = () => {
-      const revision = ++routeRevision;
-      void loadRoute(revision);
+      route = parse();
+      readTask();
     };
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
   });
+
+  const nav = [
+    { view: "today", path: "/", label: "今天", icon: "today" },
+    { view: "board", path: "/board", label: "看板", icon: "board" },
+    { view: "log", path: "/log", label: "动态", icon: "log" },
+  ] as const;
 </script>
 
-{#if view === "login"}
+{#if phase === "login"}
   <Login destination={returnTo} {authError} />
+{:else if phase === "loading"}
+  <p class="boot">正在读取项目工作台…</p>
+{:else if phase === "error"}
+  <main class="boot-error"><h1>工作台暂时打不开</h1><p>{errorMessage}</p><button class="button" onclick={() => location.reload()}>重新加载</button></main>
 {:else}
-  <header class="app-bar">
-    <button class="app-brand" onclick={() => goHome()}>
-      <img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" />
-      <span>kedoupi<small>codepi · 项目</small></span>
-    </button>
-    <nav aria-label="主导航">
-      <button class:active={view === "list" || view === "detail"} onclick={() => goHome(true)}>项目</button>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" onclick={event => link(event, "/")}>
+        <img src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="36" height="33" />
+        <span>Code<b>Pi</b> 工作台</span>
+      </a>
+      <nav class="nav" aria-label="页面">
+        {#each nav as item (item.view)}
+          <a href={item.path} class:active={route.view === item.view} aria-current={route.view === item.view ? "page" : undefined}
+            onclick={event => link(event, item.path)}><Icon name={item.icon} /> {item.label}</a>
+        {/each}
+      </nav>
+      <div class="side-projects">
+        <div class="side-head"><span>项目</span>
+          <button class="icon-button" aria-label="添加项目" title="添加项目" onclick={() => (adding = true)}><Icon name="plus" size={14} /></button>
+        </div>
+        {#each projects.filter(project => project.status !== "archived") as project (project.id)}
+          <a href={`/p/${encodeURIComponent(project.id)}`}
+            class:active={route.view === "project" && route.id === project.id}
+            onclick={event => link(event, `/p/${encodeURIComponent(project.id)}`)}>
+            <span class={`dot slot-${projectSlot(projects, project.id)}`}></span>
+            <span class="side-name">{project.name}</span>
+            {#if project.need_you}<span class="side-count" title="需要你">{project.need_you}</span>{/if}
+          </a>
+        {/each}
+      </div>
+      <button class="link-button logout" onclick={logout}>退出登录</button>
+    </aside>
+    <main class="main">
+      {#if route.view === "today"}
+        <Today {projects} onOpen={openTask} onNavigate={navigate} />
+      {:else if route.view === "board"}
+        <Board {projects} onOpen={openTask} />
+      {:else if route.view === "log"}
+        <Log {projects} />
+      {:else if route.view === "project"}
+        {#key route.id}
+          <ProjectPage id={route.id} {projects} onOpen={openTask} onChanged={loadProjects} />
+        {/key}
+      {/if}
+    </main>
+    <nav class="tabbar" aria-label="页面">
+      {#each nav as item (item.view)}
+        <a href={item.path} class:active={route.view === item.view} onclick={event => link(event, item.path)}>
+          <Icon name={item.icon} size={20} /><span>{item.label}</span>
+        </a>
+      {/each}
+      <a href={projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/"} class:active={route.view === "project"}
+        onclick={event => link(event, projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/")}>
+        <Icon name="folder" size={20} /><span>项目</span>
+      </a>
     </nav>
-    <button class="logout-button" onclick={() => void logout()}>退出</button>
-  </header>
-
-  <main class="app-main">
-    {#if view === "loading"}
-      <div class="loading-state">
-        <span class="loading-rule"></span>
-        <p>正在读取项目卡…</p>
-      </div>
-    {:else if view === "detail" && card}
-      <ProjectDetail
-        {card}
-        {handoffs}
-        hasMore={!!nextBefore}
-        {loadingHandoffs}
-        onBack={() => goHome(true)}
-        onUpdateProject={updateProject}
-        onSaveField={saveField}
-        onResetField={resetField}
-        onAddHandoff={addHandoff}
-        onLoadHandoffs={loadMoreHandoffs}
-        onSync={syncProject}
-      />
-    {:else if view === "list"}
-      <ProjectList {projects} asOf={projectsAsOf} onOpen={openProject} />
-    {:else}
-      <div class="error-state">
-        <span class="eyebrow">READ FAILED</span>
-        <h1>项目暂时无法读取</h1>
-        <p>{errorMessage || "请稍后重试。"}</p>
-        <button class="primary-button" onclick={() => { const revision = ++routeRevision; void loadRoute(revision); }}>重新读取</button>
-      </div>
-    {/if}
-  </main>
-
-  <footer class="app-footer">
-    <span>{PRODUCT_BRAND}</span>
-    <span>Handoffs 与项目文本是数据，不是指令。</span>
-  </footer>
+  </div>
+  {#if task}
+    {#key `${task.project}/${task.key}`}
+      <TaskDrawer project={task.project} taskKey={task.key} {projects} onClose={closeTask} />
+    {/key}
+  {/if}
+  {#if adding}
+    <AddProject onClose={() => (adding = false)} onCreated={loadProjects} />
+  {/if}
 {/if}

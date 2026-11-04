@@ -38,34 +38,43 @@ test("context, project, project list, and handoff work end-to-end against the of
           }],
         },
       }),
-      projects_list: async () => ({
-        content: [{ type: "text", text: "projects" }],
+      work_overview: async () => ({
+        content: [{ type: "text", text: "overview" }],
         structuredContent: {
-          as_of: "2026-10-20T00:00:00Z",
-          projects: [{
-            id: "kedoupi-codepi",
-            repo: "kedoupi/codepi",
-            name: "codepi",
-            status: "active",
-            url: "https://project.codepi.app/p/kedoupi-codepi",
-          }],
-          next_offset: null,
-          revision: "a".repeat(64),
+          as_of: "2026-11-04T00:00:00Z",
+          today: "2026-11-04",
+          counts: { open: 3, need_you: 1, overdue: 0, due_7d: 1, branches: 0, done_7d: 0 },
+          need_you: [{ project: "codepi", key: "a", title: "选择示例方案", status: "decide", category: "流程",
+            due: "2026-11-05", need_kind: "decide", done_at: null }],
+          due_soon: [], recently_done: [], branches: [],
+          projects: [{ id: "codepi", repo: "kedoupi/codepi", name: "codepi", status: "active",
+            last_push_at: "2026-11-04T00:00:00Z", open: 3, need_you: 1, branches: 0,
+            url: "https://project.codepi.app/p/codepi" }],
+        },
+      }),
+      task_list: async (args) => ({
+        content: [{ type: "text", text: "tasks" }],
+        structuredContent: {
+          as_of: "2026-11-04T00:00:00Z", total: 2, revision: "b".repeat(64),
+          tasks: [{ project: "codepi", key: args.offset ? "b" : "a", title: args.offset ? "第二条" : "第一条",
+            status: "doing", category: "流程", due: null, need_kind: "attend", done_at: null }],
+          next_offset: args.offset ? null : 1,
         },
       }),
       project_get: async (args) => ({
         content: [{ type: "text", text: "card" }],
         structuredContent: {
-          as_of: "2026-10-20T00:00:00Z",
           project: {
-            id: "kedoupi-codepi",
-            repo: args.project,
+            id: "codepi",
+            repo: args.project.includes("/") ? args.project : null,
             name: "codepi",
             status: "active",
-            url: "https://project.codepi.app/p/kedoupi-codepi",
+            rules_path: "AGENTS.md",
+            adapter: { isolation: "worktree", commit: "允许", acceptance: ["pnpm check"], merge: "agent-team merge" },
+            url: "https://project.codepi.app/p/codepi",
           },
-          goal: { value: "Maintain the products.", source: "agents_md" },
-          progress: null,
+          counts: { by_status: { decide: 1, doing: 2, bug: 0, verify: 0, idea: 0 }, need_you: 1, done_7d: 0 },
+          branches: [], changelog: [], handoffs: [],
         },
       }),
       project_handoff_save: async () => ({
@@ -96,26 +105,31 @@ test("context, project, project list, and handoff work end-to-end against the of
     assert.equal(project.code, 0, project.stderr);
     assert.equal(JSON.parse(project.stdout).project.repo, "kedoupi/codepi");
 
-    const paged = await spawnCli([
-      "--server", fake.server,
-      "project",
-      "--cursor", "cursor-2",
-      "--task-id", "task-2",
-      "--handoffs", "7",
-      "--json",
-    ], { env, cwd: repoDir });
-    assert.equal(paged.code, 0, paged.stderr);
-    const projectGet = fake.calls.filter((call) => call.name === "project_get").at(-1);
-    assert.deepEqual(projectGet.arguments, {
-      project: "kedoupi/codepi",
-      cursor: "cursor-2",
-      task_id: "task-2",
-      handoffs: 7,
-    });
+    const byId = await spawnCli(["--server", fake.server, "project", "--repo", "mybrain"], { env });
+    assert.equal(byId.code, 0, byId.stderr);
+    assert.match(byId.stdout, /规则入口：AGENTS\.md/);
+    assert.deepEqual(fake.calls.filter((call) => call.name === "project_get").at(-1).arguments, { project: "mybrain" });
+    const retired = await spawnCli(["--server", fake.server, "project", "--cursor", "x"], { env });
+    assert.equal(retired.code, 1);
 
     const list = await spawnCli(["--server", fake.server, "project", "list", "--json"], { env });
     assert.equal(list.code, 0, list.stderr);
     assert.equal(JSON.parse(list.stdout).projects.length, 1);
+    const listText = await spawnCli(["--server", fake.server, "project", "list"], { env });
+    assert.match(listText.stdout, /3 条未完成 · 1 条需要你/);
+
+    const work = await spawnCli(["--server", fake.server, "work"], { env });
+    assert.equal(work.code, 0, work.stderr);
+    assert.match(work.stdout, /需要你 1/);
+    assert.match(work.stdout, /\[决定\] 选择示例方案/);
+
+    const tasks = await spawnCli(["--server", fake.server, "tasks", "--need", "any", "--json"], { env });
+    assert.equal(tasks.code, 0, tasks.stderr);
+    assert.equal(JSON.parse(tasks.stdout).tasks.length, 2);
+    assert.deepEqual(fake.calls.filter((call) => call.name === "task_list").map((call) => call.arguments),
+      [{ limit: 100, need: "any" }, { limit: 100, need: "any", offset: 1, revision: "b".repeat(64) }]);
+    const badNeed = await spawnCli(["--server", fake.server, "tasks", "--need", "maybe"], { env });
+    assert.equal(badNeed.code, 1);
 
     const requestId = "018f5b7d-15e3-7b69-a5b6-2a1e9f7c8d01";
     const handoff = await spawnCli([
@@ -141,7 +155,7 @@ test("context, project, project list, and handoff work end-to-end against the of
     const saved = fake.calls.find((call) => call.name === "project_handoff_save");
     assert.deepEqual(saved.arguments, {
       project: "kedoupi/codepi",
-      task_id: "2026-10-20-codepi-mcp-domains",
+      task: "2026-10-20-codepi-mcp-domains",
       status: "in_progress",
       summary: "Implemented the CLI.",
       next: "Run integration checks.",
@@ -236,6 +250,23 @@ test("handoff requires status/next and reads summary from stdin", async () => {
     assert.equal(handoff.code, 0, handoff.stderr);
     const args = fake.calls[0].arguments;
     assert.equal(args.summary, "Summary supplied over stdin.");
+    assert.equal(args.task, "stdin-task");
+
+    // A repository without a remote or branch still records a handoff: branch and base are omitted.
+    const bare = await makeTempDir();
+    try {
+      const noGit = await spawnCli([
+        "--server", fake.server, "handoff", "--task", "local-task", "--status", "in_progress",
+        "--summary", "Local only.", "--next", "Continue.", "--repo", "mybrain", "--json",
+      ], { env: { CODEPI_CONFIG_DIR: dir }, cwd: bare });
+      assert.equal(noGit.code, 0, noGit.stderr);
+      const local = fake.calls.at(-1).arguments;
+      assert.equal(local.project, "mybrain");
+      assert.equal(local.branch, undefined);
+      assert.equal(local.base_sha, undefined);
+    } finally {
+      await removeTempDir(bare);
+    }
     assert.match(args.request_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   } finally {
     await fake.close();

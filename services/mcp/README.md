@@ -48,7 +48,7 @@ Current scopes, limits, CLI and rollout: [domain architecture](../../docs/archit
   of OAuth connections and provider access. Never put credentials in URL query parameters.
 - Legacy HTTP+SSE: connect to `/sse` with the same OAuth or PAT Bearer header and use the
   announced endpoint. The routing session ID does not authorize requests.
-- Large Health/Project replies: `read_document` assembles up to 512 KiB in memory and returns
+- Large Health replies: `read_document` assembles up to 512 KiB in memory and returns
   complete values, array pages or Unicode text ranges using JSON Pointer paths. Array pages keep
   the response `coverage`. `digest` hashes the assembled data without page clocks (`as_of`,
   `generated_at`, `pagination`); pass it back as `expected_digest` to reject a changed snapshot.
