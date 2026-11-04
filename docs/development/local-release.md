@@ -265,9 +265,12 @@ Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署
 
 以下仅在所有者授权 Rhythm 首次上线时执行；之后的普通更新按上表 Rhythm 行。
 
-1. 前置：私有上游只读 Worker（`STATUS_READ` 指向的服务）已在同一账户部署并读回；Auth 已带 `rhythm` SSO 客户端发布，`SSO_CLIENT_SECRET_RHYTHM` 已在 Auth 与 `codepi-rhythm` 两侧按 [治理规范](cloudflare-governance.md) 写入同一值（只记 secret 名称）。
+1. 前置：私有上游只读 Worker（`STATUS_READ` 指向的服务）已在同一账户部署并读回；Auth 已发布（`rhythm` 回调已在 `SSO_EXTRA_REDIRECT_URIS`，此时 Rhythm 客户端尚未配对、其他客户端不受影响）。
 2. 在发布 shell 设置 `RHYTHM_STATUS_READ_SERVICE`。`deploy-domain.mjs` 在任何 Wrangler 调用前校验：源 `wrangler.toml` 恰有一个 `STATUS_READ` 绑定且仍是占位 `status-read-placeholder`、环境变量是合法 Worker 名且不等于占位；真实名只写进临时配置，不改源文件、不进输出证据。
-3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，上传 Worker、绑定 `rhythm.codepi.app` 与每日 Cron。
-4. 验收：匿名访问跳转登录、本人登录后今天页显示数据或「数据暂不可用」（上游失败不得显示假数据）、Cron 已登记；记录 Worker 版本与 D1 UUID。
-5. Ops 的定时监控会逐个检查 `release-scope.mjs` 的 `WORKERS`（含 `codepi-rhythm`）：同一轮发布里 Ops 必须在 Rhythm 首发成功之后再发（`release:plan` 已把 rhythm 排在 ops 之前）；若 Rhythm 首发推迟，Ops 也推迟，否则监控会持续把未部署的 `codepi-rhythm` 报为失败。
-6. 首发成功后，把 `apps/rhythm/migrations/*.sql` 从 `scripts/agent/check-migrations-baseline.json` 的 `notApplied` 移入 `files` 并冻结哈希。
+3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，首次上传 Worker、绑定 `rhythm.codepi.app` 与每日 Cron。此时 `/api/health` 返回 503（未配对）属初始化中状态，不记成功。
+4. Worker 已存在后，在同一个持锁的发布 shell 内**回到仓库根目录**（第 3 步在 `apps/rhythm` 里执行，先 `cd ../..`）配对 SSO 密钥（与 Project/Me 相同，不能重入自带锁的 CLI）：
+   `node --input-type=module -e 'const { pairClientSecret } = await import("./scripts/cloudflare/pair-mcp-secret.mjs"); console.log(JSON.stringify(await pairClientSecret({ client: "rhythm" })));'`
+   同一随机值写入 Auth 的 `SSO_CLIENT_SECRET_RHYTHM` 与 `codepi-rhythm` 的 `AUTH_CLIENT_SECRET`，只输出前后版本；`/api/health` 须返回 200、`source=rhythm`、`sso_enabled=true`、`sso_ready=true`，任一端失败即停止。
+5. 验收：匿名访问跳转登录、本人登录后今天页显示数据或「数据暂不可用」（上游失败不得显示假数据）、Cron 已登记；记录 Worker 版本与 D1 UUID。
+6. Ops 的定时监控会逐个检查 `release-scope.mjs` 的 `WORKERS`（含 `codepi-rhythm`）：同一轮发布里 Ops 必须在 Rhythm 首发成功之后再发（`release:plan` 已把 rhythm 排在 ops 之前）；若 Rhythm 首发推迟，Ops 也推迟，否则监控会持续把未部署的 `codepi-rhythm` 报为失败。
+7. 首发成功后，把 `apps/rhythm/migrations/*.sql` 从 `scripts/agent/check-migrations-baseline.json` 的 `notApplied` 移入 `files` 并冻结哈希。
