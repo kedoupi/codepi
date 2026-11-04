@@ -145,6 +145,8 @@ try {
   await page.click('#submit');
   await page.waitForURL(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
+  // 「概览已读取」之后初始化还在读审核列表；此时触发会被合并进这次初始化、不发新请求。等列表读完再触发。
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list').getAttribute('aria-busy') === 'false');
   const initialDeskMeRequests = deskMeRequests;
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
