@@ -113,6 +113,12 @@ test('rhythm source must keep exactly one placeholder STATUS_READ binding', asyn
     [original.replace('service = "status-read-placeholder"', 'service = "codepi-hardcoded"'), /keep the reviewed placeholder/],
     [original.replace('binding = "STATUS_READ"', 'binding = "OTHER"'), /declared exactly once/],
     [original + '[[services]]\nbinding = "STATUS_READ"\nservice = "status-read-placeholder"\n', /declared exactly once/],
+    // review round 1: a second block reusing the placeholder, or a repeated service line in the same block
+    [original + '[[services]]\nbinding = "OTHER"\nservice = "status-read-placeholder"\n', /appear exactly once/],
+    [original.replace('service = "status-read-placeholder"', 'service = "status-read-placeholder"\nservice = "status-read-placeholder"'),
+      /appear exactly once/],
+    [original.replace('service = "status-read-placeholder"', 'service = "status-read-placeholder"\nservice = "codepi-other"'),
+      /declare its service exactly once/],
   ]) {
     await writeFile(config, source);
     f.git('-c', 'core.hooksPath=/dev/null', 'commit', '-qam', 'variant');
