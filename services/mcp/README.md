@@ -59,7 +59,7 @@ are tracked in [the task](../../docs/development/tasks/2026-10-25-mcp-agent-comp
 
 ## Blog writing
 
-Blog tools support article/status reads, review feedback, small inline image uploads (192 KiB),
+Blog tools support article/status reads, review feedback, inline image uploads (1 MiB),
 one-file raw PUT uploads (8 MiB), covers and revision-checked resubmission. Images are private until
 referenced by an owner-approved published snapshot. Updates leave the previous public revision live
 until review. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.

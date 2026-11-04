@@ -1,9 +1,10 @@
 import { readSsoSession, type SsoEnv } from "@kedoupi/shared/auth/client";
+import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 
 export interface MediaEnv { BLOG: D1Database; BLOG_MEDIA: R2Bucket }
 export type Media = { id: string; object_key: string; content_type: string; bytes: number; sha256: string; width: number; height: number; alt: string; created_at: string };
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const INLINE_BYTES = 192 * 1024;
+const INLINE_BYTES = MCP_LIMITS.blogInlineImage;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const fail = (message = "invalid_image"): never => { throw new Error(message); };
 const hash = async (bytes: Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), b => b.toString(16).padStart(2, "0")).join("");
