@@ -34,6 +34,8 @@ const REGISTRY_ROWS = [
   ['worker-me', 'production', 'worker', 'codepi-me', 'me.codepi.app', 'planned'],
   ['d1-me', 'production', 'd1', 'codepi-me', '-', 'planned'],
   ['r2-me-imports', 'production', 'r2', 'codepi-me-imports', '-', 'planned'],
+  ['worker-rhythm', 'production', 'worker', 'codepi-rhythm', 'rhythm.codepi.app', 'planned'],
+  ['d1-rhythm', 'production', 'd1', 'codepi-rhythm', '-', 'planned'],
   ['r2-blog-uploads', 'production', 'r2', 'codepi-blog-uploads', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
@@ -129,6 +131,7 @@ function authConfig() {
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
+        rhythm: ['https://rhythm.codepi.app/api/auth/callback'],
       }),
     },
     d1_databases: [{ binding: 'DB', database_name: 'codepi-auth', database_id: U.auth, migrations_dir: 'migrations' }],
@@ -147,6 +150,11 @@ function legalFiles(overrides = {}) {
     'services/mcp/wrangler.toml': mcpConfig(),
     'apps/project/wrangler.toml': domainConfig('project'),
     'apps/me/wrangler.toml': domainConfig('me'),
+    'apps/rhythm/wrangler.toml': `${domainConfig('rhythm')}
+[[services]]
+binding = "STATUS_READ"
+service = "status-read-placeholder"
+`,
     'apps/health/workers/api/wrangler.toml': healthApiConfig(),
     'apps/health/apps/web/wrangler.toml': healthPagesConfig(),
     ...overrides.files,
@@ -374,6 +382,54 @@ test('planned service allowances cover only the new Project and Me bindings', ()
   }
   const plannedProject = run(legalFiles());
   assert.deepEqual(plannedProject, []);
+});
+
+test('Rhythm reserves its planned Worker, D1, host and the deploy-time upstream placeholder', () => {
+  const rhythmConfig = (extra = '') => `
+name = "codepi-rhythm"
+main = "worker/index.ts"
+routes = [
+  { pattern = "rhythm.codepi.app", custom_domain = true }
+]
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+run_worker_first = true
+[[services]]
+binding = "AUTH"
+service = "codepi-auth"
+[[services]]
+binding = "STATUS_READ"
+service = "status-read-placeholder"
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-rhythm"
+[vars]
+ENVIRONMENT = "production"
+AUTH_ORIGIN = "https://auth.codepi.app"
+AUTH_CLIENT_ID = "rhythm"
+${OBSERVABILITY}${extra}`;
+  const legal = legalFiles({ files: { 'apps/rhythm/wrangler.toml': rhythmConfig() } });
+  assert.deepEqual(run(legal), []);
+  for (const [config, needle] of [
+    [rhythmConfig().replace('database_name = "codepi-rhythm"', 'database_name = "codepi-me"'), 'database_name'],
+    [rhythmConfig().replace('pattern = "rhythm.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],
+    [rhythmConfig().replace('AUTH_CLIENT_ID = "rhythm"', 'AUTH_CLIENT_ID = "me"'), 'AUTH_CLIENT_ID'],
+    [rhythmConfig().replace('service = "codepi-auth"', 'service = "codepi-mcp"'), 'codepi-auth'],
+    [rhythmConfig().replace('service = "status-read-placeholder"', 'service = "some-private-upstream"'), 'placeholder service binding STATUS_READ'],
+    [rhythmConfig().replace(/\[\[services\]\]\nbinding = "STATUS_READ"\nservice = "status-read-placeholder"\n/, ''), 'placeholder service binding "STATUS_READ" is missing'],
+  ]) {
+    const violations = run(legalFiles({ files: { 'apps/rhythm/wrangler.toml': config } }));
+    assert.ok(violations.some(v => v.startsWith('rhythm:') && v.includes(needle)),
+      `rhythm: expected ${needle}, got ${JSON.stringify(violations)}`);
+  }
+  for (const [id, mutate] of [
+    ['worker-rhythm', rows => rows.map(row => row[0] === 'worker-rhythm' ? [...row.slice(0, 5), 'legacy-pending-retirement'] : row)],
+    ['d1-rhythm', rows => rows.filter(row => row[0] !== 'd1-rhythm')],
+  ]) {
+    assert.ok(run(legalFiles({ registryRows: mutate(REGISTRY_ROWS), files: { 'apps/rhythm/wrangler.toml': rhythmConfig() } })).length > 0,
+      `${id} must remain exact`);
+  }
 });
 
 test('planned allowances never cover existing Ops, GU or MCP resources', () => {

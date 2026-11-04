@@ -1,0 +1,38 @@
+{
+  "name": "kdp-rhythm",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Private daily rhythm board: status timeline, key moments and work-focus breakdown",
+  "scripts": {
+    "dev": "npm run build && wrangler dev --ip localhost --port 8797",
+    "build": "vite build --config web/vite.config.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.web.json && svelte-check --tsconfig ./tsconfig.web.json --tsgo",
+    "test": "vitest run",
+    "test:browser": "npm run build && npm run test:browser:built",
+    "test:browser:built": "node scripts/browser-smoke.mjs",
+    "db:local": "wrangler d1 migrations apply codepi-rhythm --local",
+    "db:seed:local": "wrangler d1 execute codepi-rhythm --local --file=local/seed-settings.sql"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "hono": "^4.9.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.2",
+    "@cloudflare/workers-types": "latest",
+    "@kedoupi/shared": "workspace:*",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@testing-library/svelte": "^5.2.8",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "jsdom": "^30.1.3",
+    "svelte": "^5.38.6",
+    "svelte-check": "^4.3.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.151.1"
+  }
+}

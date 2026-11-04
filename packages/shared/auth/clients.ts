@@ -7,6 +7,7 @@ export const SSO_CLIENTS = {
   mcp: { secret: "SSO_CLIENT_SECRET_MCP", displayName: "CodePi MCP", callback: "https://mcp.codepi.app/api/auth/callback" },
   project: { secret: "SSO_CLIENT_SECRET_PROJECT", displayName: "CodePi Project", callback: "https://project.codepi.app/api/auth/callback" },
   me: { secret: "SSO_CLIENT_SECRET_ME", displayName: "CodePi Me", callback: "https://me.codepi.app/api/auth/callback" },
+  rhythm: { secret: "SSO_CLIENT_SECRET_RHYTHM", displayName: "CodePi Rhythm", callback: "https://rhythm.codepi.app/api/auth/callback" },
 } as const;
 export type SsoClientId = keyof typeof SSO_CLIENTS;
 export function isSsoClientId(value: string): value is SsoClientId {
