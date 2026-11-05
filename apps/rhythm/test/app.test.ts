@@ -1,8 +1,9 @@
 import { env } from "cloudflare:test";
 import { expect, it, vi } from "vitest";
 import worker from "../worker/index";
-import { freshnessOf } from "../worker/app";
+import { selectCurrentStatus, freshnessOf } from "../worker/app";
 import { STATE_THRESHOLDS } from "../worker/state";
+import type { DayComputation } from "../worker/models";
 import type { Env } from "../worker/types";
 import {
   UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH, UPSTREAM_HOME_EVENTS_PATH,
@@ -260,4 +261,14 @@ it("未来超过 60 秒的新鲜度标为时间异常", () => {
     ageMinutes: null,
     status: "time_anomaly",
   });
+});
+
+it("当前状态卡保留当前时刻并把状态截至最近可判断分钟", () => {
+  const minuteStatuses = Array(1440).fill("unknown");
+  const minuteEvidence = Array(1440).fill("no_data");
+  minuteStatuses[580] = "office_active";
+  minuteEvidence[580] = "seen";
+  const day = { minuteStatuses, minuteEvidence } as unknown as DayComputation;
+  expect(selectCurrentStatus(day, 600)).toEqual({ minute: 600, statusMinute: 580 });
+  expect(selectCurrentStatus(day, 601)).toEqual({ minute: 601, statusMinute: 601 });
 });

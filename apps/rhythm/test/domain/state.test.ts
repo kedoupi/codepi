@@ -20,9 +20,11 @@ describe("共享状态用例", () => {
       "起床与回卧室",
       "公司离座",
       "通勤超过上限",
+      "旧采样离座与指标",
+      "旧采样通勤与到家推断",
+      "网络标签 cutoff 边界",
     ]);
   });
-
   for (const item of cases) {
     it(item.name, () => {
       const day = calculateDay(toStateInput(item));
@@ -181,6 +183,19 @@ describe("历史手机区间与旧网络推断", () => {
       { device_id: "dev-a", event_at: "2026-11-08T00:01:00+08:00", status: "pending-offline" },
     ] });
     expect(pending.minuteStatuses[10]).toBe("living_room");
+  });
+
+  it("窗口内较早成功心跳仍覆盖最近失败心跳", () => {
+    const day = calculateDay({
+      ...emptyInput("2026-11-09"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+        { device_id: "dev-a", event_at: "2026-11-09T00:00:00+08:00", status: "online" },
+      ], heartbeats: [
+        { observed_at: "2026-11-09T00:00:00+08:00", scan_ok: true },
+        { observed_at: "2026-11-09T00:10:00+08:00", scan_ok: false },
+      ],
+    });
+    expect(day.minuteEvidence[15]).toBe("seen");
+    expect(day.minuteStatuses[15]).toBe("living_room");
   });
 });
 

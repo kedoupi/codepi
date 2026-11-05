@@ -94,8 +94,12 @@ function phoneObservations(
   for (const row of snapshots) {
     const at = epoch(row.observed_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    if (row.status === "pending-offline") continue;
-    rows.push({ at, status: row.status === "online" ? "online" : "offline", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
+    if (row.status === "offline") {
+      rows.push({ at, status: "offline", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
+    } else {
+      // 快照 pending-offline 延续原有口径：短期内仍算手机在线；事件的 pending-offline 在下方忽略。
+      rows.push({ at, status: "online", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
+    }
   }
   for (const row of events) {
     const at = epoch(row.event_at);
@@ -126,16 +130,17 @@ function phoneAtMinute(observations: PhoneObservation[], heartbeats: Heartbeat[]
     return { status: null, room: null, evidence: "no_data" };
   }
   if (observation.status === "offline") return { status: "offline", room: null, evidence: "seen" };
-  let heartbeat: { at: number; scanOk: boolean } | null = null;
+  let hasHeartbeatBefore = false;
+  let scanOkInWindow = false;
+  const windowFrom = at - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE;
   for (const row of heartbeats) {
     const heartbeatAt = epoch(row.observed_at);
     if (heartbeatAt === null || heartbeatAt > at) break;
-    heartbeat = { at: heartbeatAt, scanOk: row.scan_ok === true };
+    hasHeartbeatBefore = true;
+    if (heartbeatAt >= windowFrom && row.scan_ok === true) scanOkInWindow = true;
   }
-  if (!heartbeat) return { status: "online", room: observation.room, evidence: "inferred" };
-  if (!heartbeat.scanOk || at - heartbeat.at > STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE) {
-    return { status: null, room: null, evidence: "no_data" };
-  }
+  if (!hasHeartbeatBefore) return { status: "online", room: observation.room, evidence: "inferred" };
+  if (!scanOkInWindow) return { status: null, room: null, evidence: "no_data" };
   return { status: "online", room: observation.room, evidence: "seen" };
 }
 
@@ -156,6 +161,11 @@ function isActiveSample(row: ActivitySample): boolean {
   const idle = [row.key_idle_sec, row.pointer_idle_sec, row.idle_sec]
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   return idle.length > 0 && Math.min(...idle) < STATE_THRESHOLDS.activeIdleSeconds;
+}
+
+export function isOfficeWorkMinute(row: ActivitySample | null, status: DayStatus, evidence: Evidence): boolean {
+  if (!row || !isActiveSample(row)) return false;
+  return row.net === "office" || (status === "office_active" && evidence === "inferred");
 }
 
 function appCategory(row: ActivitySample, mappings: Record<string, AppCategory>): AppCategory {
@@ -179,14 +189,15 @@ function buildSegments(statuses: DayStatus[], evidence: Evidence[]): StatusSegme
 function buildAppBreakdown(
   minuteSamples: Array<ActivitySample | null>,
   statuses: DayStatus[],
+  evidence: Evidence[],
   mappings: Record<string, AppCategory>,
 ): AppBreakdown[] {
   const byCategory = new Map<AppCategory, Map<string, number>>();
   minuteSamples.forEach((row, minute) => {
-    // 只统计样本自己所在的那一分钟：一条样本最多算 1 分钟，不按新鲜窗口延续。
-    if (!row || statuses[minute] !== "office_active" || !isActiveSample(row)) return;
-    const category = appCategory(row, mappings);
-    const app = row.app_name?.trim() || row.bundle_id?.trim() || "未标注应用";
+    // 只统计样本自己所在的那一分钟；net=office 保留手机落家里的历史口径，旧采样推断的 office_active 也计入。
+    if (!isOfficeWorkMinute(row, statuses[minute], evidence[minute])) return;
+    const category = appCategory(row!, mappings);
+    const app = row!.app_name?.trim() || row!.bundle_id?.trim() || "未标注应用";
     const apps = byCategory.get(category) ?? new Map<string, number>();
     apps.set(app, (apps.get(app) ?? 0) + 1);
     byCategory.set(category, apps);
@@ -253,7 +264,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     sampleFresh: boolean;
     active: boolean;
     office: boolean;
-    legacyOffice: boolean;
+    legacySignal: boolean;
     home: { present: boolean; room: string | null; evidence: Evidence };
     phoneStatus: "online" | "offline" | null;
   }> = [];
@@ -272,14 +283,14 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     }
     const phoneMinute = phoneAtMinute(phone, heartbeats, at);
     const office = sampleFresh && sample?.net === "office";
-    const legacyOffice = sampleFresh && (sample?.net === null || sample?.net === undefined) && sampleAt !== null && sampleAt < legacyCutoffAt
-      && active && phoneMinute.status === "offline";
+    const legacySignal = sampleFresh && (sample?.net === null || sample?.net === undefined)
+      && sampleAt !== null && sampleAt < legacyCutoffAt && deviceIds.size > 0 && phoneMinute.status === "offline";
     minuteRows.push({
       sample: sampleFresh ? sample : null,
       sampleFresh,
       active,
       office,
-      legacyOffice,
+      legacySignal,
       home: phoneMinute.status === "online"
         ? { present: true, room: phoneMinute.room, evidence: phoneMinute.evidence }
         : { present: false, room: null, evidence: phoneMinute.evidence },
@@ -287,8 +298,8 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     });
   }
 
-  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacyOffice) && item.active);
-  const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacyOffice));
+  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal) && item.active);
+  const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal));
   const statuses: DayStatus[] = [];
   const evidence: Evidence[] = [];
   const details: string[] = [];
@@ -309,14 +320,14 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
       continue;
     }
     if (item.sample?.net === "home") { statuses.push("home"); evidence.push("seen"); details.push(""); continue; }
-    if (item.legacyOffice) {
+    if (item.legacySignal && item.active) {
       statuses.push("office_active");
       evidence.push("inferred");
       details.push("网络标签上线前，按工作机有操作且手机不在家推断");
       continue;
     }
     if (item.office && item.active) { statuses.push("office_active"); evidence.push("seen"); details.push(""); continue; }
-    if (item.office && officeAwayCandidate(officeActive, officeSignal, minute)) {
+    if ((item.office || item.legacySignal) && officeAwayCandidate(officeActive, officeSignal, minute)) {
       statuses.push("office_away");
       evidence.push("inferred");
       details.push("");
@@ -433,9 +444,9 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
 
   let keyboard = 0, pointer = 0, both = 0;
   minuteOwnSample.forEach((row, minute) => {
-    if (!row || statuses[minute] !== "office_active" || !isActiveSample(row)) return;
-    const hasKeyboard = typeof row.key_idle_sec === "number" && row.key_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
-    const hasPointer = typeof row.pointer_idle_sec === "number" && row.pointer_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
+    if (!isOfficeWorkMinute(row, statuses[minute], evidence[minute])) return;
+    const hasKeyboard = typeof row!.key_idle_sec === "number" && row!.key_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
+    const hasPointer = typeof row!.pointer_idle_sec === "number" && row!.pointer_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
     if (hasKeyboard) keyboard++;
     if (hasPointer) pointer++;
     if (hasKeyboard && hasPointer) both++;
@@ -449,7 +460,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     segments: buildSegments(statuses, evidence),
     moments,
     metrics,
-    appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, input.appCategories),
+    appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
     channels: { work: workChannelUsable, phone: phoneChannelUsable },
   };

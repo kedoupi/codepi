@@ -2,7 +2,7 @@ import { Hono, type Handler } from "hono";
 import { ssoEnabled, ssoReady, SsoError } from "@kedoupi/shared/auth/client";
 import { authenticated, callback, login, logout } from "./auth";
 import { AppError, isoShanghai, json, validateDate } from "./lib";
-import type { Evidence, RhythmStatus } from "./models";
+import type { DayComputation, Evidence, RhythmStatus } from "./models";
 import {
   parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
@@ -136,6 +136,20 @@ export function displayShanghaiTime(value: string | null): string | null {
   return `${get("month")} 月 ${get("day")} 日 ${get("hour")}:${get("minute")}`;
 }
 
+export function selectCurrentStatus(day: DayComputation, currentMinute: number): { minute: number; statusMinute: number } | null {
+  let fallbackMinute = -1;
+  for (let minute = 1439; minute >= 0; minute--) {
+    if (day.minuteStatuses[minute] !== "unknown" && day.minuteStatuses[minute] !== "not_arrived") {
+      fallbackMinute = minute;
+      break;
+    }
+  }
+  if (currentMinute < 0) return fallbackMinute >= 0 ? { minute: fallbackMinute, statusMinute: fallbackMinute } : null;
+  const statusMinute = Array.from({ length: currentStatusLookbackMinutes + 1 }, (_, offset) => currentMinute - offset)
+    .find(candidate => candidate >= 0 && day.minuteEvidence[candidate] !== "no_data" && day.minuteEvidence[candidate] !== "not_arrived");
+  return { minute: currentMinute, statusMinute: statusMinute ?? currentMinute };
+}
+
 async function loadDay(env: Env, date: string, settings: RhythmSettings, now: number) {
   const input = await loadStateInput(env, date, settings);
   const { activity, heartbeats, snapshots } = input;
@@ -145,26 +159,14 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   const currentMinute = today === date
     ? Math.min(1439, Math.max(0, Math.floor((now - start) / 60_000)))
     : -1;
-  let fallbackMinute = -1;
-  for (let minute = 1439; minute >= 0; minute--) {
-    if (day.minuteStatuses[minute] !== "unknown" && day.minuteStatuses[minute] !== "not_arrived") {
-      fallbackMinute = minute;
-      break;
-    }
-  }
-  let minute = currentMinute >= 0 ? currentMinute : fallbackMinute;
-  if (currentMinute >= 0) {
-    const recent = Array.from({ length: currentStatusLookbackMinutes }, (_, offset) => currentMinute - offset)
-      .find(candidate => candidate >= 0 && day.minuteEvidence[candidate] !== "no_data" && day.minuteEvidence[candidate] !== "not_arrived");
-    minute = recent ?? currentMinute;
-  }
-  const current = minute >= 0 ? {
-    status: day.minuteStatuses[minute],
-    evidence: day.minuteEvidence[minute],
-    label: statusLabel(day.minuteStatuses[minute]),
-    minute,
-    time: minuteLabel(minute),
-    asOf: minuteLabel(minute),
+  const selection = selectCurrentStatus(day, currentMinute);
+  const current = selection ? {
+    status: day.minuteStatuses[selection.statusMinute],
+    evidence: day.minuteEvidence[selection.statusMinute],
+    label: statusLabel(day.minuteStatuses[selection.statusMinute]),
+    minute: selection.minute,
+    time: minuteLabel(selection.minute),
+    asOf: minuteLabel(selection.statusMinute),
     live: currentMinute >= 0,
   } : null;
   const workLatest = latestTimestamp(activity.map(row => ({ at: row.sampled_at })));

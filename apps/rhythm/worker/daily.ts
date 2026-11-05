@@ -1,4 +1,4 @@
-import { calculateDay, dayStartEpoch, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
+import { calculateDay, dayStartEpoch, isOfficeWorkMinute, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
 import type {
   ActivitySample, AppCategory, DailyMetrics, DailyMetricsRow, DailyStatusRow, DayComputation,
   DayType, GapReason, RhythmStatus, StateInput,
@@ -96,7 +96,8 @@ function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>
   };
   let missingRun = 0;
   for (let minute = 0; minute < MINUTES_PER_DAY; minute += 1) {
-    const office = day.minuteStatuses[minute] === "office_active";
+    const office = day.minuteStatuses[minute] === "office_active"
+      || isOfficeWorkMinute(samples[minute], day.minuteStatuses[minute], day.minuteEvidence[minute]);
     if (office && !samples[minute]) {
       // 这一分钟没有工作机采样：不知道在用什么 App，不计入专注；
       // 只容忍采样时间抖动造成的短缺口，更长就结束本段，不把「未知」当成「没切到沟通」。
@@ -167,7 +168,7 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
   for (let minute = 0; minute < day.minuteStatuses.length; minute += 1) {
     if (day.minuteStatuses[minute] === "office_active") lastOffice = minute;
     const row = samples[minute];
-    if (day.minuteStatuses[minute] === "office_active" && activeSample(row)) {
+    if (isOfficeWorkMinute(row, day.minuteStatuses[minute], day.minuteEvidence[minute])) {
       const category = categoryOf(row, input.appCategories);
       appCategoryMinutes[category] += 1;
       const hour = String(Math.floor(minute / 60)).padStart(2, "0");

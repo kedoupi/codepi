@@ -1,4 +1,4 @@
-import { dayStartEpoch, shanghaiDate } from "./state";
+import { dayStartEpoch, shanghaiDate, STATE_THRESHOLDS } from "./state";
 import { dailyRows, upsertDailyRows } from "./daily";
 import type { StateInput } from "./models";
 import { isoShanghai } from "./lib";
@@ -11,7 +11,7 @@ import type { RhythmSettings } from "./settings";
 import type { Env } from "./types";
 
 const LOOKBACK_MINUTES = 30;
-export const homeLookbackMinutes = 36 * 60;
+const homeLookbackMinutes = STATE_THRESHOLDS.homeIntervalMaxMinutes;
 const DAY_MS = 86400_000;
 /**
  * 每次向上游取 2 天：家中扫描对全部设备每 5 分钟上报一次快照，设备多时一天可达数千行；

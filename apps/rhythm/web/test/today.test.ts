@@ -24,6 +24,7 @@ function dayPayload(overrides: Json = {}): Json {
     segments: [
       { status: "bedroom", label: "卧室", evidence: "seen", detail: "", startMinute: 0, endMinute: 440, startLabel: "00:00", endLabel: "07:20", minutes: 441 },
       { status: "other_network", label: "其他网络", evidence: "seen", detail: "示例网络", startMinute: 441, endMinute: 455, startLabel: "07:21", endLabel: "07:35", minutes: 15 },
+      { status: "unknown", label: "未知", evidence: "no_data", detail: "", startMinute: 720, endMinute: 720, startLabel: "12:00", endLabel: "12:00", minutes: 1 },
     ],
     moments: [
       { kind: "start_work", label: "开始办公", detail: "09:00 公司网络出现键鼠活动", evidence: "seen", minute: 540, time: "09:00" },
@@ -69,8 +70,13 @@ describe("Rhythm 今天页", () => {
     expect(legend.textContent).toContain("卧室");
     expect(legend.textContent).toContain("其他网络");
     expect(screen.getByText(/键盘 551/)).toBeTruthy();
-    const firstSegment = document.querySelector<HTMLButtonElement>(".timeline-segment");
-    expect(firstSegment?.style.getPropertyValue("--segment-start")).toBe("0");
+    const segmentButtons = [...document.querySelectorAll<HTMLButtonElement>(".timeline-segment")];
+    expect(segmentButtons).toHaveLength(3);
+    for (const [index, button] of segmentButtons.entries()) {
+      const segment = (dayPayload().segments as Json[])[index] as Json;
+      expect(Number(button.style.getPropertyValue("--segment-start"))).toBe(segment.startMinute);
+      expect(Number(button.style.getPropertyValue("--segment-minutes"))).toBe(segment.minutes);
+    }
   });
 
   it("点按时间段显示该段明细", async () => {

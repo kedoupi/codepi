@@ -70,7 +70,7 @@
       "statusAt": {"60":"living_room","600":"living_room","1080":"living_room"},
       "contains": [],
       "notContains": ["start_work","leave_home"],
-    "appCategories": {},
+      "appCategories": {"开发": 541},
       "metrics": {"commuteToWorkMinutes":0,"commuteHomeMinutes":0,"officeActiveMinutes":0,"homeMinutes":1101,"bedroomMinutes":0,"livingRoomMinutes":1101,"homeUnknownMinutes":0}
     }
   },
@@ -249,6 +249,71 @@
       "statusAt": {"400":"bedroom","500":"unknown","840":"office_active"},
       "contains": ["start_work"],
       "notContains": ["leave_home"]
+    }
+  },
+  {
+    "name": "旧采样离座与指标",
+    "date": "2026-11-04",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [
+      {"sampled_at":"2026-11-04T08:00:00+08:00","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40,"app_name":"示例编辑器"},
+      {"sampled_at":"2026-11-04T08:06:00+08:00","idle_sec":1800,"locked":true},
+      {"sampled_at":"2026-11-04T08:10:00+08:00","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40,"app_name":"示例编辑器"}
+    ],
+    "devices": [{"device_id":"dev-a","name":"示例手机","vendor":"示例厂商","room":"客厅"}],
+    "snapshots": [],
+    "events": [{"event_at":"2026-11-04T07:00:00+08:00","device_id":"dev-a","status":"offline"}],
+    "heartbeats": [],
+    "appCategories": {"示例编辑器":"开发"},
+    "expect": {
+      "statusAt": {"480":"office_active","486":"office_away","490":"office_active"},
+      "evidenceAt": {"480":"inferred","486":"inferred","490":"inferred"},
+      "contains": ["start_work","leave_computer"],
+      "notContains": ["leave_home","arrive_home"],
+      "appCategories": {"开发":2},
+      "metrics": {"officeActiveMinutes":12}
+    }
+  },
+  {
+    "name": "旧采样通勤与到家推断",
+    "date": "2026-11-04",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [
+      {"sampled_at":"2026-11-04T17:59:00+08:00","net":"other","ssid":"示例网络","idle_sec":400,"locked":false},
+      {"sampled_at":"2026-11-04T08:40:00+08:00","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40,"app_name":"示例编辑器"}
+    ],
+    "devices": [{"device_id":"dev-a","name":"示例手机","vendor":"示例厂商","room":"客厅"}],
+    "snapshots": [],
+    "events": [
+      {"event_at":"2026-11-04T08:01:00+08:00","device_id":"dev-a","status":"online"},
+      {"event_at":"2026-11-04T08:02:00+08:00","device_id":"dev-a","status":"offline"},
+      {"event_at":"2026-11-04T18:00:00+08:00","device_id":"dev-a","status":"online"}
+    ],
+    "heartbeats": [],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"481":"living_room","520":"office_active","1079":"other_network","1080":"living_room"},
+      "evidenceAt": {"481":"inferred","520":"inferred","1080":"inferred"},
+      "contains": ["start_work","arrive_home"],
+      "metrics": {"commuteToWorkMinutes":38}
+    }
+  },
+  {
+    "name": "网络标签 cutoff 边界",
+    "date": "2026-11-05",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [
+      {"sampled_at":"2026-11-05T12:11:00+08:00","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40},
+      {"sampled_at":"2026-11-05T12:12:00+08:00","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40}
+    ],
+    "devices": [{"device_id":"dev-a","name":"示例手机","vendor":"示例厂商","room":"客厅"}],
+    "snapshots": [],
+    "events": [{"event_at":"2026-11-05T12:00:00+08:00","device_id":"dev-a","status":"offline"}],
+    "heartbeats": [],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"731":"office_active","732":"unknown"},
+      "evidenceAt": {"731":"inferred","732":"no_data"}
     }
   }
 ]
