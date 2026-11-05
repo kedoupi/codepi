@@ -168,7 +168,7 @@
     </aside>
     <main class="main">
       {#if route.view === "today"}
-        <Today {projects} onOpen={openTask} onNavigate={navigate} />
+        <Today />
       {:else if route.view === "board"}
         <Board {projects} onOpen={openTask} />
       {:else if route.view === "log"}

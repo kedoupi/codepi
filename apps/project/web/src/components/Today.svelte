@@ -1,135 +1,186 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { ago, dueText, dueTone, longDay, NEED_LABEL, NEED_ORDER, projectSlot } from "../lib/format";
-  import type { Overview, ProjectSummary } from "../lib/types";
-  import Countdown from "./Countdown.svelte";
+  import type { TaskBrief } from "../lib/types";
   import Icon from "./Icon.svelte";
 
-  let { projects, onOpen, onNavigate }: {
-    projects: ProjectSummary[];
-    onOpen: (project: string, key: string) => void;
-    onNavigate: (path: string) => void;
-  } = $props();
+  type TodayItem = TaskBrief & { carried: boolean; who: "you" | "agent" };
+  type Tab = "today" | "pool" | "done";
+  type TodayData = {
+    today: TodayItem[];
+    pool: TaskBrief[];
+    done: TaskBrief[];
+    counts: { today: number; pool: number; done: number };
+    date: string;
+  };
 
-  let data = $state<Overview | null>(null);
+  let data = $state<TodayData | null>(null);
   let error = $state("");
+  let busy = $state("");
+  let tab = $state<Tab>("today");
+  let mobile = $state(false);
 
-  onMount(async () => {
+  async function load() {
     try {
-      data = await api("/api/overview") as unknown as Overview;
+      data = await api("/api/today") as unknown as TodayData;
+      error = "";
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "读取失败";
     }
+  }
+
+  async function mutate(path: string, task: TaskBrief) {
+    const key = `${path}:${task.project}/${task.key}`;
+    if (busy) return;
+    busy = key;
+    error = "";
+    try {
+      await api(path, { body: { project: task.project, key: task.key } });
+      await load();
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "操作失败";
+    } finally {
+      busy = "";
+    }
+  }
+
+  onMount(() => {
+    const media = typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 767px)")
+      : null;
+    const updateMobile = () => (mobile = media?.matches ?? false);
+    updateMobile();
+    media?.addEventListener("change", updateMobile);
+    void load();
+    return () => media?.removeEventListener("change", updateMobile);
   });
 
-  const name = (id: string) => projects.find(project => project.id === id)?.name ?? id;
-  const needMix = $derived.by(() => {
-    const counts = new Map<string, number>();
-    for (const task of data?.need_you ?? []) counts.set(task.need_kind, (counts.get(task.need_kind) ?? 0) + 1);
-    return NEED_ORDER.filter(kind => counts.get(kind)).map(kind => ({ kind, n: counts.get(kind)! }));
+  const groups = $derived.by(() => {
+    const grouped = new Map<string, TaskBrief[]>();
+    for (const task of data?.pool ?? []) {
+      const items = grouped.get(task.category) ?? [];
+      items.push(task);
+      grouped.set(task.category, items);
+    }
+    return [...grouped.entries()].map(([category, items]) => ({ category, items }));
   });
+
+  const total = $derived((data?.today.length ?? 0) + (data?.done.length ?? 0));
+  const progress = $derived(total ? Math.round(((data?.done.length ?? 0) / total) * 100) : 0);
+
+  function dateValue(date: string) {
+    return new Date(`${date}T00:00:00+08:00`);
+  }
+
+  function weekday(date: string) {
+    return new Intl.DateTimeFormat("zh-CN", { weekday: "short", timeZone: "Asia/Shanghai" }).format(dateValue(date));
+  }
+
+  function longDate(date: string) {
+    return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: "Asia/Shanghai" }).format(dateValue(date));
+  }
+
+  function dueLine(task: TodayItem) {
+    if (task.carried) return "昨天没做完";
+    return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
+  }
+
+  function poolDue(task: TaskBrief) {
+    return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
+  }
 </script>
 
-{#if error}
+{#if error && !data}
   <p class="inline-alert" role="alert">{error}</p>
 {:else if !data}
-  <p class="loading">正在读取今天的待办…</p>
+  <p class="loading">正在读取今天的看板…</p>
 {:else}
-  <header class="page-head">
-    <h1>今天 <span class="muted">{longDay(data.today)}</span></h1>
-    <span class="stamp">最近推送 {ago(data.projects.map(p => p.last_push_at).filter(Boolean).sort().at(-1) ?? null)}</span>
+  <header class="today-head">
+    <div>
+      <h1>今天</h1>
+      <p class="today-date"><time datetime={data.date}>{longDate(data.date)} · {weekday(data.date)}</time></p>
+    </div>
+    <div class="today-progress">
+      <span>已完成 {data.done.length} / {total}</span>
+      <progress value={progress} max="100" aria-label={`已完成 ${data.done.length} / ${total}`}></progress>
+    </div>
   </header>
 
-  <section class="kpis" aria-label="概览">
-    <a class="kpi you" href="/board?need=any" onclick={event => { event.preventDefault(); onNavigate("/board?need=any"); }}>
-      <Icon name="attend" size={22} /><span><b>{data.counts.need_you}</b>需要你</span></a>
-    <a class="kpi late" href="/board?due=late" onclick={event => { event.preventDefault(); onNavigate("/board?due=late"); }}>
-      <Icon name="alert" size={22} /><span><b>{data.counts.overdue}</b>逾期</span></a>
-    <a class="kpi soon" href="/board?due=7" onclick={event => { event.preventDefault(); onNavigate("/board?due=7"); }}>
-      <Icon name="clock" size={22} /><span><b>{data.counts.due_7d}</b>7 天内到期</span></a>
-    <a class="kpi" href="/board" onclick={event => { event.preventDefault(); onNavigate("/board"); }}>
-      <Icon name="branch" size={22} /><span><b>{data.counts.branches}</b>进行中分支</span></a>
-  </section>
+  {#if error}<p class="inline-alert" role="alert">{error}</p>{/if}
 
-  <div class="grid-2">
-    <section class="panel">
-      <h2>需要你 <small>按截止</small></h2>
-      {#if needMix.length}
-        <div class="mix" role="img" aria-label={needMix.map(item => `${NEED_LABEL[item.kind]} ${item.n} 条`).join("，")}>
-          <svg viewBox={`0 0 ${data.need_you.length} 1`} preserveAspectRatio="none" aria-hidden="true">
-            {#each needMix as item, index (item.kind)}
-              <rect x={needMix.slice(0, index).reduce((sum, part) => sum + part.n, 0)} y="0" width={item.n} height="1"
-                class={`mix-${item.kind}`} />
-            {/each}
-          </svg>
-          <span class="legend">
-            {#each needMix as item (item.kind)}<span><i class={`swatch mix-${item.kind}`}></i>{NEED_LABEL[item.kind]} <b>{item.n}</b></span>{/each}
-          </span>
+  <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+  <nav class="today-tabs" aria-label="今天看板" role={mobile ? "tablist" : undefined}>
+    <button id="today-tab-today" class:active={tab === "today"} aria-selected={mobile ? tab === "today" : undefined} aria-controls={mobile ? "today-panel-today" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "today")}>今天</button>
+    <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={mobile ? tab === "pool" : undefined} aria-controls={mobile ? "today-panel-pool" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "pool")}>池子</button>
+    <button id="today-tab-done" class:active={tab === "done"} aria-selected={mobile ? tab === "done" : undefined} aria-controls={mobile ? "today-panel-done" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "done")}>做完</button>
+  </nav>
+
+  <div class="today-board">
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-pool" class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子" aria-labelledby={mobile ? "today-tab-pool" : undefined} role={mobile ? "tabpanel" : undefined}>
+      <div class="today-column-head"><h2>池子</h2><span>{data.pool.length}</span></div>
+      {#if groups.length}
+        <div class="pool-groups">
+          {#each groups as group (group.category)}
+            <details open>
+              <summary>{group.category}</summary>
+              <ul class="pool-list">
+                {#each group.items as task (`${task.project}/${task.key}`)}
+                  <li>
+                    <div class="pool-task"><span>{task.title}</span>{#if task.due}<small>{poolDue(task)}</small>{/if}</div>
+                    <button class="pick-button" disabled={busy !== ""} aria-label={`放进今天：${task.title}`}
+                      onclick={() => void mutate("/api/today/pick", task)}>放进今天 →</button>
+                  </li>
+                {/each}
+              </ul>
+            </details>
+          {/each}
         </div>
-        <ul class="inbox">
-          {#each data.need_you as task (`${task.project}/${task.key}`)}
-            <li>
-              <button onclick={() => onOpen(task.project, task.key)}>
-                <span class="need-icon" title={NEED_LABEL[task.need_kind]}><Icon name={task.need_kind} size={14} /></span>
-                <span class="inbox-title">{task.title}</span>
-                {#if task.due}
-                  <span class={`chip due ${dueTone(task.due, data.today)}`}>{dueText(task.due, data.today)}</span>
-                {/if}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <p class="empty">没有要你出手的事。</p>
       {/if}
     </section>
 
-    <section class="panel">
-      <h2>截止倒计时 <small>橙色需要你，红色已逾期</small></h2>
-      <Countdown tasks={data.dated ?? data.due_soon} today={data.today} {onOpen} />
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-today" class="today-column main-today-column" class:mobile-hidden={tab !== "today"} aria-label="今天" aria-labelledby={mobile ? "today-tab-today" : undefined} role={mobile ? "tabpanel" : undefined}>
+      <div class="today-column-head"><h2>今天</h2><span>{data.today.length}</span></div>
+      <div class="today-groups">
+        {#each [{ key: "you", label: "你的" }, { key: "agent", label: "建国的" }] as group (group.key)}
+          {@const items = data.today.filter(task => task.who === group.key)}
+          <section class="today-group" aria-labelledby={`today-group-${group.key}`}>
+            <h3 id={`today-group-${group.key}`}>{group.label}</h3>
+            <p class="today-group-hint">{group.key === "you" ? "做完点「完成」" : "合并后自动移到做完"}</p>
+            {#if items.length}
+              <div class="today-cards">
+                {#each items as task (`${task.project}/${task.key}`)}
+                  <article class="today-card">
+                    <div class="today-card-copy"><strong>{task.title}</strong>{#if task.carried || task.due}<span>{dueLine(task)}</span>{/if}</div>
+                    <div class="today-card-actions">
+                      <button class="button" disabled={busy !== ""} onclick={() => void mutate("/api/today/unpick", task)}>退回池子</button>
+                      {#if group.key === "you"}
+                        <button class="button primary" disabled={busy !== ""} onclick={() => void mutate("/api/today/done", task)}>完成</button>
+                      {/if}
+                    </div>
+                  </article>
+                {/each}
+              </div>
+            {:else}
+              <p class="today-empty dashed">从左边池子拿一件过来</p>
+            {/if}
+          </section>
+        {/each}
+      </div>
     </section>
-  </div>
 
-  <div class="grid-2">
-    <section class="panel">
-      <h2>项目</h2>
-      {#each data.projects as project (project.id)}
-        <a class="project-row" href={`/p/${encodeURIComponent(project.id)}`}
-          onclick={event => { event.preventDefault(); onNavigate(`/p/${encodeURIComponent(project.id)}`); }}>
-          <span class="project-name"><span class={`dot slot-${projectSlot(projects, project.id)}`}></span>{project.name}</span>
-          <svg class="split" viewBox={`0 0 ${Math.max(project.open, 1)} 1`} preserveAspectRatio="none"
-            role="img" aria-label={`${project.open} 条未完成，其中 ${project.need_you} 条需要你`}>
-            <rect x="0" y="0" width={project.need_you} height="1" class="split-you" />
-            <rect x={project.need_you} y="0" width={Math.max(0, project.open - project.need_you)} height="1" class="split-rest" />
-          </svg>
-          <span class="project-meta">{project.open} 条 · {project.branches} 分支 · {ago(project.last_push_at)}</span>
-        </a>
-      {:else}
-        <p class="empty">还没有项目。在左侧点「+」添加，并把推送令牌配置到仓库。</p>
-      {/each}
-    </section>
-
-    <section class="panel">
-      <h2>最近 7 天完成 <small>{data.counts.done_7d} 条</small></h2>
-      {#if data.recently_done.length}
-        <ul class="done-list">
-          {#each data.recently_done as task (`${task.project}/${task.key}`)}
-            <li><Icon name="check" size={14} /><button class="link-button" onclick={() => onOpen(task.project, task.key)}>{task.title}</button>
-              <span class="muted">{name(task.project)}</span></li>
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-done" class="today-column done-column" class:mobile-hidden={tab !== "done"} aria-label="做完" aria-labelledby={mobile ? "today-tab-done" : undefined} role={mobile ? "tabpanel" : undefined}>
+      <div class="today-column-head"><h2>做完</h2><span>{data.done.length}</span></div>
+      {#if data.done.length}
+        <ul class="done-today-list">
+          {#each data.done as task (`${task.project}/${task.key}`)}
+            <li><Icon name="check" size={16} /><span>{task.title}</span></li>
           {/each}
         </ul>
       {:else}
-        <p class="empty">这周还没有完成记录。完成的事从待办里删掉后，下次推送会出现在这里。</p>
-      {/if}
-      {#if data.branches.length}
-        <h3>进行中分支</h3>
-        <ul class="branch-list">
-          {#each data.branches as branch (`${branch.project}/${branch.name}`)}
-            <li><Icon name="branch" size={14} /><code>{branch.name}</code>
-              <span class="muted">{name(branch.project)} · 领先 {branch.ahead}{branch.has_fragment ? " · 有记录" : ""}</span></li>
-          {/each}
-        </ul>
+        <p class="today-empty done-empty"><span class="desktop-only">还没有</span><span class="mobile-only">今天还没有做完的。</span></p>
       {/if}
     </section>
   </div>
