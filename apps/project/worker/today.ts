@@ -14,6 +14,14 @@ interface TodayRow extends TaskRow {
   picked_by: "owner" | "agent" | null;
   removed_day: string | null;
   owner_done_at: string | null;
+  owner_deleted_at: string | null;
+}
+
+export interface DeletedItem {
+  project: string;
+  key: string;
+  title: string;
+  deleted_at: string;
 }
 
 interface TodayTaskRef {
@@ -56,10 +64,11 @@ function item(row: TodayRow, day: string): TodayItem {
 async function rowsForToday(env: Env, projectId?: string): Promise<TodayRow[]> {
   const scope = projectId ? "t.project_id=?" : "p.status<>'archived'";
   return (await env.DB.prepare(`SELECT t.*, tp.picked_day, tp.picked_by, tp.removed_day,
-      od.done_at AS owner_done_at
+      od.done_at AS owner_done_at, ox.deleted_at AS owner_deleted_at
     FROM tasks t JOIN projects p ON p.id=t.project_id
     LEFT JOIN today_picks tp ON tp.project_id=t.project_id AND tp.task_key=t.key
     LEFT JOIN owner_done od ON od.project_id=t.project_id AND od.task_key=t.key
+    LEFT JOIN owner_deleted ox ON ox.project_id=t.project_id AND ox.task_key=t.key
     WHERE ${scope}
     ORDER BY t.project_id, t.position, t.key`).bind(...(projectId ? [projectId] : [])).all<TodayRow>()).results;
 }
@@ -68,12 +77,13 @@ async function rowsForToday(env: Env, projectId?: string): Promise<TodayRow[]> {
 export async function todayView(env: Env, now = new Date(), projectId?: string) {
   const day = today(now);
   const rows = await rowsForToday(env, projectId);
-  const open = rows.filter(row => !row.done_at && !row.owner_done_at);
+  const open = rows.filter(row => !row.done_at && !row.owner_done_at && !row.owner_deleted_at);
   const selected = open.filter(row => row.picked_day !== null && row.removed_day === null);
   const selectedKeys = new Set(selected.map(row => `${row.project_id}\0${row.key}`));
   const pool = open.filter(row => !selectedKeys.has(`${row.project_id}\0${row.key}`));
   const doneKeys = new Set<string>();
   const done = rows.filter(row => {
+    if (row.owner_deleted_at) return false;
     const taskDoneToday = row.done_at !== null && today(new Date(row.done_at)) === day;
     const ownerDoneToday = row.owner_done_at !== null && today(new Date(row.owner_done_at)) === day;
     if (!taskDoneToday && !ownerDoneToday) return false;
@@ -82,6 +92,8 @@ export async function todayView(env: Env, now = new Date(), projectId?: string) 
     doneKeys.add(key);
     return true;
   });
+  const deleted = rows.filter(row => row.owner_deleted_at !== null && row.done_at === null)
+    .map(row => ({ project: row.project_id, key: row.key, title: row.title, deleted_at: row.owner_deleted_at! }));
   selected.sort(byDueAndPosition);
   pool.sort(byDueAndPosition);
   done.sort(byDueAndPosition);
@@ -92,7 +104,8 @@ export async function todayView(env: Env, now = new Date(), projectId?: string) 
     today: todayItems,
     pool: poolItems,
     done: doneItems,
-    counts: { today: todayItems.length, pool: poolItems.length, done: doneItems.length },
+    deleted,
+    counts: { today: todayItems.length, pool: poolItems.length, done: doneItems.length, deleted: deleted.length },
     date: day,
   };
 }
@@ -121,6 +134,8 @@ export async function pickToday(env: Env, project: unknown, key: unknown, picked
   const ownerDone = await env.DB.prepare("SELECT 1 FROM owner_done WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first();
   if (ownerDone) return { written: 0 };
+  if (await env.DB.prepare("SELECT 1 FROM owner_deleted WHERE project_id=? AND task_key=?")
+    .bind(projectId, task.key).first()) return { written: 0 };
   const day = today(now);
   const existing = await env.DB.prepare("SELECT picked_by, removed_day FROM today_picks WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first<{ picked_by: "owner" | "agent"; removed_day: string | null }>();
@@ -163,11 +178,30 @@ export async function markOwnerDone(env: Env, project: unknown, key: unknown, no
   return { written: Number(result.meta?.changes || 0) };
 }
 
-export function fitToday<T extends { today: unknown[]; pool: unknown[]; done: unknown[] }>(value: T, budget: number) {
-  const result = { ...value, today: [...value.today], pool: [...value.pool], done: [...value.done] } as T & { truncated?: string[] };
+export async function deleteToday(env: Env, project: unknown, key: unknown, now = new Date()) {
+  const target = ref(project, key);
+  const { projectId, task } = await taskFor(env, target);
+  const deleted = await env.DB.prepare("SELECT 1 FROM owner_deleted WHERE project_id=? AND task_key=?")
+    .bind(projectId, task.key).first();
+  if (deleted) return { written: 0 };
+  if (task.done_at) throw new AppError("task_done", 422);
+  const ownerDone = await env.DB.prepare("SELECT 1 FROM owner_done WHERE project_id=? AND task_key=?")
+    .bind(projectId, task.key).first();
+  if (ownerDone) throw new AppError("task_done", 422);
+  const picked = await env.DB.prepare("SELECT removed_day FROM today_picks WHERE project_id=? AND task_key=?")
+    .bind(projectId, task.key).first<{ removed_day: string | null }>();
+  if (picked?.removed_day === null) throw new AppError("task_in_today", 422, { hint: "请先退回池子" });
+  const deletedAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const result = await env.DB.prepare(`INSERT INTO owner_deleted (project_id, task_key, deleted_at)
+    VALUES (?, ?, ?) ON CONFLICT(project_id, task_key) DO NOTHING`).bind(projectId, task.key, deletedAt).run();
+  return { written: Number(result.meta?.changes || 0) };
+}
+
+export function fitToday<T extends { today: unknown[]; pool: unknown[]; done: unknown[]; deleted: unknown[] }>(value: T, budget: number) {
+  const result = { ...value, today: [...value.today], pool: [...value.pool], done: [...value.done], deleted: [...value.deleted] } as T & { truncated?: string[] };
   const truncated = new Set<string>();
   while (jsonBytes(result) > budget) {
-    const key = (["pool", "done", "today"] as const).find(name => result[name].length > 0);
+    const key = (["pool", "done", "deleted", "today"] as const).find(name => result[name].length > 0);
     if (!key) break;
     result[key].pop();
     truncated.add(key);
@@ -214,6 +248,10 @@ export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new D
       SELECT 1 FROM owner_done d
       WHERE d.project_id=json_extract(value,'$.project_id')
         AND d.task_key=json_extract(value,'$.key')
+    ) AND NOT EXISTS (
+      SELECT 1 FROM owner_deleted x
+      WHERE x.project_id=json_extract(value,'$.project_id')
+        AND x.task_key=json_extract(value,'$.key')
     )
     ON CONFLICT(project_id, task_key) DO UPDATE SET picked_day=excluded.picked_day,
       picked_by=excluded.picked_by, removed_day=NULL

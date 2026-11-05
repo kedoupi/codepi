@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../worker/index";
 import { executeProject } from "../worker/mcp";
 import { jsonBytes } from "../worker/lib";
-import { markOwnerDone, pickToday, todayView, unpickToday } from "../worker/today";
+import { deleteToday, markOwnerDone, pickToday, pickAgentToday, todayView, unpickToday } from "../worker/today";
 import { ingestRequest, resetDb, samplePayload, seedProject } from "./helpers";
 
 const day = new Date("2026-11-05T00:30:00+08:00");
@@ -46,7 +46,7 @@ describe("today board", () => {
     ]);
     expect(result.pool.map(task => task.key)).toEqual([]);
     expect(result.done.map(task => task.key)).toEqual(["confirm", "late"]);
-    expect(result.counts).toEqual({ today: 2, pool: 0, done: 2 });
+    expect(result.counts).toEqual({ today: 2, pool: 0, done: 2, deleted: 0 });
   });
 
   it("keeps owner_done hidden on later days and rejects agent-owned completion", async () => {
@@ -119,7 +119,7 @@ describe("today board", () => {
     const board = await data("today_get");
     expect(jsonBytes(board)).toBeLessThanOrEqual(MCP_LIMITS.detail);
     expect(board.truncated).toContain("pool");
-    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0 });
+    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0, deleted: 0 });
     expect(board.pool.length).toBeLessThan(300);
   });
 
@@ -142,5 +142,47 @@ describe("today board", () => {
     expect(reply).toMatchObject({ ok: false, error: "task_not_found", status: 404 });
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks").first<{ n: number }>())?.n).toBe(0);
   });
+
+  it("deletes only pool tasks, reports deleted rows, and is idempotent", async () => {
+    await seedToday();
+    await expect(deleteToday(env, "codepi", "missing", day)).rejects.toMatchObject({ code: "task_not_found", status: 404 });
+    await pickToday(env, "codepi", "agent", "owner", day);
+    await expect(deleteToday(env, "codepi", "agent", day)).rejects.toMatchObject({ code: "task_in_today", status: 422 });
+    await markOwnerDone(env, "codepi", "you", day);
+    await expect(deleteToday(env, "codepi", "you", day)).rejects.toMatchObject({ code: "task_done", status: 422 });
+    await env.DB.prepare("UPDATE tasks SET done_at=? WHERE project_id='codepi' AND key='late'")
+      .bind("2026-11-04T16:30:00Z").run();
+    await expect(deleteToday(env, "codepi", "late", day)).rejects.toMatchObject({ code: "task_done", status: 422 });
+    expect(await deleteToday(env, "codepi", "confirm", day)).toEqual({ written: 1 });
+    expect(await deleteToday(env, "codepi", "confirm", day)).toEqual({ written: 0 });
+    const result = await todayView(env, day);
+    expect(result.pool).toEqual([]);
+    expect(result.today.map(task => task.key)).toEqual(["agent"]);
+    expect(result.done.map(task => task.key)).toEqual(["you", "late"]);
+    expect(result.deleted).toEqual([{ project: "codepi", key: "confirm", title: "需要确认", deleted_at: "2026-11-04T16:30:00Z" }]);
+    expect(result.counts).toEqual({ today: 1, pool: 0, done: 2, deleted: 1 });
+  });
+
+  it("clears owner_deleted on ingest and allows a recreated key back into the pool", async () => {
+    const token = await seedToday([{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }]);
+    await deleteToday(env, "codepi", "recreated", day);
+    expect((await todayView(env, day)).deleted.map(task => task.key)).toEqual(["recreated"]);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM owner_deleted WHERE project_id='codepi'").first<{ n: number }>())?.n).toBe(0);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({
+      tasks: [{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }],
+    })), env);
+    const result = await todayView(env, day);
+    expect(result.pool.map(task => task.key)).toEqual(["recreated"]);
+    expect(result.deleted).toEqual([]);
+  });
+
+  it("does not let the assistant pick a deleted task", async () => {
+    await seedToday([{ key: "deleted", title: "已删任务", status: "doing", category: "流程", need_kind: "none" }]);
+    await deleteToday(env, "codepi", "deleted", day);
+    expect(await pickAgentToday(env, [{ project: "codepi", key: "deleted" }], day)).toEqual({ written: 0 });
+    expect((await todayView(env, day)).deleted.map(task => task.key)).toEqual(["deleted"]);
+  });
+ 
 
 });

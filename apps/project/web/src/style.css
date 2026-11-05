@@ -305,7 +305,8 @@ button { font: inherit; color: inherit; }
 .pool-task { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
 .pool-task span { overflow-wrap: anywhere; font-size: 13px; }
 .pool-task small { color: var(--color-text-muted); font-family: var(--font-mono); font-size: 11px; }
-.pick-button { flex: none; min-height: 36px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: 12px; padding: 5px 8px; }
+.pool-actions { display: flex; flex: none; flex-direction: column; gap: 6px; }
+.pick-button { flex: none; min-height: 44px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); cursor: pointer; font-size: 12px; padding: 5px 8px; }
 .pick-button:hover { border-color: var(--color-border-strong); }
 .pick-button:disabled, .today-card-actions .button:disabled { cursor: default; opacity: .55; }
 .today-groups { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -345,6 +346,8 @@ button { font: inherit; color: inherit; }
   .today-card-actions { width: 100%; justify-content: stretch; }
   .today-card-actions .button, .pick-button { flex: 1; min-height: 44px; }
   .pool-list li { align-items: stretch; flex-direction: column; }
+  .pool-actions { width: 100%; flex-direction: row; }
+  .pool-actions .pick-button { width: 100%; }
   .desktop-only { display: none; }
   .mobile-only { display: inline; }
   .pick-button { width: 100%; }

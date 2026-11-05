@@ -256,6 +256,9 @@ export async function applyIngest(env: Env, projectId: string, payload: IngestPa
     env.DB.prepare(`DELETE FROM today_picks
       WHERE project_id=?1 AND task_key NOT IN (SELECT value FROM json_each(?2))`)
       .bind(projectId, keys),
+    env.DB.prepare(`DELETE FROM owner_deleted
+      WHERE project_id=?1 AND task_key NOT IN (SELECT value FROM json_each(?2))`)
+      .bind(projectId, keys),
     env.DB.prepare(`INSERT INTO tasks (project_id,key,title,status,category,due,recorded,what,impact,advice,
         need,need_kind,source,related_json,position,first_seen,last_seen,done_at)
       SELECT ?1, json_extract(value,'$.key'), json_extract(value,'$.title'), json_extract(value,'$.status'),
