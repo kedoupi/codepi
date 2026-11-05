@@ -1,6 +1,6 @@
 import type {
   ActivitySample, AppBreakdown, AppCategory, DayComputation, DayStatus, Evidence, Heartbeat, HomeDevice,
-  HomeEvent, HomeSnapshot, KeyMoment, RhythmStatus, StateInput, StatusSegment,
+  HomeEvent, HomeSnapshot, KeyMoment, RhythmStatus, StateInput, StatusSegment, WorkBlock,
 } from "./models";
 
 /**
@@ -321,6 +321,112 @@ function buildAppBreakdown(
     };
   }).sort((a, b) => b.minutes - a.minutes);
 }
+/** 小于该分钟数的离座空档并入前后相邻的在电脑前块。 */
+export const workBlockMinGapMinutes = 2;
+
+type WorkBlockRun = { kind: "active" | "away" | "other"; status: DayStatus; startMinute: number; endMinute: number; gapMinutes: number };
+
+function workBlockRuns(statuses: DayStatus[]): WorkBlockRun[] {
+  const first = statuses.findIndex(status => status === "office_active" || status === "office_away");
+  if (first < 0) return [];
+  let last = -1;
+  for (let minute = statuses.length - 1; minute >= 0; minute -= 1) {
+    if (statuses[minute] === "office_active" || statuses[minute] === "office_away") { last = minute; break; }
+  }
+  const runs: WorkBlockRun[] = [];
+  const kindOf = (status: DayStatus): WorkBlockRun["kind"] =>
+    status === "office_active" ? "active" : status === "office_away" ? "away" : "other";
+  for (let minute = first; minute <= last; minute += 1) {
+    const status = statuses[minute];
+    const kind = kindOf(status);
+    const previous = runs.at(-1);
+    if (previous?.kind === kind && (kind === "other" ? previous.status === status : true)) previous.endMinute = minute;
+    else runs.push({ kind, status, startMinute: minute, endMinute: minute, gapMinutes: 0 });
+  }
+  for (let index = 1; index < runs.length - 1; index += 1) {
+    const current = runs[index];
+    const gapLength = current.endMinute - current.startMinute + 1;
+    const mergeable = (current.kind === "away" || current.status === "unknown") && gapLength < workBlockMinGapMinutes;
+    if (!mergeable) continue;
+    const previous = runs[index - 1], next = runs[index + 1];
+    if (previous.kind !== "active" || next.kind !== "active") continue;
+    previous.endMinute = next.endMinute;
+    previous.gapMinutes += gapLength;
+    runs.splice(index, 2);
+    index = Math.max(0, index - 2);
+  }
+  return runs;
+}
+
+function workBlockApps(
+  run: WorkBlockRun,
+  minuteSamples: Array<ActivitySample | null>,
+  statuses: DayStatus[],
+  evidence: Evidence[],
+  appsKind: "app" | "none",
+): WorkBlock {
+  const apps = new Map<string, number>();
+  if (appsKind === "app") {
+    for (let minute = run.startMinute; minute <= run.endMinute; minute += 1) {
+      const row = minuteSamples[minute] ?? null;
+      if (!isOfficeWorkMinute(row, statuses[minute], evidence[minute])) continue;
+      const name = row!.app_name?.trim() || row!.bundle_id?.trim() || "未标注应用";
+      apps.set(name, (apps.get(name) ?? 0) + 1);
+    }
+  }
+  const sortedApps = [...apps.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+  const appMinutes = sortedApps.reduce((sum, [, minutes]) => sum + minutes, 0);
+  const allApps = sortedApps.map(([name, minutes]) => ({ name, minutes }));
+  const topApps = allApps.slice(0, 3);
+  const primary = topApps[0];
+  const inferred = run.kind === "away"
+    ? true
+    : Array.from({ length: run.endMinute - run.startMinute + 1 }, (_, offset) => run.startMinute + offset)
+      .some(minute => statuses[minute] === "office_active" && evidence[minute] === "inferred");
+  const activeMinutes = Array.from({ length: run.endMinute - run.startMinute + 1 }, (_, offset) => run.startMinute + offset)
+    .filter(minute => statuses[minute] === "office_active").length;
+  const status = run.kind === "active" ? "office_active" : run.kind === "away" ? "office_away" : run.status;
+  return {
+    kind: run.kind,
+    status,
+    label: statusLabel(status),
+    startMinute: run.startMinute,
+    endMinute: run.endMinute,
+    startLabel: minuteLabel(run.startMinute),
+    endLabel: minuteLabel(run.endMinute),
+    minutes: run.endMinute - run.startMinute + 1,
+    activeMinutes,
+    gapMinutes: run.gapMinutes,
+    inferred,
+    appsKind,
+    primaryApp: primary ? { name: primary.name, minutes: primary.minutes, share: appMinutes ? primary.minutes / appMinutes : 0 } : null,
+    topApps,
+    apps: allApps,
+  };
+}
+
+export function buildWorkBlocks(
+  minuteSamples: Array<ActivitySample | null>,
+  statuses: DayStatus[],
+  evidence: Evidence[],
+): WorkBlock[] {
+  return workBlockRuns(statuses).map(run => workBlockApps(run, minuteSamples, statuses, evidence, "app"));
+}
+
+export function buildStoredWorkBlocks(segments: StatusSegment[]): WorkBlock[] {
+  if (!segments.length) return [];
+  const statuses: DayStatus[] = new Array(MINUTES_PER_DAY).fill("unknown");
+  const evidence: Evidence[] = new Array(MINUTES_PER_DAY).fill("no_data");
+  for (const segment of segments) {
+    for (let minute = Math.max(0, segment.startMinute); minute <= Math.min(MINUTES_PER_DAY - 1, segment.endMinute); minute += 1) {
+      statuses[minute] = segment.status;
+      evidence[minute] = segment.evidence;
+    }
+  }
+  return workBlockRuns(statuses).map(run => workBlockApps(run, [], statuses, evidence, "none"));
+}
+
 
 function pushMoment(target: KeyMoment[], moment: KeyMoment) {
   if (!target.some(item => item.kind === moment.kind && item.minute === moment.minute)) target.push(moment);
@@ -569,6 +675,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     minuteDetails: details,
     segments: buildSegments(statuses, evidence),
     moments,
+    workBlocks: buildWorkBlocks(minuteOwnSample, statuses, evidence),
     metrics,
     appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
