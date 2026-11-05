@@ -45,6 +45,9 @@ export type BlogService = DomainService<BlogOperation>;
 
 export const MCP_LIMITS = { overview: 4 * 1024, detail: 12 * 1024, context: 8 * 1024, importChunk: 24 * 1024, blogBody: 96 * 1024,
   blogInlineImage: 1024 * 1024 } as const;
+/** boundedText reads the body before the tool name is known, so this bound is global.
+ * Authentication runs first: only the owner reaches it. Allow base64 plus JSON-RPC overhead. */
+export const MCP_REQUEST_LIMIT = Math.ceil(MCP_LIMITS.blogInlineImage / 3) * 4 + 16 * 1024;
 export function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).byteLength;
 }

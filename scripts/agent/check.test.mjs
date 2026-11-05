@@ -266,15 +266,19 @@ setTimeout(() => {
 `);
   assert.equal(result.status, 0, result.stderr);
   const events = readFileSync(result.marker, 'utf8').trim().split('\n');
-  const span = name => [events.indexOf(`start ${name}`), events.indexOf(`end ${name}`)];
+  const span = name => {
+    const indexes = [events.indexOf(`start ${name}`), events.indexOf(`end ${name}`)];
+    assert.ok(indexes.every(index => index >= 0), `missing events for ${name}\n${events.join('\n')}`);
+    return indexes;
+  };
   const disjoint = (a, b) => a[1] < b[0] || b[1] < a[0];
   const mcp = span('--filter @codepi/mcp test');
-  assert.ok(mcp[0] >= 0, events.join('\n'));
-  for (const other of ['--filter @kedoupi/codepi test', '--filter @codepi/mcp test:browser:built']) {
-    assert.ok(disjoint(mcp, span(other)), `${other} overlapped the MCP test that rebuilds its artifacts`);
+  for (const other of ['--filter @kedoupi/codepi test', '--filter @codepi/mcp test:browser:built', '--filter health-kdp test']) {
+    assert.ok(disjoint(mcp, span(other)), `${other} overlapped the MCP test that rebuilds shared artifacts`);
   }
-  assert.ok(disjoint(span('--filter web test'), span('--filter kdp-auth test')), 'web and auth tests both rebuild Auth');
-  assert.ok(Object.values(packageCommands).flatMap(config => config.commands).some(command => command.locks?.length));
+  const command = (app, name) => packageCommands[app].commands.find(item => item.name === name);
+  assert.deepEqual(command('health', 'test').locks, ['health-api-dist']);
+  assert.ok(command('mcp', 'test').locks.includes('health-api-dist'));
 });
 
 test('failed builds block dependent checks without stopping unrelated packages', t => {

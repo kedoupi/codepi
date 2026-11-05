@@ -5,10 +5,8 @@ import type { Env } from "./env.ts";
 import { findAccessToken, normalizeScope, type TokenRow } from "./oauth-store.ts";
 import { personalToken } from "./personal-tokens.ts";
 import { callTool, tools, instructions } from "./modules.ts";
-import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
+import { MCP_REQUEST_LIMIT } from "@kedoupi/shared/mcp/contract";
 import { boundedText, HttpError, json } from "./http.ts";
-
-const MCP_REQUEST_LIMIT = MCP_LIMITS.blogBody * 4;
 
 export async function authenticate(request: Request, env: Env): Promise<TokenRow | null> {
   const bearer = request.headers.get("Authorization")?.match(/^Bearer ([A-Za-z0-9_-]+)$/i)?.[1];

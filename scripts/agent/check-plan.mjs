@@ -14,7 +14,7 @@ export const packageCommands = {
     { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
   ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
+    { name: 'test', tier: 'quick', locks: ['health-api-dist'] }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full', locks: ['health-api-dist'] },
     { name: 'test:browser:built', after: 'build', tier: 'full', locks: ['health-api-dist'] },
   ] },
