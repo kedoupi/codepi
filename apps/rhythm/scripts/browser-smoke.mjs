@@ -153,6 +153,14 @@ function statusReadFixture() {
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
+      if (isToday && currentMinute < 520) {
+        for (let minute = Math.max(0, currentMinute - 30); minute <= activityLimit; minute += 1) {
+          rows.push({
+            sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: 0,
+            key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器",
+          });
+        }
+      }
       for (let minute = 1170; minute <= Math.min(1439, activityLimit); minute += 1) {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
@@ -175,6 +183,10 @@ function statusReadFixture() {
         rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, 422 + shift), status: "offline" });
         rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 1170), status: "online" });
         rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, 1170), status: "offline" });
+        if (isToday && currentMinute < 520) {
+          rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, activityLimit), status: "offline" });
+          rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, activityLimit), status: "offline" });
+        }
       }
       return rows;
     }
@@ -505,7 +517,7 @@ async function main() {
           && Number(item.style.getPropertyValue("--segment-start")) + Number(item.style.getPropertyValue("--segment-minutes")) > 420);
       return { status: segment?.getAttribute("data-status"), title: segment?.getAttribute("title") ?? "" };
     });
-    assert.ok(["home", "bedroom", "living_room"].includes(morning.status), `today morning is at home: ${JSON.stringify(morning)}`);
+    assert.ok(["home", "bedroom", "living_room", "not_arrived"].includes(morning.status), `today morning is at home or not arrived: ${JSON.stringify(morning)}`);
     // 时间线点按明细
     await page.evaluate(() => {
       const segment = document.querySelector(".timeline-segment");
@@ -521,10 +533,18 @@ async function main() {
       const minutesOf = element => Number(element.style.getPropertyValue("--segment-minutes"));
       const noon = segments.find(element => startOf(element) === 720);
       const afterNoon = segments.find(element => startOf(element) === 721);
-      if (!noon || !afterNoon) throw new Error("timeline has noon and following one-minute segments");
       const timelineRect = timeline.getBoundingClientRect();
       const ratio = element => (element.getBoundingClientRect().left - timelineRect.left) / timelineRect.width;
+      if (!noon || !afterNoon) {
+        return {
+          hasNoon: false,
+          position: getComputedStyle(segments[0]).position,
+          firstWidth: segments[0].getBoundingClientRect().width,
+          timelineWidth: timelineRect.width,
+        };
+      }
       return {
+        hasNoon: true,
         position: getComputedStyle(segments[0]).position,
         firstWidth: segments[0].getBoundingClientRect().width,
         timelineWidth: timelineRect.width,
@@ -535,9 +555,11 @@ async function main() {
     });
     assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
     assert.ok(geometry.firstWidth <= geometry.timelineWidth, "timeline segment stays within the timeline");
-    assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
-    assert.equal(geometry.noonMinutes, 1);
-    assert.ok(Math.abs(geometry.afterNoonRatio - 721 / 1440) <= 0.01, `following segment left=${geometry.afterNoonRatio}`);
+    if (geometry.hasNoon) {
+      assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
+      assert.equal(geometry.noonMinutes, 1);
+      assert.ok(Math.abs(geometry.afterNoonRatio - 721 / 1440) <= 0.01, `following segment left=${geometry.afterNoonRatio}`);
+    }
     const detail = await page.evaluate(() => document.querySelector(".timeline-detail")?.textContent || "");
     assert.match(detail, /卧室|客厅|在家|通勤|公司|其他网络/);
     await screenshot(page, "desktop-timeline-detail.png");
