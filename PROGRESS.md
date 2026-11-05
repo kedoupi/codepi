@@ -14,10 +14,10 @@
 - `worker/recompute.ts`：家中数据回看窗口扩大到 `homeLookbackMinutes=2160`，工作机仍为 30 分钟。
 - `worker/app.ts` 与 `web/src/App.svelte`：当天当前状态回看 20 分钟并返回/显示 `asOf`。
 - `web/src/style.css`：时间线段按分钟绝对定位。
-- 更新 README、fixture、领域/Web 测试和浏览器冒烟脚本。
+- 更新 README、fixture、领域/Web 测试、来源页 fixture 和浏览器冒烟脚本。
 
 ## 当前状态
 
 - 已验证：`bun test --run test/domain`，53 passed；`git diff --check` 通过。
 - 全部仓库依赖未安装：`npm`/`tsc` 不在环境中，直接跑全量 Bun 测试缺少 `cloudflare:test` 与 `@testing-library/svelte`；未执行依赖安装（按任务要求需 lead 授权）。
-- 尚未提交；下一步为 lead 审阅 diff 后提交本分支。
+- 首个实现提交为 `615eb65`；来源页测试 fixture 的同步文案待提交。
