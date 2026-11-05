@@ -14,4 +14,4 @@ WHERE settings.app_categories='{}';
 
 INSERT INTO settings_recompute_queue (date, reason, queued_at)
 SELECT date, '0003 work page', CURRENT_TIMESTAMP FROM daily_metrics WHERE true
-ON CONFLICT(date) DO UPDATE SET reason=excluded.reason, queued_at=excluded.queued_at;
+ON CONFLICT(date) DO NOTHING;

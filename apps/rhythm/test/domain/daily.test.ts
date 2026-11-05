@@ -174,5 +174,34 @@ describe("每日指标", () => {
     });
     expect(expired[721]).toBe(false);
   });
+  it("bundle_id 优先于 app_name", () => {
+    const base = input();
+    const result = calculateDailyMetrics({
+      ...base,
+      activity: [{
+        sampled_at: "2026-11-03T09:00:00+08:00", net: "office", idle_sec: 20, locked: false,
+        key_idle_sec: 20, pointer_idle_sec: 20, app_name: "同名", bundle_id: "bundle-a",
+      }],
+      appCategories: { 同名: "私人", "bundle-a": "AI 编程" },
+    });
+    expect(result.metrics.appCategoryMinutes["AI 编程"]).toBe(1);
+    expect(result.metrics.appMinutes!["同名"]).toMatchObject({ minutes: 1, category: "AI 编程" });
+  });
+
+  it("私人类打断专注，会议和 AI 对话不打断", () => {
+    const base = input();
+    const activity = Array.from({ length: 35 }, (_, minute) => ({
+      sampled_at: `2026-11-03T09:${String(minute).padStart(2, "0")}:00+08:00`,
+      net: "office" as const, idle_sec: 20, locked: false, key_idle_sec: 20, pointer_idle_sec: 20,
+      app_name: minute === 25 ? "会议" : minute === 26 ? "AI 对话" : minute === 27 ? "私人" : "编辑器",
+    }));
+    const result = calculateDailyMetrics({
+      ...base,
+      activity,
+      appCategories: { 编辑器: "AI 编程", 会议: "会议", "AI 对话": "AI 对话", 私人: "私人" },
+    });
+    expect(result.metrics.focus).toMatchObject({ segmentCount: 1, totalMinutes: 27, communicationInterruptions: 1 });
+    expect(result.metrics.focus.segments?.[0]).toMatchObject({ minutes: 27, interruptedAt: [567] });
+  });
 });
 

@@ -357,10 +357,16 @@ get("/api/day", async c => {
 async function metricsRows(env: Env, from: string, end: string, settings: RhythmSettings): Promise<DailyMetricsRow[]> {
   const now = Date.now();
   const today = shanghaiDate(now);
-  const stored = await readDailyMetricsRange(env, from, end < today ? end : dateOffset(today, -1));
-  if (end < today || from > today) return stored;
-  const { metrics } = calculateDailyMetrics(await loadStateInput(env, today, settings), now);
-  return [...stored, { date: today, metrics, computedAt: new Date(now).toISOString(), version: DAILY_ALGORITHM_VERSION }];
+  const stored = await readDailyMetricsRange(env, from, end);
+  const byDate = new Map(stored.map(row => [row.date, row]));
+  for (let date = from; dateDistance(date, end) >= 0; date = dateOffset(date, 1)) {
+    const distance = dateDistance(date, today);
+    const legacySelected = date === end && byDate.get(date)?.metrics.appMinutes === null;
+    if ((distance < 0 || distance > 1) && !legacySelected) continue;
+    const { metrics } = await calculateDailyMetrics(await loadStateInput(env, date, settings), date === today ? now : undefined);
+    byDate.set(date, { date, metrics, computedAt: new Date(now).toISOString(), version: DAILY_ALGORITHM_VERSION });
+  }
+  return [...byDate.values()].sort((left, right) => left.date.localeCompare(right.date));
 }
 type WorkAggregate = {
   officeMinutes: number | null;
@@ -386,40 +392,51 @@ function aggregateWorkRows(rows: DailyMetricsRow[]): WorkAggregate {
     };
   }
   const categories = Object.fromEntries(APP_CATEGORIES.map(category => [category, 0])) as Record<AppCategory, number>;
+  const appRows = usable.filter(row => row.metrics.appMinutes !== null);
+  const hourlyRows = usable.filter(row => row.metrics.hourlyActiveMinutes !== null && row.metrics.hourlySwitchCounts !== null);
   const apps = new Map<string, { category: AppCategory; minutes: number }>();
-  let officeMinutes = 0, awayMinutes = 0, focusTotal = 0, focusLongest = 0, focusSegments = 0, interruptions = 0;
+  let awayMinutes = 0, focusTotal = 0, focusLongest = 0, focusSegments = 0, interruptions = 0;
   let focusTotalKnown = true, focusLongestKnown = true, focusSegmentsKnown = true, interruptionsKnown = true;
-  const hourlyActive: Record<string, number> = {}, hourlySwitches: Record<string, number> = {};
+  const hourlyActiveTotals: Record<string, number> = {}, hourlySwitchTotals: Record<string, number> = {};
   for (const row of usable) {
     const metrics = row.metrics;
-    officeMinutes += metrics.officeActiveMinutes ?? 0;
     awayMinutes += metrics.statusMinutes.office_away ?? 0;
     for (const category of APP_CATEGORIES) categories[category] += metrics.appCategoryMinutes[category] ?? 0;
-    for (const [name, app] of Object.entries(metrics.appMinutes)) {
-      const current = apps.get(name);
-      apps.set(name, { category: app.category, minutes: (current?.minutes ?? 0) + app.minutes });
-    }
     if (metrics.focus.totalMinutes === null) focusTotalKnown = false; else focusTotal += metrics.focus.totalMinutes;
     if (metrics.focus.longestMinutes === null) focusLongestKnown = false; else focusLongest += metrics.focus.longestMinutes;
     if (metrics.focus.segmentCount === null) focusSegmentsKnown = false; else focusSegments += metrics.focus.segmentCount;
     if (metrics.focus.communicationInterruptions === null) interruptionsKnown = false; else interruptions += metrics.focus.communicationInterruptions;
-    for (const [hour, minutes] of Object.entries(metrics.hourlyActiveMinutes)) hourlyActive[hour] = (hourlyActive[hour] ?? 0) + minutes;
-    for (const [hour, count] of Object.entries(metrics.hourlySwitchCounts)) hourlySwitches[hour] = (hourlySwitches[hour] ?? 0) + count;
   }
-  const divisor = usable.length;
+  for (const row of appRows) {
+    for (const [name, app] of Object.entries(row.metrics.appMinutes!)) {
+      const current = apps.get(name);
+      apps.set(name, { category: app.category, minutes: (current?.minutes ?? 0) + app.minutes });
+    }
+  }
+  for (const row of hourlyRows) {
+    for (const [hour, minutes] of Object.entries(row.metrics.hourlyActiveMinutes!)) {
+      hourlyActiveTotals[hour] = (hourlyActiveTotals[hour] ?? 0) + minutes;
+    }
+    for (const [hour, count] of Object.entries(row.metrics.hourlySwitchCounts!)) {
+      hourlySwitchTotals[hour] = (hourlySwitchTotals[hour] ?? 0) + count;
+    }
+  }
+  const categoryTotal = Object.values(categories).reduce((sum, minutes) => sum + minutes, 0);
+  const officeMinutes = categoryTotal + awayMinutes;
+  const divisor = hourlyRows.length;
   return {
     officeMinutes,
     awayMinutes,
     categories,
-    topApps: [...apps.entries()].sort((a, b) => b[1].minutes - a[1].minutes || a[0].localeCompare(b[0]))
-      .slice(0, 5).map(([name, app]) => ({ name, category: app.category, minutes: app.minutes })),
-    focusTotal: focusTotalKnown ? (usable.length === 1 ? focusTotal : focusTotal / divisor) : null,
-    focusLongest: focusLongestKnown ? (usable.length === 1 ? focusLongest : focusLongest / divisor) : null,
-    focusSegments: focusSegmentsKnown ? (usable.length === 1 ? focusSegments : focusSegments / divisor) : null,
+    topApps: appRows.length ? [...apps.entries()].sort((a, b) => b[1].minutes - a[1].minutes || a[0].localeCompare(b[0]))
+      .slice(0, 5).map(([name, app]) => ({ name, category: app.category, minutes: app.minutes })) : null,
+    focusTotal: focusTotalKnown ? (usable.length === 1 ? focusTotal : focusTotal / usable.length) : null,
+    focusLongest: focusLongestKnown ? (usable.length === 1 ? focusLongest : focusLongest / usable.length) : null,
+    focusSegments: focusSegmentsKnown ? (usable.length === 1 ? focusSegments : focusSegments / usable.length) : null,
     focusSegmentList: usable.length === 1 ? usable[0].metrics.focusSegments : null,
-    interruptions: interruptionsKnown ? (usable.length === 1 ? interruptions : interruptions / divisor) : null,
-    hourlyActive: hourlyActive,
-    hourlySwitches: hourlySwitches,
+    interruptions: interruptionsKnown ? (usable.length === 1 ? interruptions : interruptions / usable.length) : null,
+    hourlyActive: divisor ? Object.fromEntries(Object.entries(hourlyActiveTotals).map(([hour, minutes]) => [hour, minutes / divisor])) : null,
+    hourlySwitches: divisor ? Object.fromEntries(Object.entries(hourlySwitchTotals).map(([hour, count]) => [hour, count / divisor])) : null,
   };
 }
 
@@ -428,25 +445,24 @@ function deltaOf(current: number | null, previous: number | null): number | null
 }
 
 function workCategories(current: WorkAggregate, previous: WorkAggregate) {
-  const total = current.categories?.["AI 编程"] === undefined
-    ? null : Object.values(current.categories).reduce((sum, minutes) => sum + minutes, 0);
-  const previousTotal = previous.categories === null ? null : Object.values(previous.categories).reduce((sum, minutes) => sum + minutes, 0);
+  const total = current.officeMinutes;
+  const previousTotal = previous.officeMinutes;
   return current.categories === null ? null : Object.fromEntries(APP_CATEGORIES.map(category => {
     const minutes = current.categories![category];
     const previousMinutes = previous.categories?.[category] ?? null;
     return [category, {
       minutes,
-      share: total && total > 0 ? minutes / total : 0,
+      share: total !== null && total > 0 ? minutes / total : 0,
       delta_minutes: deltaOf(minutes, previousMinutes),
-      delta_share: total && total > 0 && previousTotal && previousTotal > 0
+      delta_share: total !== null && total > 0 && previousTotal !== null && previousTotal > 0
         ? minutes / total - previousMinutes! / previousTotal : null,
     }];
   }));
 }
 
 function heatmap(rows: DailyMetricsRow[], from: string, to: string) {
-  const workdays = rows.filter(row => row.date >= from && row.date <= to && dayType(row.metrics.dayType === "workday" ? row.date : row.date) === "workday"
-    && row.metrics.officeActiveMinutes !== null);
+  const workdays = rows.filter(row => row.date >= from && row.date <= to && dayType(row.date) === "workday"
+    && row.metrics.hourlyActiveMinutes !== null);
   const hours = Array.from({ length: 12 }, (_, index) => String(index + 8).padStart(2, "0"));
   return {
     from,
@@ -454,7 +470,7 @@ function heatmap(rows: DailyMetricsRow[], from: string, to: string) {
     days_available: workdays.length,
     hours: hours.map(hour => ({
       hour,
-      minutes: workdays.length ? workdays.reduce((sum, row) => sum + (row.metrics.hourlyActiveMinutes[hour] ?? 0), 0) / workdays.length : null,
+      minutes: workdays.length ? workdays.reduce((sum, row) => sum + (row.metrics.hourlyActiveMinutes![hour] ?? 0), 0) / workdays.length : null,
     })),
   };
 }
@@ -463,14 +479,18 @@ function hourlyWork(current: WorkAggregate) {
   if (current.hourlyActive === null || current.hourlySwitches === null) return null;
   const hours = Array.from({ length: 12 }, (_, index) => String(index + 8).padStart(2, "0"));
   const values = hours.map(hour => current.hourlySwitches![hour] ?? 0);
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const activeHours = hours.filter(hour => (current.hourlyActive![hour] ?? 0) > 0);
+  const average = activeHours.length
+    ? activeHours.reduce((sum, hour) => sum + (current.hourlySwitches![hour] ?? 0), 0) / activeHours.length
+    : 0;
   return hours.map((hour, index) => ({
     hour,
     active_minutes: current.hourlyActive![hour] ?? 0,
     switch_count: values[index],
-    above_average: values[index] > average * 1.5,
+    above_average: (current.hourlyActive![hour] ?? 0) > 0 && values[index] > average * 1.5,
   }));
 }
+
 
 get("/api/work", async c => {
   const url = new URL(c.req.url);
@@ -488,11 +508,11 @@ get("/api/work", async c => {
   const previousRows = await metricsRows(c.env, previousFrom, previousTo, settings);
   const current = aggregateWorkRows(selectedRows);
   const previous = aggregateWorkRows(previousRows);
-  const categoryTotal = current.categories === null ? null : Object.values(current.categories).reduce((sum, value) => sum + value, 0);
-  const awayShare = current.awayMinutes === null || current.officeMinutes === null || current.officeMinutes + current.awayMinutes === 0
-    ? null : current.awayMinutes / (current.officeMinutes + current.awayMinutes);
-  const previousAwayShare = previous.awayMinutes === null || previous.officeMinutes === null || previous.officeMinutes + previous.awayMinutes === 0
-    ? null : previous.awayMinutes / (previous.officeMinutes + previous.awayMinutes);
+  const awayShare = current.awayMinutes === null || current.officeMinutes === null || current.officeMinutes === 0
+    ? null : current.awayMinutes / current.officeMinutes;
+  const previousAwayShare = previous.awayMinutes === null || previous.officeMinutes === null || previous.officeMinutes === 0
+    ? null : previous.awayMinutes / previous.officeMinutes;
+  const heatmapEnd = dateOffset(date, -1);
   return json({
     date,
     range,
@@ -507,7 +527,7 @@ get("/api/work", async c => {
       delta_minutes: deltaOf(current.awayMinutes, previous.awayMinutes),
       delta_share: awayShare === null || previousAwayShare === null ? null : awayShare - previousAwayShare,
     },
-    top_apps: current.topApps?.map(app => ({ ...app, share: categoryTotal && categoryTotal > 0 ? app.minutes / categoryTotal : 0 })) ?? null,
+    top_apps: current.topApps?.map(app => ({ ...app, share: current.officeMinutes && current.officeMinutes > 0 ? app.minutes / current.officeMinutes : 0 })) ?? null,
     focus: {
       total_minutes: current.focusTotal,
       longest_minutes: current.focusLongest,
@@ -515,7 +535,7 @@ get("/api/work", async c => {
       segments: range === "day" ? current.focusSegmentList : null,
       communication_interruptions: current.interruptions,
     },
-    heatmap: heatmap(rows, dateOffset(date, -27), date),
+    heatmap: heatmap(rows, dateOffset(heatmapEnd, -27), heatmapEnd),
     hourly: hourlyWork(current),
     communication_interruptions: current.interruptions,
   });
@@ -608,8 +628,6 @@ get("/api/settings", async c => {
 
 app.put("/api/settings", async c => {
   const currentSettings = await readSettings(c.env);
-  const rawDevices = await readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH);
-  const candidates = deviceCandidates(rawDevices);
   let body: unknown;
   try {
     body = await c.req.json();
@@ -622,9 +640,14 @@ app.put("/api/settings", async c => {
   } catch {
     throw new AppError("invalid_settings", 400);
   }
-  const candidateIds = new Set(candidates.map(candidate => candidate.device_id));
-  if (settings.subjectDeviceIds.some(deviceId => !candidateIds.has(deviceId))) {
-    throw new AppError("invalid_settings", 400);
+  const hasSubjectDeviceIds = typeof body === "object" && body !== null && "subject_device_ids" in body;
+  let candidates = deviceCandidates([]);
+  if (hasSubjectDeviceIds) {
+    candidates = deviceCandidates(await readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH));
+    const candidateIds = new Set(candidates.map(candidate => candidate.device_id));
+    if (settings.subjectDeviceIds.some(deviceId => !candidateIds.has(deviceId))) {
+      throw new AppError("invalid_settings", 400);
+    }
   }
   await saveSettings(c.env, settings);
   return json(publicSettings(settings, candidates, await readPendingRecompute(c.env)));

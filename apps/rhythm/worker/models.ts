@@ -179,9 +179,9 @@ export type DailyMetrics = DayMetrics & {
   weekendRoomMinutes: Record<string, number>;
   appCategoryMinutes: Record<AppCategory, number>;
   hourlyAppCategoryMinutes: Record<string, Record<AppCategory, number>>;
-  appMinutes: Record<string, { minutes: number; category: AppCategory }>;
-  hourlyActiveMinutes: Record<string, number>;
-  hourlySwitchCounts: Record<string, number>;
+  appMinutes: Record<string, { minutes: number; category: AppCategory }> | null;
+  hourlyActiveMinutes: Record<string, number> | null;
+  hourlySwitchCounts: Record<string, number> | null;
   focusSegments: FocusSegment[] | null;
   topAppName: string | null;
   topAppMinutes: number | null;

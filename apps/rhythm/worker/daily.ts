@@ -118,6 +118,8 @@ function focusMetrics(day: DayComputation, samples: Array<ActivitySample | null>
     const office = day.minuteStatuses[minute] === "office_active"
       || isOfficeWorkMinute(samples[minute], day.minuteStatuses[minute], day.minuteEvidence[minute]);
     if (office && !samples[minute]) {
+      // 这一分钟没有工作机采样：不知道在用什么 App，不计入专注；
+      // 只容忍采样时间抖动造成的短缺口，更长就结束本段，不把「未知」当成「没切到沟通」。
       missingRun += 1;
       if (missingRun > FOCUS_MISSING_SAMPLE_TOLERANCE) {
         finish();
@@ -193,7 +195,7 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
   for (let minute = 0; minute < day.minuteStatuses.length; minute += 1) {
     if (day.minuteStatuses[minute] === "office_active") lastOffice = minute;
     const row = samples[minute];
-    if (isOfficeWorkMinute(row, day.minuteStatuses[minute], day.minuteEvidence[minute])) {
+    if (officeActiveSample(row)) {
       const category = categoryOf(row, input.appCategories);
       appCategoryMinutes[category] += 1;
       const hour = String(Math.floor(minute / 60)).padStart(2, "0");
@@ -358,6 +360,7 @@ function parseAppMinutes(value: unknown): Record<string, { minutes: number; cate
 function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | null {
   try {
     const json = <T = unknown>(key: string) => parseJson<T>(row[key]);
+    const present = (key: string) => row[key] !== null && row[key] !== undefined;
     const metrics: DailyMetrics = {
       statusMinutes: json<Record<RhythmStatus, number>>("status_minutes_json"),
       commuteToWorkMinutes: row.commute_to_work_minutes as number | null,
@@ -387,10 +390,10 @@ function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | n
       weekendRoomMinutes: json<Record<string, number>>("weekend_room_minutes_json"),
       appCategoryMinutes: categoryMinutesFromJson(json("app_category_minutes_json")),
       hourlyAppCategoryMinutes: hourlyCategoriesFromJson(json("hourly_app_category_minutes_json")),
-      appMinutes: parseAppMinutes(json("app_minutes_json")),
-      hourlyActiveMinutes: json("hourly_active_minutes_json") as Record<string, number>,
-      hourlySwitchCounts: json("hourly_switch_counts_json") as Record<string, number>,
-      focusSegments: row.focus_segments_json === null || row.focus_segments_json === undefined ? null : parseJson(row.focus_segments_json) as FocusSegment[],
+      appMinutes: present("app_minutes_json") ? parseAppMinutes(json("app_minutes_json")) : null,
+      hourlyActiveMinutes: present("hourly_active_minutes_json") ? json<Record<string, number>>("hourly_active_minutes_json") : null,
+      hourlySwitchCounts: present("hourly_switch_counts_json") ? json<Record<string, number>>("hourly_switch_counts_json") : null,
+      focusSegments: present("focus_segments_json") ? parseJson(row.focus_segments_json) as FocusSegment[] : null,
       topAppName: row.top_app_name as string | null,
       topAppMinutes: row.top_app_minutes as number | null,
       otherNetworkMinutes: json<Record<string, number>>("other_network_minutes_json"),
@@ -436,6 +439,7 @@ export async function upsertDailyRows(env: Env, rows: DailyRows): Promise<void> 
       JSON.stringify(m.otherNetworkMinutes), m.coverage.ratio, JSON.stringify(m.coverage.gapReasonMinutes),
       m.dayType, rows.metrics.computedAt, rows.metrics.version,
     ),
+    // 落库即消费该日期的「设置变更待重算」标记。
     env.DB.prepare("DELETE FROM settings_recompute_queue WHERE date=?").bind(rows.metrics.date),
   ]);
 }

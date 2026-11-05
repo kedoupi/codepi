@@ -555,6 +555,7 @@ async function main() {
     });
     assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
     assert.ok(geometry.firstWidth <= geometry.timelineWidth, "timeline segment stays within the timeline");
+    if (shanghaiMinute() > 721) assert.equal(geometry.hasNoon, true, "timeline has noon and following one-minute segments after 12:01");
     if (geometry.hasNoon) {
       assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
       assert.equal(geometry.noonMinutes, 1);
