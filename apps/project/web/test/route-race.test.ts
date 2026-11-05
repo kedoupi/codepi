@@ -24,11 +24,13 @@ function backend() {
     calls.push(path);
     if (path === "/api/me") return Response.json({ authenticated: true });
     if (path === "/api/projects") return Response.json({ projects: overview.projects });
+    if (path === "/api/today") return Response.json({ today: [{ ...overview.need_you[0], carried: false, who: "you" }], pool: [], done: [], counts: { today: 1, pool: 0, done: 0 }, date: overview.today });
     if (path === "/api/overview") return Response.json(overview);
     if (path === "/api/tasks/alpha/a") {
       return Response.json({ project: { id: "alpha" }, task: { ...overview.need_you[0], what: "示例说明", impact: null, advice: "示例建议",
         need: "决定", source: "docs/a.md", related: [], recorded: "2026-11-01", first_seen: "", last_seen: "" }, handoffs: [] });
     }
+    if (path === "/api/today/unpick") return Response.json({ written: 1 });
     return Response.json({ error: "not_found" }, { status: 404 });
   }));
   return calls;
@@ -41,17 +43,13 @@ afterEach(() => {
 });
 
 describe("App routing", () => {
-  it("opens a task drawer from the inbox, keeps it in the address and closes with Escape", async () => {
-    backend();
+  it("renders the today board and sends pool return actions", async () => {
+    const calls = backend();
     render(App);
-    await fireEvent.click(await screen.findByRole("button", { name: /选择示例方案/ }));
-    expect(new URL(location.href).searchParams.get("task")).toBe("alpha/a");
-    const dialog = await screen.findByRole("dialog");
-    await waitFor(() => expect(dialog.textContent).toContain("示例说明"));
-    expect(dialog.textContent).toContain("建议");
-    await fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(new URL(location.href).searchParams.get("task")).toBeNull();
+    expect(await screen.findByText("选择示例方案")).toBeTruthy();
+    await fireEvent.click(await screen.findByRole("button", { name: "退回池子" }));
+    await waitFor(() => expect(calls).toContain("/api/today/unpick"));
+    expect(screen.getByText("你的")).toBeTruthy();
   });
 
   it("deep-links straight to a task from a summary link", async () => {

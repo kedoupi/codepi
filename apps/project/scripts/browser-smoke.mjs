@@ -73,6 +73,17 @@ function mockScript() {
       task("t7", "已完成的示例", "doing", "流程", "none", null, "alpha", new Date().toISOString()),
     ];
     const open = tasks.filter(item => !item.done_at);
+    const who = item => ["attend", "decide", "confirm"].includes(item.need_kind) ? "you" : "agent";
+    const today = {
+      today: open.filter(item => ["t1", "t2"].includes(item.key)).map(item => ({ ...item, carried: false, who: who(item) })),
+      pool: open.filter(item => ["t3", "t5", "t6"].includes(item.key)),
+      done: tasks.filter(item => item.done_at),
+    };
+    const todayResponse = () => ({
+      ...today,
+      counts: { today: today.today.length, pool: today.pool.length, done: today.done.length },
+      date: day,
+    });
     const projects = [
       { id: "alpha", name: "Alpha", repo: "synthetic/alpha", status: "active", last_push_at: new Date().toISOString(),
         open: 5, need_you: 4, branches: 1, url: "" },
@@ -90,6 +101,23 @@ function mockScript() {
         return state.authenticated ? json({ ok: true, authenticated: true }) : json({ error: "authentication_required" }, 401);
       }
       if (url.pathname === "/api/projects" && method === "GET") return json({ projects });
+      if (url.pathname === "/api/today" && method === "GET") return json(todayResponse());
+      if (["/api/today/pick", "/api/today/unpick", "/api/today/done"].includes(url.pathname) && method === "POST") {
+        const body = JSON.parse(init.body || "{}");
+        const index = today.today.findIndex(item => item.project === body.project && item.key === body.key);
+        const poolIndex = today.pool.findIndex(item => item.project === body.project && item.key === body.key);
+        if (url.pathname.endsWith("/pick") && poolIndex >= 0) {
+          const [item] = today.pool.splice(poolIndex, 1);
+          today.today.push({ ...item, carried: false, who: who(item) });
+        } else if (url.pathname.endsWith("/unpick") && index >= 0) {
+          const [item] = today.today.splice(index, 1);
+          today.pool.push(item);
+        } else if (url.pathname.endsWith("/done") && index >= 0) {
+          const [item] = today.today.splice(index, 1);
+          today.done.push(item);
+        }
+        return json({ written: 1 });
+      }
       if (url.pathname === "/api/overview") {
         const need = open.filter(item => item.need_kind !== "none").sort((a, b) => (a.due || "9") < (b.due || "9") ? -1 : 1);
         return json({
@@ -157,21 +185,25 @@ async function main() {
     await page.screenshot({ path: "desktop-login.png" });
 
     await page.cdp("Page.addScriptToEvaluateOnNewDocument", { source: "window.__projectSmoke.authenticated = true" });
-    await visit(page, `${origin}/`, "截止倒计时");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".kpi").length), 4, "four KPI tiles");
-    assert.ok(await page.evaluate(() => document.querySelectorAll(".countdown-row").length) >= 4, "countdown rows");
-    assert.ok(await page.evaluate(() => document.querySelector(".bar.late")), "overdue bar is drawn");
+    await visit(page, `${origin}/`, "今天");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-group").length), 2, "your and agent groups");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".pool-groups details").length), 3, "pool categories");
     await assertNoOverflow(page, "desktop today", 1440);
     await page.screenshot({ path: "desktop-today.png" });
 
-    await page.evaluate(() => [...document.querySelectorAll(".inbox button")].find(b => b.textContent.includes("选择示例方案")).click());
-    await page.waitForFunction(() => document.querySelector(".drawer")?.innerText.includes("示例建议"));
-    assert.ok(await page.evaluate(() => location.search.includes("task=alpha%2Ft2")), "drawer is in the address");
-    assert.ok(await page.evaluate(() => !document.querySelector(".drawer script")), "task text is rendered as text");
-    await page.screenshot({ path: "desktop-drawer.png" });
-    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
-    await page.waitForFunction(() => !document.querySelector(".drawer"));
+    await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("授权示例上线"))?.querySelector("button")?.click());
+    await page.waitForFunction(() => document.querySelector(".main-today-column")?.innerText.includes("授权示例上线"));
+    await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("续费示例服务器"))?.querySelector("button")?.click());
+    await page.waitForFunction(() => !document.querySelector(".main-today-column")?.innerText.includes("续费示例服务器"));
+    await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("选择示例方案"))?.querySelector("button.primary")?.click());
+    await page.waitForFunction(() => document.querySelector(".done-today-list")?.innerText.includes("选择示例方案"));
 
+    await page.cdp("Emulation.setDeviceMetricsOverride", { width: 1024, height: 900, deviceScaleFactor: 1, mobile: false });
+    await visit(page, `${origin}/`, "今天");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns at 1024px");
+    await assertNoOverflow(page, "1024px today", 1024);
+    await page.cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await visit(page, `${origin}/board`, "领域 × 状态");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".board .column").length), 6, "six board columns");
     await page.evaluate(() => [...document.querySelectorAll(".pill")].find(b => b.textContent.includes("只看需要你")).click());
@@ -184,11 +216,16 @@ async function main() {
     await visit(page, `${origin}/log`, "每天的变更与完成");
 
     await page.cdp("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
-    for (const [path, text, shot] of [["/", "截止倒计时", "mobile-today.png"], ["/board", "最近完成", "mobile-board.png"],
+    for (const [path, text, shot] of [["/", "今天", "mobile-today.png"], ["/board", "最近完成", "mobile-board.png"],
       ["/p/alpha", "推送与设置", "mobile-project.png"], ["/log", "动态", "mobile-log.png"]]) {
       await visit(page, `${origin}${path}`, text);
       await assertNoOverflow(page, `mobile ${path}`, 390);
-      assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display !== "none"), "mobile tab bar");
+      if (path === "/") {
+        assert.equal(await page.evaluate(() => document.querySelectorAll(".today-tabs button").length), 3, "mobile today tabs");
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "none", "today hides global mobile navigation");
+      } else {
+        assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display !== "none"), "mobile tab bar");
+      }
       await page.screenshot({ path: shot });
     }
     const failures = page.diagnostics.filter(event =>
