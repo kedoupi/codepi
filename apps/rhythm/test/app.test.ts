@@ -129,7 +129,7 @@ it("页面路由（含设置页）未登录跳去登录，登录后返回页面�
 it("昨天 live 接口返回压缩时间段、工作块、关键时刻、四个数字与应用构成", async () => {
   await env.DB.prepare(
     "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
-  ).bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "开发" }), "2026-11-03T00:00:00.000Z").run();
+  ).bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "AI 编程" }), "2026-11-03T00:00:00.000Z").run();
   const sso = setupSso();
   const cookie = await sso.login();
   const response = await sso.send(`/api/day?date=${testDate}`, { cookie });
@@ -147,7 +147,7 @@ it("昨天 live 接口返回压缩时间段、工作块、关键时刻、四个�
   expect(body.metrics).toHaveProperty("commuteHomeMinutes");
   expect(body.metrics).toHaveProperty("officeActiveMinutes");
   expect(body.metrics).toHaveProperty("homeMinutes");
-  expect(body.appBreakdown[0]).toMatchObject({ category: "开发" });
+  expect(body.appBreakdown[0]).toMatchObject({ category: "AI 编程" });
   expect(body.keyboardMouseMinutes).toEqual({ keyboard: 2, pointer: 2, both: 2 });
   // 假上游两路都返回了昨天的记录；历史日汇总缺失时不会现场补算。
   expect(body.freshness.home).toMatchObject({ status: "stale" });

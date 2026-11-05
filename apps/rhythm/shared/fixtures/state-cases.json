@@ -18,7 +18,7 @@
     "heartbeats": [
       {"from":"2026-10-26T00:00:00+08:00","to":"2026-10-26T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":3}
     ],
-    "appCategories": {"示例编辑器":"开发","示例沟通":"沟通"},
+    "appCategories": {"示例编辑器":"AI 编程","示例沟通":"工作沟通"},
     "expect": {
       "statusAt": {"0":"bedroom","441":"home","540":"office_active","1000":"office_active","1170":"living_room","1439":"living_room"},
       "evidenceAt": {"0":"seen","456":"inferred","540":"seen"},
@@ -88,12 +88,12 @@
     "heartbeats": [
       {"from":"2026-10-27T00:00:00+08:00","to":"2026-10-27T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":2}
     ],
-    "appCategories": {"示例编辑器":"开发"},
+    "appCategories": {"示例编辑器":"AI 编程"},
     "expect": {
       "statusAt": {"60":"living_room","600":"living_room","1080":"living_room"},
       "contains": [],
       "notContains": ["start_work","leave_home"],
-      "appCategories": {"开发": 541},
+      "appCategories": {"AI 编程": 541},
       "metrics": {"commuteToWorkMinutes":0,"commuteHomeMinutes":0,"officeActiveMinutes":0,"homeMinutes":1101,"bedroomMinutes":0,"livingRoomMinutes":1101,"homeUnknownMinutes":0}
     }
   },
@@ -245,7 +245,7 @@
     "snapshots": [],
     "events": [],
     "heartbeats": [],
-    "appCategories": {"示例编辑器":"开发","示例文档":"文档"},
+    "appCategories": {"示例编辑器":"AI 编程","示例文档":"文档"},
     "expect": {
       "statusAt": {"540":"office_active","606":"office_away","660":"office_away","665":"office_active"},
       "evidenceAt": {"540":"seen","620":"inferred"},
@@ -287,13 +287,13 @@
     "snapshots": [],
     "events": [{"event_at":"2026-11-04T07:00:00+08:00","device_id":"dev-a","status":"offline"}],
     "heartbeats": [],
-    "appCategories": {"示例编辑器":"开发"},
+    "appCategories": {"示例编辑器":"AI 编程"},
     "expect": {
       "statusAt": {"480":"office_active","486":"office_away","490":"office_active"},
       "evidenceAt": {"480":"inferred","486":"inferred","490":"inferred"},
       "contains": ["start_work","leave_computer"],
       "notContains": ["leave_home","arrive_home"],
-      "appCategories": {"开发":2},
+      "appCategories": {"AI 编程":2},
       "metrics": {"officeActiveMinutes":12}
     }
   },

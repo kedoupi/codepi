@@ -25,7 +25,7 @@ function input(): StateInput {
     events: [],
     heartbeats: [],
     subjectDeviceIds: [],
-    appCategories: { "示例编辑器": "开发", "示例沟通": "沟通" },
+    appCategories: { "示例编辑器": "AI 编程", "示例沟通": "工作沟通" },
   };
 }
 
@@ -33,15 +33,16 @@ describe("每日指标", () => {
   it("统计状态、分类、小时和沟通打断", () => {
     const result = calculateDailyMetrics(input(), Date.parse("2026-11-03T01:30:00.000Z"));
     expect(result.metrics.statusMinutes.office_active).toBe(31);
-    expect(result.metrics.appCategoryMinutes.开发).toBe(29);
-    expect(result.metrics.appCategoryMinutes.沟通).toBe(1);
-    expect(result.metrics.hourlyAppCategoryMinutes["09"].开发).toBe(29);
-    expect(result.metrics.focus).toEqual({
+    expect(result.metrics.appCategoryMinutes["AI 编程"]).toBe(29);
+    expect(result.metrics.appCategoryMinutes["工作沟通"]).toBe(1);
+    expect(result.metrics.hourlyAppCategoryMinutes["09"]["AI 编程"]).toBe(29);
+    expect(result.metrics.focus).toMatchObject({
       segmentCount: 1,
       totalMinutes: 25,
       longestMinutes: 25,
       communicationInterruptions: 1,
     });
+    expect(result.metrics.focus.segments?.[0]).toMatchObject({ primaryCategory: "AI 编程", interruptedAt: [565] });
   });
 
   it("缺采样的分钟不计入专注，缺口超过 2 分钟就结束本段", () => {
@@ -66,7 +67,7 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p8-2026-11-05");
+    expect(rows.status.version).toBe("p9-2026-11-06");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
   });
@@ -79,7 +80,7 @@ describe("每日指标", () => {
     expect(result.metrics.officeActiveMinutes).toBeNull();
     expect(result.metrics.afterWorkWorkMachineMinutes).toBeNull();
     expect(result.metrics.weekendWorkMachineMinutes).toBeNull();
-    expect(result.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null });
+    expect(result.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null, segments: null });
     expect(result.metrics.bedroomMinutes).toBeNull();
     expect(result.day.keyboardMouseMinutes).toEqual({ keyboard: null, pointer: null, both: null });
   });
@@ -172,6 +173,35 @@ describe("每日指标", () => {
       events: [{ device_id: "dev-a", event_at: "2026-11-01T00:00:00+08:00", status: "online" }],
     });
     expect(expired[721]).toBe(false);
+  });
+  it("bundle_id 优先于 app_name", () => {
+    const base = input();
+    const result = calculateDailyMetrics({
+      ...base,
+      activity: [{
+        sampled_at: "2026-11-03T09:00:00+08:00", net: "office", idle_sec: 20, locked: false,
+        key_idle_sec: 20, pointer_idle_sec: 20, app_name: "同名", bundle_id: "bundle-a",
+      }],
+      appCategories: { 同名: "私人", "bundle-a": "AI 编程" },
+    });
+    expect(result.metrics.appCategoryMinutes["AI 编程"]).toBe(1);
+    expect(result.metrics.appMinutes!["同名"]).toMatchObject({ minutes: 1, category: "AI 编程" });
+  });
+
+  it("私人类打断专注，会议和 AI 对话不打断", () => {
+    const base = input();
+    const activity = Array.from({ length: 35 }, (_, minute) => ({
+      sampled_at: `2026-11-03T09:${String(minute).padStart(2, "0")}:00+08:00`,
+      net: "office" as const, idle_sec: 20, locked: false, key_idle_sec: 20, pointer_idle_sec: 20,
+      app_name: minute === 25 ? "会议" : minute === 26 ? "AI 对话" : minute === 27 ? "私人" : "编辑器",
+    }));
+    const result = calculateDailyMetrics({
+      ...base,
+      activity,
+      appCategories: { 编辑器: "AI 编程", 会议: "会议", "AI 对话": "AI 对话", 私人: "私人" },
+    });
+    expect(result.metrics.focus).toMatchObject({ segmentCount: 1, totalMinutes: 27, communicationInterruptions: 1 });
+    expect(result.metrics.focus.segments?.[0]).toMatchObject({ minutes: 27, interruptedAt: [567] });
   });
 });
 

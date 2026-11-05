@@ -84,10 +84,23 @@ function harness(busyDates: string[]) {
 
 const validSettings = {
   subject_device_ids: ["dev-a"],
-  app_categories: { "示例编辑器": "开发", "1Password": "其他" },
+  app_categories: { "示例编辑器": "AI 编程", "1Password": "其他" },
   other_network_names: { "net-a": "示例网络" },
   anomaly_thresholds: { early_late_minutes: 40, commute_percent: 50 },
 };
+async function insertLegacyMetrics(date: string) {
+  await env.DB.prepare(
+    "INSERT INTO daily_metrics (date, status_minutes_json, office_active_minutes, focus_segment_count, focus_total_minutes, focus_longest_minutes, communication_interruptions, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, '{}', '{}', ?, '{}', '{}', '{}', 'workday', ?, 'p8-2026-11-05')",
+  ).bind(
+    date, JSON.stringify({ bedroom: 0, living_room: 0, home: 0, office_active: 5, office_away: 2, commute: 0, other_network: 0, unknown: 0 }),
+    5, null, null, null, null, JSON.stringify({ 开发: 5 }), new Date().toISOString(),
+  ).run();
+}
+async function insertAnomalyMetric(date: string, startWorkMinute: number) {
+  await env.DB.prepare(
+    "INSERT INTO daily_metrics (date, status_minutes_json, start_work_minute, commute_to_work_minutes, commute_home_minutes, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, '{}', ?, 0, 0, '{}', '{}', '{}', '{}', '{}', '{}', 'workday', ?, 'p9-2026-11-06')",
+  ).bind(date, startWorkMinute, new Date().toISOString()).run();
+}
 
 describe("P4 接口", () => {
   it("历史日没有汇总时返回完整结构且指标为未知；重算后返回已存汇总", async () => {
@@ -97,7 +110,7 @@ describe("P4 接口", () => {
     const missing = await (await h.send(`/api/day?date=${day}`, { cookie })).json() as Record<string, any>;
     expect(missing).toMatchObject({ date: day, missing: true, segments: [], moments: [], workBlocks: [], appBreakdown: [] });
     expect(missing.metrics.officeActiveMinutes).toBeNull();
-    expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null });
+    expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null, segments: null });
     expect(missing.metrics.coverage.ratio).toBeNull();
     expect(missing.metrics.afterWorkWorkMachineMinutes).toBeNull();
     expect(missing.metrics.appCategoryMinutes).toEqual({});
@@ -169,6 +182,15 @@ describe("P4 接口", () => {
     await h.send(`/api/admin/recompute?from=${day}&to=${day}`, { cookie, method: "POST" });
     const after = await (await h.send("/api/settings", { cookie })).json() as Record<string, any>;
     expect(after.pending_recompute_days.days).toBe(0);
+    const callsBeforePartial = h.statusRead.mock.calls.length;
+    const partial = await h.send("/api/settings", {
+      cookie, method: "PUT", body: { app_categories: validSettings.app_categories, other_network_names: validSettings.other_network_names },
+    });
+    expect(partial.status).toBe(200);
+    expect(h.statusRead.mock.calls.length).toBe(callsBeforePartial);
+    const preserved = await env.DB.prepare("SELECT subject_device_ids, anomaly_thresholds FROM settings WHERE id='default'").first<{ subject_device_ids: string; anomaly_thresholds: string }>();
+    expect(JSON.parse(preserved!.subject_device_ids)).toEqual(["dev-a"]);
+    expect(JSON.parse(preserved!.anomaly_thresholds)).toMatchObject({ earlyLateMinutes: 40, commutePercent: 50 });
 
     expect((await h.send("/api/settings", { cookie, method: "PUT", body: { ...validSettings, extra: 1 } })).status).toBe(400);
     expect((await h.send("/api/settings", { cookie, method: "PUT",
@@ -177,6 +199,78 @@ describe("P4 接口", () => {
       body: { ...validSettings, subject_device_ids: ["dev-unknown"] } })).status).toBe(400);
     expect((await h.send("/api/settings", { cookie, method: "PUT", body: validSettings, source: "https://evil.test" })).status).toBe(403);
     expect((await h.send("/api/settings", { method: "PUT", body: validSettings })).status).toBe(401);
+  });
+  it("工作页日周接口返回八类、专注、热力图和缺失 null", async () => {
+    const day = daysAgo(3);
+    const h = harness([day]);
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)")
+      .bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "AI 编程" }), new Date().toISOString()).run();
+    expect((await h.send(`/api/work?date=${day}`)).status).toBe(401);
+    const cookie = await h.login();
+    await h.send(`/api/admin/recompute?from=${day}&to=${day}`, { cookie, method: "POST" });
+    const metricsRow = await env.DB.prepare("SELECT app_minutes_json, hourly_active_minutes_json, hourly_switch_counts_json, focus_segments_json FROM daily_metrics WHERE date=?").bind(day).first<{
+      app_minutes_json: string; hourly_active_minutes_json: string; hourly_switch_counts_json: string; focus_segments_json: string;
+    }>();
+    expect(JSON.parse(metricsRow!.app_minutes_json)["示例编辑器"]).toMatchObject({ minutes: 30, category: "AI 编程" });
+    expect(JSON.parse(metricsRow!.hourly_active_minutes_json)["09"]).toBe(30);
+    expect(JSON.parse(metricsRow!.hourly_switch_counts_json)["09"]).toBe(0);
+    expect(JSON.parse(metricsRow!.focus_segments_json)).toMatchObject([{ minutes: 30, primaryCategory: "AI 编程" }]);
+    expect((await h.send(`/api/work?date=${day}`, { cookie })).status).toBe(200);
+    const work = await (await h.send(`/api/work?date=${day}&range=day`, { cookie })).json() as Record<string, any>;
+    expect(work.office_minutes).toBeGreaterThan(0);
+    expect(work.categories["AI 编程"]).toMatchObject({ minutes: 30 });
+    expect(work.top_apps[0]).toMatchObject({ name: "示例编辑器", category: "AI 编程", minutes: 30 });
+    expect(work.focus).toMatchObject({ total_minutes: 30, communication_interruptions: 0 });
+    expect(work.heatmap.hours).toHaveLength(12);
+    expect(work.hourly).toHaveLength(12);
+
+    const week = await (await h.send(`/api/work?date=${day}&range=week`, { cookie })).json() as Record<string, any>;
+    expect(week.range).toBe("week");
+    expect(week.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const missing = harness([]);
+    const missingCookie = await missing.login();
+    const missingBody = await (await missing.send(`/api/work?date=${daysAgo(5)}`, { cookie: missingCookie })).json() as Record<string, any>;
+    expect(missingBody.office_minutes).toBeNull();
+    expect(missingBody.categories).toBeNull();
+    expect(missingBody.top_apps).toBeNull();
+  });
+
+
+  it("旧每日行的新列保持 null，昨天即使旧行也实时计算", async () => {
+    const selected = daysAgo(3);
+    await insertLegacyMetrics(selected);
+    await insertLegacyMetrics(daysAgo(4));
+    const legacyHarness = harness([]);
+    const legacyCookie = await legacyHarness.login();
+    const legacy = await (await legacyHarness.send(`/api/work?date=${selected}`, { cookie: legacyCookie })).json() as Record<string, any>;
+    expect(legacy.office_minutes).toBeNull();
+    expect(legacy.categories).toBeNull();
+    expect(legacy.top_apps).toBeNull();
+    expect(legacy.hourly).toBeNull();
+    expect(legacy.focus.segments).toBeNull();
+    expect(legacy.heatmap.days_available).toBe(0);
+
+    const yesterday = daysAgo(1);
+    const liveHarness = harness([yesterday]);
+    const liveCookie = await liveHarness.login();
+    const live = await (await liveHarness.send(`/api/work?date=${yesterday}`, { cookie: liveCookie })).json() as Record<string, any>;
+    expect(live.office_minutes).toBeGreaterThan(0);
+    expect(liveHarness.statusRead).toHaveBeenCalled();
+  });
+
+  it("库里保存不同门槛时异常接口仍使用固定 40 / 50", async () => {
+    const target = daysAgo(3);
+    for (let offset = 4; offset <= 8; offset += 1) await insertAnomalyMetric(daysAgo(offset), 0);
+    await insertAnomalyMetric(target, 45);
+    await env.DB.prepare("INSERT INTO settings (id, subject_device_ids, app_categories, other_network_names, anomaly_thresholds, updated_at) VALUES ('default', '[]', '{}', '{}', ?, 'now')")
+      .bind(JSON.stringify({ earlyLateMinutes: 50, commutePercent: 60 })).run();
+    const h = harness([]);
+    const cookie = await h.login();
+    const body = await (await h.send("/api/anomalies?range=30", { cookie })).json() as Record<string, any>;
+    expect(body.anomalies.find((item: { date: string }) => item.date === target)?.reasons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ metric: "开始办公", delta: 45 }),
+    ]));
   });
 
   it("趋势、异常与可信度：缺失日不当 0，end 为今天时今天实时计算且不落库", async () => {
