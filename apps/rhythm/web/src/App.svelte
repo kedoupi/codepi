@@ -4,6 +4,7 @@
   import { api, dateText, displayShanghaiTime } from "./lib/api";
   import Settings from "./lib/Settings.svelte";
   import Trends from "./lib/Trends.svelte";
+  import Work from "./lib/Work.svelte";
   import type { DayStatus, Evidence, RhythmStatus } from "../../worker/models";
 
   type Segment = {
@@ -171,8 +172,7 @@
         {:else if page === "/settings"}
           <Settings />
         {:else if page === "/work"}
-          <section class="page-heading"><div><p class="eyebrow">工作 / WORK</p><h1>工作</h1><p class="muted">工作页正在准备中。</p></div></section>
-          <section class="panel placeholder"><h2>工作数据</h2><p class="muted">这里将显示今天与本周的工作时段、专注和被打断情况。</p></section>
+          <Work />
         {:else if page === "/sources"}
           <section class="page-heading"><div><p class="eyebrow">来源 / SOURCES</p><h1>来源与口径</h1><p class="muted">两路只读信号，按北京时间解释。</p></div><a class="mobile-settings-link" href="/settings">设置</a></section>
           {#if sources}

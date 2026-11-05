@@ -115,7 +115,7 @@ function centralFixture() {
  * workday that starts 100 minutes late (so the trends page has an anomaly). No real host, device or network name.
  */
 function statusReadFixture() {
-  const state = { fail: false, calls: [] };
+  const state = { fail: false, empty: false, calls: [] };
   const now = Date.now();
   const today = shanghaiDate(now);
   const currentMinute = Math.max(0, Math.min(1439, shanghaiMinute(now)));
@@ -223,6 +223,7 @@ function statusReadFixture() {
     async fetch(request) {
       const url = new URL(request.url);
       state.calls.push(url.pathname);
+      if (state.empty) return Response.json({ ok: true, resource: url.pathname, rows: [] });
       if (state.fail) return new Response("synthetic upstream outage", { status: 503 });
       return Response.json({ ok: true, resource: url.pathname, rows: rowsFor(url) });
     },
@@ -394,6 +395,14 @@ async function assertLayout(page, label, width) {
   }
 }
 
+async function assertVisibleButtons(page, label) {
+  const heights = await page.evaluate(() => [...document.querySelectorAll("button")]
+    .filter(button => button.getClientRects().length)
+    .map(button => ({ label: button.textContent?.trim() ?? "", height: button.getBoundingClientRect().height })));
+  assert.ok(heights.length > 0, `${label}: visible buttons exist`);
+  assert.ok(heights.every(button => button.height >= 44), `${label}: visible buttons are at least 44px: ${JSON.stringify(heights)}`);
+}
+
 async function assertNoRawHtml(page, label) {
   const state = await page.evaluate(() => ({
     injected: document.querySelectorAll("[data-injected], iframe, object, embed").length,
@@ -456,7 +465,7 @@ function expectedUpstreamError(event) {
 function isRhythmApiPath(value) {
   try {
     const pathname = new URL(value).pathname;
-    return pathname === "/api/day" || pathname === "/api/sources" || pathname === "/api/settings";
+    return pathname === "/api/day" || pathname === "/api/work" || pathname === "/api/trends" || pathname === "/api/anomalies" || pathname === "/api/quality" || pathname === "/api/sources" || pathname === "/api/settings";
   } catch {
     return false;
   }
@@ -615,6 +624,7 @@ async function main() {
 
     // 趋势：先按合成历史补算 28 天（异常判断需要之前至少 5 个同类日），再在真实 Worker/D1 上读趋势
     const historyFrom = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 28 * 86400_000).toISOString().slice(0, 10);
+    const noDataDate = new Date(Date.parse(`${historyFrom}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
     const historyTo = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
     const recomputed = await page.evaluate(async ([from, to]) => {
       const response = await fetch(`/api/admin/recompute?from=${from}&to=${to}`, { method: "POST", credentials: "same-origin" });
@@ -625,7 +635,7 @@ async function main() {
     await page.goto(`${origin}/trend`);
     await waitText(page, "每天各状态各占几小时");
     await waitText(page, "本周和上周");
-    for (const heading of ["作息叠图", "通勤、几点、在电脑前", "在公司用电脑", "工作节奏", "在家", "和平时不一样的日子", "数据可信度"]) {
+    for (const heading of ["作息叠图", "通勤（上限）", "每天几点", "在家", "和平时不一样的日子", "数据可信度"]) {
       assert.ok(await sectionVisible(page, heading), `desktop trends shows ${heading}`);
     }
     const trendState = await page.evaluate(() => ({
@@ -651,6 +661,26 @@ async function main() {
     await assertLayout(page, "desktop trends 30", 1440);
     await fullScreenshot(page, "desktop-trends-30.png");
 
+    // 工作页：桌面范围切换
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    await waitText(page, "哪些钟头最出活");
+    await assertLayout(page, "desktop work", 1440);
+    await clickText(page, "本周");
+    await page.waitForFunction(() => document.querySelector('.work-heading [aria-pressed="true"]')?.textContent?.includes("本周"));
+    await fullScreenshot(page, "desktop-work-week.png");
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1100, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    const work1100 = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+    assert.ok(work1100.scrollWidth <= work1100.width + 1, `1100px work page has no horizontal overflow: ${work1100.scrollWidth}/${work1100.width}`);
+    await assertLayout(page, "desktop work 1100", 1100);
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
+    });
+
     // 设置：保存成功
     await page.goto(`${origin}/settings`);
     await waitText(page, "App 归类");
@@ -670,12 +700,18 @@ async function main() {
     await page.goto(`${origin}/`);
     await waitText(page, "上班通勤（上限）");
     await assertLayout(page, "tablet today", 768);
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    await assertLayout(page, "tablet work", 768);
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 1024, height: 900, deviceScaleFactor: 1, mobile: false,
     });
     await page.goto(`${origin}/`);
     await waitText(page, "上班通勤（上限）");
     await assertLayout(page, "narrow desktop today", 1024);
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    await assertLayout(page, "narrow desktop work", 1024);
     // 移动端 390px
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
@@ -698,22 +734,41 @@ async function main() {
     await assertNoRawHtml(page, "mobile sources");
     await screenshot(page, "mobile-sources.png");
 
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    await waitText(page, "专注");
+    await assertLayout(page, "mobile work", 390);
+    await assertVisibleButtons(page, "mobile work");
+    upstream.state.empty = true;
+    await page.goto(`${origin}/work?date=${noDataDate}`);
+    await waitText(page, "工作时间花在哪");
+    await waitText(page, "暂无数据");
+    assert.ok(await page.evaluate(() => (document.querySelector("#content")?.innerText ?? "").includes("暂无数据")), "mobile work empty mock shows 暂无数据");
+    upstream.state.empty = false;
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    await clickText(page, "本周");
+    await page.waitForFunction(() => document.querySelector('.work-heading [aria-pressed="true"]')?.textContent?.includes("本周"));
+    await fullScreenshot(page, "mobile-work-week.png");
+
     await page.goto(`${origin}/trend`);
     await waitText(page, "每天各状态各占几小时");
-    await assertLayout(page, "mobile trends rhythm tab", 390);
-    assert.ok(!(await sectionVisible(page, "工作节奏")), "mobile rhythm tab hides work modules");
+    await assertLayout(page, "mobile trends status tab", 390);
+    await assertVisibleButtons(page, "mobile trends");
+    const trendBody = await page.evaluate(() => document.querySelector("#content")?.innerText ?? "");
+    for (const retired of ["起床与回卧室", "在公司用电脑", "工作节奏"]) {
+      assert.ok(!trendBody.includes(retired), `mobile trends does not show retired text: ${retired}`);
+    }
     assert.ok(await page.evaluate(() => !document.querySelector("#overlay .overlay-chart")?.getClientRects().length), "mobile hides the overlay chart");
-    await fullScreenshot(page, "mobile-trends-rhythm.png");
-    await clickText(page, "工作");
-    await page.waitForFunction(() => document.querySelector(".trend-sections")?.getAttribute("data-tab") === "work");
-    assert.ok(await sectionVisible(page, "工作节奏"), "mobile work tab shows work modules");
-    assert.ok(!(await sectionVisible(page, "每天各状态各占几小时")), "mobile work tab hides rhythm modules");
-    await page.waitForFunction(() => {
-      const selected = document.querySelector('.tabs [aria-selected="true"]');
-      return selected && getComputedStyle(selected).backgroundColor === getComputedStyle(document.querySelector(".segmented [aria-pressed=\"true\"]")).backgroundColor;
-    });
-    await assertLayout(page, "mobile trends work tab", 390);
-    await fullScreenshot(page, "mobile-trends-work.png");
+    await fullScreenshot(page, "mobile-trends-status.png");
+    await clickText(page, "不一样的日子");
+    await page.waitForFunction(() => document.querySelector(".trend-sections")?.getAttribute("data-mobile-tab") === "anomalies");
+    assert.ok(await sectionVisible(page, "和平时不一样的日子"), "mobile anomaly tab shows anomaly module");
+    assert.ok(!(await sectionVisible(page, "每天各状态各占几小时")), "mobile anomaly tab hides status module");
+    await clickText(page, "可信度");
+    await page.waitForFunction(() => document.querySelector(".trend-sections")?.getAttribute("data-mobile-tab") === "quality");
+    await assertLayout(page, "mobile trends quality tab", 390);
+    await fullScreenshot(page, "mobile-trends-quality.png");
 
     await page.goto(`${origin}/settings`);
     await waitText(page, "App 归类");
