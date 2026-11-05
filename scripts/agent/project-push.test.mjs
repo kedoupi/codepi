@@ -122,7 +122,7 @@ test('sends the expected URL, headers and body', async () => {
     },
   });
   assert.equal(response.status, 200);
-  assert.equal(request.url, 'https://project.codepi.app/api/ingest/codepi');
+  assert.equal(request.url, 'https://project.codepi.app/api/ingest/kedoupi-codepi');
   assert.equal(request.init.method, 'POST');
   assert.equal(request.init.headers.Authorization, 'Bearer secret-token');
   assert.equal(request.init.headers['User-Agent'], 'codepi-project-push/1');
