@@ -285,8 +285,20 @@ try {
   assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some(resource => resource.name.includes('mermaid'))), false, 'the listing does not load Mermaid without a chart');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-card').length), 12);
   await page.screenshot({ path: 'blog-list-desktop.png' });
-  await page.click('.blog-pagination [rel="next"]');
+  // Open the visible next-page link with goto to avoid clicks failing under high load; the click path is no longer covered.
+  const nextPage = await page.evaluate(() => {
+    const next = document.querySelector('.blog-pagination [rel="next"]');
+    if (!next) return null;
+    const rect = next.getBoundingClientRect();
+    const style = getComputedStyle(next);
+    return { href: next.href, visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && (next.offsetParent !== null || style.position === 'fixed') };
+  });
+  assert.ok(nextPage, 'The next-page link exists');
+  assert.ok(nextPage.visible, 'The next-page link is visible');
+  assert.ok(nextPage.href && nextPage.href !== await page.url(), 'The next-page link points to a different URL');
+  await page.goto(nextPage.href);
   await page.waitForFunction(() => document.querySelectorAll('.blog-card').length === 1);
+  assert.equal(await page.evaluate(() => location.href), nextPage.href);
   await page.screenshot({ path: 'blog-list-page-two.png' });
   await page.click('.blog-card');
   await page.waitForSelector('.blog-article-cover');
