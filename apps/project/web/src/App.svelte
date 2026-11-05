@@ -138,7 +138,7 @@
 {:else if phase === "error"}
   <main class="boot-error"><h1>工作台暂时打不开</h1><p>{errorMessage}</p><button class="button" onclick={() => location.reload()}>重新加载</button></main>
 {:else}
-  <div class="shell" class:today-mode={route.view === "today"}>
+  <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="/" onclick={event => link(event, "/")}>
         <img src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="36" height="33" />

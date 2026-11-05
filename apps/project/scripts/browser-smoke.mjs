@@ -188,7 +188,15 @@ async function main() {
     await visit(page, `${origin}/`, "今天");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".today-group").length), 2, "your and agent groups");
+    const columnBoxes = await page.evaluate(() => [...document.querySelectorAll(".today-column")].map(column => {
+      const box = column.getBoundingClientRect();
+      return { left: box.left, top: box.top };
+    }));
+    assert.ok(columnBoxes[0].left < columnBoxes[1].left && columnBoxes[1].left < columnBoxes[2].left, "today columns increase left-to-right");
+    assert.equal(new Set(columnBoxes.map(box => box.top)).size, 1, "today columns share a top edge");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".pool-groups details").length), 3, "pool categories");
+    assert.equal(await page.evaluate(() => document.querySelector('[role="tablist"]')), null, "desktop hides tablist semantics");
+    assert.equal(await page.evaluate(() => document.querySelector('[role="tabpanel"]')), null, "desktop hides tabpanel semantics");
     await assertNoOverflow(page, "desktop today", 1440);
     await page.screenshot({ path: "desktop-today.png" });
 
@@ -208,6 +216,11 @@ async function main() {
     assert.equal(await page.evaluate(() => document.querySelectorAll(".board .column").length), 6, "six board columns");
     await page.evaluate(() => [...document.querySelectorAll(".pill")].find(b => b.textContent.includes("只看需要你")).click());
     await page.waitForFunction(() => !document.querySelector(".board").innerText.includes("示例想法"));
+    await page.evaluate(() => [...document.querySelectorAll(".card")].find(card => card.textContent?.includes("选择示例方案"))?.click());
+    await page.waitForFunction(() => document.querySelector(".drawer")?.innerText.includes("示例建议"));
+    assert.ok(await page.evaluate(() => !document.querySelector(".drawer script")), "task text is rendered as text");
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    await page.waitForFunction(() => !document.querySelector(".drawer"));
     await assertNoOverflow(page, "desktop board", 1440);
     await page.screenshot({ path: "desktop-board.png" });
 
@@ -223,6 +236,8 @@ async function main() {
       if (path === "/") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".today-tabs button").length), 3, "mobile today tabs");
         assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "grid", "mobile global navigation");
+        assert.ok(await page.evaluate(() => document.querySelector('[role="tablist"]')), "mobile tablist semantics");
+        assert.equal(await page.evaluate(() => document.querySelectorAll('[role="tabpanel"]').length), 3, "mobile tabpanel semantics");
         await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
         await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
         await page.evaluate(() => [...document.querySelectorAll(".tabbar a")].find(link => link.getAttribute("href") === "/board")?.click());

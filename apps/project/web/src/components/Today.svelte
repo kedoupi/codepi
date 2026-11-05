@@ -18,6 +18,7 @@
   let error = $state("");
   let busy = $state("");
   let tab = $state<Tab>("today");
+  let mobile = $state(false);
 
   async function load() {
     try {
@@ -44,7 +45,14 @@
   }
 
   onMount(() => {
+    const media = typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 767px)")
+      : null;
+    const updateMobile = () => (mobile = media?.matches ?? false);
+    updateMobile();
+    media?.addEventListener("change", updateMobile);
     void load();
+    return () => media?.removeEventListener("change", updateMobile);
   });
 
   const groups = $derived.by(() => {
@@ -74,11 +82,11 @@
 
   function dueLine(task: TodayItem) {
     if (task.carried) return "昨天没做完";
-    return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "无截止日";
+    return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
   }
 
   function poolDue(task: TaskBrief) {
-    return task.due ? `${task.due.slice(5)} ${weekday(task.due)}` : "无截止日";
+    return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
   }
 </script>
 
@@ -101,15 +109,15 @@
   {#if error}<p class="inline-alert" role="alert">{error}</p>{/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-  <nav class="today-tabs" aria-label="今天看板" role="tablist">
-    <button id="today-tab-today" class:active={tab === "today"} aria-selected={tab === "today"} aria-controls="today-panel-today" role="tab" onclick={() => (tab = "today")}>今天</button>
-    <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={tab === "pool"} aria-controls="today-panel-pool" role="tab" onclick={() => (tab = "pool")}>池子</button>
-    <button id="today-tab-done" class:active={tab === "done"} aria-selected={tab === "done"} aria-controls="today-panel-done" role="tab" onclick={() => (tab = "done")}>做完</button>
+  <nav class="today-tabs" aria-label="今天看板" role={mobile ? "tablist" : undefined}>
+    <button id="today-tab-today" class:active={tab === "today"} aria-selected={mobile ? tab === "today" : undefined} aria-controls={mobile ? "today-panel-today" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "today")}>今天</button>
+    <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={mobile ? tab === "pool" : undefined} aria-controls={mobile ? "today-panel-pool" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "pool")}>池子</button>
+    <button id="today-tab-done" class:active={tab === "done"} aria-selected={mobile ? tab === "done" : undefined} aria-controls={mobile ? "today-panel-done" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "done")}>做完</button>
   </nav>
 
   <div class="today-board">
     <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-    <section id="today-panel-pool" class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子" aria-labelledby="today-tab-pool" role="tabpanel">
+    <section id="today-panel-pool" class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子" aria-labelledby={mobile ? "today-tab-pool" : undefined} role={mobile ? "tabpanel" : undefined}>
       <div class="today-column-head"><h2>池子</h2><span>{data.pool.length}</span></div>
       {#if groups.length}
         <div class="pool-groups">
@@ -119,7 +127,7 @@
               <ul class="pool-list">
                 {#each group.items as task (`${task.project}/${task.key}`)}
                   <li>
-                    <div class="pool-task"><span>{task.title}</span><small>{poolDue(task)}</small></div>
+                    <div class="pool-task"><span>{task.title}</span>{#if task.due}<small>{poolDue(task)}</small>{/if}</div>
                     <button class="pick-button" disabled={busy !== ""} aria-label={`放进今天：${task.title}`}
                       onclick={() => void mutate("/api/today/pick", task)}>放进今天 →</button>
                   </li>
@@ -128,24 +136,23 @@
             </details>
           {/each}
         </div>
-      {:else}
-        <p class="today-empty">池子空了。</p>
       {/if}
     </section>
 
     <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-    <section id="today-panel-today" class="today-column main-today-column" class:mobile-hidden={tab !== "today"} aria-label="今天" aria-labelledby="today-tab-today" role="tabpanel">
+    <section id="today-panel-today" class="today-column main-today-column" class:mobile-hidden={tab !== "today"} aria-label="今天" aria-labelledby={mobile ? "today-tab-today" : undefined} role={mobile ? "tabpanel" : undefined}>
       <div class="today-column-head"><h2>今天</h2><span>{data.today.length}</span></div>
       <div class="today-groups">
         {#each [{ key: "you", label: "你的" }, { key: "agent", label: "建国的" }] as group (group.key)}
           {@const items = data.today.filter(task => task.who === group.key)}
           <section class="today-group" aria-labelledby={`today-group-${group.key}`}>
             <h3 id={`today-group-${group.key}`}>{group.label}</h3>
+            <p class="today-group-hint">{group.key === "you" ? "做完点「完成」" : "合并后自动移到做完"}</p>
             {#if items.length}
               <div class="today-cards">
                 {#each items as task (`${task.project}/${task.key}`)}
                   <article class="today-card">
-                    <div class="today-card-copy"><strong>{task.title}</strong><span>{dueLine(task)}</span></div>
+                    <div class="today-card-copy"><strong>{task.title}</strong>{#if task.carried || task.due}<span>{dueLine(task)}</span>{/if}</div>
                     <div class="today-card-actions">
                       <button class="button" disabled={busy !== ""} onclick={() => void mutate("/api/today/unpick", task)}>退回池子</button>
                       {#if group.key === "you"}
@@ -164,7 +171,7 @@
     </section>
 
     <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-    <section id="today-panel-done" class="today-column done-column" class:mobile-hidden={tab !== "done"} aria-label="做完" aria-labelledby="today-tab-done" role="tabpanel">
+    <section id="today-panel-done" class="today-column done-column" class:mobile-hidden={tab !== "done"} aria-label="做完" aria-labelledby={mobile ? "today-tab-done" : undefined} role={mobile ? "tabpanel" : undefined}>
       <div class="today-column-head"><h2>做完</h2><span>{data.done.length}</span></div>
       {#if data.done.length}
         <ul class="done-today-list">
@@ -173,7 +180,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="today-empty">今天还没有完成的事。</p>
+        <p class="today-empty done-empty"><span class="desktop-only">还没有</span><span class="mobile-only">今天还没有做完的。</span></p>
       {/if}
     </section>
   </div>
