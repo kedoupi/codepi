@@ -147,4 +147,5 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: node --experimental-strip-types --test packages/shared/registry.test.mjs
       - run: node --experimental-strip-types --test packages/shared/auth/client.test.mjs
