@@ -25,6 +25,7 @@ describe("共享状态用例", () => {
       "旧采样通勤与到家推断",
       "网络标签 cutoff 边界",
       "整数心跳双设备在家",
+      "事件 no-response 沿用快照前态 freshness",
     ]);
   });
   for (const item of cases) {
@@ -203,6 +204,12 @@ describe("缺失数据永远是未知", () => {
     expect(event.minuteStatuses[10]).toBe("living_room");
     const initial = calculateDay({ ...base, events: [{ device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "no-response" as const }] });
     expect(initial.minuteStatuses[0]).toBe("unknown");
+    const snapshotThenEvent = calculateDay({ ...base,
+      snapshots: [{ device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "客厅" }],
+      events: [{ device_id: "dev-a", event_at: "2026-11-08T00:10:00+08:00", status: "no-response" as const }],
+    });
+    expect(snapshotThenEvent.minuteStatuses[30]).toBe("living_room");
+    expect(snapshotThenEvent.minuteStatuses[31]).toBe("unknown");
   });
   it("no-response 不复活已过期的 online 或 offline 前态", () => {
     const base = { ...emptyInput("2026-11-08"), subjectDeviceIds: ["dev-a"], devices: [{ device_id: "dev-a", room: "客厅" }] };
