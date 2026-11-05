@@ -501,7 +501,7 @@ async function main() {
       return { position: getComputedStyle(first).position, style: first.getAttribute("style"), width: first.getBoundingClientRect().width, timelineWidth: timeline.getBoundingClientRect().width };
     });
     assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
-    assert.match(geometry.style || "", /--segment-start:0/);
+    assert.match(geometry.style || "", /--segment-start:\s*0\b/);
     assert.ok(geometry.width <= geometry.timelineWidth, "timeline segment stays within the timeline");
     const detail = await page.evaluate(() => document.querySelector(".timeline-detail")?.textContent || "");
     assert.match(detail, /卧室|客厅|在家|通勤|公司|其他网络/);
