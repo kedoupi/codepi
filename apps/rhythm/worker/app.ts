@@ -136,7 +136,7 @@ export function displayShanghaiTime(value: string | null): string | null {
   return `${get("month")} 月 ${get("day")} 日 ${get("hour")}:${get("minute")}`;
 }
 
-export function selectCurrentStatus(day: DayComputation, currentMinute: number): { minute: number; statusMinute: number } | null {
+export function selectCurrentStatus(day: DayComputation, currentMinute: number): { minute: number; statusMinute: number | null } | null {
   let fallbackMinute = -1;
   for (let minute = 1439; minute >= 0; minute--) {
     if (day.minuteStatuses[minute] !== "unknown" && day.minuteStatuses[minute] !== "not_arrived") {
@@ -147,8 +147,9 @@ export function selectCurrentStatus(day: DayComputation, currentMinute: number):
   if (currentMinute < 0) return fallbackMinute >= 0 ? { minute: fallbackMinute, statusMinute: fallbackMinute } : null;
   const statusMinute = Array.from({ length: currentStatusLookbackMinutes + 1 }, (_, offset) => currentMinute - offset)
     .find(candidate => candidate >= 0 && day.minuteEvidence[candidate] !== "no_data" && day.minuteEvidence[candidate] !== "not_arrived");
-  return { minute: currentMinute, statusMinute: statusMinute ?? currentMinute };
+  return { minute: currentMinute, statusMinute: statusMinute ?? null };
 }
+
 
 async function loadDay(env: Env, date: string, settings: RhythmSettings, now: number) {
   const input = await loadStateInput(env, date, settings);
@@ -161,12 +162,12 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
     : -1;
   const selection = selectCurrentStatus(day, currentMinute);
   const current = selection ? {
-    status: day.minuteStatuses[selection.statusMinute],
-    evidence: day.minuteEvidence[selection.statusMinute],
-    label: statusLabel(day.minuteStatuses[selection.statusMinute]),
+    status: day.minuteStatuses[selection.statusMinute ?? selection.minute],
+    evidence: day.minuteEvidence[selection.statusMinute ?? selection.minute],
+    label: statusLabel(day.minuteStatuses[selection.statusMinute ?? selection.minute]),
     minute: selection.minute,
     time: minuteLabel(selection.minute),
-    asOf: minuteLabel(selection.statusMinute),
+    asOf: selection.statusMinute === null ? null : minuteLabel(selection.statusMinute),
     live: currentMinute >= 0,
   } : null;
   const workLatest = latestTimestamp(activity.map(row => ({ at: row.sampled_at })));

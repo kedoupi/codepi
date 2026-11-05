@@ -13,5 +13,7 @@
 - 针对性验证：`bun node_modules/vitest/vitest.mjs run test/domain/state.test.ts test/domain/upstream.test.ts`，52 tests passed。
 
 ## 当前状态
-- 核心状态修复已验证，准备提交。
-- 当前状态卡、版本号、文档和全量验收尚未完成。
+- 核心状态修复已验证并提交。
+- live 状态卡的 `asOf=null` API/UI 语义已实现，API 与页面定向测试通过。
+- `DAILY_ALGORITHM_VERSION` 已升级至 `p8-2026-11-05`；README 与 AGENTS 口径已同步。
+- 全量验收尚未完成。

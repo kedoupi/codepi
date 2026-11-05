@@ -263,12 +263,9 @@ it("未来超过 60 秒的新鲜度标为时间异常", () => {
   });
 });
 
-it("当前状态卡保留当前时刻并把状态截至最近可判断分钟", () => {
+it("最近 20 分钟内都不可判断时 current asOf 为 null", () => {
   const minuteStatuses = Array(1440).fill("unknown");
   const minuteEvidence = Array(1440).fill("no_data");
-  minuteStatuses[580] = "office_active";
-  minuteEvidence[580] = "seen";
   const day = { minuteStatuses, minuteEvidence } as unknown as DayComputation;
-  expect(selectCurrentStatus(day, 600)).toEqual({ minute: 600, statusMinute: 580 });
-  expect(selectCurrentStatus(day, 601)).toEqual({ minute: 601, statusMinute: 601 });
+  expect(selectCurrentStatus(day, 600)).toEqual({ minute: 600, statusMinute: null });
 });
