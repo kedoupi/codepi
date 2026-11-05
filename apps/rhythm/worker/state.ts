@@ -80,7 +80,14 @@ function epoch(value: string | null | undefined): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type PhoneObservation = { at: number; status: "online" | "offline"; room: string | null; source: "snapshot" | "event" };
+type PhoneRawStatus = "online" | "pending-offline" | "offline" | "no-response";
+type PhoneObservation = {
+  deviceId: string;
+  at: number;
+  status: "online" | "offline" | null;
+  room: string | null;
+  source: "snapshot" | "event";
+};
 
 function phoneObservations(
   snapshots: HomeSnapshot[],
@@ -89,72 +96,170 @@ function phoneObservations(
   deviceIds: Set<string>,
   latestAllowedAt = Infinity,
 ): PhoneObservation[] {
-  const roomByDevice = new Map(devices.map(device => [device.device_id, device.room ?? null]));
-  const rows: PhoneObservation[] = [];
+  const roomByDevice = new Map<string, string | null>();
+  for (const device of [...devices].sort((a, b) => a.device_id.localeCompare(b.device_id))) {
+    if (!roomByDevice.has(device.device_id)) roomByDevice.set(device.device_id, device.room ?? null);
+  }
+  const rows: Array<{
+    deviceId: string; at: number; status: PhoneRawStatus; room: string | null; source: "snapshot" | "event";
+  }> = [];
   for (const row of snapshots) {
     const at = epoch(row.observed_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    if (row.status === "offline") {
-      rows.push({ at, status: "offline", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
-    } else {
-      // 快照 pending-offline 延续原有口径：短期内仍算手机在线；事件的 pending-offline 在下方忽略。
-      rows.push({ at, status: "online", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
-    }
+    rows.push({
+      deviceId: row.device_id,
+      at,
+      status: row.status,
+      room: row.room ?? roomByDevice.get(row.device_id) ?? null,
+      source: "snapshot",
+    });
   }
   for (const row of events) {
     const at = epoch(row.event_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    if (row.status === null || row.status === "pending-offline") continue;
-    rows.push({ at, status: row.status === "online" ? "online" : "offline", room: roomByDevice.get(row.device_id) ?? null, source: "event" });
+    if (row.status === null || row.status === undefined || row.status === "pending-offline") continue;
+    rows.push({
+      deviceId: row.device_id,
+      at,
+      status: row.status,
+      room: roomByDevice.get(row.device_id) ?? null,
+      source: "event",
+    });
   }
-  return rows.sort((a, b) => a.at - b.at);
+  const statusRank: Record<PhoneRawStatus, number> = {
+    offline: 0,
+    "no-response": 1,
+    "pending-offline": 1,
+    online: 2,
+  };
+  rows.sort((a, b) => a.deviceId.localeCompare(b.deviceId)
+    || a.at - b.at
+    || (a.source === "snapshot" ? 0 : 1) - (b.source === "snapshot" ? 0 : 1)
+    || statusRank[a.status] - statusRank[b.status]);
+
+  const byDevice = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const deviceRows = byDevice.get(row.deviceId) ?? [];
+    deviceRows.push(row);
+    byDevice.set(row.deviceId, deviceRows);
+  }
+  const result: PhoneObservation[] = [];
+  for (const [deviceId, deviceRows] of byDevice) {
+    let previous: PhoneObservation | null = null;
+    for (const row of deviceRows) {
+      const previousIsFresh = previous !== null && previous.status !== null
+        && row.at - previous.at <= (previous.source === "snapshot"
+          ? STATE_THRESHOLDS.homeFreshnessMinutes
+          : STATE_THRESHOLDS.homeIntervalMaxMinutes) * MS_PER_MINUTE;
+      const current: PhoneObservation = row.status === "no-response"
+        ? {
+          deviceId,
+          at: row.at,
+          status: previousIsFresh ? previous?.status ?? null : null,
+          room: previousIsFresh ? previous?.room ?? null : null,
+          source: row.source,
+        }
+        : {
+          deviceId,
+          at: row.at,
+          status: row.status === "pending-offline" ? "online" : row.status,
+          room: row.status === "offline" ? null : row.room,
+          source: row.source,
+        };
+      result.push(current);
+      previous = current;
+    }
+  }
+  return result.sort((a, b) => a.at - b.at || a.deviceId.localeCompare(b.deviceId)
+    || (a.source === "snapshot" ? 0 : 1) - (b.source === "snapshot" ? 0 : 1));
 }
 
-function latestBefore(rows: PhoneObservation[], at: number): PhoneObservation | null {
-  let result: PhoneObservation | null = null;
-  for (const row of rows) {
-    if (row.at > at) break;
-    result = row;
+type HeartbeatMinute = { hasHeartbeatBefore: boolean; scanOkInWindow: boolean };
+
+function heartbeatByMinute(heartbeats: Heartbeat[], start: number): HeartbeatMinute[] {
+  const rows = heartbeats
+    .map(row => ({ at: epoch(row.observed_at), scanOk: row.scan_ok === true }))
+    .filter((row): row is { at: number; scanOk: boolean } => row.at !== null)
+    .sort((a, b) => a.at - b.at);
+  const result: HeartbeatMinute[] = [];
+  const scanOkTimes: number[] = [];
+  let rowIndex = 0;
+  let firstActiveScan = 0;
+  for (let minute = 0; minute < MINUTES_PER_DAY; minute += 1) {
+    const at = start + minute * MS_PER_MINUTE;
+    while (rowIndex < rows.length && rows[rowIndex].at <= at) {
+      if (rows[rowIndex].scanOk) scanOkTimes.push(rows[rowIndex].at);
+      rowIndex += 1;
+    }
+    const windowFrom = at - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE;
+    while (firstActiveScan < scanOkTimes.length && scanOkTimes[firstActiveScan] < windowFrom) firstActiveScan += 1;
+    result.push({ hasHeartbeatBefore: rowIndex > 0, scanOkInWindow: firstActiveScan < scanOkTimes.length });
   }
   return result;
 }
 
 type PhoneMinute = { status: "online" | "offline" | null; room: string | null; evidence: Evidence };
 
-function phoneAtMinute(observations: PhoneObservation[], heartbeats: Heartbeat[], at: number): PhoneMinute {
-  const observation = latestBefore(observations, at);
+function phoneAtMinute(observation: PhoneObservation | null, heartbeat: HeartbeatMinute, at: number): PhoneMinute {
   const maxAge = observation?.source === "snapshot"
     ? STATE_THRESHOLDS.homeFreshnessMinutes
     : STATE_THRESHOLDS.homeIntervalMaxMinutes;
-  if (!observation || at - observation.at > maxAge * MS_PER_MINUTE) {
+  if (!observation || observation.status === null || at - observation.at > maxAge * MS_PER_MINUTE) {
     return { status: null, room: null, evidence: "no_data" };
   }
   if (observation.status === "offline") return { status: "offline", room: null, evidence: "seen" };
-  let hasHeartbeatBefore = false;
-  let scanOkInWindow = false;
-  const windowFrom = at - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE;
-  for (const row of heartbeats) {
-    const heartbeatAt = epoch(row.observed_at);
-    if (heartbeatAt === null || heartbeatAt > at) break;
-    hasHeartbeatBefore = true;
-    if (heartbeatAt >= windowFrom && row.scan_ok === true) scanOkInWindow = true;
-  }
-  if (!hasHeartbeatBefore) return { status: "online", room: observation.room, evidence: "inferred" };
-  if (!scanOkInWindow) return { status: null, room: null, evidence: "no_data" };
+  if (!heartbeat.hasHeartbeatBefore) return { status: "online", room: observation.room, evidence: "inferred" };
+  if (!heartbeat.scanOkInWindow) return { status: null, room: null, evidence: "no_data" };
   return { status: "online", room: observation.room, evidence: "seen" };
 }
 
-export function phonePresenceByMinute(input: StateInput): boolean[] {
-  const start = dayStartEpoch(input.date);
-  const observations = phoneObservations(input.snapshots, input.events, input.devices, new Set(input.subjectDeviceIds));
-  const heartbeats = input.heartbeats
-    .map(row => ({ row, at: epoch(row.observed_at) }))
-    .filter((item): item is { row: Heartbeat; at: number } => item.at !== null)
-    .sort((a, b) => a.at - b.at)
-    .map(item => item.row);
-  return Array.from({ length: MINUTES_PER_DAY }, (_, minute) =>
-    phoneAtMinute(observations, heartbeats, start + minute * MS_PER_MINUTE).status === "online");
+function combinePhoneMinutes(candidates: Array<{ deviceId: string; minute: PhoneMinute }>): PhoneMinute {
+  const usable = candidates.filter(candidate => candidate.minute.status !== null);
+  const online = usable.filter(candidate => candidate.minute.status === "online");
+  if (online.length > 0) {
+    const selected = online.reduce((best, candidate) => {
+      const bestEvidence = best.minute.evidence === "seen" ? 1 : 0;
+      const candidateEvidence = candidate.minute.evidence === "seen" ? 1 : 0;
+      if (candidateEvidence !== bestEvidence) return candidateEvidence > bestEvidence ? candidate : best;
+      const bestRoom = best.minute.room !== null ? 1 : 0, candidateRoom = candidate.minute.room !== null ? 1 : 0;
+      if (candidateRoom !== bestRoom) return candidateRoom > bestRoom ? candidate : best;
+      return candidate.deviceId.localeCompare(best.deviceId) < 0 ? candidate : best;
+    });
+    return selected.minute;
+  }
+  if (usable.some(candidate => candidate.minute.status === "offline")) {
+    return { status: "offline", room: null, evidence: "seen" };
+  }
+  return { status: null, room: null, evidence: "no_data" };
 }
+
+function phoneMinutesByMinute(input: StateInput, latestAllowedAt = Infinity, observations = phoneObservations(
+  input.snapshots, input.events, input.devices, new Set(input.subjectDeviceIds), latestAllowedAt,
+)): PhoneMinute[] {
+  const start = dayStartEpoch(input.date);
+  const heartbeats = heartbeatByMinute(input.heartbeats, start);
+  const deviceIds = [...new Set(input.subjectDeviceIds)].sort();
+  const byDevice = new Map(deviceIds.map(deviceId => [deviceId, [] as PhoneObservation[]]));
+  for (const observation of observations) byDevice.get(observation.deviceId)?.push(observation);
+  const indexes = new Map(deviceIds.map(deviceId => [deviceId, 0]));
+  const latest = new Map<string, PhoneObservation | null>(deviceIds.map(deviceId => [deviceId, null]));
+  return Array.from({ length: MINUTES_PER_DAY }, (_, minute) => {
+    const at = start + minute * MS_PER_MINUTE;
+    const candidates = deviceIds.map(deviceId => {
+      const rows = byDevice.get(deviceId)!;
+      let index = indexes.get(deviceId)!;
+      while (index < rows.length && rows[index].at <= at) latest.set(deviceId, rows[index++]);
+      indexes.set(deviceId, index);
+      return { deviceId, minute: phoneAtMinute(latest.get(deviceId) ?? null, heartbeats[minute], at) };
+    });
+    return combinePhoneMinutes(candidates);
+  });
+}
+
+export function phonePresenceByMinute(input: StateInput): boolean[] {
+  return phoneMinutesByMinute(input).map(minute => minute.status === "online");
+}
+
 
 function isActiveSample(row: ActivitySample): boolean {
   if (row.locked === true) return false;
@@ -246,7 +351,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     .sort((a, b) => a.at - b.at);
   const deviceIds = new Set(input.subjectDeviceIds);
   const phone = phoneObservations(input.snapshots, input.events, input.devices, deviceIds, calculationAllowedAt);
-  const heartbeats = [...input.heartbeats].sort((a, b) => (epoch(a.observed_at) ?? Infinity) - (epoch(b.observed_at) ?? Infinity));
+  const phoneMinutes = phoneMinutesByMinute(input, calculationAllowedAt, phone);
   const legacyCutoffAt = Date.parse(legacyNetworkCutoff);
 
   // 每条样本只归属它自己所在的那一分钟；同一分钟多条样本取最后一条。
@@ -281,7 +386,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     for (let index = activityIndex - 1; index >= 0 && activity[index].at >= lookbackFrom; index--) {
       if (isActiveSample(activity[index].row)) { active = true; break; }
     }
-    const phoneMinute = phoneAtMinute(phone, heartbeats, at);
+    const phoneMinute = phoneMinutes[minute];
     const office = sampleFresh && sample?.net === "office";
     const legacySignal = sampleFresh && (sample?.net === null || sample?.net === undefined)
       && sampleAt !== null && sampleAt < legacyCutoffAt && deviceIds.size > 0 && phoneMinute.status === "offline";
@@ -423,9 +528,11 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
 
   // 手机事件区间可从前一天覆盖到当天；快照则仍由 phoneAtMinute 应用 20 分钟新鲜度。
   const dayEnd = start + MINUTES_PER_DAY * MS_PER_MINUTE;
-  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at < dayEnd
-    && (row.source === "event" ? row.at >= start - STATE_THRESHOLDS.homeIntervalMaxMinutes * MS_PER_MINUTE
-      : row.at >= start - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE));
+  const phoneChannelUsable = deviceIds.size > 0 && phone
+    .filter(row => row.status !== null)
+    .some(row => row.at < dayEnd
+      && (row.source === "event" ? row.at >= start - STATE_THRESHOLDS.homeIntervalMaxMinutes * MS_PER_MINUTE
+        : row.at >= start - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE));
   const workChannelUsable = activity.some(item => item.at >= start && item.at < dayEnd);
   const homeKnown = phoneChannelUsable || workChannelUsable;
   if (phoneChannelUsable && workChannelUsable) {

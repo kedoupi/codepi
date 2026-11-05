@@ -35,17 +35,28 @@ describe("上游行解析", () => {
     expect(rows.map(row => row.net)).toEqual(["home", "office", "other", "", null]);
   });
 
-  it("设备、快照、事件与心跳都按契约过滤非法行", () => {
-    expect(parseDevices([{ device_id: "dev-a", room: "卧室" }, { name: "缺 id" }, null])).toHaveLength(1);
-    expect(parseSnapshots([
+  it("设备、快照、事件与心跳都按契约过滤非法行并接受 no-response", () => {
+    const devices = parseDevices([
+      { device_id: "dev-a", room: "卧室", current_status: "no-response" },
+      { name: "缺 id" }, null,
+    ]);
+    expect(devices).toHaveLength(1);
+    expect(devices[0].current_status).toBe("no-response");
+    const snapshots = parseSnapshots([
       { device_id: "dev-a", observed_at: "2026-11-01T09:00:00+08:00", status: "online" },
+      { device_id: "dev-a", observed_at: "2026-11-01T09:01:00+08:00", status: "no-response" },
       { device_id: "dev-a", observed_at: "2026-11-01T09:00:00+08:00", status: "weird" },
       { device_id: "dev-a", status: "online" },
-    ])).toHaveLength(1);
-    expect(parseEvents([
+    ]);
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1].status).toBe("no-response");
+    const events = parseEvents([
       { device_id: "dev-a", event_at: "2026-11-01T09:00:00+08:00", status: "offline" },
+      { device_id: "dev-a", event_at: "2026-11-01T09:01:00+08:00", status: "no-response" },
       { device_id: "dev-a", event_at: "bad" },
-    ])).toHaveLength(1);
+    ]);
+    expect(events).toHaveLength(2);
+    expect(events[1].status).toBe("no-response");
     expect(parseHeartbeats([
       { observed_at: "2026-11-01T09:00:00+08:00", scan_ok: true, device_count: 3 },
       { observed_at: "bad" },

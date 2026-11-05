@@ -162,14 +162,19 @@ function statusReadFixture() {
       const homeAllDay = !isWorkday(day);
       for (let minute = 0; minute <= limit; minute += 10) {
         if (!homeAllDay && minute > 420 + shift && minute < 1170) continue;
-        rows.push({ source_id: "home-scanner", device_id: "dev-a", observed_at: stamp(day, minute), status: "online", room: minute < 1170 ? "卧室" : "客厅" });
+        const room = minute < 1170 ? "卧室" : "客厅";
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", observed_at: stamp(day, minute), status: "online", room });
+        rows.push({ source_id: "home-scanner", device_id: "dev-b", observed_at: stamp(day, minute), status: "offline", room: null });
       }
       return rows;
     }
     if (resource === "events") {
       if (isWorkday(day)) {
         rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 421 + shift), status: "offline" });
+        rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, 421 + shift), status: "online" });
+        rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, 422 + shift), status: "offline" });
         rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 1170), status: "online" });
+        rows.push({ source_id: "home-scanner", device_id: "dev-b", event_at: stamp(day, 1170), status: "offline" });
       }
       return rows;
     }
@@ -185,7 +190,10 @@ function statusReadFixture() {
   const rowsFor = url => {
     const resource = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
     if (resource === "devices") {
-      return [{ source_id: "home-scanner", device_id: "dev-a", name: "示例手机", vendor: "示例厂商", room: "卧室", current_status: "online" }];
+      return [
+        { source_id: "home-scanner", device_id: "dev-a", name: "示例手机", vendor: "示例厂商", room: "卧室", current_status: "online" },
+        { source_id: "home-scanner", device_id: "dev-b", name: "示例手机备用频段", vendor: "示例厂商", room: "卧室", current_status: "offline" },
+      ];
     }
     const from = Date.parse(url.searchParams.get("from") || "");
     const to = Date.parse(url.searchParams.get("to") || "");
@@ -462,7 +470,7 @@ async function main() {
 
     await db.prepare(
       "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
-    ).bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "开发", "示例沟通": "沟通" }), new Date().toISOString()).run();
+    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "开发", "示例沟通": "沟通" }), new Date().toISOString()).run();
 
     const health = await fetch(`${origin}/api/health`);
     assert.equal(health.status, 200);
@@ -489,6 +497,13 @@ async function main() {
     await waitText(page, "截至");
     await screenshot(page, "desktop-today.png");
 
+    const morning = await page.evaluate(() => {
+      const segment = [...document.querySelectorAll(".timeline-segment")]
+        .find(item => item.getAttribute("data-status") && Number(item.style.getPropertyValue("--segment-start")) <= 420
+          && Number(item.style.getPropertyValue("--segment-start")) + Number(item.style.getPropertyValue("--segment-minutes")) > 420);
+      return { status: segment?.getAttribute("data-status"), title: segment?.getAttribute("title") ?? "" };
+    });
+    assert.ok(["home", "bedroom", "living_room"].includes(morning.status), `today morning is at home: ${JSON.stringify(morning)}`);
     // 时间线点按明细
     await page.evaluate(() => {
       const segment = document.querySelector(".timeline-segment");
@@ -553,7 +568,7 @@ async function main() {
     await screenshot(page, "desktop-no-phone.png");
     await db.prepare(
       "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
-    ).bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "开发" }), new Date().toISOString()).run();
+    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "开发" }), new Date().toISOString()).run();
 
     // 上游失败
     upstream.state.fail = true;

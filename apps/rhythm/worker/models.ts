@@ -32,7 +32,7 @@ export type HomeDevice = {
   room?: string | null;
   first_seen?: string | null;
   last_seen?: string | null;
-  current_status?: "online" | "pending-offline" | "offline" | null;
+  current_status?: "online" | "pending-offline" | "no-response" | "offline" | null;
 };
 
 export type HomeSnapshot = {
@@ -40,7 +40,7 @@ export type HomeSnapshot = {
   device_id: string;
   observed_at: string;
   received_at?: string | null;
-  status: "online" | "pending-offline" | "offline";
+  status: "online" | "pending-offline" | "no-response" | "offline";
   source?: string | null;
   room?: string | null;
   client_event_id?: string | null;
@@ -51,7 +51,7 @@ export type HomeEvent = {
   device_id: string;
   event_at: string;
   kind?: string | null;
-  status?: "online" | "pending-offline" | "offline" | null;
+  status?: "online" | "pending-offline" | "no-response" | "offline" | null;
   received_at?: string | null;
   client_event_id?: string | null;
 };

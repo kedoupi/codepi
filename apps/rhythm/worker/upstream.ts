@@ -90,7 +90,7 @@ export function parseActivity(rows: unknown[]): Array<{
 
 export function parseDevices(rows: unknown[]): Array<{
   device_id: string; name?: string | null; vendor?: string | null; room?: string | null;
-  first_seen?: string | null; last_seen?: string | null; current_status?: "online" | "pending-offline" | "offline" | null;
+  first_seen?: string | null; last_seen?: string | null; current_status?: "online" | "pending-offline" | "no-response" | "offline" | null;
 }> {
   const result: ReturnType<typeof parseDevices> = [];
   for (const row of rows) {
@@ -106,14 +106,14 @@ export function parseDevices(rows: unknown[]): Array<{
       room: text(value.room),
       first_seen: text(value.first_seen),
       last_seen: text(value.last_seen),
-      current_status: status === "online" || status === "pending-offline" || status === "offline" ? status : null,
+      current_status: status === "online" || status === "pending-offline" || status === "no-response" || status === "offline" ? status : null,
     });
   }
   return result;
 }
 
 export function parseSnapshots(rows: unknown[]): Array<{
-  device_id: string; observed_at: string; received_at?: string | null; status: "online" | "pending-offline" | "offline";
+  device_id: string; observed_at: string; received_at?: string | null; status: "online" | "pending-offline" | "no-response" | "offline";
   source?: string | null; room?: string | null;
 }> {
   const result: ReturnType<typeof parseSnapshots> = [];
@@ -122,7 +122,7 @@ export function parseSnapshots(rows: unknown[]): Array<{
     const value = row as Record<string, unknown>;
     const deviceId = text(value.device_id), observedAt = text(value.observed_at), status = value.status;
     if (!deviceId || !observedAt || !Number.isFinite(Date.parse(observedAt))) continue;
-    if (status !== "online" && status !== "pending-offline" && status !== "offline") continue;
+    if (status !== "online" && status !== "pending-offline" && status !== "no-response" && status !== "offline") continue;
     result.push({
       device_id: deviceId,
       observed_at: observedAt,
@@ -136,7 +136,7 @@ export function parseSnapshots(rows: unknown[]): Array<{
 }
 
 export function parseEvents(rows: unknown[]): Array<{
-  device_id: string; event_at: string; kind?: string | null; status?: "online" | "pending-offline" | "offline" | null;
+  device_id: string; event_at: string; kind?: string | null; status?: "online" | "pending-offline" | "no-response" | "offline" | null;
   received_at?: string | null;
 }> {
   const result: ReturnType<typeof parseEvents> = [];
@@ -150,7 +150,7 @@ export function parseEvents(rows: unknown[]): Array<{
       device_id: deviceId,
       event_at: eventAt,
       kind: text(value.kind),
-      status: status === "online" || status === "pending-offline" || status === "offline" ? status : null,
+      status: status === "online" || status === "pending-offline" || status === "no-response" || status === "offline" ? status : null,
       received_at: text(value.received_at),
     });
   }

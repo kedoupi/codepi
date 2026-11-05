@@ -28,6 +28,29 @@
     }
   },
   {
+    "name": "双设备频段切换",
+    "date": "2026-11-05",
+    "subjectDeviceIds": ["dev-a", "dev-b"],
+    "activity": [],
+    "devices": [
+      {"device_id":"dev-a","name":"示例手机","room":"卧室"},
+      {"device_id":"dev-b","name":"示例手机","room":"卧室"}
+    ],
+    "snapshots": [
+      {"observed_at":"2026-11-05T00:00:00+08:00","device_id":"dev-a","status":"online","room":"卧室"},
+      {"observed_at":"2026-11-05T00:00:00+08:00","device_id":"dev-b","status":"offline"},
+      {"observed_at":"2026-11-05T00:10:00+08:00","device_id":"dev-a","status":"offline"},
+      {"observed_at":"2026-11-05T00:10:00+08:00","device_id":"dev-b","status":"online","room":"卧室"}
+    ],
+    "events": [],
+    "heartbeats": [],
+    "expect": {
+      "statusAt": {"0":"bedroom","9":"bedroom","10":"bedroom","29":"bedroom","30":"bedroom","31":"unknown"},
+      "contains": [],
+      "notContains": ["leave_home"]
+    }
+  },
+  {
     "name": "休息日全天在家",
     "date": "2026-10-25",
     "subjectDeviceIds": ["dev-a"],
