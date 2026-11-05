@@ -83,6 +83,7 @@
   const categoryItems = $derived(work?.categories ? categories.map(category => ({ category, ...work!.categories![category] })) : []);
   const topAppsMax = $derived(Math.max(1, ...(work?.top_apps ?? []).map(app => app.minutes)));
   const heatRows = $derived(work?.heatmap?.days?.length ? work.heatmap.days : work?.heatmap ? [{ day: "工作日平均", hours: work.heatmap.hours }] : []);
+  const heatmapHasValue = $derived(heatRows.some(row => row.hours.some(cell => cell.minutes !== null)));
   const maxSwitches = $derived(Math.max(1, ...(work?.hourly ?? []).map(item => item.switch_count ?? 0)));
 
   onMount(() => { void load(); });
@@ -136,7 +137,7 @@
 
       <section class="panel heatmap-panel">
         <div class="section-heading"><div><h2>哪些钟头最出活</h2><p class="muted">近 4 周工作日平均 · 08:00–19:00 在电脑前分钟</p></div></div>
-        {#if heatRows.length}
+        {#if heatRows.length && heatmapHasValue}
           <div class="work-heatmap" role="img" aria-label="周一至周五按小时在电脑前分钟"><div class="heatmap-grid heatmap-head"><span></span>{#each heatRows[0].hours as cell}<span>{cell.hour}</span>{/each}</div>{#each heatRows as row}<div class="heatmap-grid"><strong>{row.day}</strong>{#each row.hours as cell}<span class:heat-unknown={cell.minutes === null} class:heat-high={cell.minutes !== null && cell.minutes >= 45} class:heat-medium={cell.minutes !== null && cell.minutes >= 30} style={cell.minutes === null ? undefined : `--heat:${Math.min(1, cell.minutes / 60)}`} title={cell.minutes === null ? "暂无数据" : `${row.day} ${cell.hour}:00：${Math.round(cell.minutes)} 分钟`}>{cell.minutes === null ? "" : Math.round(cell.minutes)}</span>{/each}</div>{/each}</div>
           <div class="heatmap-mobile-list">{#each work.heatmap.hours as cell}<div class="hour-bar-row"><span>{cell.hour}:00</span><i><b class:heat-unknown={cell.minutes === null} style={cell.minutes === null ? undefined : `width:${Math.min(100, (cell.minutes ?? 0) / 60 * 100)}%`}></b></i><strong>{cell.minutes === null ? "暂无数据" : `${Math.round(cell.minutes)} 分`}</strong></div>{/each}</div>
         {:else}<p class="empty-small">暂无数据</p>{/if}

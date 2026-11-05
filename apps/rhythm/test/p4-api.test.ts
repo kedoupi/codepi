@@ -11,6 +11,12 @@ const origin = "https://rhythm.test";
 const shanghai = (epoch: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(epoch));
 const today = shanghai(Date.now());
 const daysAgo = (n: number) => shanghai(Date.now() - n * 86400_000);
+const priorWeekday = (weekday: number) => {
+  const value = new Date(`${today}T00:00:00Z`);
+  const daysBack = ((value.getUTCDay() - weekday + 7) % 7) + 7;
+  value.setUTCDate(value.getUTCDate() - daysBack);
+  return value.toISOString().slice(0, 10);
+};
 const stamp = (date: string, hour: number, minute = 0) =>
   new Date(Date.parse(`${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+08:00`)).toISOString();
 
@@ -100,6 +106,11 @@ async function insertAnomalyMetric(date: string, startWorkMinute: number) {
   await env.DB.prepare(
     "INSERT INTO daily_metrics (date, status_minutes_json, start_work_minute, commute_to_work_minutes, commute_home_minutes, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, '{}', ?, 0, 0, '{}', '{}', '{}', '{}', '{}', '{}', 'workday', ?, 'p9-2026-11-06')",
   ).bind(date, startWorkMinute, new Date().toISOString()).run();
+}
+async function insertHeatmapMetric(date: string, hourlyActiveMinutes: Record<string, number>) {
+  await env.DB.prepare(
+    "INSERT OR REPLACE INTO daily_metrics (date, status_minutes_json, office_active_minutes, office_span_minutes, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, app_minutes_json, hourly_active_minutes_json, hourly_switch_counts_json, focus_segments_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, ?, ?, ?, '{}', '{}', '{}', '{}', '{}', ?, '{}', '[]', '{}', '{}', 'workday', ?, 'p9-2026-11-06')",
+  ).bind(date, JSON.stringify({ office_active: 60 }), 60, 60, JSON.stringify(hourlyActiveMinutes), new Date().toISOString()).run();
 }
 
 describe("P4 接口", () => {
@@ -234,6 +245,31 @@ describe("P4 接口", () => {
     expect(missingBody.office_minutes).toBeNull();
     expect(missingBody.categories).toBeNull();
     expect(missingBody.top_apps).toBeNull();
+  });
+
+  it("工作页热力图按周一至周五分别计算有样本日均值", async () => {
+    const monday = priorWeekday(1);
+    const tuesday = priorWeekday(2);
+    await insertHeatmapMetric(monday, { "08": 10, "09": 20 });
+    await insertHeatmapMetric(tuesday, { "08": 30, "09": 40 });
+    const h = harness([]);
+    const cookie = await h.login();
+    const work = await (await h.send(`/api/work?date=${daysAgo(1)}&range=day`, { cookie })).json() as Record<string, any>;
+    const days = work.heatmap.days as Array<{ day: string; days_available: number; hours: Array<{ hour: string; minutes: number | null }> }>;
+    expect(days).toHaveLength(5);
+    expect(days.map(item => item.day)).toEqual(["周一", "周二", "周三", "周四", "周五"]);
+    expect(days.every(item => Array.isArray(item.hours))).toBe(true);
+    expect(days.every(item => item.hours.length === 12)).toBe(true);
+    expect(days[0].days_available).toBe(1);
+    expect(days[0].hours[0]).toMatchObject({ hour: "08", minutes: 10 });
+    expect(days[0].hours[1]).toMatchObject({ hour: "09", minutes: 20 });
+    expect(days[1].days_available).toBe(1);
+    expect(days[1].hours[0]).toMatchObject({ hour: "08", minutes: 30 });
+    expect(days[1].hours[1]).toMatchObject({ hour: "09", minutes: 40 });
+    for (const item of days.slice(2)) {
+      expect(item.days_available).toBe(0);
+      expect(item.hours.every(hour => hour.minutes === null)).toBe(true);
+    }
   });
 
 

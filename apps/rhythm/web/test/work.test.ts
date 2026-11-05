@@ -28,6 +28,10 @@ function workPayload(overrides: Json = {}): Json {
     ...overrides,
   };
 }
+const heatmapDays = (value: number | null) => ["周一", "周二", "周三", "周四", "周五"].map(day => ({
+  day, days_available: value === null ? 0 : 1,
+  hours: Array.from({ length: 12 }, (_, i) => ({ hour: String(i + 8).padStart(2, "0"), minutes: value })),
+}));
 
 function stub(payload: Json = workPayload()) {
   const calls: string[] = [];
@@ -57,6 +61,22 @@ describe("Rhythm 工作页", () => {
     expect(screen.getByText("示例编辑器")).toBeTruthy();
     await fireEvent.click(screen.getByRole("button", { name: "本周" }));
     await waitFor(() => expect(calls).toContain("/api/work?date=2026-11-06&range=week"));
+  });
+
+  it("带按工作日数据时渲染周一至周五五行", async () => {
+    stub(workPayload({ heatmap: { from: "2026-10-10", to: "2026-11-05", days_available: 5, hours: Array.from({ length: 12 }, (_, i) => ({ hour: String(i + 8).padStart(2, "0"), minutes: 15 })), days: heatmapDays(15) } }));
+    render(App);
+    await screen.findByRole("heading", { name: "哪些钟头最出活" });
+    expect(screen.getAllByText(/周[一二三四五]/).map(item => item.textContent)).toEqual(["周一", "周二", "周三", "周四", "周五"]);
+    expect(document.querySelectorAll(".work-heatmap .heatmap-grid:not(.heatmap-head)")).toHaveLength(5);
+  });
+
+  it("热力图所有格子未知时显示暂无数据", async () => {
+    stub(workPayload({ heatmap: { from: "2026-10-10", to: "2026-11-05", days_available: 0, hours: Array.from({ length: 12 }, (_, i) => ({ hour: String(i + 8).padStart(2, "0"), minutes: null })), days: heatmapDays(null) } }));
+    render(App);
+    await screen.findByRole("heading", { name: "哪些钟头最出活" });
+    expect(screen.getAllByText("暂无数据").length).toBeGreaterThan(0);
+    expect(document.querySelector(".work-heatmap")).toBeNull();
   });
 
   it("缺少工作汇总时显示暂无数据，不绘制零值图表", async () => {

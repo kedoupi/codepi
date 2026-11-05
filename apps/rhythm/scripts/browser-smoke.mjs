@@ -659,6 +659,17 @@ async function main() {
     await clickText(page, "本周");
     await page.waitForFunction(() => document.querySelector('.work-heading [aria-pressed="true"]')?.textContent?.includes("本周"));
     await fullScreenshot(page, "desktop-work-week.png");
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1100, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
+    const work1100 = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+    assert.ok(work1100.scrollWidth <= work1100.width + 1, `1100px work page has no horizontal overflow: ${work1100.scrollWidth}/${work1100.width}`);
+    await assertLayout(page, "desktop work 1100", 1100);
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
+    });
 
     // 设置：保存成功
     await page.goto(`${origin}/settings`);

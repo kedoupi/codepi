@@ -134,7 +134,7 @@ describe("Rhythm 趋势页", () => {
     stub();
     render(App);
     expect(await screen.findByRole("heading", { name: "每天各状态各占几小时" })).toBeTruthy();
-    for (const name of ["作息叠图", "通勤（上限）", "每天几点", "在家", "和平时不一样的日子", "数据可信度", "本周和上周"]) {
+    for (const name of ["作息叠图", "通勤（上限）", "每天几点", "在家", "和平时不一样的日子", "数据可信度", "本周和上周（工作日平均）"]) {
       expect(screen.getByRole("heading", { name })).toBeTruthy();
     }
     expect(screen.getByText("不足 7 天")).toBeTruthy();
