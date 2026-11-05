@@ -43,3 +43,9 @@ MCP `f39133c1`（应用 0004_oauth_maintenance，check:live 通过）；删除 `
    `notApplied` 移入基线，更新资源登记（Cron 已移除）。
 3. 网页建项目拿令牌，由项目仓库配置推送；首次推送后读回今天页、`work_overview` 与 `get_context`。
 4. 客户端需重新读取 MCP 工具列表；旧工具名 `projects_list` 不再存在。
+
+## 完成记录（2026-11-06）
+
+- 2026-11-05 21:49 所有者签发推送令牌（只在本机钥匙串，D1 只存哈希），项目 id 沿用 `kedoupi-codepi`（`6ef2d84`）；首次推送 6 条任务，`task_list` 与 `work_overview` 读回一致。
+- 2026-11-06 01:15 统筹看板「今天 + 池子 + 做完」上线（`137421f`；Project `2636ec09`，迁移 0004；MCP `4d2f0f29` 新增 `today_get` / `today_pick`）。
+- 本任务完成，已从当前任务表移出。
