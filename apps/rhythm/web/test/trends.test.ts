@@ -130,11 +130,11 @@ describe("趋势换算", () => {
 });
 
 describe("Rhythm 趋势页", () => {
-  it("渲染 8 个模块、未知日、不足天数提示和按周对比", async () => {
+  it("渲染趋势模块、未知日、不足天数提示和按周对比", async () => {
     stub();
     render(App);
     expect(await screen.findByRole("heading", { name: "每天各状态各占几小时" })).toBeTruthy();
-    for (const name of ["作息叠图", "通勤、几点、在电脑前", "在公司用电脑", "工作节奏", "在家", "和平时不一样的日子", "数据可信度", "本周和上周"]) {
+    for (const name of ["作息叠图", "通勤（上限）", "每天几点", "在家", "和平时不一样的日子", "数据可信度", "本周和上周"]) {
       expect(screen.getByRole("heading", { name })).toBeTruthy();
     }
     expect(screen.getByText("不足 7 天")).toBeTruthy();
@@ -159,7 +159,7 @@ describe("Rhythm 趋势页", () => {
     expect(location.search).toBe("?range=30");
   });
 
-  it("工作机没有数据的日子：App 类别与叠图画成未知，合计不写 0", async () => {
+  it("工作机没有数据的日子：作息叠图画成未知，状态合计保留已知状态", async () => {
     const noWork = metrics({
       officeActiveMinutes: null, officeSpanMinutes: null, startWorkMinute: null, leaveComputerMinute: null,
       leaveHomeMinute: null, arriveHomeMinute: null, commuteToWorkMinutes: null, commuteHomeMinutes: null,
@@ -174,12 +174,7 @@ describe("Rhythm 趋势页", () => {
       return response({ range: 7, from: "x", to: "x", days_available: 1, days: [] });
     }));
     render(App);
-    await screen.findByRole("heading", { name: "在公司用电脑" });
-    const appBar = document.querySelector('#apps [aria-label="每天 App 类别分钟"] .bar')!;
-    expect(appBar.getAttribute("aria-label")).toContain("没有数据（未知）");
-    expect(appBar.querySelector("rect[data-series]")).toBeNull();
-    expect(screen.getByText("这段时间工作机没有可用的采样，App 构成未知。")).toBeTruthy();
-    expect(screen.getByText(/工作日在家用工作机合计 未知（0 天有工作机数据/)).toBeTruthy();
+    await screen.findByRole("heading", { name: "每天各状态各占几小时" });
     const overlayRow = document.querySelector("#overlay .bar")!;
     expect(overlayRow.getAttribute("aria-label")).toContain("数据不足，画不出作息（未知）");
     expect(overlayRow.querySelector("rect[data-series]")).toBeNull();
@@ -212,15 +207,15 @@ describe("Rhythm 趋势页", () => {
     expect(screen.getByRole("button", { name: "近 30 天" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("手机标签在作息与工作之间切换", async () => {
+  it("手机标签在趋势图表之间切换", async () => {
     stub();
     render(App);
-    await screen.findByRole("heading", { name: "工作节奏" });
+    await screen.findByRole("heading", { name: "每天各状态各占几小时" });
     const container = document.querySelector(".trend-sections")!;
-    expect(container.getAttribute("data-tab")).toBe("rhythm");
-    await fireEvent.click(screen.getByRole("tab", { name: "工作" }));
-    expect(container.getAttribute("data-tab")).toBe("work");
-    expect(screen.getByRole("tab", { name: "工作" }).getAttribute("aria-selected")).toBe("true");
+    expect(container.getAttribute("data-mobile-tab")).toBe("status");
+    await fireEvent.click(screen.getByRole("tab", { name: "不一样的日子" }));
+    expect(container.getAttribute("data-mobile-tab")).toBe("anomalies");
+    expect(screen.getByRole("tab", { name: "不一样的日子" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("接口失败时只显示错误，不画假数据", async () => {

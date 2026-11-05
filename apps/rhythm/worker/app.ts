@@ -464,15 +464,16 @@ function heatmap(rows: DailyMetricsRow[], from: string, to: string) {
   const workdays = rows.filter(row => row.date >= from && row.date <= to && dayType(row.date) === "workday"
     && row.metrics.hourlyActiveMinutes !== null);
   const hours = Array.from({ length: 12 }, (_, index) => String(index + 8).padStart(2, "0"));
-  return {
-    from,
-    to,
-    days_available: workdays.length,
-    hours: hours.map(hour => ({
-      hour,
-      minutes: workdays.length ? workdays.reduce((sum, row) => sum + (row.metrics.hourlyActiveMinutes![hour] ?? 0), 0) / workdays.length : null,
-    })),
-  };
+  const averageHours = (subset: DailyMetricsRow[]) => hours.map(hour => ({
+    hour,
+    minutes: subset.length ? subset.reduce((sum, row) => sum + (row.metrics.hourlyActiveMinutes![hour] ?? 0), 0) / subset.length : null,
+  }));
+  const weekdays = ["周一", "周二", "周三", "周四", "周五"];
+  const days = weekdays.map((day, index) => {
+    const dayRows = workdays.filter(row => ((new Date(`${row.date}T00:00:00Z`).getUTCDay() + 6) % 7) === index);
+    return { day, days_available: dayRows.length, hours: averageHours(dayRows) };
+  });
+  return { from, to, days_available: workdays.length, hours: averageHours(workdays), days };
 }
 
 function hourlyWork(current: WorkAggregate) {
@@ -724,7 +725,7 @@ app.use("*", async (c, next) => {
 
 app.get("/robots.txt", () => new Response("User-agent: *\nDisallow: /\n"));
 
-app.on(["GET", "HEAD"], ["/", "/trend", "/sources", "/settings", "/login"], async c => {
+app.on(["GET", "HEAD"], ["/", "/trend", "/work", "/sources", "/settings", "/login"], async c => {
   const origin = new URL(c.req.url).origin;
   if (c.req.path !== "/login" && !await authenticated(c.req.raw, c.env)) {
     return Response.redirect(`${origin}/login?return=${encodeURIComponent(c.req.path)}`, 302);
