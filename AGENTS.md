@@ -35,6 +35,7 @@ The owner's local multi-agent workflow (agent-team) is the default way of workin
 - 提交：允许（仅限任务分支 `team/<task>`）
 - 验收：`node scripts/agent/check.mjs --base main --run`
 - 合并：`agent-team merge`（本地 `merge --no-ff` 到 main，验收与审查通过后自动进行；push 与发布需所有者授权）
+- 合并后：`node scripts/agent/project-push.mjs --if-configured`
 
 ## Verification and release
 

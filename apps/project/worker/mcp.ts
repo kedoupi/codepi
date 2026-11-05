@@ -13,6 +13,7 @@ import { resolveProject } from "./projects";
 import { buildSummary } from "./summary";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind } from "./types";
 import { fit, getTask, overview, projectCard, taskPage, type TaskFilter } from "./work";
+import { fitToday, pickAgentToday, todayRef, todayView } from "./today";
 
 const BUDGET = MCP_LIMITS.detail;
 
@@ -120,6 +121,24 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
       const project = await resolveProject(env, text(args.project, "project_required", { max: 200 })!);
       const card = await projectCard(env, project, { changelog: 20, handoffs: 10, token: false });
       return { ok: true, data: { ...fit(card, ["changelog", "handoffs", "branches"], BUDGET), notice: DATA_NOTICE } };
+    }
+    if (input.operation === "today_get") {
+      assertKeys(args, ["project"]);
+      const projectRef = optional(args.project, value => text(value, "project_required", { max: 200 })!);
+      const project = projectRef === undefined ? undefined : await resolveProject(env, projectRef);
+      const data = await todayView(env, new Date(), project?.id);
+      return { ok: true, data: fitToday({ ...data, notice: DATA_NOTICE }, BUDGET - 256) };
+    }
+    if (input.operation === "today_pick") {
+      assertKeys(args, ["items"]);
+      if (!Array.isArray(args.items) || args.items.length > 20) throw new AppError("invalid_arguments", 400);
+      const refs = args.items.map(value => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new AppError("invalid_arguments", 400);
+        const target = value as Record<string, unknown>;
+        assertKeys(target, ["project", "key"]);
+        return todayRef(target.project, target.key);
+      });
+      return { ok: true, data: await pickAgentToday(env, refs) };
     }
     if (input.operation === "handoff_save") {
       const project = await resolveProject(env, text(args.project, "project_required", { max: 200 })!);
