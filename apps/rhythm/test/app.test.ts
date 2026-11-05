@@ -36,8 +36,8 @@ function cookieOf(response: Response, kind: string) {
 function upstreamRows(pathname: string): unknown[] {
   if (pathname === UPSTREAM_ACTIVITY_SAMPLES_PATH) {
     return [
-      { sampled_at: testStamp(9, 0), net: "office", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
-      { sampled_at: testStamp(9, 1), net: "office", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
+      { sampled_at: testStamp(9, 0), net: "office", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
+      { sampled_at: testStamp(9, 1), net: "office", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
     ];
   }
   if (pathname === UPSTREAM_HOME_DEVICES_PATH) return [{ device_id: "dev-a", name: "示例手机", room: "卧室" }];
@@ -46,7 +46,7 @@ function upstreamRows(pathname: string): unknown[] {
   }
   if (pathname === UPSTREAM_HOME_EVENTS_PATH) return [];
   if (pathname === UPSTREAM_HOME_HEARTBEATS_PATH) {
-    return [{ observed_at: testStamp(9, 1), scan_ok: true, device_count: 2 }];
+    return [{ observed_at: testStamp(9, 1), scan_ok: 1, device_count: 2 }];
   }
   return [];
 }

@@ -56,6 +56,11 @@ function text(value: unknown): string | null {
 function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
+function boolOrNull(value: unknown): boolean | null {
+  if (value === true || value === 1 || value === "1" || value === "true") return true;
+  if (value === false || value === 0 || value === "0" || value === "false") return false;
+  return null;
+}
 
 export function parseActivity(rows: unknown[]): Array<{
   sampled_at: string; host?: string | null; idle_sec?: number | null; locked?: boolean | null; power?: string | null;
@@ -73,7 +78,7 @@ export function parseActivity(rows: unknown[]): Array<{
       sampled_at: sampledAt,
       host: text(value.host),
       idle_sec: numberOrNull(value.idle_sec),
-      locked: typeof value.locked === "boolean" ? value.locked : null,
+      locked: boolOrNull(value.locked),
       power: text(value.power),
       app_name: text(value.app_name),
       bundle_id: text(value.bundle_id),
@@ -169,7 +174,7 @@ export function parseHeartbeats(rows: unknown[]): Array<{
     result.push({
       observed_at: observedAt,
       received_at: text(value.received_at),
-      scan_ok: typeof value.scan_ok === "boolean" ? value.scan_ok : null,
+      scan_ok: boolOrNull(value.scan_ok),
       device_count: numberOrNull(value.device_count),
       error_category: text(value.error_category),
     });

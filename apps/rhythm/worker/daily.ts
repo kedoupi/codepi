@@ -5,7 +5,7 @@ import type {
 } from "./models";
 import type { Env } from "./types";
 
-export const DAILY_ALGORITHM_VERSION = "p6-2026-11-05";
+export const DAILY_ALGORITHM_VERSION = "p7-2026-11-05";
 const MINUTES_PER_DAY = 1440;
 const MS_PER_MINUTE = 60_000;
 const APP_CATEGORIES: AppCategory[] = ["开发", "沟通", "文档", "浏览", "其他"];

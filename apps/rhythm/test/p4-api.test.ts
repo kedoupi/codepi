@@ -36,12 +36,12 @@ function harness(busyDates: string[]) {
     if (pathname === UPSTREAM_HOME_DEVICES_PATH) return [{ device_id: "dev-a", vendor: "示例厂商", name: "示例手机", room: null }];
     if (pathname === UPSTREAM_ACTIVITY_SAMPLES_PATH) {
       return busyDates.flatMap(date => Array.from({ length: 30 }, (_, minute) => ({
-        sampled_at: stamp(date, 9, minute), net: "office", idle_sec: 10, locked: false,
+        sampled_at: stamp(date, 9, minute), net: "office", idle_sec: 10, locked: 0,
         key_idle_sec: 10, pointer_idle_sec: 10, app_name: "示例编辑器",
       })));
     }
     if (pathname === UPSTREAM_HOME_HEARTBEATS_PATH) {
-      return busyDates.map(date => ({ observed_at: stamp(date, 8), scan_ok: true, device_count: 3 }));
+      return busyDates.map(date => ({ observed_at: stamp(date, 8), scan_ok: 1, device_count: 3 }));
     }
     if (pathname === UPSTREAM_HOME_SNAPSHOTS_PATH) {
       return busyDates.map(date => ({ device_id: "dev-a", observed_at: stamp(date, 8), status: "online", room: null }));

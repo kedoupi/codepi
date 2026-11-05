@@ -35,6 +35,19 @@ describe("上游行解析", () => {
     expect(rows.map(row => row.net)).toEqual(["home", "office", "other", "", null]);
   });
 
+  it("布尔字段兼容布尔值、SQLite 整数和字符串，其余按缺失处理", () => {
+    const values = [true, false, 1, 0, "1", "0", "true", "false", null, 2, "yes"];
+    const activities = parseActivity(values.map((locked, index) => ({
+      sampled_at: `2026-11-01T09:${String(index).padStart(2, "0")}:00+08:00`, locked,
+    })));
+    const heartbeats = parseHeartbeats(values.map((scan_ok, index) => ({
+      observed_at: `2026-11-01T10:${String(index).padStart(2, "0")}:00+08:00`, scan_ok,
+    })));
+    const expected = [true, false, true, false, true, false, true, false, null, null, null];
+    expect(activities.map(row => row.locked)).toEqual(expected);
+    expect(heartbeats.map(row => row.scan_ok)).toEqual(expected);
+  });
+
   it("设备、快照、事件与心跳都按契约过滤非法行并接受 no-response", () => {
     const devices = parseDevices([
       { device_id: "dev-a", room: "卧室", current_status: "no-response" },
