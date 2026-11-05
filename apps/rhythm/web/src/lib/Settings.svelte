@@ -7,6 +7,7 @@
     pending_recompute_days: { days: number; from: string | null; to: string | null };
     app_categories: Record<string, AppCategory>;
     other_network_names: Record<string, string>;
+    app_minutes_7d?: Record<string, number>;
   };
   type Row = { id: number; key: string; value: AppCategory };
 
@@ -27,6 +28,13 @@
     loaded = payload;
     appRows = rows(payload.app_categories);
     networkRows = Object.entries(payload.other_network_names).map(([key, value]) => ({ id: ++nextId, key, value }));
+  }
+  function appTime(row: Row): string | null {
+    const minutes = loaded?.app_minutes_7d?.[row.key];
+    if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes < 0) return null;
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return hours ? `${hours}时${rest ? `${rest}分` : ""}` : `${rest}分`;
   }
 
   async function load() {
@@ -108,7 +116,8 @@
   onMount(() => { void load(); });
 </script>
 
-<section class="page-heading">
+<section class="page-heading settings-heading">
+  <a class="mobile-settings-back" href="/sources" aria-label="返回来源">←</a>
   <div><p class="eyebrow">设置 / SETTINGS</p><h1>设置</h1><p class="muted">只影响本看板怎么解释数据，不会改动任何设备。</p></div>
 </section>
 
@@ -137,7 +146,7 @@
       <div class="edit-rows app-list">
         {#each appRows as row (row.id)}
           <div class="edit-row app-edit-row">
-            <input aria-label="App 名" placeholder="App 名或 bundle id" bind:value={row.key} maxlength="200" />
+              <div class="app-edit-name"><input aria-label="App 名" placeholder="App 名或 bundle id" bind:value={row.key} maxlength="200" />{#if appTime(row)}<small>近 7 天 {appTime(row)}</small>{/if}</div>
             <select aria-label="类别" bind:value={row.value}>{#each APP_CATEGORIES as category}<option value={category}>{category}</option>{/each}</select>
             <button type="button" aria-label={`删除 ${row.key || "这一行"}`} onclick={() => (appRows = appRows.filter(item => item.id !== row.id))}>删除</button>
           </div>

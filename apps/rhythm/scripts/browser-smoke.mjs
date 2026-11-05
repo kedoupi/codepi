@@ -661,6 +661,13 @@ async function main() {
     await assertNoRawHtml(page, "desktop settings");
     await fullScreenshot(page, "desktop-settings.png");
 
+    // 中等宽度摘要布局
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 768, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/`);
+    await waitText(page, "上班通勤（上限）");
+    await assertLayout(page, "tablet today", 768);
     // 移动端 390px
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
@@ -703,6 +710,7 @@ async function main() {
     await page.goto(`${origin}/settings`);
     await waitText(page, "App 归类");
     assert.ok(await page.evaluate(() => !document.body.innerText.includes("本人手机") && !document.body.innerText.includes("和平时不一样的门槛")), "mobile settings hides retired sections");
+    assert.ok(await page.evaluate(() => { const button = document.querySelector(".mobile-settings-back"); return Boolean(button && button.getAttribute("aria-label") === "返回来源" && button.getBoundingClientRect().width >= 44 && button.getBoundingClientRect().height >= 44); }), "mobile settings has a 44px return-to-sources button");
     await assertLayout(page, "mobile settings", 390);
     await fullScreenshot(page, "mobile-settings.png");
 

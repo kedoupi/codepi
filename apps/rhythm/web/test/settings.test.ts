@@ -49,8 +49,9 @@ describe("Rhythm 设置页", () => {
       app_categories: body.app_categories,
       other_network_names: body.other_network_names,
       pending_recompute_days: { days: 3, from: "2026-11-01", to: "2026-11-03" },
-    })));
+    })), settings({ app_minutes_7d: { 示例编辑器: 77 } }));
     render(App);
+    expect(await screen.findByText("近 7 天 1时17分")).toBeTruthy();
     expect(screen.queryByText("本人手机")).toBeNull();
     expect(screen.queryByText("和平时不一样的门槛")).toBeNull();
     await fireEvent.click(await screen.findByRole("button", { name: "添加 App" }));
