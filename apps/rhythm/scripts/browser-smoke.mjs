@@ -162,6 +162,13 @@ function statusReadFixture() {
       }
       return rows;
     }
+    if (resource === "events") {
+      if (isWorkday(day)) {
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 421 + shift), status: "offline" });
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 1170), status: "online" });
+      }
+      return rows;
+    }
     if (resource === "heartbeats") {
       for (let minute = 0; minute <= Math.min(1430, limit); minute += 10) {
         rows.push({ source_id: "home-scanner", observed_at: stamp(day, minute), scan_ok: true, device_count: 2 });
@@ -476,6 +483,7 @@ async function main() {
     assert.equal(auth.state.exchanges, 1, "one synthetic central exchange");
     await assertLayout(page, "desktop today", 1440);
     await assertNoRawHtml(page, "desktop today");
+    await waitText(page, "截至");
     await screenshot(page, "desktop-today.png");
 
     // 时间线点按明细
@@ -485,6 +493,16 @@ async function main() {
       segment.click();
     });
     await waitText(page, "分钟");
+    const geometry = await page.evaluate(() => {
+      const timeline = document.querySelector(".timeline");
+      const segments = [...document.querySelectorAll(".timeline-segment")];
+      if (!timeline || !segments.length) throw new Error("timeline segments exist");
+      const first = segments[0];
+      return { position: getComputedStyle(first).position, style: first.getAttribute("style"), width: first.getBoundingClientRect().width, timelineWidth: timeline.getBoundingClientRect().width };
+    });
+    assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
+    assert.match(geometry.style || "", /--segment-start:0/);
+    assert.ok(geometry.width <= geometry.timelineWidth, "timeline segment stays within the timeline");
     const detail = await page.evaluate(() => document.querySelector(".timeline-detail")?.textContent || "");
     assert.match(detail, /卧室|客厅|在家|通勤|公司|其他网络/);
     await screenshot(page, "desktop-timeline-detail.png");

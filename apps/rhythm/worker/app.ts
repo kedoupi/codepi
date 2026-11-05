@@ -6,7 +6,7 @@ import type { Evidence, RhythmStatus } from "./models";
 import {
   parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
-import { calculateDay, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
+import { calculateDay, currentStatusLookbackMinutes, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
   parseActivity, parseDevices, parseHeartbeats, readUpstream, UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH,
   UPSTREAM_HOME_HEARTBEATS_PATH,
@@ -26,6 +26,7 @@ export const RHYTHM_CAVEATS = [
   "手机落在家、工作机被远程操作都会让结论偏。",
   "通勤是推断值，含出门前和到公司后没开电脑的时间。",
   "起床和回卧室只是手机换了房间，不等于真的醒了或睡了。",
+  "早期在家时段由手机上线 / 离线事件区间推断，m1 停机期间可能被误算为在家。",
   "专注与 App 时长是分钟采样近似值，不是精确计时。",
 ];
 
@@ -151,13 +152,19 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
       break;
     }
   }
-  const minute = currentMinute >= 0 ? currentMinute : fallbackMinute;
+  let minute = currentMinute >= 0 ? currentMinute : fallbackMinute;
+  if (currentMinute >= 0) {
+    const recent = Array.from({ length: currentStatusLookbackMinutes }, (_, offset) => currentMinute - offset)
+      .find(candidate => candidate >= 0 && day.minuteEvidence[candidate] !== "no_data" && day.minuteEvidence[candidate] !== "not_arrived");
+    minute = recent ?? currentMinute;
+  }
   const current = minute >= 0 ? {
     status: day.minuteStatuses[minute],
     evidence: day.minuteEvidence[minute],
     label: statusLabel(day.minuteStatuses[minute]),
     minute,
     time: minuteLabel(minute),
+    asOf: minuteLabel(minute),
     live: currentMinute >= 0,
   } : null;
   const workLatest = latestTimestamp(activity.map(row => ({ at: row.sampled_at })));

@@ -1,11 +1,11 @@
-import { calculateDay, dayStartEpoch, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
+import { calculateDay, dayStartEpoch, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
 import type {
   ActivitySample, AppCategory, DailyMetrics, DailyMetricsRow, DailyStatusRow, DayComputation,
   DayType, GapReason, RhythmStatus, StateInput,
 } from "./models";
 import type { Env } from "./types";
 
-export const DAILY_ALGORITHM_VERSION = "p4-2026-11-03";
+export const DAILY_ALGORITHM_VERSION = "p5-2026-11-05";
 const MINUTES_PER_DAY = 1440;
 const MS_PER_MINUTE = 60_000;
 const APP_CATEGORIES: AppCategory[] = ["开发", "沟通", "文档", "浏览", "其他"];
@@ -69,18 +69,6 @@ function perMinuteFresh<T>(rows: Array<{ at: number; value: T }>, start: number,
   return result;
 }
 
-/** 本人手机每分钟是否被看到在家（online / pending-offline 且新鲜）。 */
-function phonePresenceByMinute(input: StateInput): boolean[] {
-  const ids = new Set(input.subjectDeviceIds);
-  const rows = [
-    ...input.snapshots.filter(row => ids.has(row.device_id))
-      .map(row => ({ at: Date.parse(row.observed_at), value: row.status })),
-    ...input.events.filter(row => ids.has(row.device_id))
-      .map(row => ({ at: Date.parse(row.event_at), value: row.status ?? "offline" })),
-  ];
-  return perMinuteFresh(rows, dayStartEpoch(input.date), STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE)
-    .map(status => status === "online" || status === "pending-offline");
-}
 
 /** 家中扫描每分钟的心跳：null 表示没有新鲜心跳，否则为 scan_ok。 */
 function heartbeatByMinute(input: StateInput): Array<boolean | null> {
@@ -179,7 +167,7 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
   for (let minute = 0; minute < day.minuteStatuses.length; minute += 1) {
     if (day.minuteStatuses[minute] === "office_active") lastOffice = minute;
     const row = samples[minute];
-    if (row?.net === "office" && activeSample(row)) {
+    if (day.minuteStatuses[minute] === "office_active" && activeSample(row)) {
       const category = categoryOf(row, input.appCategories);
       appCategoryMinutes[category] += 1;
       const hour = String(Math.floor(minute / 60)).padStart(2, "0");

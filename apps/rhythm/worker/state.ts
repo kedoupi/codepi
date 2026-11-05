@@ -1,5 +1,5 @@
 import type {
-  ActivitySample, AppBreakdown, AppCategory, DayComputation, DayStatus, Evidence, HomeDevice,
+  ActivitySample, AppBreakdown, AppCategory, DayComputation, DayStatus, Evidence, Heartbeat, HomeDevice,
   HomeEvent, HomeSnapshot, KeyMoment, RhythmStatus, StateInput, StatusSegment,
 } from "./models";
 
@@ -17,6 +17,8 @@ export const STATE_THRESHOLDS = {
    * two scans.
    */
   homeFreshnessMinutes: 20,
+  /** A phone event interval is bounded to prevent a stopped scanner looking current forever. */
+  homeIntervalMaxMinutes: 36 * 60,
   /** Idle seconds below this count as recent keyboard or mouse activity. */
   activeIdleSeconds: 180,
   /** How far back "最近几分钟有键鼠" looks for activity. */
@@ -30,6 +32,10 @@ export const STATE_THRESHOLDS = {
   /** Future upstream timestamps within this tolerance are accepted for the current minute. */
   futureTimestampToleranceSeconds: 60,
 } as const;
+
+/** Network labels were first populated at this instant; earlier null labels may be inferred. */
+export const legacyNetworkCutoff = "2026-11-05T12:12:00+08:00";
+export const currentStatusLookbackMinutes = 20;
 
 /**
  * Asia/Shanghai has used a fixed +08:00 offset since 1991, so day boundaries
@@ -74,7 +80,7 @@ function epoch(value: string | null | undefined): number | null {
   return Number.isFinite(result) ? result : null;
 }
 
-type PhoneObservation = { at: number; status: string; room: string | null };
+type PhoneObservation = { at: number; status: "online" | "offline"; room: string | null; source: "snapshot" | "event" };
 
 function phoneObservations(
   snapshots: HomeSnapshot[],
@@ -88,12 +94,14 @@ function phoneObservations(
   for (const row of snapshots) {
     const at = epoch(row.observed_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    rows.push({ at, status: row.status, room: row.room ?? roomByDevice.get(row.device_id) ?? null });
+    if (row.status === "pending-offline") continue;
+    rows.push({ at, status: row.status === "online" ? "online" : "offline", room: row.room ?? roomByDevice.get(row.device_id) ?? null, source: "snapshot" });
   }
   for (const row of events) {
     const at = epoch(row.event_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    rows.push({ at, status: row.status ?? "offline", room: roomByDevice.get(row.device_id) ?? null });
+    if (row.status === null || row.status === "pending-offline") continue;
+    rows.push({ at, status: row.status === "online" ? "online" : "offline", room: roomByDevice.get(row.device_id) ?? null, source: "event" });
   }
   return rows.sort((a, b) => a.at - b.at);
 }
@@ -105,6 +113,42 @@ function latestBefore(rows: PhoneObservation[], at: number): PhoneObservation | 
     result = row;
   }
   return result;
+}
+
+type PhoneMinute = { status: "online" | "offline" | null; room: string | null; evidence: Evidence };
+
+function phoneAtMinute(observations: PhoneObservation[], heartbeats: Heartbeat[], at: number): PhoneMinute {
+  const observation = latestBefore(observations, at);
+  const maxAge = observation?.source === "snapshot"
+    ? STATE_THRESHOLDS.homeFreshnessMinutes
+    : STATE_THRESHOLDS.homeIntervalMaxMinutes;
+  if (!observation || at - observation.at > maxAge * MS_PER_MINUTE) {
+    return { status: null, room: null, evidence: "no_data" };
+  }
+  if (observation.status === "offline") return { status: "offline", room: null, evidence: "seen" };
+  let heartbeat: { at: number; scanOk: boolean } | null = null;
+  for (const row of heartbeats) {
+    const heartbeatAt = epoch(row.observed_at);
+    if (heartbeatAt === null || heartbeatAt > at) break;
+    heartbeat = { at: heartbeatAt, scanOk: row.scan_ok === true };
+  }
+  if (!heartbeat) return { status: "online", room: observation.room, evidence: "inferred" };
+  if (!heartbeat.scanOk || at - heartbeat.at > STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE) {
+    return { status: null, room: null, evidence: "no_data" };
+  }
+  return { status: "online", room: observation.room, evidence: "seen" };
+}
+
+export function phonePresenceByMinute(input: StateInput): boolean[] {
+  const start = dayStartEpoch(input.date);
+  const observations = phoneObservations(input.snapshots, input.events, input.devices, new Set(input.subjectDeviceIds));
+  const heartbeats = input.heartbeats
+    .map(row => ({ row, at: epoch(row.observed_at) }))
+    .filter((item): item is { row: Heartbeat; at: number } => item.at !== null)
+    .sort((a, b) => a.at - b.at)
+    .map(item => item.row);
+  return Array.from({ length: MINUTES_PER_DAY }, (_, minute) =>
+    phoneAtMinute(observations, heartbeats, start + minute * MS_PER_MINUTE).status === "online");
 }
 
 function isActiveSample(row: ActivitySample): boolean {
@@ -134,18 +178,19 @@ function buildSegments(statuses: DayStatus[], evidence: Evidence[]): StatusSegme
 
 function buildAppBreakdown(
   minuteSamples: Array<ActivitySample | null>,
+  statuses: DayStatus[],
   mappings: Record<string, AppCategory>,
 ): AppBreakdown[] {
   const byCategory = new Map<AppCategory, Map<string, number>>();
-  for (const row of minuteSamples) {
+  minuteSamples.forEach((row, minute) => {
     // 只统计样本自己所在的那一分钟：一条样本最多算 1 分钟，不按新鲜窗口延续。
-    if (!row || row.net !== "office" || !isActiveSample(row)) continue;
+    if (!row || statuses[minute] !== "office_active" || !isActiveSample(row)) return;
     const category = appCategory(row, mappings);
     const app = row.app_name?.trim() || row.bundle_id?.trim() || "未标注应用";
     const apps = byCategory.get(category) ?? new Map<string, number>();
     apps.set(app, (apps.get(app) ?? 0) + 1);
     byCategory.set(category, apps);
-  }
+  });
   const total = [...byCategory.values()].reduce((sum, apps) => sum + [...apps.values()].reduce((a, b) => a + b, 0), 0);
   return [...byCategory.entries()].map(([category, apps]) => {
     const minutes = [...apps.values()].reduce((a, b) => a + b, 0);
@@ -190,6 +235,8 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     .sort((a, b) => a.at - b.at);
   const deviceIds = new Set(input.subjectDeviceIds);
   const phone = phoneObservations(input.snapshots, input.events, input.devices, deviceIds, calculationAllowedAt);
+  const heartbeats = [...input.heartbeats].sort((a, b) => (epoch(a.observed_at) ?? Infinity) - (epoch(b.observed_at) ?? Infinity));
+  const legacyCutoffAt = Date.parse(legacyNetworkCutoff);
 
   // 每条样本只归属它自己所在的那一分钟；同一分钟多条样本取最后一条。
   // 状态判断仍然使用新鲜窗口与回看窗口，但「在电脑前做什么」只按这里的分钟计数。
@@ -206,7 +253,9 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     sampleFresh: boolean;
     active: boolean;
     office: boolean;
-    home: { present: boolean; room: string | null };
+    legacyOffice: boolean;
+    home: { present: boolean; room: string | null; evidence: Evidence };
+    phoneStatus: "online" | "offline" | null;
   }> = [];
 
   let activityIndex = 0;
@@ -221,22 +270,25 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     for (let index = activityIndex - 1; index >= 0 && activity[index].at >= lookbackFrom; index--) {
       if (isActiveSample(activity[index].row)) { active = true; break; }
     }
-    const observation = latestBefore(phone, at);
-    const phoneFresh = observation !== null && at - observation.at <= STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE;
-    const home = observation && phoneFresh
-      ? { present: observation.status !== "offline", room: observation.room }
-      : { present: false, room: null };
+    const phoneMinute = phoneAtMinute(phone, heartbeats, at);
+    const office = sampleFresh && sample?.net === "office";
+    const legacyOffice = sampleFresh && (sample?.net === null || sample?.net === undefined) && sampleAt !== null && sampleAt < legacyCutoffAt
+      && active && phoneMinute.status === "offline";
     minuteRows.push({
       sample: sampleFresh ? sample : null,
       sampleFresh,
       active,
-      office: sampleFresh ? sample?.net === "office" : false,
-      home,
+      office,
+      legacyOffice,
+      home: phoneMinute.status === "online"
+        ? { present: true, room: phoneMinute.room, evidence: phoneMinute.evidence }
+        : { present: false, room: null, evidence: phoneMinute.evidence },
+      phoneStatus: phoneMinute.status,
     });
   }
 
-  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && item.office && item.active);
-  const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && item.office);
+  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacyOffice) && item.active);
+  const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacyOffice));
   const statuses: DayStatus[] = [];
   const evidence: Evidence[] = [];
   const details: string[] = [];
@@ -250,13 +302,19 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     }
     const item = minuteRows[minute];
     if (deviceIds.size > 0 && item.home.present) {
-      if (item.home.room === "卧室") { statuses.push("bedroom"); evidence.push("seen"); details.push(""); continue; }
-      if (item.home.room === "客厅") { statuses.push("living_room"); evidence.push("seen"); details.push(""); continue; }
-      statuses.push("home"); evidence.push("seen");
+      if (item.home.room === "卧室") { statuses.push("bedroom"); evidence.push(item.home.evidence); details.push(""); continue; }
+      if (item.home.room === "客厅") { statuses.push("living_room"); evidence.push(item.home.evidence); details.push(""); continue; }
+      statuses.push("home"); evidence.push(item.home.evidence);
       details.push("");
       continue;
     }
     if (item.sample?.net === "home") { statuses.push("home"); evidence.push("seen"); details.push(""); continue; }
+    if (item.legacyOffice) {
+      statuses.push("office_active");
+      evidence.push("inferred");
+      details.push("网络标签上线前，按工作机有操作且手机不在家推断");
+      continue;
+    }
     if (item.office && item.active) { statuses.push("office_active"); evidence.push("seen"); details.push(""); continue; }
     if (item.office && officeAwayCandidate(officeActive, officeSignal, minute)) {
       statuses.push("office_away");
@@ -313,7 +371,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     const previous = livingIndex > 0 ? statuses[livingIndex - 1] : null;
     const knownBefore = homeIndices.some(index => index < livingIndex);
     if (previous === "bedroom" || (!knownBefore && livingIndex >= STATE_THRESHOLDS.wakeEarliestMinute)) {
-      pushMoment(moments, { kind: "wake", minute: livingIndex, label: "起床", evidence: "seen",
+      pushMoment(moments, { kind: "wake", minute: livingIndex, label: "起床", evidence: evidence[livingIndex],
         detail: `${minuteLabel(livingIndex)} 首次进入客厅` });
     }
   }
@@ -324,7 +382,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
         detail: `${minuteLabel(minute)} 离开在家状态` });
     }
     if (after === "office_active" && before !== "office_active") {
-      pushMoment(moments, { kind: "start_work", minute, label: "开始办公", evidence: "seen",
+      pushMoment(moments, { kind: "start_work", minute, label: "开始办公", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 公司网络出现键鼠活动` });
     }
     if (before === "office_active" && (after === "office_away" || after === "commute")) {
@@ -332,11 +390,11 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
         detail: `${minuteLabel(minute)} 不再保持活跃采样` });
     }
     if (!isHome(before) && isHome(after) && before !== "unknown") {
-      pushMoment(moments, { kind: "arrive_home", minute, label: "到家", evidence: "seen",
+      pushMoment(moments, { kind: "arrive_home", minute, label: "到家", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 手机回到家中` });
     }
     if (after === "bedroom" && before !== "bedroom" && before !== null) {
-      pushMoment(moments, { kind: "return_bedroom", minute, label: "回卧室", evidence: "seen",
+      pushMoment(moments, { kind: "return_bedroom", minute, label: "回卧室", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 手机进入卧室` });
     }
   }
@@ -352,10 +410,11 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     homeUnknownMinutes: null as number | null,
   };
 
-  // 缺失的一路数据只会让相关指标变成未知，不会被当成 0。
-  // 只看当天自己的数据：回看窗口里前一天的样本、同一批次里别的日子的样本都不算「这一路可用」。
+  // 手机事件区间可从前一天覆盖到当天；快照则仍由 phoneAtMinute 应用 20 分钟新鲜度。
   const dayEnd = start + MINUTES_PER_DAY * MS_PER_MINUTE;
-  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at >= start && row.at < dayEnd);
+  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at < dayEnd
+    && (row.source === "event" ? row.at >= start - STATE_THRESHOLDS.homeIntervalMaxMinutes * MS_PER_MINUTE
+      : row.at >= start - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE));
   const workChannelUsable = activity.some(item => item.at >= start && item.at < dayEnd);
   const homeKnown = phoneChannelUsable || workChannelUsable;
   if (phoneChannelUsable && workChannelUsable) {
@@ -373,14 +432,14 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   }
 
   let keyboard = 0, pointer = 0, both = 0;
-  for (const row of minuteOwnSample) {
-    if (!row || row.net !== "office" || !isActiveSample(row)) continue;
+  minuteOwnSample.forEach((row, minute) => {
+    if (!row || statuses[minute] !== "office_active" || !isActiveSample(row)) return;
     const hasKeyboard = typeof row.key_idle_sec === "number" && row.key_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
     const hasPointer = typeof row.pointer_idle_sec === "number" && row.pointer_idle_sec < STATE_THRESHOLDS.activeIdleSeconds;
     if (hasKeyboard) keyboard++;
     if (hasPointer) pointer++;
     if (hasKeyboard && hasPointer) both++;
-  }
+  });
 
   return {
     date: input.date,
@@ -390,7 +449,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     segments: buildSegments(statuses, evidence),
     moments,
     metrics,
-    appBreakdown: buildAppBreakdown(minuteOwnSample, input.appCategories),
+    appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
     channels: { work: workChannelUsable, phone: phoneChannelUsable },
   };
@@ -414,7 +473,7 @@ export const STATUS_METHODS: Record<RhythmStatus, string> = {
   bedroom: "本人手机在线，房间标签是卧室。",
   living_room: "本人手机在线，房间标签是客厅。",
   home: "本人手机在线但房间标签为空；或工作机连接的是家里网络。",
-  office_active: "工作机连接的是公司网络，且最近几分钟有键鼠操作、未锁屏。",
+  office_active: "工作机连接的是公司网络，且最近几分钟有键鼠操作、未锁屏；网络标签上线前按操作和手机不在家推断。",
   office_away: "工作机连接的是公司网络，但锁屏或没有操作，且夹在两段办公之间。",
   commute: "手机最后一次在家到工作机第一次在电脑前之间；下班方向相反。",
   other_network: "工作机连接的是其他网络，显示网络名称，没有则显示网络标识。",

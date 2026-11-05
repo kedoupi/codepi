@@ -20,7 +20,7 @@ function dayPayload(overrides: Json = {}): Json {
     date: "2026-10-26",
     generatedAt: "2026-10-26T12:00:00.000Z",
     phoneConfigured: true,
-    current: { status: "office_active", label: "公司 · 在电脑前", evidence: "seen", minute: 540, time: "09:00", live: true },
+    current: { status: "office_active", label: "公司 · 在电脑前", evidence: "seen", minute: 540, time: "09:00", asOf: "09:00", live: true },
     segments: [
       { status: "bedroom", label: "卧室", evidence: "seen", detail: "", startMinute: 0, endMinute: 440, startLabel: "00:00", endLabel: "07:20", minutes: 441 },
       { status: "other_network", label: "其他网络", evidence: "seen", detail: "示例网络", startMinute: 441, endMinute: 455, startLabel: "07:21", endLabel: "07:35", minutes: 15 },
@@ -58,6 +58,7 @@ describe("Rhythm 今天页", () => {
     }));
     render(App);
     expect(await screen.findByRole("heading", { name: "公司 · 在电脑前" })).toBeTruthy();
+    expect(screen.getByText(/截至 09:00 · 工作机每 15 分钟上传一次/)).toBeTruthy();
     expect(screen.getByText("上班通勤（上限）")).toBeTruthy();
     expect(screen.getByText("下班通勤（上限）")).toBeTruthy();
     expect(screen.getByText("在电脑前")).toBeTruthy();
@@ -68,6 +69,8 @@ describe("Rhythm 今天页", () => {
     expect(legend.textContent).toContain("卧室");
     expect(legend.textContent).toContain("其他网络");
     expect(screen.getByText(/键盘 551/)).toBeTruthy();
+    const firstSegment = document.querySelector<HTMLButtonElement>(".timeline-segment");
+    expect(firstSegment?.style.getPropertyValue("--segment-start")).toBe("0");
   });
 
   it("点按时间段显示该段明细", async () => {
