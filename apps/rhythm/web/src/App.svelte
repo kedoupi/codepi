@@ -51,7 +51,7 @@
   let date = $state(new URLSearchParams(location.search).get("date") ?? today);
   let selectedSegment = $state<Segment | null>(null);
   const page = location.pathname === "/login" ? "/login" : location.pathname;
-  const nav = [["/", "今天"], ["/trend", "趋势"], ["/sources", "来源"], ["/settings", "设置"]];
+  const nav = [["/", "今天"], ["/trend", "趋势"], ["/work", "工作"], ["/sources", "来源"], ["/settings", "设置"]];
   const timelineLegend: Array<{ status: DayStatus; label: string }> = [
     { status: "bedroom", label: "卧室" },
     { status: "living_room", label: "客厅" },
@@ -96,7 +96,7 @@
       await api("/api/me");
       auth = "ready";
       if (page === "/sources") await loadSources();
-      else if (page !== "/trend" && page !== "/settings") await loadDay();
+      else if (page !== "/trend" && page !== "/settings" && page !== "/work") await loadDay();
     } catch (error) {
       if (auth !== "anonymous") auth = "error";
       message = (error as Error).message;
@@ -157,7 +157,7 @@
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="/"><img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" /><span>kedoupi<small>codepi · Rhythm</small></span></a>
-      <nav aria-label="主导航">{#each nav as [href, label]}<a {href} aria-current={page === href ? "page" : undefined}>{label}</a>{/each}</nav>
+      <nav class="desktop-nav" aria-label="主导航">{#each nav as [href, label]}<a {href} aria-current={page === href ? "page" : undefined}>{label}</a>{/each}</nav>
       <div class="sidebar-foot"><p>设备在线不等于人在。</p><a href="/sources">查看来源与口径</a></div>
     </aside>
     <div class="main">
@@ -170,8 +170,11 @@
           <Trends />
         {:else if page === "/settings"}
           <Settings />
+        {:else if page === "/work"}
+          <section class="page-heading"><div><p class="eyebrow">工作 / WORK</p><h1>工作</h1><p class="muted">工作页正在准备中。</p></div></section>
+          <section class="panel placeholder"><h2>工作数据</h2><p class="muted">这里将显示今天与本周的工作时段、专注和被打断情况。</p></section>
         {:else if page === "/sources"}
-          <section class="page-heading"><div><p class="eyebrow">来源 / SOURCES</p><h1>来源与口径</h1><p class="muted">两路只读信号，按北京时间解释。</p></div></section>
+          <section class="page-heading"><div><p class="eyebrow">来源 / SOURCES</p><h1>来源与口径</h1><p class="muted">两路只读信号，按北京时间解释。</p></div><a class="mobile-settings-link" href="/settings">设置</a></section>
           {#if sources}
             <section class="source-grid">
               {#each Object.values(sources.sources) as source}<article class="panel source-card"><div><span class="source-dot"></span><h2>{source.name}</h2></div><strong>{freshnessLabel(source)}</strong><p>{source.method}</p>{#if source.latestAt}<small>最近：{displayShanghaiTime(source.latestAt)}</small>{/if}</article>{/each}
@@ -187,9 +190,12 @@
           </section>
           {#if day}
             {#if !day.phoneConfigured}<div class="notice"><strong>未指定手机</strong><span>家里部分记为未知；到 <a href="/settings">设置</a> 里选择本人手机。</span></div>{/if}
+            <div class="today-overview">
             {#if day.current}<section class="current-card" data-status={day.current.status}><div><span class="eyebrow">当前状态 · {day.current.time}</span><h2>{day.current.label}</h2><span class:inferred={day.current.evidence === "inferred"} class="evidence">{evidenceLabel(day.current.evidence)}</span></div><p>{day.current.live ? (day.current.asOf === null ? "最近 20 分钟没有可判断的数据 · 工作机每 15 分钟上传一次" : `截至 ${day.current.asOf} · 工作机每 15 分钟上传一次`) : "所选日期的最后一个可判断状态。"}</p></section>{/if}
-            <section class="panel timeline-panel"><div class="section-heading"><div><h2>0–24 点时间线</h2><p class="muted">斜纹表示未知，颜色表示状态类别；段太窄时用点按或悬停查看明细。</p></div><span class="fine muted">{day.segments.length} 段</span></div><div class="timeline" aria-label="当天状态时间线">{#each day.segments as segment}<button class="timeline-segment" class:unknown={segment.status === "unknown"} data-status={segment.status} style={`--segment-start:${segment.startMinute};--segment-minutes:${segment.minutes}`} onclick={() => (selectedSegment = segment)} aria-pressed={selectedSegment === segment} title={`${segment.startLabel}–${segment.endLabel} ${segment.label} · ${evidenceLabel(segment.evidence)}${segment.detail ? ` · ${segment.detail}` : ""}`} aria-label={`${segment.startLabel} 到 ${segment.endLabel}，${segment.label}，${evidenceLabel(segment.evidence)}`}><span>{segment.label}</span></button>{/each}</div><div class="timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><div class="timeline-legend" aria-label="时间线图例">{#each timelineLegend as item}<span><i class:unknown={item.status === "unknown"} data-status={item.status}></i>{item.label}</span>{/each}</div>{#if selectedSegment}<p class="timeline-detail"><strong>{selectedSegment.startLabel}–{selectedSegment.endLabel} {selectedSegment.label}</strong><span class:inferred={selectedSegment.evidence === "inferred"}>{evidenceLabel(selectedSegment.evidence)}</span><span>{selectedSegment.minutes} 分钟</span>{#if selectedSegment.detail}<span>{selectedSegment.detail}</span>{/if}</p>{/if}<p class="chart-conclusion">今天的时间线把可观察信号与推断区间分开，缺少数据时保持未知。</p></section>
             <section class="metric-grid"><article class="metric-card"><span>上班通勤（上限）</span><strong>{metricText(day.metrics.commuteToWorkMinutes)}</strong><small>推断 · 含到公司后未开电脑的时间</small></article><article class="metric-card"><span>下班通勤（上限）</span><strong>{metricText(day.metrics.commuteHomeMinutes)}</strong><small>推断 · 含离开电脑后的时间</small></article><article class="metric-card"><span>在电脑前</span><strong>{metricText(day.metrics.officeActiveMinutes)}</strong><small>公司网络且有键鼠活动</small></article><article class="metric-card"><span>在家</span><strong>{metricText(day.metrics.homeMinutes)}</strong><small>卧室 {metricText(day.metrics.bedroomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 客厅 {metricText(day.metrics.livingRoomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 未分房间 {metricText(day.metrics.homeUnknownMinutes)}</small></article></section>
+            </div>
+            <section class="panel timeline-panel"><div class="section-heading"><div><h2>0–24 点时间线</h2><p class="muted">斜纹表示未知，颜色表示状态类别；段太窄时用点按或悬停查看明细。</p></div><span class="fine muted">{day.segments.length} 段</span></div><div class="timeline" aria-label="当天状态时间线">{#each day.segments as segment}<button class="timeline-segment" class:unknown={segment.status === "unknown"} data-status={segment.status} style={`--segment-start:${segment.startMinute};--segment-minutes:${segment.minutes}`} onclick={() => (selectedSegment = segment)} aria-pressed={selectedSegment === segment} title={`${segment.startLabel}–${segment.endLabel} ${segment.label} · ${evidenceLabel(segment.evidence)}${segment.detail ? ` · ${segment.detail}` : ""}`} aria-label={`${segment.startLabel} 到 ${segment.endLabel}，${segment.label}，${evidenceLabel(segment.evidence)}`}><span>{segment.label}</span></button>{/each}</div><div class="timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><div class="timeline-legend" aria-label="时间线图例">{#each timelineLegend as item}<span><i class:unknown={item.status === "unknown"} data-status={item.status}></i>{item.label}</span>{/each}</div>{#if selectedSegment}<p class="timeline-detail"><strong>{selectedSegment.startLabel}–{selectedSegment.endLabel} {selectedSegment.label}</strong><span class:inferred={selectedSegment.evidence === "inferred"}>{evidenceLabel(selectedSegment.evidence)}</span><span>{selectedSegment.minutes} 分钟</span>{#if selectedSegment.detail}<span>{selectedSegment.detail}</span>{/if}</p>{/if}<p class="chart-conclusion">今天的时间线把可观察信号与推断区间分开，缺少数据时保持未知。</p></section>
+            <section class="panel mobile-timeline"><div class="section-heading"><div><h2>一天怎么过的</h2><p class="muted">按时间块查看状态、证据和时长。</p></div><span class="fine muted">{day.segments.length} 段</span></div><div class="time-blocks">{#each day.segments as segment}<article class="time-block" data-status={segment.status}><time>{segment.startLabel}</time><span class="time-block-bar" aria-hidden="true"></span><div><strong>{segment.label}</strong><span class:inferred={segment.evidence === "inferred"} class="evidence">{evidenceLabel(segment.evidence)}</span>{#if segment.detail}<p>{segment.detail}</p>{/if}</div><strong>{metricText(segment.minutes)}</strong></article>{/each}</div></section>
             <section class="panel work-block-panel">
               <div class="section-heading"><div><h2>工作时段</h2><p class="muted">按实际连续时间块展示；离开电脑按键鼠空档推断。</p></div><span class="fine">{day.workBlocks.length} 段</span></div>
               {#if day.workBlocks.length}
@@ -222,5 +228,6 @@
       </main>
       <footer>kedoupi（codepi） · 私人作息分析 · <a href="/sources">来源与口径</a></footer>
     </div>
+    <nav class="mobile-nav" aria-label="页面"><a href="/" aria-current={page === "/" ? "page" : undefined}><span aria-hidden="true">⌂</span>今天</a><a href="/trend" aria-current={page === "/trend" ? "page" : undefined}><span aria-hidden="true">◒</span>趋势</a><a href="/work" aria-current={page === "/work" ? "page" : undefined}><span aria-hidden="true">▦</span>工作</a><a href="/sources" aria-current={page === "/sources" ? "page" : undefined}><span aria-hidden="true">◎</span>来源</a></nav>
   </div>
 {/if}

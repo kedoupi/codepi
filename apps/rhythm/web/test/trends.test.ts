@@ -24,8 +24,8 @@ function metrics(overrides: Partial<DailyMetrics> = {}): DailyMetrics {
     officeSpanMinutes: 540,
     focus: { segmentCount: 3, totalMinutes: 150, longestMinutes: 70, communicationInterruptions: 2 },
     afterWorkWorkMachineMinutes: 30, weekendWorkMachineMinutes: null,
-    appCategoryMinutes: { 开发: 300, 沟通: 120, 文档: 30, 浏览: 20, 其他: 10 },
-    hourlyAppCategoryMinutes: { "09": { 开发: 40, 沟通: 20, 文档: 0, 浏览: 0, 其他: 0 } },
+    appCategoryMinutes: { "AI 编程": 300, "工作沟通": 120, 文档: 30, 浏览: 20, 其他: 10 },
+    hourlyAppCategoryMinutes: { "09": { "AI 编程": 40, "工作沟通": 20, 文档: 0, 浏览: 0, 其他: 0 } },
     topAppName: "示例编辑器", topAppMinutes: 280,
     otherNetworkMinutes: { 示例咖啡店: 25 },
     coverage: { ratio: 0.97, gapReasonMinutes: { home_scan_missing: 30, phone_scan_missing: 10, work_machine_missing: 3 } },
@@ -120,7 +120,7 @@ describe("趋势换算", () => {
     const leave = momentStats(days).find(item => item.label === "离家")!;
     expect(leave).toMatchObject({ min: 470, max: 470, avg: 470, days: 1 });
     expect(topApps(days)).toEqual([{ name: "示例编辑器", days: 1, minutes: 280 }]);
-    expect(hourlyCategoryAverage(days).find(hour => hour.hour === "09")?.segments.find(item => item.key === "开发")?.value).toBe(40);
+    expect(hourlyCategoryAverage(days).find(hour => hour.hour === "09")?.segments.find(item => item.key === "AI 编程")?.value).toBe(40);
   });
 
   it("异常原因写成大白话", () => {

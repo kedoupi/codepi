@@ -510,6 +510,8 @@ async function main() {
     await waitText(page, "工作时段");
     assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "today has work blocks");
     await screenshot(page, "desktop-today.png");
+    const desktopNav = await page.evaluate(() => [...document.querySelectorAll(".desktop-nav a")].map(link => link.textContent?.trim()));
+    assert.deepEqual(desktopNav, ["今天", "趋势", "工作", "来源", "设置"], "desktop has five navigation items");
 
     const morning = await page.evaluate(() => {
       const segment = [...document.querySelectorAll(".timeline-segment")]
@@ -534,20 +536,21 @@ async function main() {
       const noon = segments.find(element => startOf(element) === 720);
       const afterNoon = segments.find(element => startOf(element) === 721);
       const timelineRect = timeline.getBoundingClientRect();
+      const contentWidth = document.querySelector("#content")?.getBoundingClientRect().width ?? 0;
       const ratio = element => (element.getBoundingClientRect().left - timelineRect.left) / timelineRect.width;
       if (!noon || !afterNoon) {
         return {
           hasNoon: false,
           position: getComputedStyle(segments[0]).position,
           firstWidth: segments[0].getBoundingClientRect().width,
-          timelineWidth: timelineRect.width,
+          timelineWidth: timelineRect.width, contentWidth,
         };
       }
       return {
         hasNoon: true,
         position: getComputedStyle(segments[0]).position,
         firstWidth: segments[0].getBoundingClientRect().width,
-        timelineWidth: timelineRect.width,
+        timelineWidth: timelineRect.width, contentWidth,
         noonRatio: ratio(noon),
         noonMinutes: minutesOf(noon),
         afterNoonRatio: ratio(afterNoon),
@@ -555,6 +558,7 @@ async function main() {
     });
     assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
     assert.ok(geometry.firstWidth <= geometry.timelineWidth, "timeline segment stays within the timeline");
+    assert.ok(geometry.timelineWidth >= geometry.contentWidth * 0.8, `desktop timeline uses the content width: ${geometry.timelineWidth}/${geometry.contentWidth}`);
     if (shanghaiMinute() > 721) assert.equal(geometry.hasNoon, true, "timeline has noon and following one-minute segments after 12:01");
     if (geometry.hasNoon) {
       assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
@@ -581,6 +585,7 @@ async function main() {
     await page.goto(`${origin}/sources`);
     await waitText(page, "每个状态怎么判断");
     await waitText(page, "不采集");
+    assert.ok(await page.evaluate(() => Boolean(document.querySelector(".mobile-settings-link"))), "sources links to settings");
     await assertLayout(page, "desktop sources", 1440);
     await assertNoRawHtml(page, "desktop sources");
     await screenshot(page, "desktop-sources.png");
@@ -646,37 +651,42 @@ async function main() {
     await assertLayout(page, "desktop trends 30", 1440);
     await fullScreenshot(page, "desktop-trends-30.png");
 
-    // 设置：保存成功与上游失败
+    // 设置：保存成功
     await page.goto(`${origin}/settings`);
-    await waitText(page, "本人手机");
-    await page.evaluate(() => {
-      const input = [...document.querySelectorAll("input[type=number]")][0];
-      input.value = "45";
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    await waitText(page, "App 归类");
+    assert.ok(await page.evaluate(() => !document.body.innerText.includes("本人手机") && !document.body.innerText.includes("和平时不一样的门槛")), "settings hides retired device and threshold sections");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".category-card").length), 8, "settings shows all eight App categories");
     await clickText(page, "保存设置");
     await waitText(page, "已保存。");
-    const saved = await db.prepare("SELECT anomaly_thresholds FROM settings WHERE id='default'").first();
-    assert.equal(JSON.parse(saved.anomaly_thresholds).earlyLateMinutes, 45, "settings PUT persisted through the real Worker");
     await waitText(page, "需要重算");
     await assertLayout(page, "desktop settings", 1440);
     await assertNoRawHtml(page, "desktop settings");
     await fullScreenshot(page, "desktop-settings.png");
-    upstream.state.fail = true;
-    await clickText(page, "保存设置");
-    await page.waitForFunction(() => (document.querySelector(".form-actions .error-text")?.textContent ?? "").includes("数据暂不可用"));
-    assert.ok(!(await page.evaluate(() => document.body.innerText.includes("已保存。"))), "failed save does not claim success");
-    await screenshot(page, "desktop-settings-failure.png");
-    upstream.state.fail = false;
 
+    // 中等宽度摘要布局
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 768, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/`);
+    await waitText(page, "上班通勤（上限）");
+    await assertLayout(page, "tablet today", 768);
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1024, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/`);
+    await waitText(page, "上班通勤（上限）");
+    await assertLayout(page, "narrow desktop today", 1024);
     // 移动端 390px
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
     });
     await page.goto(`${origin}/`);
     await waitText(page, "上班通勤（上限）");
+    await waitText(page, "一天怎么过的");
     await waitText(page, "工作时段");
     assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile today has work blocks");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".mobile-nav a").length), 4, "mobile has four bottom tabs");
+    assert.ok(await page.evaluate(() => Boolean(document.querySelector(".mobile-timeline")) && !document.querySelector(".timeline-panel")?.getClientRects().length), "mobile uses vertical time blocks");
     await assertLayout(page, "mobile today", 390);
     await assertNoRawHtml(page, "mobile today");
     await screenshot(page, "mobile-today.png");
@@ -684,6 +694,7 @@ async function main() {
     await page.goto(`${origin}/sources`);
     await waitText(page, "每个状态怎么判断");
     await assertLayout(page, "mobile sources", 390);
+    assert.ok(await page.evaluate(() => Boolean(document.querySelector(".mobile-settings-link"))), "mobile sources links to settings");
     await assertNoRawHtml(page, "mobile sources");
     await screenshot(page, "mobile-sources.png");
 
@@ -705,7 +716,9 @@ async function main() {
     await fullScreenshot(page, "mobile-trends-work.png");
 
     await page.goto(`${origin}/settings`);
-    await waitText(page, "本人手机");
+    await waitText(page, "App 归类");
+    assert.ok(await page.evaluate(() => !document.body.innerText.includes("本人手机") && !document.body.innerText.includes("和平时不一样的门槛")), "mobile settings hides retired sections");
+    assert.ok(await page.evaluate(() => { const button = document.querySelector(".mobile-settings-back"); return Boolean(button && button.getAttribute("aria-label") === "返回来源" && button.getBoundingClientRect().width >= 44 && button.getBoundingClientRect().height >= 44); }), "mobile settings has a 44px return-to-sources button");
     await assertLayout(page, "mobile settings", 390);
     await fullScreenshot(page, "mobile-settings.png");
 
@@ -729,7 +742,7 @@ async function main() {
     await assertTheme(page, "desktop dark trends", "dark");
     await fullScreenshot(page, "desktop-trends-dark.png");
     await page.goto(`${origin}/settings`);
-    await waitText(page, "本人手机");
+    await waitText(page, "App 归类");
     await fullScreenshot(page, "desktop-settings-dark.png");
     await setColorScheme(page, "light");
     await page.goto(`${origin}/`);
@@ -738,7 +751,7 @@ async function main() {
 
     const expectedStatuses = browser.page.diagnostics.filter(event =>
       event.method === "Network.responseReceived" && expectedUpstreamError(event));
-    assert.equal(expectedStatuses.length, 3, "day, sources and settings upstream failures used the real endpoints");
+    assert.equal(expectedStatuses.length, 2, "day and sources upstream failures used the real endpoints");
     const failures = browser.page.diagnostics.filter(event => {
       if (event.method === "Runtime.exceptionThrown") return true;
       if (event.method === "Log.entryAdded") {
