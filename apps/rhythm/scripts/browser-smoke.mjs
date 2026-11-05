@@ -143,6 +143,10 @@ function statusReadFixture() {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: false });
       }
       for (let minute = 520 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
+        if (minute === 720) {
+          rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 });
+          continue;
+        }
         rows.push({
           sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: false,
           key_idle_sec: 20, pointer_idle_sec: 40,
@@ -162,6 +166,13 @@ function statusReadFixture() {
       }
       return rows;
     }
+    if (resource === "events") {
+      if (isWorkday(day)) {
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 421 + shift), status: "offline" });
+        rows.push({ source_id: "home-scanner", device_id: "dev-a", event_at: stamp(day, 1170), status: "online" });
+      }
+      return rows;
+    }
     if (resource === "heartbeats") {
       for (let minute = 0; minute <= Math.min(1430, limit); minute += 10) {
         rows.push({ source_id: "home-scanner", observed_at: stamp(day, minute), scan_ok: true, device_count: 2 });
@@ -176,7 +187,6 @@ function statusReadFixture() {
     if (resource === "devices") {
       return [{ source_id: "home-scanner", device_id: "dev-a", name: "示例手机", vendor: "示例厂商", room: "卧室", current_status: "online" }];
     }
-    if (resource === "events") return [];
     const from = Date.parse(url.searchParams.get("from") || "");
     const to = Date.parse(url.searchParams.get("to") || "");
     assert.ok(Number.isFinite(from) && Number.isFinite(to), `${resource}: time-series reads carry from/to`);
@@ -184,7 +194,7 @@ function statusReadFixture() {
     for (let day = shanghaiDate(from); day <= shanghaiDate(to) && day <= today; day = addDays(day, 1)) {
       rows.push(...dayRows(day, resource));
     }
-    const at = row => Date.parse(row.sampled_at ?? row.observed_at);
+    const at = row => Date.parse(row.sampled_at ?? row.observed_at ?? row.event_at);
     return rows.filter(row => at(row) >= from && at(row) <= to);
   };
   return {
@@ -476,6 +486,7 @@ async function main() {
     assert.equal(auth.state.exchanges, 1, "one synthetic central exchange");
     await assertLayout(page, "desktop today", 1440);
     await assertNoRawHtml(page, "desktop today");
+    await waitText(page, "截至");
     await screenshot(page, "desktop-today.png");
 
     // 时间线点按明细
@@ -485,6 +496,31 @@ async function main() {
       segment.click();
     });
     await waitText(page, "分钟");
+    const geometry = await page.evaluate(() => {
+      const timeline = document.querySelector(".timeline");
+      const segments = [...document.querySelectorAll(".timeline-segment")];
+      if (!timeline || !segments.length) throw new Error("timeline segments exist");
+      const startOf = element => Number(element.style.getPropertyValue("--segment-start"));
+      const minutesOf = element => Number(element.style.getPropertyValue("--segment-minutes"));
+      const noon = segments.find(element => startOf(element) === 720);
+      const afterNoon = segments.find(element => startOf(element) === 721);
+      if (!noon || !afterNoon) throw new Error("timeline has noon and following one-minute segments");
+      const timelineRect = timeline.getBoundingClientRect();
+      const ratio = element => (element.getBoundingClientRect().left - timelineRect.left) / timelineRect.width;
+      return {
+        position: getComputedStyle(segments[0]).position,
+        firstWidth: segments[0].getBoundingClientRect().width,
+        timelineWidth: timelineRect.width,
+        noonRatio: ratio(noon),
+        noonMinutes: minutesOf(noon),
+        afterNoonRatio: ratio(afterNoon),
+      };
+    });
+    assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
+    assert.ok(geometry.firstWidth <= geometry.timelineWidth, "timeline segment stays within the timeline");
+    assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
+    assert.equal(geometry.noonMinutes, 1);
+    assert.ok(Math.abs(geometry.afterNoonRatio - 721 / 1440) <= 0.01, `following segment left=${geometry.afterNoonRatio}`);
     const detail = await page.evaluate(() => document.querySelector(".timeline-detail")?.textContent || "");
     assert.match(detail, /卧室|客厅|在家|通勤|公司|其他网络/);
     await screenshot(page, "desktop-timeline-detail.png");

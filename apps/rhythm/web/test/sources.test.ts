@@ -24,7 +24,7 @@ const sourcesPayload = () => ({
     { status: "bedroom", label: "卧室", method: "本人手机在线，房间标签是卧室。", evidence: "seen" },
     { status: "commute", label: "通勤", method: "手机最后一次在家到工作机第一次在电脑前之间。", evidence: "inferred" },
   ],
-  caveats: ["设备在线不等于人在。", "通勤是推断值。"],
+  caveats: ["设备在线不等于人在。", "通勤是推断值。", "早期在家时段由手机上线 / 离线事件区间推断。"],
   collection: ["不采集键盘内容、鼠标轨迹、屏幕画面、窗口标题、网址。", "不上云完整硬件地址、IP、网关与 BSSID。"],
   settings: { subjectDeviceCount: 0, appCategoryCount: 0 },
 });

@@ -2,11 +2,11 @@ import { Hono, type Handler } from "hono";
 import { ssoEnabled, ssoReady, SsoError } from "@kedoupi/shared/auth/client";
 import { authenticated, callback, login, logout } from "./auth";
 import { AppError, isoShanghai, json, validateDate } from "./lib";
-import type { Evidence, RhythmStatus } from "./models";
+import type { DayComputation, Evidence, RhythmStatus } from "./models";
 import {
   parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
-import { calculateDay, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
+import { calculateDay, currentStatusLookbackMinutes, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
   parseActivity, parseDevices, parseHeartbeats, readUpstream, UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH,
   UPSTREAM_HOME_HEARTBEATS_PATH,
@@ -26,6 +26,7 @@ export const RHYTHM_CAVEATS = [
   "手机落在家、工作机被远程操作都会让结论偏。",
   "通勤是推断值，含出门前和到公司后没开电脑的时间。",
   "起床和回卧室只是手机换了房间，不等于真的醒了或睡了。",
+  "早期在家时段由手机上线 / 离线事件区间推断，m1 停机期间可能被误算为在家。",
   "专注与 App 时长是分钟采样近似值，不是精确计时。",
 ];
 
@@ -135,6 +136,20 @@ export function displayShanghaiTime(value: string | null): string | null {
   return `${get("month")} 月 ${get("day")} 日 ${get("hour")}:${get("minute")}`;
 }
 
+export function selectCurrentStatus(day: DayComputation, currentMinute: number): { minute: number; statusMinute: number } | null {
+  let fallbackMinute = -1;
+  for (let minute = 1439; minute >= 0; minute--) {
+    if (day.minuteStatuses[minute] !== "unknown" && day.minuteStatuses[minute] !== "not_arrived") {
+      fallbackMinute = minute;
+      break;
+    }
+  }
+  if (currentMinute < 0) return fallbackMinute >= 0 ? { minute: fallbackMinute, statusMinute: fallbackMinute } : null;
+  const statusMinute = Array.from({ length: currentStatusLookbackMinutes + 1 }, (_, offset) => currentMinute - offset)
+    .find(candidate => candidate >= 0 && day.minuteEvidence[candidate] !== "no_data" && day.minuteEvidence[candidate] !== "not_arrived");
+  return { minute: currentMinute, statusMinute: statusMinute ?? currentMinute };
+}
+
 async function loadDay(env: Env, date: string, settings: RhythmSettings, now: number) {
   const input = await loadStateInput(env, date, settings);
   const { activity, heartbeats, snapshots } = input;
@@ -144,20 +159,14 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
   const currentMinute = today === date
     ? Math.min(1439, Math.max(0, Math.floor((now - start) / 60_000)))
     : -1;
-  let fallbackMinute = -1;
-  for (let minute = 1439; minute >= 0; minute--) {
-    if (day.minuteStatuses[minute] !== "unknown" && day.minuteStatuses[minute] !== "not_arrived") {
-      fallbackMinute = minute;
-      break;
-    }
-  }
-  const minute = currentMinute >= 0 ? currentMinute : fallbackMinute;
-  const current = minute >= 0 ? {
-    status: day.minuteStatuses[minute],
-    evidence: day.minuteEvidence[minute],
-    label: statusLabel(day.minuteStatuses[minute]),
-    minute,
-    time: minuteLabel(minute),
+  const selection = selectCurrentStatus(day, currentMinute);
+  const current = selection ? {
+    status: day.minuteStatuses[selection.statusMinute],
+    evidence: day.minuteEvidence[selection.statusMinute],
+    label: statusLabel(day.minuteStatuses[selection.statusMinute]),
+    minute: selection.minute,
+    time: minuteLabel(selection.minute),
+    asOf: minuteLabel(selection.statusMinute),
     live: currentMinute >= 0,
   } : null;
   const workLatest = latestTimestamp(activity.map(row => ({ at: row.sampled_at })));

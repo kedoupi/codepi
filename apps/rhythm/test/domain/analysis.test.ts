@@ -39,7 +39,7 @@ function metrics(date: string, startWorkMinute = 540, commuteToWorkMinutes = 30)
     },
     dayType: "workday",
   };
-  return { date, metrics: empty, computedAt: "2026-11-03T20:30:00.000Z", version: "p4-2026-11-03" };
+  return { date, metrics: empty, computedAt: "2026-11-03T20:30:00.000Z", version: "p5-2026-11-05" };
 }
 
 describe("趋势、异常和可信度分析", () => {

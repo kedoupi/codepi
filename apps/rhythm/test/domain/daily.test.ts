@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateDailyMetrics, dailyRows } from "../../worker/daily";
 import type { StateInput } from "../../worker/models";
-import { shanghaiDate } from "../../worker/state";
+import { phonePresenceByMinute, shanghaiDate } from "../../worker/state";
 
 function input(): StateInput {
   const date = "2026-11-03";
@@ -66,7 +66,7 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p4-2026-11-03");
+    expect(rows.status.version).toBe("p5-2026-11-05");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
   });
@@ -148,6 +148,30 @@ describe("每日指标", () => {
     expect(saturday.metrics.metrics.dayType).toBe("restday");
     expect(saturday.metrics.metrics.weekendWorkMachineMinutes).toBe(1);
     expect(saturday.metrics.metrics.afterWorkWorkMachineMinutes).toBe(0);
+  });
+
+  it("手机缺口原因复用事件区间而不是二十分钟窗口", () => {
+    const base = input();
+    const result = phonePresenceByMinute({
+      ...base,
+      subjectDeviceIds: ["dev-a"],
+      devices: [{ device_id: "dev-a", room: "客厅" }],
+      events: [
+        { device_id: "dev-a", event_at: "2026-11-03T00:00:00+08:00", status: "online" },
+        { device_id: "dev-a", event_at: "2026-11-03T01:00:00+08:00", status: "offline" },
+      ],
+    });
+    expect(result[30]).toBe(true);
+    expect(result[59]).toBe(true);
+    expect(result[60]).toBe(false);
+    const expired = phonePresenceByMinute({
+      ...base,
+      date: "2026-11-02",
+      subjectDeviceIds: ["dev-a"],
+      devices: [{ device_id: "dev-a", room: "客厅" }],
+      events: [{ device_id: "dev-a", event_at: "2026-11-01T00:00:00+08:00", status: "online" }],
+    });
+    expect(expired[721]).toBe(false);
   });
 });
 

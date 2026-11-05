@@ -20,9 +20,11 @@ describe("共享状态用例", () => {
       "起床与回卧室",
       "公司离座",
       "通勤超过上限",
+      "旧采样离座与指标",
+      "旧采样通勤与到家推断",
+      "网络标签 cutoff 边界",
     ]);
   });
-
   for (const item of cases) {
     it(item.name, () => {
       const day = calculateDay(toStateInput(item));
@@ -129,6 +131,71 @@ describe("通勤是推断且有上限", () => {
     expect(beyond.minuteStatuses[60]).toBe("unknown");
     expect(beyond.metrics.commuteToWorkMinutes).toBe(0);
     expect(beyond.minuteStatuses).not.toContain("commute");
+  });
+});
+
+describe("历史手机区间与旧网络推断", () => {
+  const active = { sampled_at: "2026-11-04T09:00:00+08:00", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 };
+  const phone = { device_id: "dev-a", name: "示例手机", room: "客厅" };
+
+  it("旧采样在手机离线且有操作时推断公司", () => {
+    const day = calculateDay({ ...emptyInput("2026-11-04"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+      { device_id: "dev-a", event_at: "2026-11-04T08:00:00+08:00", status: "offline" },
+    ], activity: [active] });
+    expect(day.minuteStatuses[540]).toBe("office_active");
+    expect(day.minuteEvidence[540]).toBe("inferred");
+    expect(day.minuteDetails[540]).toContain("网络标签上线前");
+  });
+
+  it("旧采样手机状态未知时保持未知，cutoff 后缺失 net 也保持未知", () => {
+    const unknown = calculateDay({ ...emptyInput("2026-11-04"), subjectDeviceIds: ["dev-a"], devices: [phone], activity: [active] });
+    expect(unknown.minuteStatuses[540]).toBe("unknown");
+    const afterCutoff = calculateDay({ ...emptyInput("2026-11-05"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+      { device_id: "dev-a", event_at: "2026-11-05T12:00:00+08:00", status: "offline" },
+    ], activity: [{ ...active, sampled_at: "2026-11-05T13:00:00+08:00" }] });
+    expect(afterCutoff.minuteStatuses[780]).toBe("unknown");
+  });
+
+  it("cutoff 后 office 网络仍按看到处理", () => {
+    const day = calculateDay({ ...emptyInput("2026-11-05"), activity: [{ ...active, sampled_at: "2026-11-05T13:00:00+08:00", net: "office" }] });
+    expect(day.minuteStatuses[780]).toBe("office_active");
+    expect(day.minuteEvidence[780]).toBe("seen");
+  });
+
+  it("心跳覆盖的事件区间标 seen，首个心跳前标 inferred，心跳缺失后未知", () => {
+    const base = { ...emptyInput("2026-11-06"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+      { device_id: "dev-a", event_at: "2026-11-06T00:00:00+08:00", status: "online" as const },
+    ] };
+    const inferred = calculateDay(base);
+    expect(inferred.minuteEvidence[10]).toBe("inferred");
+    const covered = calculateDay({ ...base, heartbeats: [{ observed_at: "2026-11-06T00:00:00+08:00", scan_ok: true }] });
+    expect(covered.minuteEvidence[10]).toBe("seen");
+    expect(covered.minuteStatuses[21]).toBe("unknown");
+  });
+
+  it("事件区间超过 36 小时失效，pending-offline 不改变状态", () => {
+    const long = calculateDay({ ...emptyInput("2026-11-07"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+      { device_id: "dev-a", event_at: "2026-11-06T00:00:00+08:00", status: "online" },
+    ] });
+    expect(long.minuteStatuses[721]).toBe("unknown");
+    const pending = calculateDay({ ...emptyInput("2026-11-08"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+      { device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "online" },
+      { device_id: "dev-a", event_at: "2026-11-08T00:01:00+08:00", status: "pending-offline" },
+    ] });
+    expect(pending.minuteStatuses[10]).toBe("living_room");
+  });
+
+  it("窗口内较早成功心跳仍覆盖最近失败心跳", () => {
+    const day = calculateDay({
+      ...emptyInput("2026-11-09"), subjectDeviceIds: ["dev-a"], devices: [phone], events: [
+        { device_id: "dev-a", event_at: "2026-11-09T00:00:00+08:00", status: "online" },
+      ], heartbeats: [
+        { observed_at: "2026-11-09T00:00:00+08:00", scan_ok: true },
+        { observed_at: "2026-11-09T00:10:00+08:00", scan_ok: false },
+      ],
+    });
+    expect(day.minuteEvidence[15]).toBe("seen");
+    expect(day.minuteStatuses[15]).toBe("living_room");
   });
 });
 

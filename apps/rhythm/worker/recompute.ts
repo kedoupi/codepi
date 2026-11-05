@@ -1,4 +1,4 @@
-import { dayStartEpoch, shanghaiDate } from "./state";
+import { dayStartEpoch, shanghaiDate, STATE_THRESHOLDS } from "./state";
 import { dailyRows, upsertDailyRows } from "./daily";
 import type { StateInput } from "./models";
 import { isoShanghai } from "./lib";
@@ -11,6 +11,7 @@ import type { RhythmSettings } from "./settings";
 import type { Env } from "./types";
 
 const LOOKBACK_MINUTES = 30;
+const homeLookbackMinutes = STATE_THRESHOLDS.homeIntervalMaxMinutes;
 const DAY_MS = 86400_000;
 /**
  * 每次向上游取 2 天：家中扫描对全部设备每 5 分钟上报一次快照，设备多时一天可达数千行；
@@ -26,20 +27,21 @@ type RawStateRows = {
   heartbeats: ReturnType<typeof parseHeartbeats>;
 };
 
-function rangeForDates(from: string, to: string) {
+function rangeForDates(from: string, to: string, lookbackMinutes: number) {
   const start = dayStartEpoch(from);
   const end = dayStartEpoch(to) + 1440 * 60_000;
-  return { from: isoShanghai(start - LOOKBACK_MINUTES * 60_000), to: isoShanghai(end) };
+  return { from: isoShanghai(start - lookbackMinutes * 60_000), to: isoShanghai(end) };
 }
 
 async function loadRawRows(env: Env, from: string, to: string): Promise<RawStateRows> {
-  const range = rangeForDates(from, to);
+  const activityRange = rangeForDates(from, to, LOOKBACK_MINUTES);
+  const homeRange = rangeForDates(from, to, homeLookbackMinutes);
   const [activityRaw, devicesRaw, snapshotsRaw, eventsRaw, heartbeatsRaw] = await Promise.all([
-    readUpstream(env, UPSTREAM_ACTIVITY_SAMPLES_PATH, range),
+    readUpstream(env, UPSTREAM_ACTIVITY_SAMPLES_PATH, activityRange),
     readUpstream(env, UPSTREAM_HOME_DEVICES_PATH),
-    readUpstream(env, UPSTREAM_HOME_SNAPSHOTS_PATH, range),
-    readUpstream(env, UPSTREAM_HOME_EVENTS_PATH, range),
-    readUpstream(env, UPSTREAM_HOME_HEARTBEATS_PATH, range),
+    readUpstream(env, UPSTREAM_HOME_SNAPSHOTS_PATH, homeRange),
+    readUpstream(env, UPSTREAM_HOME_EVENTS_PATH, homeRange),
+    readUpstream(env, UPSTREAM_HOME_HEARTBEATS_PATH, homeRange),
   ]);
   return {
     activity: parseActivity(activityRaw),
@@ -50,20 +52,22 @@ async function loadRawRows(env: Env, from: string, to: string): Promise<RawState
   };
 }
 
-/** 只保留属于这一天的数据：[当天 0 点 - 回看窗口, 次日 0 点)。按 8 天分块取数时，别的日子的数据不能混进来。 */
+/** 只保留属于这一天的数据：[当天 0 点 - 各来源回看窗口, 次日 0 点)。按 8 天分块取数时，别的日子的数据不能混进来。 */
 function rowsForDate(date: string, rows: RawStateRows): RawStateRows {
-  const from = dayStartEpoch(date) - LOOKBACK_MINUTES * 60_000;
-  const to = dayStartEpoch(date) + DAY_MS;
-  const inDay = (value: string) => {
+  const start = dayStartEpoch(date);
+  const activityFrom = start - LOOKBACK_MINUTES * 60_000;
+  const homeFrom = start - homeLookbackMinutes * 60_000;
+  const to = start + DAY_MS;
+  const inRange = (from: number, value: string) => {
     const at = Date.parse(value);
     return Number.isFinite(at) && at >= from && at < to;
   };
   return {
-    activity: rows.activity.filter(row => inDay(row.sampled_at)),
+    activity: rows.activity.filter(row => inRange(activityFrom, row.sampled_at)),
     devices: rows.devices,
-    snapshots: rows.snapshots.filter(row => inDay(row.observed_at)),
-    events: rows.events.filter(row => inDay(row.event_at)),
-    heartbeats: rows.heartbeats.filter(row => inDay(row.observed_at)),
+    snapshots: rows.snapshots.filter(row => inRange(homeFrom, row.observed_at)),
+    events: rows.events.filter(row => inRange(homeFrom, row.event_at)),
+    heartbeats: rows.heartbeats.filter(row => inRange(homeFrom, row.observed_at)),
   };
 }
 
