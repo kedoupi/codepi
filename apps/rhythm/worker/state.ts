@@ -117,7 +117,7 @@ function phoneObservations(
   for (const row of events) {
     const at = epoch(row.event_at);
     if (at === null || at > latestAllowedAt || !deviceIds.has(row.device_id)) continue;
-    if (row.status === null || row.status === undefined) continue;
+    if (row.status === null || row.status === undefined || row.status === "pending-offline") continue;
     rows.push({
       deviceId: row.device_id,
       at,
@@ -147,9 +147,15 @@ function phoneObservations(
   for (const [deviceId, deviceRows] of byDevice) {
     let previous: PhoneObservation | null = null;
     for (const row of deviceRows) {
-      const current: PhoneObservation = row.status === "pending-offline" || row.status === "no-response"
+      const current: PhoneObservation = row.status === "no-response"
         ? { deviceId, at: row.at, status: previous?.status ?? null, room: previous?.room ?? null, source: row.source }
-        : { deviceId, at: row.at, status: row.status, room: row.status === "online" ? row.room : null, source: row.source };
+        : {
+          deviceId,
+          at: row.at,
+          status: row.status === "pending-offline" ? "online" : row.status,
+          room: row.status === "offline" ? null : row.room,
+          source: row.source,
+        };
       result.push(current);
       previous = current;
     }
