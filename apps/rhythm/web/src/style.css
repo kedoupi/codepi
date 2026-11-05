@@ -426,7 +426,7 @@ footer { padding: 16px 32px 32px; color: var(--color-text-muted); font-size: 12p
   .anchor-nav,.desktop-only,.desktop-trend-panel { display: none; }
   .mobile-only { display: block; }
   .mobile-trend-tabs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 16px; padding-bottom: 4px; }
-  .mobile-trend-tabs button { flex: 0 0 auto; min-height: 40px; padding-inline: 14px; border-radius: 99px; }
+  .mobile-trend-tabs button { flex: 0 0 auto; min-height: 44px; padding-inline: 14px; border-radius: 99px; }
   .mobile-trend-tabs button[aria-selected="true"] { background: var(--color-action); color: var(--color-action-text); }
   .trend-sections > [data-mobile-tab] { display: none; }
   .trend-sections[data-mobile-tab="status"] > [data-mobile-tab="status"],.trend-sections[data-mobile-tab="commute"] > [data-mobile-tab="commute"],.trend-sections[data-mobile-tab="times"] > [data-mobile-tab="times"],.trend-sections[data-mobile-tab="anomalies"] > [data-mobile-tab="anomalies"],.trend-sections[data-mobile-tab="quality"] > [data-mobile-tab="quality"] { display: block; }

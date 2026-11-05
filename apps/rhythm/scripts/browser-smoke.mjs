@@ -115,7 +115,7 @@ function centralFixture() {
  * workday that starts 100 minutes late (so the trends page has an anomaly). No real host, device or network name.
  */
 function statusReadFixture() {
-  const state = { fail: false, calls: [] };
+  const state = { fail: false, empty: false, calls: [] };
   const now = Date.now();
   const today = shanghaiDate(now);
   const currentMinute = Math.max(0, Math.min(1439, shanghaiMinute(now)));
@@ -223,6 +223,7 @@ function statusReadFixture() {
     async fetch(request) {
       const url = new URL(request.url);
       state.calls.push(url.pathname);
+      if (state.empty) return Response.json({ ok: true, resource: url.pathname, rows: [] });
       if (state.fail) return new Response("synthetic upstream outage", { status: 503 });
       return Response.json({ ok: true, resource: url.pathname, rows: rowsFor(url) });
     },
@@ -392,6 +393,14 @@ async function assertLayout(page, label, width) {
   if (dimensions.sidebar) {
     assert.equal(dimensions.sidebar, width <= 640 ? "static" : "fixed", `${label}: responsive sidebar`);
   }
+}
+
+async function assertVisibleButtons(page, label) {
+  const heights = await page.evaluate(() => [...document.querySelectorAll("button")]
+    .filter(button => button.getClientRects().length)
+    .map(button => ({ label: button.textContent?.trim() ?? "", height: button.getBoundingClientRect().height })));
+  assert.ok(heights.length > 0, `${label}: visible buttons exist`);
+  assert.ok(heights.every(button => button.height >= 44), `${label}: visible buttons are at least 44px: ${JSON.stringify(heights)}`);
 }
 
 async function assertNoRawHtml(page, label) {
@@ -615,6 +624,7 @@ async function main() {
 
     // 趋势：先按合成历史补算 28 天（异常判断需要之前至少 5 个同类日），再在真实 Worker/D1 上读趋势
     const historyFrom = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 28 * 86400_000).toISOString().slice(0, 10);
+    const noDataDate = new Date(Date.parse(`${historyFrom}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
     const historyTo = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
     const recomputed = await page.evaluate(async ([from, to]) => {
       const response = await fetch(`/api/admin/recompute?from=${from}&to=${to}`, { method: "POST", credentials: "same-origin" });
@@ -728,6 +738,15 @@ async function main() {
     await waitText(page, "工作时间花在哪");
     await waitText(page, "专注");
     await assertLayout(page, "mobile work", 390);
+    await assertVisibleButtons(page, "mobile work");
+    upstream.state.empty = true;
+    await page.goto(`${origin}/work?date=${noDataDate}`);
+    await waitText(page, "工作时间花在哪");
+    await waitText(page, "暂无数据");
+    assert.ok(await page.evaluate(() => (document.querySelector("#content")?.innerText ?? "").includes("暂无数据")), "mobile work empty mock shows 暂无数据");
+    upstream.state.empty = false;
+    await page.goto(`${origin}/work`);
+    await waitText(page, "工作时间花在哪");
     await clickText(page, "本周");
     await page.waitForFunction(() => document.querySelector('.work-heading [aria-pressed="true"]')?.textContent?.includes("本周"));
     await fullScreenshot(page, "mobile-work-week.png");
@@ -735,6 +754,11 @@ async function main() {
     await page.goto(`${origin}/trend`);
     await waitText(page, "每天各状态各占几小时");
     await assertLayout(page, "mobile trends status tab", 390);
+    await assertVisibleButtons(page, "mobile trends");
+    const trendBody = await page.evaluate(() => document.querySelector("#content")?.innerText ?? "");
+    for (const retired of ["起床与回卧室", "在公司用电脑", "工作节奏"]) {
+      assert.ok(!trendBody.includes(retired), `mobile trends does not show retired text: ${retired}`);
+    }
     assert.ok(await page.evaluate(() => !document.querySelector("#overlay .overlay-chart")?.getClientRects().length), "mobile hides the overlay chart");
     await fullScreenshot(page, "mobile-trends-status.png");
     await clickText(page, "不一样的日子");
