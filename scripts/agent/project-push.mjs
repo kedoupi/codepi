@@ -151,8 +151,10 @@ function dayNumber(value) {
 }
 
 export function mergeTitle(subject) {
-  const colon = String(subject).indexOf(':');
-  return clip(colon >= 0 ? subject.slice(colon + 1) : subject, 200);
+  const text = String(subject).trim();
+  const colon = text.indexOf(':');
+  const title = colon >= 0 ? text.slice(colon + 1).trim() : text;
+  return clip(title || text, 200);
 }
 
 export function changelogFromGit(root, { today = shanghaiDate(), git = args => gitOutput(root, args), days = CHANGELOG_DAYS } = {}) {
@@ -186,8 +188,12 @@ export function adapterFrom(agentsMarkdown) {
     const key = keys.get(match[1]);
     const value = match[2].trim();
     const commands = [...value.matchAll(/`([^`]+)`/g)].map(item => item[1]);
-    if (key === 'acceptance') result[key] = (commands.length ? commands : [value.slice(0, 300)]).slice(0, 10).map(item => item.trim());
-    else result[key] = clip(commands[0] || value, key === 'merge' ? 300 : 120);
+    if (key === 'acceptance') {
+      result[key] = (commands.length ? commands : [value]).slice(0, 10).map(item => clip(item, 300));
+    } else {
+      const limit = key === 'isolation' ? 60 : key === 'commit' ? 120 : 300;
+      result[key] = clip(commands[0] || value, limit);
+    }
   }
   return result;
 }

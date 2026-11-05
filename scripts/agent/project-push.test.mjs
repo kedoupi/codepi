@@ -8,6 +8,7 @@ import {
   buildPayload,
   changelogFromGit,
   main,
+  mergeTitle,
   pushPayload,
   tasksFromTable,
 } from './project-push.mjs';
@@ -55,6 +56,18 @@ test('parses the real adapter section, including the first commit command', asyn
   assert.equal(adapter.isolation, 'worktree');
   assert.ok(adapter.acceptance.includes('node scripts/agent/check.mjs --base main --run'));
   assert.equal(adapter.merge, 'agent-team merge');
+});
+
+test('clips adapter fields to the ingest contract limits', () => {
+  const adapter = adapterFrom(`## Agent 协作适配\n- 隔离：${'i'.repeat(100)}\n- 提交：${'c'.repeat(200)}\n- 验收：\`${'a'.repeat(400)}\`\n- 合并：${'m'.repeat(400)}\n`);
+  assert.equal(adapter.isolation.length, 60);
+  assert.equal(adapter.commit.length, 120);
+  assert.equal(adapter.acceptance[0].length, 300);
+  assert.equal(adapter.merge.length, 300);
+});
+
+test('falls back to the full merge subject when the colon suffix is empty', () => {
+  assert.equal(mergeTitle('Merge team/empty: '), 'Merge team/empty:');
 });
 
 test('extracts merge titles, converts dates to +08:00, keeps the 30-day boundary, and clips titles', () => {
@@ -114,6 +127,28 @@ test('sends the expected URL, headers and body', async () => {
   assert.equal(request.init.headers.Authorization, 'Bearer secret-token');
   assert.equal(request.init.headers['User-Agent'], 'codepi-project-push/1');
   assert.deepEqual(JSON.parse(request.init.body), { schema: 'workbench.v1' });
+});
+
+test('returns 1 and reports the HTTP status and error code for a rejected push', async () => {
+  const root = await fixture(table);
+  const messages = [];
+  const originalError = console.error;
+  console.error = message => messages.push(String(message));
+  let code;
+  try {
+    code = await main(['--root', root], {
+      token: 'unused',
+      git: fakeGit,
+      fetchImpl: async () => ({
+        status: 422,
+        json: async () => ({ error: 'invalid_task', details: { field: '/tasks/0' } }),
+      }),
+    });
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(code, 1);
+  assert.match(messages.join('\n'), /HTTP 422 invalid_task/);
 });
 
 test('--if-configured exits quietly when the keychain has no token', async () => {
