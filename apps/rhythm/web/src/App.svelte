@@ -10,11 +10,20 @@
     status: DayStatus; label: string; evidence: Evidence; detail: string;
     startMinute: number; endMinute: number; startLabel: string; endLabel: string; minutes: number;
   };
+  type WorkBlock = {
+    kind: "active" | "away" | "other"; status: DayStatus; label: string;
+    startMinute: number; endMinute: number; startLabel: string; endLabel: string;
+    minutes: number; activeMinutes: number; inferred: boolean; appsKind: "app" | "category";
+    primaryApp: { name: string; minutes: number; share: number } | null;
+    topApps: Array<{ name: string; minutes: number }>;
+    apps: Array<{ name: string; minutes: number }>;
+  };
   type DayPayload = {
     date: string; generatedAt: string; phoneConfigured: boolean; current: {
       status: DayStatus; label: string; evidence: Evidence; minute: number; time: string; asOf: string | null; live: boolean;
     } | null;
     segments: Segment[];
+    workBlocks: WorkBlock[];
     moments: Array<{ kind: string; label: string; detail: string; evidence: Evidence; minute: number; time: string }>;
     metrics: {
       commuteToWorkMinutes: number | null; commuteHomeMinutes: number | null; officeActiveMinutes: number | null; homeMinutes: number | null;
@@ -181,8 +190,30 @@
             {#if day.current}<section class="current-card" data-status={day.current.status}><div><span class="eyebrow">当前状态 · {day.current.time}</span><h2>{day.current.label}</h2><span class:inferred={day.current.evidence === "inferred"} class="evidence">{evidenceLabel(day.current.evidence)}</span></div><p>{day.current.live ? (day.current.asOf === null ? "最近 20 分钟没有可判断的数据 · 工作机每 15 分钟上传一次" : `截至 ${day.current.asOf} · 工作机每 15 分钟上传一次`) : "所选日期的最后一个可判断状态。"}</p></section>{/if}
             <section class="panel timeline-panel"><div class="section-heading"><div><h2>0–24 点时间线</h2><p class="muted">斜纹表示未知，颜色表示状态类别；段太窄时用点按或悬停查看明细。</p></div><span class="fine muted">{day.segments.length} 段</span></div><div class="timeline" aria-label="当天状态时间线">{#each day.segments as segment}<button class="timeline-segment" class:unknown={segment.status === "unknown"} data-status={segment.status} style={`--segment-start:${segment.startMinute};--segment-minutes:${segment.minutes}`} onclick={() => (selectedSegment = segment)} aria-pressed={selectedSegment === segment} title={`${segment.startLabel}–${segment.endLabel} ${segment.label} · ${evidenceLabel(segment.evidence)}${segment.detail ? ` · ${segment.detail}` : ""}`} aria-label={`${segment.startLabel} 到 ${segment.endLabel}，${segment.label}，${evidenceLabel(segment.evidence)}`}><span>{segment.label}</span></button>{/each}</div><div class="timeline-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><div class="timeline-legend" aria-label="时间线图例">{#each timelineLegend as item}<span><i class:unknown={item.status === "unknown"} data-status={item.status}></i>{item.label}</span>{/each}</div>{#if selectedSegment}<p class="timeline-detail"><strong>{selectedSegment.startLabel}–{selectedSegment.endLabel} {selectedSegment.label}</strong><span class:inferred={selectedSegment.evidence === "inferred"}>{evidenceLabel(selectedSegment.evidence)}</span><span>{selectedSegment.minutes} 分钟</span>{#if selectedSegment.detail}<span>{selectedSegment.detail}</span>{/if}</p>{/if}<p class="chart-conclusion">今天的时间线把可观察信号与推断区间分开，缺少数据时保持未知。</p></section>
             <section class="metric-grid"><article class="metric-card"><span>上班通勤（上限）</span><strong>{metricText(day.metrics.commuteToWorkMinutes)}</strong><small>推断 · 含到公司后未开电脑的时间</small></article><article class="metric-card"><span>下班通勤（上限）</span><strong>{metricText(day.metrics.commuteHomeMinutes)}</strong><small>推断 · 含离开电脑后的时间</small></article><article class="metric-card"><span>在电脑前</span><strong>{metricText(day.metrics.officeActiveMinutes)}</strong><small>公司网络且有键鼠活动</small></article><article class="metric-card"><span>在家</span><strong>{metricText(day.metrics.homeMinutes)}</strong><small>卧室 {metricText(day.metrics.bedroomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 客厅 {metricText(day.metrics.livingRoomMinutes, !day.phoneConfigured ? "未知（未指定手机）" : "未知")} · 未分房间 {metricText(day.metrics.homeUnknownMinutes)}</small></article></section>
+            <section class="panel work-block-panel">
+              <div class="section-heading"><div><h2>工作时段</h2><p class="muted">按实际连续时间块展示；离开电脑按键鼠空档推断。</p></div><span class="fine">{day.workBlocks.length} 段</span></div>
+              {#if day.workBlocks.length}
+                <div class="work-blocks">
+                  {#each day.workBlocks as block}
+                    <article class="work-block" data-kind={block.kind}>
+                      <div class="work-block-heading"><div><span class="work-block-time">{block.startLabel}–{block.endLabel}</span><strong>{block.kind === "active" ? "在电脑前" : block.kind === "away" ? "离开电脑" : block.label}</strong></div>{#if block.inferred}<span class="evidence inferred">推断</span>{/if}</div>
+                      {#if block.kind === "active"}
+                        <p class="work-block-primary">{block.primaryApp ? `主要使用 ${block.primaryApp.name} · ${Math.round(block.primaryApp.share * 100)}%` : "没有具体 App 采样"}</p>
+                        {#if block.topApps.length}<div class="work-block-apps">{#each block.topApps as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div>{/if}
+                        {#if block.apps.length > 3}<details><summary>其余 {block.apps.length - 3} 个{block.appsKind === "category" ? "分类" : "App"}</summary><div class="work-block-apps">{#each block.apps.slice(3) as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div></details>{/if}
+                        {#if block.appsKind === "category"}<small class="work-block-note">历史日只保存了分类，无具体 App。</small>{/if}
+                      {:else if block.kind === "away"}
+                        <p>{block.minutes} 分钟 · 按键鼠空档推断</p>
+                      {:else}
+                        <p>{block.label} · {block.minutes} 分钟</p>
+                      {/if}
+                    </article>
+                  {/each}
+                </div>
+              {:else}<p class="empty-small">这一天没有公司时段</p>{/if}
+            </section>
             <section class="two-column"><article class="panel"><div class="section-heading"><div><h2>关键时刻</h2><p class="muted">每条都标注看到或推断。</p></div></div>{#if day.moments.length}<ol class="moments">{#each day.moments as moment}<li><time>{moment.time}</time><div><strong>{moment.label}</strong><span class:inferred={moment.evidence === "inferred"}>{evidenceLabel(moment.evidence)}</span><p>{moment.detail}</p></div></li>{/each}</ol>{:else}<p class="empty-small">这一天没有足够新鲜数据形成关键时刻。</p>{/if}</article><article class="panel"><h2>数据新鲜度</h2><div class="freshness-row"><span>家中设备扫描</span><strong>{freshnessLabel(day.freshness.home)}</strong></div><div class="freshness-row"><span>工作机采样</span><strong>{freshnessLabel(day.freshness.work)}</strong></div><p class="chart-conclusion">新鲜度只说明最近收到过数据，不代表设备在线就一定是人在。</p></article></section>
-            <section class="panel"><div class="section-heading"><div><h2>在电脑前做什么</h2><p class="muted">只算公司网络且有键鼠的分钟采样。</p></div><span class="fine">键盘 {countText(day.keyboardMouseMinutes.keyboard)} · 指针 {countText(day.keyboardMouseMinutes.pointer)} · 同时 {countText(day.keyboardMouseMinutes.both)}</span></div>{#if day.appBreakdown.length}<div class="bars">{#each day.appBreakdown as item}<div class="bar-row" title={`${item.category}：${item.minutes} 分钟，占 ${Math.round(item.share * 100)}%；${item.apps.map(app => `${app.name} ${app.minutes} 分钟`).join("、")}`} aria-label={`${item.category} ${item.minutes} 分钟，占 ${Math.round(item.share * 100)}%`}><div class="bar-label"><span>{item.category}</span><strong>{item.minutes} 分钟 · {Math.round(item.share * 100)}%</strong></div><div class="bar-track"><span data-category={item.category} style={`width:${item.share * 100}%`}></span></div><small>{item.apps.map(app => `${app.name} ${app.minutes} 分钟`).join(" · ")}</small></div>{/each}</div><p class="chart-conclusion">App 分类来自本地 settings；未归类的应用一律放在「其他」。</p>{:else}<p class="empty-small">没有公司网络且有键鼠的数据。</p>{/if}</section>
+            <section class="panel"><div class="section-heading"><div><h2>在电脑前做什么</h2><p class="muted">只算公司网络且有键鼠的分钟采样。</p></div><span class="fine">键盘 {countText(day.keyboardMouseMinutes.keyboard)} · 指针 {countText(day.keyboardMouseMinutes.pointer)} · 同时 {countText(day.keyboardMouseMinutes.both)}</span></div>{#if day.appBreakdown.length === 1 && day.appBreakdown[0].category === "其他"}<p class="muted">尚未配置 App 分类，下面直接列出应用。</p><div class="bars">{#each day.appBreakdown[0].apps as app}<div class="bar-row" aria-label={`${app.name} ${app.minutes} 分钟`}><div class="bar-label"><span>{app.name}</span><strong>{app.minutes} 分钟</strong></div><div class="bar-track"><span style={`width:${day.appBreakdown[0].minutes ? app.minutes / day.appBreakdown[0].minutes * 100 : 0}%`}></span></div></div>{/each}</div>{:else if day.appBreakdown.length}<div class="bars">{#each day.appBreakdown as item}<div class="bar-row" title={`${item.category}：${item.minutes} 分钟，占 ${Math.round(item.share * 100)}%；${item.apps.map(app => `${app.name} ${app.minutes} 分钟`).join("、")}`} aria-label={`${item.category} ${item.minutes} 分钟，占 ${Math.round(item.share * 100)}%`}><div class="bar-label"><span>{item.category}</span><strong>{item.minutes} 分钟 · {Math.round(item.share * 100)}%</strong></div><div class="bar-track"><span data-category={item.category} style={`width:${item.share * 100}%`}></span></div><small>{item.apps.map(app => `${app.name} ${app.minutes} 分钟`).join(" · ")}</small></div>{/each}</div><p class="chart-conclusion">App 分类来自本地 settings；未归类的应用一律放在「其他」。</p>{:else}<p class="empty-small">没有公司网络且有键鼠的数据。</p>{/if}</section>
           {:else if !message}<div class="empty" role="status">正在读取当天数据…</div>{/if}
         {/if}
       </main>

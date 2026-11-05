@@ -95,7 +95,7 @@ describe("P4 接口", () => {
     const h = harness([day]);
     const cookie = await h.login();
     const missing = await (await h.send(`/api/day?date=${day}`, { cookie })).json() as Record<string, any>;
-    expect(missing).toMatchObject({ date: day, missing: true, segments: [], moments: [], appBreakdown: [] });
+    expect(missing).toMatchObject({ date: day, missing: true, segments: [], moments: [], workBlocks: [], appBreakdown: [] });
     expect(missing.metrics.officeActiveMinutes).toBeNull();
     expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null });
     expect(missing.metrics.coverage.ratio).toBeNull();
@@ -110,6 +110,8 @@ describe("P4 接口", () => {
     const stored = await (await h.send(`/api/day?date=${day}`, { cookie })).json() as Record<string, any>;
     expect(stored.missing).toBe(false);
     expect(stored.segments.length).toBeGreaterThan(0);
+    expect(stored.workBlocks.length).toBeGreaterThan(0);
+    expect(stored.workBlocks[0].appsKind).toBe("category");
     expect(stored.metrics.officeActiveMinutes).toBeGreaterThan(0);
   });
 

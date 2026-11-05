@@ -495,6 +495,8 @@ async function main() {
     await assertLayout(page, "desktop today", 1440);
     await assertNoRawHtml(page, "desktop today");
     await waitText(page, "截至");
+    await waitText(page, "工作时段");
+    assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "today has work blocks");
     await screenshot(page, "desktop-today.png");
 
     const morning = await page.evaluate(() => {

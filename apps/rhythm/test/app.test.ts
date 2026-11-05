@@ -140,6 +140,8 @@ it("当天接口返回压缩时间段、关键时刻、四个数字与应用构�
   expect(body.phoneConfigured).toBe(true);
   expect(body.segments.length).toBeGreaterThan(0);
   expect(body.segments[0]).toMatchObject({ status: expect.any(String), startMinute: 0 });
+  expect(body.workBlocks.length).toBeGreaterThan(0);
+  expect(body.workBlocks[0]).toMatchObject({ appsKind: "app", kind: expect.any(String), startMinute: expect.any(Number) });
   expect(body.moments.some((moment: { kind: string }) => moment.kind === "start_work")).toBe(true);
   expect(body.metrics).toHaveProperty("commuteToWorkMinutes");
   expect(body.metrics).toHaveProperty("commuteHomeMinutes");

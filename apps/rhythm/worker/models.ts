@@ -81,6 +81,24 @@ export type StateInput = {
 export type StatusSegment = { status: DayStatus; startMinute: number; endMinute: number; evidence: Evidence };
 export type KeyMoment = { kind: MomentKind; minute: number; label: string; evidence: Evidence; detail: string };
 export type AppBreakdown = { category: AppCategory; minutes: number; share: number; apps: Array<{ name: string; minutes: number }> };
+export type WorkBlockKind = "active" | "away" | "other";
+export type WorkBlockApp = { name: string; minutes: number };
+export type WorkBlock = {
+  kind: WorkBlockKind;
+  status: DayStatus;
+  label: string;
+  startMinute: number;
+  endMinute: number;
+  startLabel: string;
+  endLabel: string;
+  minutes: number;
+  activeMinutes: number;
+  inferred: boolean;
+  appsKind: "app" | "category";
+  primaryApp: (WorkBlockApp & { share: number }) | null;
+  topApps: WorkBlockApp[];
+  apps: WorkBlockApp[];
+};
 
 export type DayMetrics = {
   /**
@@ -103,6 +121,7 @@ export type DayComputation = {
   minuteDetails: string[];
   segments: StatusSegment[];
   moments: KeyMoment[];
+  workBlocks: WorkBlock[];
   metrics: DayMetrics;
   appBreakdown: AppBreakdown[];
   keyboardMouseMinutes: { keyboard: number | null; pointer: number | null; both: number | null };

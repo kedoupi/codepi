@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadCases, toStateInput } from "../../shared/cases";
-import { calculateDay, dayStartEpoch, minuteLabel, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS } from "../../worker/state";
-import type { DayMetrics, StateInput } from "../../worker/models";
+import { buildStoredWorkBlocks, buildWorkBlocks, calculateDay, dayStartEpoch, minuteLabel, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, workBlockMinGapMinutes } from "../../worker/state";
+import type { ActivitySample, DayMetrics, DayStatus, StateInput } from "../../worker/models";
 
 const cases = loadCases();
 
@@ -70,6 +70,51 @@ function emptyInput(date: string): StateInput {
     appCategories: {},
   };
 }
+
+describe("工作时段块", () => {
+  it("按实际状态切分、合并小离座空档并保留前 3 个 App", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    const samples: Array<ActivitySample | null> = new Array(1440).fill(null);
+    const names = ["示例编辑器", "示例浏览器", "示例终端", "示例文档", "示例沟通"];
+    for (let minute = 540; minute <= 544; minute += 1) {
+      statuses[minute] = "office_active"; evidence[minute] = "seen";
+      samples[minute] = { sampled_at: `2026-11-05T${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: names[minute - 540] };
+    }
+    statuses[545] = "office_away"; evidence[545] = "inferred";
+    for (let minute = 546; minute <= 549; minute += 1) {
+      statuses[minute] = "office_active"; evidence[minute] = minute === 548 ? "inferred" : "seen";
+      samples[minute] = { sampled_at: `2026-11-05T09:${String(minute - 540).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: names[(minute - 540) % names.length] };
+    }
+    statuses[550] = "commute"; evidence[550] = "inferred";
+    for (let minute = 551; minute <= 552; minute += 1) {
+      statuses[minute] = "office_active"; evidence[minute] = "seen";
+      samples[minute] = { sampled_at: `2026-11-05T09:${String(minute - 540).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: "示例编辑器" };
+    }
+    const blocks = buildWorkBlocks(samples, statuses, evidence, {});
+    expect(workBlockMinGapMinutes).toBe(2);
+    expect(blocks.map(block => block.kind)).toEqual(["active", "other", "active"]);
+    expect(blocks[0]).toMatchObject({ startMinute: 540, endMinute: 549, minutes: 10, inferred: true, appsKind: "app" });
+    expect(blocks[0].topApps).toHaveLength(3);
+    expect(blocks[0].topApps[0].minutes).toBe(2);
+    expect(blocks[1]).toMatchObject({ status: "commute", startMinute: 550, endMinute: 550 });
+    expect(blocks[2]).toMatchObject({ startMinute: 551, endMinute: 552, inferred: false });
+  });
+
+  it("没有公司分钟时返回空数组，历史块使用分类数据", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    expect(buildWorkBlocks(new Array(1440).fill(null), statuses, evidence, {})).toEqual([]);
+    const segments = [
+      { status: "office_active" as const, startMinute: 540, endMinute: 544, evidence: "seen" as const },
+      { status: "office_away" as const, startMinute: 545, endMinute: 545, evidence: "inferred" as const },
+      { status: "office_active" as const, startMinute: 546, endMinute: 549, evidence: "seen" as const },
+    ];
+    const blocks = buildStoredWorkBlocks(segments, { "09": { 开发: 8 } });
+    expect(blocks[0]).toMatchObject({ kind: "active", appsKind: "category", primaryApp: { name: "开发" } });
+    expect(blocks.some(block => block.kind === "away")).toBe(false);
+  });
+});
 
 describe("缺失数据永远是未知", () => {
   it("没有任何上游数据时全天未知，且不产生离家或到家时刻", () => {

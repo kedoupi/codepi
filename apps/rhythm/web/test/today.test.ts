@@ -27,6 +27,10 @@ function dayPayload(overrides: Json = {}): Json {
       { status: "other_network", label: "其他网络", evidence: "seen", detail: "示例网络", startMinute: 441, endMinute: 455, startLabel: "07:21", endLabel: "07:35", minutes: 15 },
       { status: "unknown", label: "未知", evidence: "no_data", detail: "", startMinute: 720, endMinute: 720, startLabel: "12:00", endLabel: "12:00", minutes: 1 },
     ],
+    workBlocks: [
+      { kind: "active", status: "office_active", label: "公司 · 在电脑前", startMinute: 540, endMinute: 551, startLabel: "09:00", endLabel: "09:11", minutes: 12, activeMinutes: 12, inferred: true, appsKind: "app", primaryApp: { name: "示例编辑器", minutes: 8, share: 0.67 }, topApps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }], apps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }] },
+      { kind: "away", status: "office_away", label: "公司 · 离座", startMinute: 600, endMinute: 602, startLabel: "10:00", endLabel: "10:02", minutes: 3, activeMinutes: 0, inferred: true, appsKind: "app", primaryApp: null, topApps: [], apps: [] },
+    ],
     moments: [
       { kind: "start_work", label: "开始办公", detail: "09:00 公司网络出现键鼠活动", evidence: "seen", minute: 540, time: "09:00" },
     ],
@@ -63,7 +67,7 @@ describe("Rhythm 今天页", () => {
     expect(screen.getByText(/截至 09:00 · 工作机每 15 分钟上传一次/)).toBeTruthy();
     expect(screen.getByText("上班通勤（上限）")).toBeTruthy();
     expect(screen.getByText("下班通勤（上限）")).toBeTruthy();
-    expect(screen.getByText("在电脑前")).toBeTruthy();
+    expect(screen.getByText("在电脑前", { selector: ".metric-card span" })).toBeTruthy();
     expect(screen.getByText("在家", { selector: ".metric-card span" })).toBeTruthy();
     expect(screen.getByText("开始办公")).toBeTruthy();
     const legend = screen.getByLabelText("时间线图例");
@@ -71,6 +75,9 @@ describe("Rhythm 今天页", () => {
     expect(legend.textContent).toContain("卧室");
     expect(legend.textContent).toContain("其他网络");
     expect(screen.getByText(/键盘 551/)).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "工作时段" })).toBeTruthy();
+    expect(screen.getByText("示例编辑器 8 分钟")).toBeTruthy();
+    expect(screen.getByText("3 分钟 · 按键鼠空档推断")).toBeTruthy();
     const segmentButtons = [...document.querySelectorAll<HTMLButtonElement>(".timeline-segment")];
     expect(segmentButtons).toHaveLength(3);
     for (const [index, button] of segmentButtons.entries()) {
@@ -78,6 +85,30 @@ describe("Rhythm 今天页", () => {
       expect(Number(button.style.getPropertyValue("--segment-start"))).toBe(segment.startMinute);
       expect(Number(button.style.getPropertyValue("--segment-minutes"))).toBe(segment.minutes);
     }
+  });
+  it("工作块为空时显示空状态", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      if (path.startsWith("/api/day")) return response(dayPayload({ workBlocks: [] }));
+      throw new Error(`unexpected request: ${path}`);
+    }));
+    render(App);
+    expect(await screen.findByText("这一天没有公司时段")).toBeTruthy();
+  });
+
+  it("未配置分类时直接展示全天 App 列表", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      if (path.startsWith("/api/day")) return response(dayPayload({
+        appBreakdown: [{ category: "其他", minutes: 12, share: 1, apps: [{ name: "示例未分类应用", minutes: 12 }] }],
+      }));
+      throw new Error(`unexpected request: ${path}`);
+    }));
+    render(App);
+    expect(await screen.findByText("示例未分类应用")).toBeTruthy();
+    expect(screen.getByText("尚未配置 App 分类，下面直接列出应用。")).toBeTruthy();
   });
   it("live 且最近 20 分钟没有可判断数据时不显示截至", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
