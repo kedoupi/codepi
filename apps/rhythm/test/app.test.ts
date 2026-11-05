@@ -126,7 +126,7 @@ it("页面路由（含设置页）未登录跳去登录，登录后返回页面�
   expect(assets).toHaveBeenCalledOnce();
 });
 
-it("当天接口返回压缩时间段、关键时刻、四个数字与应用构成", async () => {
+it("昨天 live 接口返回压缩时间段、工作块、关键时刻、四个数字与应用构成", async () => {
   await env.DB.prepare(
     "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
   ).bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "开发" }), "2026-11-03T00:00:00.000Z").run();
@@ -141,7 +141,7 @@ it("当天接口返回压缩时间段、关键时刻、四个数字与应用构�
   expect(body.segments.length).toBeGreaterThan(0);
   expect(body.segments[0]).toMatchObject({ status: expect.any(String), startMinute: 0 });
   expect(body.workBlocks.length).toBeGreaterThan(0);
-  expect(body.workBlocks[0]).toMatchObject({ appsKind: "app", kind: expect.any(String), startMinute: expect.any(Number) });
+  expect(body.workBlocks[0]).toMatchObject({ appsKind: "app", kind: expect.any(String), startMinute: expect.any(Number), gapMinutes: expect.any(Number) });
   expect(body.moments.some((moment: { kind: string }) => moment.kind === "start_work")).toBe(true);
   expect(body.metrics).toHaveProperty("commuteToWorkMinutes");
   expect(body.metrics).toHaveProperty("commuteHomeMinutes");

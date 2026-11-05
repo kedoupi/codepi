@@ -111,7 +111,8 @@ describe("P4 接口", () => {
     expect(stored.missing).toBe(false);
     expect(stored.segments.length).toBeGreaterThan(0);
     expect(stored.workBlocks.length).toBeGreaterThan(0);
-    expect(stored.workBlocks[0].appsKind).toBe("category");
+    expect(stored.workBlocks[0].appsKind).toBe("none");
+    expect(stored.workBlocks[0].apps).toEqual([]);
     expect(stored.metrics.officeActiveMinutes).toBeGreaterThan(0);
   });
 

@@ -314,11 +314,7 @@ async function loadStoredDay(env: Env, date: string, settings: RhythmSettings) {
         time: minuteLabel(minute),
       }];
     }),
-    workBlocks: buildStoredWorkBlocks(status.segments, metrics.metrics.hourlyAppCategoryMinutes).map(block => ({
-      ...block,
-      startLabel: minuteLabel(block.startMinute),
-      endLabel: minuteLabel(block.endMinute),
-    })),
+    workBlocks: buildStoredWorkBlocks(status.segments),
     metrics: metrics.metrics,
     appBreakdown: categoryEntries.map(([category, minutes]) => ({
       category,

@@ -93,8 +93,9 @@ export type WorkBlock = {
   endLabel: string;
   minutes: number;
   activeMinutes: number;
+  gapMinutes: number;
   inferred: boolean;
-  appsKind: "app" | "category";
+  appsKind: "app" | "none";
   primaryApp: (WorkBlockApp & { share: number }) | null;
   topApps: WorkBlockApp[];
   apps: WorkBlockApp[];

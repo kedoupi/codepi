@@ -28,8 +28,8 @@ function dayPayload(overrides: Json = {}): Json {
       { status: "unknown", label: "未知", evidence: "no_data", detail: "", startMinute: 720, endMinute: 720, startLabel: "12:00", endLabel: "12:00", minutes: 1 },
     ],
     workBlocks: [
-      { kind: "active", status: "office_active", label: "公司 · 在电脑前", startMinute: 540, endMinute: 551, startLabel: "09:00", endLabel: "09:11", minutes: 12, activeMinutes: 12, inferred: true, appsKind: "app", primaryApp: { name: "示例编辑器", minutes: 8, share: 0.67 }, topApps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }], apps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }] },
-      { kind: "away", status: "office_away", label: "公司 · 离座", startMinute: 600, endMinute: 602, startLabel: "10:00", endLabel: "10:02", minutes: 3, activeMinutes: 0, inferred: true, appsKind: "app", primaryApp: null, topApps: [], apps: [] },
+      { kind: "active", status: "office_active", label: "公司 · 在电脑前", startMinute: 540, endMinute: 551, startLabel: "09:00", endLabel: "09:11", minutes: 12, activeMinutes: 11, gapMinutes: 1, inferred: true, appsKind: "app", primaryApp: { name: "示例编辑器", minutes: 8, share: 0.5 }, topApps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }, { name: "示例终端", minutes: 2 }], apps: [{ name: "示例编辑器", minutes: 8 }, { name: "示例浏览器", minutes: 4 }, { name: "示例终端", minutes: 2 }, { name: "示例文档", minutes: 1 }, { name: "示例沟通", minutes: 1 }] },
+      { kind: "away", status: "office_away", label: "公司 · 离座", startMinute: 600, endMinute: 602, startLabel: "10:00", endLabel: "10:02", minutes: 3, activeMinutes: 0, gapMinutes: 0, inferred: true, appsKind: "app", primaryApp: null, topApps: [], apps: [] },
     ],
     moments: [
       { kind: "start_work", label: "开始办公", detail: "09:00 公司网络出现键鼠活动", evidence: "seen", minute: 540, time: "09:00" },
@@ -77,7 +77,13 @@ describe("Rhythm 今天页", () => {
     expect(screen.getByText(/键盘 551/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "工作时段" })).toBeTruthy();
     expect(screen.getByText("示例编辑器 8 分钟")).toBeTruthy();
-    expect(screen.getByText("3 分钟 · 按键鼠空档推断")).toBeTruthy();
+    expect(screen.getByText("12 分钟", { selector: ".work-block strong" })).toBeTruthy();
+    expect(document.querySelector(".work-block-primary")?.textContent).toContain("主要在 示例编辑器（占 50%）");
+    expect(document.querySelector(".work-block-primary")?.textContent).toContain("含 1 分钟空档");
+    expect(screen.getByText("另 2 个 App · 2 分钟")).toBeTruthy();
+    await fireEvent.click(screen.getByText("另 2 个 App · 2 分钟"));
+    expect(screen.getByText("示例文档 1 分钟")).toBeTruthy();
+    expect(screen.getByText("离开 3 分钟（可能在开会或走动，按键鼠空档推断）")).toBeTruthy();
     const segmentButtons = [...document.querySelectorAll<HTMLButtonElement>(".timeline-segment")];
     expect(segmentButtons).toHaveLength(3);
     for (const [index, button] of segmentButtons.entries()) {
@@ -109,6 +115,18 @@ describe("Rhythm 今天页", () => {
     render(App);
     expect(await screen.findByText("示例未分类应用")).toBeTruthy();
     expect(screen.getByText("尚未配置 App 分类，下面直接列出应用。")).toBeTruthy();
+  });
+  it("历史工作块说明只保存状态段且没有具体 App", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      if (path.startsWith("/api/day")) return response(dayPayload({
+        workBlocks: [{ kind: "active", status: "office_active", label: "公司 · 在电脑前", startMinute: 540, endMinute: 550, startLabel: "09:00", endLabel: "09:10", minutes: 11, activeMinutes: 11, gapMinutes: 0, inferred: false, appsKind: "none", primaryApp: null, topApps: [], apps: [] }],
+      }));
+      throw new Error(`unexpected request: ${path}`);
+    }));
+    render(App);
+    expect(await screen.findByText("历史日只保存了状态段，具体 App 只在今天和昨天可见")).toBeTruthy();
   });
   it("live 且最近 20 分钟没有可判断数据时不显示截至", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {

@@ -13,7 +13,7 @@
   type WorkBlock = {
     kind: "active" | "away" | "other"; status: DayStatus; label: string;
     startMinute: number; endMinute: number; startLabel: string; endLabel: string;
-    minutes: number; activeMinutes: number; inferred: boolean; appsKind: "app" | "category";
+    minutes: number; activeMinutes: number; gapMinutes: number; inferred: boolean; appsKind: "app" | "none";
     primaryApp: { name: string; minutes: number; share: number } | null;
     topApps: Array<{ name: string; minutes: number }>;
     apps: Array<{ name: string; minutes: number }>;
@@ -196,16 +196,19 @@
                 <div class="work-blocks">
                   {#each day.workBlocks as block}
                     <article class="work-block" data-kind={block.kind}>
-                      <div class="work-block-heading"><div><span class="work-block-time">{block.startLabel}–{block.endLabel}</span><strong>{block.kind === "active" ? "在电脑前" : block.kind === "away" ? "离开电脑" : block.label}</strong></div>{#if block.inferred}<span class="evidence inferred">推断</span>{/if}</div>
+                      <div class="work-block-heading"><div><span class="work-block-time">{block.startLabel}–{block.endLabel}</span><span class="work-block-kind">{block.kind === "active" ? "在电脑前" : block.kind === "away" ? "离开电脑" : block.label}</span><strong>{metricText(block.minutes)}</strong></div>{#if block.inferred}<span class="evidence inferred">推断</span>{/if}</div>
                       {#if block.kind === "active"}
-                        <p class="work-block-primary">{block.primaryApp ? `主要使用 ${block.primaryApp.name} · ${Math.round(block.primaryApp.share * 100)}%` : "没有具体 App 采样"}</p>
-                        {#if block.topApps.length}<div class="work-block-apps">{#each block.topApps as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div>{/if}
-                        {#if block.apps.length > 3}<details><summary>其余 {block.apps.length - 3} 个{block.appsKind === "category" ? "分类" : "App"}</summary><div class="work-block-apps">{#each block.apps.slice(3) as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div></details>{/if}
-                        {#if block.appsKind === "category"}<small class="work-block-note">历史日只保存了分类，无具体 App。</small>{/if}
+                        {#if block.appsKind === "app"}
+                          <p class="work-block-primary">{block.primaryApp ? `主要在 ${block.primaryApp.name}（占 ${Math.round(block.primaryApp.share * 100)}%）` : "没有具体 App 采样"}{#if block.gapMinutes} · 含 {block.gapMinutes} 分钟空档{/if}</p>
+                          {#if block.topApps.length}<div class="work-block-apps">{#each block.topApps as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div>{/if}
+                          {#if block.apps.length > 3}<details><summary>另 {block.apps.length - 3} 个 App · {block.apps.slice(3).reduce((sum, app) => sum + app.minutes, 0)} 分钟</summary><div class="work-block-apps">{#each block.apps.slice(3) as app}<span>{app.name} {app.minutes} 分钟</span>{/each}</div></details>{/if}
+                        {:else}
+                          <p class="work-block-note">历史日只保存了状态段，具体 App 只在今天和昨天可见</p>
+                        {/if}
                       {:else if block.kind === "away"}
-                        <p>{block.minutes} 分钟 · 按键鼠空档推断</p>
+                        <p>离开 {metricText(block.minutes)}（可能在开会或走动，按键鼠空档推断）</p>
                       {:else}
-                        <p>{block.label} · {block.minutes} 分钟</p>
+                        <p>{block.label} · {metricText(block.minutes)}</p>
                       {/if}
                     </article>
                   {/each}

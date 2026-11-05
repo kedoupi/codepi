@@ -72,47 +72,56 @@ function emptyInput(date: string): StateInput {
 }
 
 describe("工作时段块", () => {
-  it("按实际状态切分、合并小离座空档并保留前 3 个 App", () => {
+  it("合并恰好 1 分钟 away/unknown，保留前 3 个 App 与排序", () => {
     const statuses: DayStatus[] = new Array(1440).fill("unknown");
     const evidence = new Array(1440).fill("no_data" as const);
     const samples: Array<ActivitySample | null> = new Array(1440).fill(null);
-    const names = ["示例编辑器", "示例浏览器", "示例终端", "示例文档", "示例沟通"];
-    for (let minute = 540; minute <= 544; minute += 1) {
+    const apps = ["App A", "App B", "App C", "App A", "App D", "App E", "App B", "App C"];
+    const active = (minute: number, app?: string) => {
       statuses[minute] = "office_active"; evidence[minute] = "seen";
-      samples[minute] = { sampled_at: `2026-11-05T${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: names[minute - 540] };
-    }
-    statuses[545] = "office_away"; evidence[545] = "inferred";
-    for (let minute = 546; minute <= 549; minute += 1) {
-      statuses[minute] = "office_active"; evidence[minute] = minute === 548 ? "inferred" : "seen";
-      samples[minute] = { sampled_at: `2026-11-05T09:${String(minute - 540).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: names[(minute - 540) % names.length] };
-    }
-    statuses[550] = "commute"; evidence[550] = "inferred";
-    for (let minute = 551; minute <= 552; minute += 1) {
-      statuses[minute] = "office_active"; evidence[minute] = "seen";
-      samples[minute] = { sampled_at: `2026-11-05T09:${String(minute - 540).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: "示例编辑器" };
-    }
-    const blocks = buildWorkBlocks(samples, statuses, evidence, {});
+      samples[minute] = app ? { sampled_at: `2026-11-05T00:${String(minute).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: app } : null;
+    };
+    for (let minute = 100; minute <= 104; minute += 1) active(minute, apps[minute - 100]);
+    statuses[105] = "office_away"; evidence[105] = "inferred";
+    active(106, "App C"); active(107, "App B");
+    statuses[108] = "commute"; evidence[108] = "inferred";
+    active(109, "App C");
+    statuses[110] = "unknown"; evidence[110] = "no_data";
+    active(111, "App C");
+    statuses[112] = "office_away"; evidence[112] = "inferred";
+    statuses[113] = "office_away"; evidence[113] = "inferred";
+    active(114, "App D");
+    const blocks = buildWorkBlocks(samples, statuses, evidence);
     expect(workBlockMinGapMinutes).toBe(2);
-    expect(blocks.map(block => block.kind)).toEqual(["active", "other", "active"]);
-    expect(blocks[0]).toMatchObject({ startMinute: 540, endMinute: 549, minutes: 10, inferred: true, appsKind: "app" });
-    expect(blocks[0].topApps).toHaveLength(3);
-    expect(blocks[0].topApps[0].minutes).toBe(2);
-    expect(blocks[1]).toMatchObject({ status: "commute", startMinute: 550, endMinute: 550 });
-    expect(blocks[2]).toMatchObject({ startMinute: 551, endMinute: 552, inferred: false });
+    expect(blocks.map(block => block.kind)).toEqual(["active", "other", "active", "away", "active"]);
+    expect(blocks[0]).toMatchObject({ startMinute: 100, endMinute: 107, minutes: 8, gapMinutes: 1, inferred: false, appsKind: "app" });
+    expect(blocks[0].topApps.map(app => app.name)).toEqual(["App A", "App B", "App C"]);
+    expect(blocks[0].topApps.map(app => app.minutes)).toEqual([2, 2, 2]);
+    expect(blocks[1]).toMatchObject({ status: "commute", startMinute: 108, endMinute: 108, gapMinutes: 0 });
+    expect(blocks[2]).toMatchObject({ startMinute: 109, endMinute: 111, gapMinutes: 1 });
+    expect(blocks[3]).toMatchObject({ startMinute: 112, endMinute: 113, minutes: 2, gapMinutes: 0 });
   });
 
-  it("没有公司分钟时返回空数组，历史块使用分类数据", () => {
+  it("无公司分钟为空，历史块不携带分类 App", () => {
     const statuses: DayStatus[] = new Array(1440).fill("unknown");
     const evidence = new Array(1440).fill("no_data" as const);
-    expect(buildWorkBlocks(new Array(1440).fill(null), statuses, evidence, {})).toEqual([]);
+    expect(buildWorkBlocks(new Array(1440).fill(null), statuses, evidence)).toEqual([]);
     const segments = [
       { status: "office_active" as const, startMinute: 540, endMinute: 544, evidence: "seen" as const },
       { status: "office_away" as const, startMinute: 545, endMinute: 545, evidence: "inferred" as const },
       { status: "office_active" as const, startMinute: 546, endMinute: 549, evidence: "seen" as const },
     ];
-    const blocks = buildStoredWorkBlocks(segments, { "09": { 开发: 8 } });
-    expect(blocks[0]).toMatchObject({ kind: "active", appsKind: "category", primaryApp: { name: "开发" } });
-    expect(blocks.some(block => block.kind === "away")).toBe(false);
+    const blocks = buildStoredWorkBlocks(segments);
+    expect(blocks[0]).toMatchObject({ kind: "active", appsKind: "none", apps: [], topApps: [], primaryApp: null, gapMinutes: 1 });
+  });
+
+  it("跨午夜工作块从 00:00 开始并保留边界标签", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    statuses[0] = "office_active"; statuses[1] = "office_away"; statuses[2] = "office_active";
+    evidence[0] = "seen"; evidence[1] = "inferred"; evidence[2] = "seen";
+    const block = buildWorkBlocks(new Array(1440).fill(null), statuses, evidence)[0];
+    expect(block).toMatchObject({ startMinute: 0, endMinute: 2, startLabel: "00:00", endLabel: "00:02", gapMinutes: 1 });
   });
 });
 

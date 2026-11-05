@@ -324,7 +324,7 @@ function buildAppBreakdown(
 /** 小于该分钟数的离座空档并入前后相邻的在电脑前块。 */
 export const workBlockMinGapMinutes = 2;
 
-type WorkBlockRun = { kind: "active" | "away" | "other"; status: DayStatus; startMinute: number; endMinute: number };
+type WorkBlockRun = { kind: "active" | "away" | "other"; status: DayStatus; startMinute: number; endMinute: number; gapMinutes: number };
 
 function workBlockRuns(statuses: DayStatus[]): WorkBlockRun[] {
   const first = statuses.findIndex(status => status === "office_active" || status === "office_away");
@@ -341,14 +341,17 @@ function workBlockRuns(statuses: DayStatus[]): WorkBlockRun[] {
     const kind = kindOf(status);
     const previous = runs.at(-1);
     if (previous?.kind === kind && (kind === "other" ? previous.status === status : true)) previous.endMinute = minute;
-    else runs.push({ kind, status, startMinute: minute, endMinute: minute });
+    else runs.push({ kind, status, startMinute: minute, endMinute: minute, gapMinutes: 0 });
   }
   for (let index = 1; index < runs.length - 1; index += 1) {
     const current = runs[index];
-    if (current.kind !== "away" || current.endMinute - current.startMinute + 1 >= workBlockMinGapMinutes) continue;
+    const gapLength = current.endMinute - current.startMinute + 1;
+    const mergeable = (current.kind === "away" || current.status === "unknown") && gapLength < workBlockMinGapMinutes;
+    if (!mergeable) continue;
     const previous = runs[index - 1], next = runs[index + 1];
     if (previous.kind !== "active" || next.kind !== "active") continue;
     previous.endMinute = next.endMinute;
+    previous.gapMinutes += gapLength;
     runs.splice(index, 2);
     index = Math.max(0, index - 2);
   }
@@ -360,8 +363,7 @@ function workBlockApps(
   minuteSamples: Array<ActivitySample | null>,
   statuses: DayStatus[],
   evidence: Evidence[],
-  appsKind: "app" | "category",
-  hourlyCategories: Record<string, Record<string, number>> | null,
+  appsKind: "app" | "none",
 ): WorkBlock {
   const apps = new Map<string, number>();
   if (appsKind === "app") {
@@ -370,12 +372,6 @@ function workBlockApps(
       if (!isOfficeWorkMinute(row, statuses[minute], evidence[minute])) continue;
       const name = row!.app_name?.trim() || row!.bundle_id?.trim() || "未标注应用";
       apps.set(name, (apps.get(name) ?? 0) + 1);
-    }
-  } else if (hourlyCategories) {
-    for (let hour = Math.floor(run.startMinute / 60); hour <= Math.floor(run.endMinute / 60); hour += 1) {
-      for (const [name, minutes] of Object.entries(hourlyCategories[String(hour).padStart(2, "0")] ?? {})) {
-        if (minutes > 0) apps.set(name, (apps.get(name) ?? 0) + minutes);
-      }
     }
   }
   const sortedApps = [...apps.entries()]
@@ -401,6 +397,7 @@ function workBlockApps(
     endLabel: minuteLabel(run.endMinute),
     minutes: run.endMinute - run.startMinute + 1,
     activeMinutes,
+    gapMinutes: run.gapMinutes,
     inferred,
     appsKind,
     primaryApp: primary ? { name: primary.name, minutes: primary.minutes, share: appMinutes ? primary.minutes / appMinutes : 0 } : null,
@@ -413,15 +410,11 @@ export function buildWorkBlocks(
   minuteSamples: Array<ActivitySample | null>,
   statuses: DayStatus[],
   evidence: Evidence[],
-  _mappings: Record<string, AppCategory>,
 ): WorkBlock[] {
-  return workBlockRuns(statuses).map(run => workBlockApps(run, minuteSamples, statuses, evidence, "app", null));
+  return workBlockRuns(statuses).map(run => workBlockApps(run, minuteSamples, statuses, evidence, "app"));
 }
 
-export function buildStoredWorkBlocks(
-  segments: StatusSegment[],
-  hourlyCategories: Record<string, Record<string, number>>,
-): WorkBlock[] {
+export function buildStoredWorkBlocks(segments: StatusSegment[]): WorkBlock[] {
   if (!segments.length) return [];
   const statuses: DayStatus[] = new Array(MINUTES_PER_DAY).fill("unknown");
   const evidence: Evidence[] = new Array(MINUTES_PER_DAY).fill("no_data");
@@ -431,7 +424,7 @@ export function buildStoredWorkBlocks(
       evidence[minute] = segment.evidence;
     }
   }
-  return workBlockRuns(statuses).map(run => workBlockApps(run, [], statuses, evidence, "category", hourlyCategories));
+  return workBlockRuns(statuses).map(run => workBlockApps(run, [], statuses, evidence, "none"));
 }
 
 
@@ -682,7 +675,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     minuteDetails: details,
     segments: buildSegments(statuses, evidence),
     moments,
-    workBlocks: buildWorkBlocks(minuteOwnSample, statuses, evidence, input.appCategories),
+    workBlocks: buildWorkBlocks(minuteOwnSample, statuses, evidence),
     metrics,
     appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
