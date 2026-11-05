@@ -285,12 +285,13 @@ try {
   assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some(resource => resource.name.includes('mermaid'))), false, 'the listing does not load Mermaid without a chart');
   assert.equal(await page.evaluate(() => document.querySelectorAll('.blog-card').length), 12);
   await page.screenshot({ path: 'blog-list-desktop.png' });
-  // Replace the click path with an explicit visible-link navigation assertion.
+  // Open the visible next-page link with goto to avoid clicks failing under high load; the click path is no longer covered.
   const nextPage = await page.evaluate(() => {
     const next = document.querySelector('.blog-pagination [rel="next"]');
     if (!next) return null;
     const rect = next.getBoundingClientRect();
-    return { href: next.href, visible: next.offsetParent !== null || rect.width > 0 || rect.height > 0 };
+    const style = getComputedStyle(next);
+    return { href: next.href, visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && (next.offsetParent !== null || style.position === 'fixed') };
   });
   assert.ok(nextPage, 'The next-page link exists');
   assert.ok(nextPage.visible, 'The next-page link is visible');
