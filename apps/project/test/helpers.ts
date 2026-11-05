@@ -8,8 +8,8 @@ export const TEST_BASE_SHA = "abbafdfe2d04966d66dad2f4f0084075f040caaf";
 export async function resetDb() {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM today_picks"),
+    env.DB.prepare("DELETE FROM owner_deleted"),
     env.DB.prepare("DELETE FROM owner_done"),
-    env.DB.prepare("DELETE FROM handoffs"),
     env.DB.prepare("DELETE FROM tasks"),
     env.DB.prepare("DELETE FROM branches"),
     env.DB.prepare("DELETE FROM changelog_entries"),

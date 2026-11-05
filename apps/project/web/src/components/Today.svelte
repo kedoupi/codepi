@@ -10,10 +10,9 @@
     today: TodayItem[];
     pool: TaskBrief[];
     done: TaskBrief[];
-    counts: { today: number; pool: number; done: number };
+    counts: { today: number; pool: number; done: number; deleted: number };
     date: string;
   };
-
   let data = $state<TodayData | null>(null);
   let error = $state("");
   let busy = $state("");
@@ -128,8 +127,12 @@
                 {#each group.items as task (`${task.project}/${task.key}`)}
                   <li>
                     <div class="pool-task"><span>{task.title}</span>{#if task.due}<small>{poolDue(task)}</small>{/if}</div>
-                    <button class="pick-button" disabled={busy !== ""} aria-label={`放进今天：${task.title}`}
-                      onclick={() => void mutate("/api/today/pick", task)}>放进今天 →</button>
+                    <div class="pool-actions">
+                      <button class="pick-button" disabled={busy !== ""} aria-label={`放进今天：${task.title}`}
+                        onclick={() => void mutate("/api/today/pick", task)}>放进今天 →</button>
+                      <button class="pick-button" disabled={busy !== ""} aria-label={`删除池子任务：${task.title}`}
+                        onclick={() => void mutate("/api/today/delete", task)}>删除</button>
+                    </div>
                   </li>
                 {/each}
               </ul>

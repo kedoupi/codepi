@@ -72,16 +72,23 @@ function mockScript() {
       task("t6", "示例想法", "idea", "流程", "none", null, "beta"),
       task("t7", "已完成的示例", "doing", "流程", "none", null, "alpha", new Date().toISOString()),
     ];
-    const open = tasks.filter(item => !item.done_at);
     const who = item => ["attend", "decide", "confirm"].includes(item.need_kind) ? "you" : "agent";
+    const deleted = new Set();
     const today = {
       today: open.filter(item => ["t1", "t2"].includes(item.key)).map(item => ({ ...item, carried: false, who: who(item) })),
       pool: open.filter(item => ["t3", "t5", "t6"].includes(item.key)),
       done: tasks.filter(item => item.done_at),
     };
+    const visible = name => today[name].filter(item => !deleted.has(item.key));
     const todayResponse = () => ({
-      ...today,
-      counts: { today: today.today.length, pool: today.pool.length, done: today.done.length },
+      today: visible("today"),
+      pool: visible("pool"),
+      done: visible("done"),
+      deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).map(item => ({
+        project: item.project, key: item.key, title: item.title, deleted_at: new Date().toISOString(),
+      })),
+      counts: { today: visible("today").length, pool: visible("pool").length, done: visible("done").length,
+        deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).length },
       date: day,
     });
     const projects = [
@@ -101,8 +108,7 @@ function mockScript() {
         return state.authenticated ? json({ ok: true, authenticated: true }) : json({ error: "authentication_required" }, 401);
       }
       if (url.pathname === "/api/projects" && method === "GET") return json({ projects });
-      if (url.pathname === "/api/today" && method === "GET") return json(todayResponse());
-      if (["/api/today/pick", "/api/today/unpick", "/api/today/done"].includes(url.pathname) && method === "POST") {
+      if (["/api/today/pick", "/api/today/unpick", "/api/today/done", "/api/today/delete"].includes(url.pathname) && method === "POST") {
         const body = JSON.parse(init.body || "{}");
         const index = today.today.findIndex(item => item.project === body.project && item.key === body.key);
         const poolIndex = today.pool.findIndex(item => item.project === body.project && item.key === body.key);
@@ -115,6 +121,9 @@ function mockScript() {
         } else if (url.pathname.endsWith("/done") && index >= 0) {
           const [item] = today.today.splice(index, 1);
           today.done.push(item);
+        } else if (url.pathname.endsWith("/delete") && poolIndex >= 0) {
+          const [item] = today.pool.splice(poolIndex, 1);
+          deleted.add(item.key);
         }
         return json({ written: 1 });
       }
@@ -202,6 +211,8 @@ async function main() {
 
     await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("授权示例上线"))?.querySelector("button")?.click());
     await page.waitForFunction(() => document.querySelector(".main-today-column")?.innerText.includes("授权示例上线"));
+    await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("修复示例缺陷"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
+    await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("修复示例缺陷"));
     await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("续费示例服务器"))?.querySelector("button")?.click());
     await page.waitForFunction(() => !document.querySelector(".main-today-column")?.innerText.includes("续费示例服务器"));
     await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("选择示例方案"))?.querySelector("button.primary")?.click());
@@ -240,6 +251,8 @@ async function main() {
         assert.equal(await page.evaluate(() => document.querySelectorAll('[role="tabpanel"]').length), 3, "mobile tabpanel semantics");
         await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
         await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
+        await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("示例想法"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
+        await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
         await page.evaluate(() => [...document.querySelectorAll(".tabbar a")].find(link => link.getAttribute("href") === "/board")?.click());
         await page.waitForFunction(() => location.pathname === "/board" && document.body.innerText.includes("领域 × 状态"));
       } else {

@@ -5,7 +5,7 @@ import { applyIngest, assertNoSecrets, authenticateIngest, INGEST_BODY_LIMIT, pa
 import { AppError, assertKeys, bodyJson, integer, json, localDev, oneOf, text } from "./lib";
 import { createProject, isProjectStatus, projectSummaries, resolveProject, rotateToken, updateProject } from "./projects";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind, type ProjectStatus } from "./types";
-import { markOwnerDone, pickToday, todayView, unpickToday } from "./today";
+import { deleteToday, markOwnerDone, pickToday, todayView, unpickToday } from "./today";
 import { activityLog, getTask, listTasks, overview, projectCard } from "./work";
 
 type AppEnv = { Bindings: Env };
@@ -144,6 +144,12 @@ app.post("/api/today/done", async c => {
   const body = await bodyJson(c.req.raw, 8 * 1024);
   assertKeys(body, ["project", "key"]);
   return json(await markOwnerDone(c.env, body.project, body.key));
+});
+
+app.post("/api/today/delete", async c => {
+  const body = await bodyJson(c.req.raw, 8 * 1024);
+  assertKeys(body, ["project", "key"]);
+  return json(await deleteToday(c.env, body.project, body.key));
 });
 
 app.post("/api/projects", async c => {
