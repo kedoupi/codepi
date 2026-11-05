@@ -10,6 +10,7 @@ export async function resetDb() {
     env.DB.prepare("DELETE FROM today_picks"),
     env.DB.prepare("DELETE FROM owner_deleted"),
     env.DB.prepare("DELETE FROM owner_done"),
+    env.DB.prepare("DELETE FROM handoffs"),
     env.DB.prepare("DELETE FROM tasks"),
     env.DB.prepare("DELETE FROM branches"),
     env.DB.prepare("DELETE FROM changelog_entries"),

@@ -72,6 +72,7 @@ function mockScript() {
       task("t6", "示例想法", "idea", "流程", "none", null, "beta"),
       task("t7", "已完成的示例", "doing", "流程", "none", null, "alpha", new Date().toISOString()),
     ];
+    const open = tasks.filter(item => !item.done_at);
     const who = item => ["attend", "decide", "confirm"].includes(item.need_kind) ? "you" : "agent";
     const deleted = new Set();
     const today = {
@@ -108,6 +109,7 @@ function mockScript() {
         return state.authenticated ? json({ ok: true, authenticated: true }) : json({ error: "authentication_required" }, 401);
       }
       if (url.pathname === "/api/projects" && method === "GET") return json({ projects });
+      if (url.pathname === "/api/today" && method === "GET") return json(todayResponse());
       if (["/api/today/pick", "/api/today/unpick", "/api/today/done", "/api/today/delete"].includes(url.pathname) && method === "POST") {
         const body = JSON.parse(init.body || "{}");
         const index = today.today.findIndex(item => item.project === body.project && item.key === body.key);
