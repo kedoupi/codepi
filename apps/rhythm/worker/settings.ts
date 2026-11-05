@@ -1,7 +1,8 @@
+import { APP_CATEGORIES, normalizeAppCategory } from "./models";
 import type { AppCategory } from "./models";
 import type { Env } from "./types";
 
-const CATEGORIES: AppCategory[] = ["开发", "沟通", "文档", "浏览", "其他"];
+const CATEGORIES = [...APP_CATEGORIES];
 export const DEFAULT_ANOMALY_THRESHOLDS = { earlyLateMinutes: 40, commutePercent: 50 } as const;
 
 export type RhythmSettings = {
@@ -57,7 +58,8 @@ function parseCategories(value: string | null): Record<string, AppCategory> {
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
     const result: Record<string, AppCategory> = {};
     for (const [name, category] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof category === "string" && (CATEGORIES as string[]).includes(category)) result[name] = category as AppCategory;
+      const normalized = normalizeAppCategory(category);
+      if (normalized) result[name] = normalized;
     }
     return result;
   } catch {
@@ -116,37 +118,44 @@ function strictStringMap(value: unknown, categoryValues = false): Record<string,
   return result;
 }
 
-export function parseSettingsUpdate(value: unknown): SettingsUpdate {
+export function parseSettingsUpdate(value: unknown, previous: RhythmSettings = EMPTY_SETTINGS): SettingsUpdate {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("invalid_settings");
   const body = value as Record<string, unknown>;
   const expected = ["subject_device_ids", "app_categories", "other_network_names", "anomaly_thresholds"];
-  if (Object.keys(body).length !== expected.length || expected.some(key => !(key in body))) throw new Error("invalid_settings");
-  if (!Array.isArray(body.subject_device_ids) || body.subject_device_ids.length > MAX_MAP_ENTRIES) throw new Error("invalid_settings");
-  const subjectDeviceIds = body.subject_device_ids.map(item => {
-    if (!safeSettingText(item)) throw new Error("invalid_settings");
-    return item.trim();
-  });
-  if (new Set(subjectDeviceIds).size !== subjectDeviceIds.length) throw new Error("invalid_settings");
+  if (Object.keys(body).some(key => !expected.includes(key)) || !("app_categories" in body) || !("other_network_names" in body)) {
+    throw new Error("invalid_settings");
+  }
+  const subjectDeviceIds = body.subject_device_ids === undefined
+    ? previous.subjectDeviceIds
+    : (() => {
+      if (!Array.isArray(body.subject_device_ids) || body.subject_device_ids.length > MAX_MAP_ENTRIES) throw new Error("invalid_settings");
+      const values = body.subject_device_ids.map(item => {
+        if (!safeSettingText(item)) throw new Error("invalid_settings");
+        return item.trim();
+      });
+      if (new Set(values).size !== values.length) throw new Error("invalid_settings");
+      return values;
+    })();
   const appCategories = strictStringMap(body.app_categories, true) as Record<string, AppCategory>;
   const otherNetworkNames = strictStringMap(body.other_network_names);
-  if (typeof body.anomaly_thresholds !== "object" || body.anomaly_thresholds === null || Array.isArray(body.anomaly_thresholds)) {
-    throw new Error("invalid_settings");
-  }
-  const thresholds = body.anomaly_thresholds as Record<string, unknown>;
-  if (Object.keys(thresholds).length !== 2 || !("early_late_minutes" in thresholds) || !("commute_percent" in thresholds)) {
-    throw new Error("invalid_settings");
-  }
-  const earlyLateMinutes = thresholds.early_late_minutes;
-  const commutePercent = thresholds.commute_percent;
-  if (!Number.isInteger(earlyLateMinutes) || !Number.isInteger(commutePercent)
-    || (earlyLateMinutes as number) < 1 || (earlyLateMinutes as number) > 1440
-    || (commutePercent as number) < 1 || (commutePercent as number) > 300) throw new Error("invalid_settings");
-  return {
-    subjectDeviceIds,
-    appCategories,
-    otherNetworkNames,
-    anomalyThresholds: { earlyLateMinutes: earlyLateMinutes as number, commutePercent: commutePercent as number },
-  };
+  const anomalyThresholds = body.anomaly_thresholds === undefined
+    ? previous.anomalyThresholds
+    : (() => {
+      if (typeof body.anomaly_thresholds !== "object" || body.anomaly_thresholds === null || Array.isArray(body.anomaly_thresholds)) {
+        throw new Error("invalid_settings");
+      }
+      const thresholds = body.anomaly_thresholds as Record<string, unknown>;
+      if (Object.keys(thresholds).length !== 2 || !("early_late_minutes" in thresholds) || !("commute_percent" in thresholds)) {
+        throw new Error("invalid_settings");
+      }
+      const earlyLateMinutes = thresholds.early_late_minutes;
+      const commutePercent = thresholds.commute_percent;
+      if (!Number.isInteger(earlyLateMinutes) || !Number.isInteger(commutePercent)
+        || (earlyLateMinutes as number) < 1 || (earlyLateMinutes as number) > 1440
+        || (commutePercent as number) < 1 || (commutePercent as number) > 300) throw new Error("invalid_settings");
+      return { earlyLateMinutes: earlyLateMinutes as number, commutePercent: commutePercent as number };
+    })();
+  return { subjectDeviceIds, appCategories, otherNetworkNames, anomalyThresholds };
 }
 
 export type PendingRecompute = { days: number; from: string | null; to: string | null };

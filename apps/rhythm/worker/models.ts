@@ -6,7 +6,16 @@ export type RhythmStatus = typeof RHYTHM_STATUSES[number];
 export type DayStatus = RhythmStatus | "not_arrived";
 export type Evidence = "seen" | "inferred" | "no_data" | "not_arrived";
 export type MomentKind = "wake" | "leave_home" | "start_work" | "leave_computer" | "arrive_home" | "return_bedroom";
-export type AppCategory = "开发" | "沟通" | "文档" | "浏览" | "其他";
+export const APP_CATEGORIES = ["AI 编程", "AI 对话", "工作沟通", "会议", "文档", "浏览", "私人", "其他"] as const;
+export type AppCategory = typeof APP_CATEGORIES[number];
+
+export function normalizeAppCategory(value: unknown): AppCategory | null {
+  if (typeof value !== "string") return null;
+  if ((APP_CATEGORIES as readonly string[]).includes(value)) return value as AppCategory;
+  if (value === "开发") return "AI 编程";
+  if (value === "沟通") return "工作沟通";
+  return null;
+}
 
 export type ActivitySample = {
   host?: string | null;
@@ -133,11 +142,20 @@ export type DayComputation = {
 export type DayType = "workday" | "restday";
 export type GapReason = "home_scan_missing" | "phone_scan_missing" | "work_machine_missing";
 
+export type FocusSegment = {
+  startMinute: number;
+  endMinute: number;
+  minutes: number;
+  primaryCategory: AppCategory;
+  interruptedAt: number[];
+};
+
 export type FocusMetrics = {
   segmentCount: number | null;
   totalMinutes: number | null;
   longestMinutes: number | null;
   communicationInterruptions: number | null;
+  segments: FocusSegment[] | null;
 };
 
 export type CoverageMetrics = {
@@ -161,6 +179,10 @@ export type DailyMetrics = DayMetrics & {
   weekendRoomMinutes: Record<string, number>;
   appCategoryMinutes: Record<AppCategory, number>;
   hourlyAppCategoryMinutes: Record<string, Record<AppCategory, number>>;
+  appMinutes: Record<string, { minutes: number; category: AppCategory }> | null;
+  hourlyActiveMinutes: Record<string, number> | null;
+  hourlySwitchCounts: Record<string, number> | null;
+  focusSegments: FocusSegment[] | null;
   topAppName: string | null;
   topAppMinutes: number | null;
   otherNetworkMinutes: Record<string, number>;

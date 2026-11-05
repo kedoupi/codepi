@@ -439,7 +439,7 @@ describe("当天只计算已经到达的分钟", () => {
     const now = Date.parse("2026-11-12T04:00:00Z");
     const day = calculateDay({
       ...emptyInput("2026-11-12"),
-      appCategories: { "示例编辑器": "开发" },
+      appCategories: { "示例编辑器": "AI 编程" },
       activity: [
         { sampled_at: "2026-11-12T11:59:00+08:00", net: "office", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
         { sampled_at: "2026-11-12T12:00:00+08:00", net: "office", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
@@ -476,7 +476,7 @@ describe("只算办公室且有键鼠的分钟", () => {
   it("应用分类只统计 net=office 且有键鼠的分钟", () => {
     const day = calculateDay({
       ...emptyInput("2026-11-11"),
-      appCategories: { "示例编辑器": "开发" },
+      appCategories: { "示例编辑器": "AI 编程" },
       activity: [
         { sampled_at: "2026-11-11T09:00:00+08:00", net: "home", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" },
         { sampled_at: "2026-11-11T10:00:00+08:00", net: "office", idle_sec: 900, locked: false, app_name: "示例编辑器" },
@@ -485,7 +485,7 @@ describe("只算办公室且有键鼠的分钟", () => {
       ],
     });
     expect(day.appBreakdown).toHaveLength(1);
-    expect(day.appBreakdown[0].category).toBe("开发");
+    expect(day.appBreakdown[0].category).toBe("AI 编程");
     expect(day.appBreakdown[0].minutes).toBe(1);
     expect(day.keyboardMouseMinutes).toEqual({ keyboard: 1, pointer: 1, both: 1 });
   });
