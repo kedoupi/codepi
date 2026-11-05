@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadCases, toStateInput } from "../../shared/cases";
-import { calculateDay, dayStartEpoch, minuteLabel, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS } from "../../worker/state";
-import type { DayMetrics, StateInput } from "../../worker/models";
+import { buildStoredWorkBlocks, buildWorkBlocks, calculateDay, dayStartEpoch, minuteLabel, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, workBlockMinGapMinutes } from "../../worker/state";
+import type { ActivitySample, DayMetrics, DayStatus, StateInput } from "../../worker/models";
 
 const cases = loadCases();
 
@@ -70,6 +70,60 @@ function emptyInput(date: string): StateInput {
     appCategories: {},
   };
 }
+
+describe("工作时段块", () => {
+  it("合并恰好 1 分钟 away/unknown，保留前 3 个 App 与排序", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    const samples: Array<ActivitySample | null> = new Array(1440).fill(null);
+    const apps = ["App A", "App B", "App C", "App A", "App D", "App E", "App B", "App C"];
+    const active = (minute: number, app?: string) => {
+      statuses[minute] = "office_active"; evidence[minute] = "seen";
+      samples[minute] = app ? { sampled_at: `2026-11-05T00:${String(minute).padStart(2, "0")}:00+08:00`, net: "office", key_idle_sec: 10, app_name: app } : null;
+    };
+    for (let minute = 100; minute <= 104; minute += 1) active(minute, apps[minute - 100]);
+    statuses[105] = "office_away"; evidence[105] = "inferred";
+    active(106, "App C"); active(107, "App B");
+    statuses[108] = "commute"; evidence[108] = "inferred";
+    active(109, "App C");
+    statuses[110] = "unknown"; evidence[110] = "no_data";
+    active(111, "App C");
+    statuses[112] = "office_away"; evidence[112] = "inferred";
+    statuses[113] = "office_away"; evidence[113] = "inferred";
+    active(114, "App D");
+    const blocks = buildWorkBlocks(samples, statuses, evidence);
+    expect(workBlockMinGapMinutes).toBe(2);
+    expect(blocks.map(block => block.kind)).toEqual(["active", "other", "active", "away", "active"]);
+    expect(blocks[0]).toMatchObject({ startMinute: 100, endMinute: 107, minutes: 8, gapMinutes: 1, inferred: false, appsKind: "app" });
+    expect(blocks[0].topApps.map(app => app.name)).toEqual(["App A", "App B", "App C"]);
+    expect(blocks[0].topApps.map(app => app.minutes)).toEqual([2, 2, 2]);
+    expect(blocks[1]).toMatchObject({ status: "commute", startMinute: 108, endMinute: 108, gapMinutes: 0 });
+    expect(blocks[2]).toMatchObject({ startMinute: 109, endMinute: 111, gapMinutes: 1 });
+    expect(blocks[3]).toMatchObject({ startMinute: 112, endMinute: 113, minutes: 2, gapMinutes: 0 });
+  });
+
+  it("无公司分钟为空，历史块不携带分类 App", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    expect(buildWorkBlocks(new Array(1440).fill(null), statuses, evidence)).toEqual([]);
+    const segments = [
+      { status: "office_active" as const, startMinute: 540, endMinute: 544, evidence: "seen" as const },
+      { status: "office_away" as const, startMinute: 545, endMinute: 545, evidence: "inferred" as const },
+      { status: "office_active" as const, startMinute: 546, endMinute: 549, evidence: "seen" as const },
+    ];
+    const blocks = buildStoredWorkBlocks(segments);
+    expect(blocks[0]).toMatchObject({ kind: "active", appsKind: "none", apps: [], topApps: [], primaryApp: null, gapMinutes: 1 });
+  });
+
+  it("跨午夜工作块从 00:00 开始并保留边界标签", () => {
+    const statuses: DayStatus[] = new Array(1440).fill("unknown");
+    const evidence = new Array(1440).fill("no_data" as const);
+    statuses[0] = "office_active"; statuses[1] = "office_away"; statuses[2] = "office_active";
+    evidence[0] = "seen"; evidence[1] = "inferred"; evidence[2] = "seen";
+    const block = buildWorkBlocks(new Array(1440).fill(null), statuses, evidence)[0];
+    expect(block).toMatchObject({ startMinute: 0, endMinute: 2, startLabel: "00:00", endLabel: "00:02", gapMinutes: 1 });
+  });
+});
 
 describe("缺失数据永远是未知", () => {
   it("没有任何上游数据时全天未知，且不产生离家或到家时刻", () => {

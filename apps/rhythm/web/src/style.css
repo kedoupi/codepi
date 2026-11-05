@@ -148,6 +148,19 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .bar-track span[data-category="文档"] { background: var(--rhythm-document); }
 .bar-track span[data-category="浏览"] { background: var(--rhythm-browser); }
 .bar-row small { color: var(--color-text-muted); font-size: 12px; }
+.work-blocks { display: grid; gap: 12px; }
+.work-block { min-width: 0; border: 1px solid var(--color-border); border-left: 5px solid var(--rhythm-unknown); border-radius: var(--radius-control); padding: 14px 16px; overflow-wrap: anywhere; }
+.work-block[data-kind="active"] { border-left-color: var(--rhythm-office); }
+.work-block[data-kind="away"] { border-left-color: var(--rhythm-away); }
+.work-block-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.work-block-kind { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: 13px; }
+.work-block-heading strong { display: block; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.work-block-time { color: var(--color-text-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.work-block-primary { margin: 12px 0 8px; }
+.work-block-apps { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--color-text-muted); font-size: 13px; }
+.work-block details { margin-top: 10px; color: var(--color-text-muted); font-size: 13px; }
+.work-block summary { cursor: pointer; color: var(--color-action-hover); }
+.work-block-note { display: block; margin-top: 10px; color: var(--color-text-muted); }
 .source-card > div { display: flex; gap: 10px; align-items: center; }
 .source-card h2 { margin: 0; }
 .source-card > strong { display: block; margin: 18px 0 8px; }

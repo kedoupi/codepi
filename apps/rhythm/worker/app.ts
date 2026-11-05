@@ -6,7 +6,7 @@ import type { DayComputation, Evidence, RhythmStatus } from "./models";
 import {
   parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
-import { calculateDay, currentStatusLookbackMinutes, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
+import { buildStoredWorkBlocks, calculateDay, currentStatusLookbackMinutes, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
   parseActivity, parseDevices, parseHeartbeats, readUpstream, UPSTREAM_ACTIVITY_SAMPLES_PATH, UPSTREAM_HOME_DEVICES_PATH,
   UPSTREAM_HOME_HEARTBEATS_PATH,
@@ -202,6 +202,11 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
       minute: moment.minute,
       time: minuteLabel(moment.minute),
     })),
+    workBlocks: day.workBlocks.map(block => ({
+      ...block,
+      startLabel: minuteLabel(block.startMinute),
+      endLabel: minuteLabel(block.endMinute),
+    })),
     metrics: day.metrics,
     appBreakdown: day.appBreakdown.map(item => ({
       category: item.category,
@@ -250,6 +255,7 @@ function missingStoredDay(date: string, settings: RhythmSettings) {
     computedAt: null,
     segments: [],
     moments: [],
+    workBlocks: [],
     metrics: emptyDayMetrics(date),
     appBreakdown: [],
     keyboardMouseMinutes: { keyboard: null, pointer: null, both: null },
@@ -308,6 +314,7 @@ async function loadStoredDay(env: Env, date: string, settings: RhythmSettings) {
         time: minuteLabel(minute),
       }];
     }),
+    workBlocks: buildStoredWorkBlocks(status.segments),
     metrics: metrics.metrics,
     appBreakdown: categoryEntries.map(([category, minutes]) => ({
       category,

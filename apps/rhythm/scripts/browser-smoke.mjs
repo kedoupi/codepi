@@ -495,6 +495,8 @@ async function main() {
     await assertLayout(page, "desktop today", 1440);
     await assertNoRawHtml(page, "desktop today");
     await waitText(page, "截至");
+    await waitText(page, "工作时段");
+    assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "today has work blocks");
     await screenshot(page, "desktop-today.png");
 
     const morning = await page.evaluate(() => {
@@ -650,6 +652,8 @@ async function main() {
     });
     await page.goto(`${origin}/`);
     await waitText(page, "上班通勤（上限）");
+    await waitText(page, "工作时段");
+    assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile today has work blocks");
     await assertLayout(page, "mobile today", 390);
     await assertNoRawHtml(page, "mobile today");
     await screenshot(page, "mobile-today.png");
@@ -689,6 +693,11 @@ async function main() {
     await assertTheme(page, "mobile dark trends", "dark");
     await assertLayout(page, "mobile dark trends", 390);
     await fullScreenshot(page, "mobile-trends-dark.png");
+    await page.goto(`${origin}/`);
+    await waitText(page, "工作时段");
+    await assertTheme(page, "mobile dark today", "dark");
+    await assertLayout(page, "mobile dark today", 390);
+    assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile dark today has work blocks");
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
