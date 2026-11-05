@@ -76,7 +76,7 @@ describe("Project HTTP boundary", () => {
   });
   it("requires SSO for today mutations", async () => {
     const sso = setup();
-    for (const path of ["/api/today/pick", "/api/today/unpick", "/api/today/done"]) {
+    for (const path of ["/api/today/pick", "/api/today/unpick", "/api/today/done", "/api/today/delete"]) {
       const response = await sso.call(request(path, { method: "POST", body: { project: "codepi", key: "task" } }));
       expect(response.status, path).toBe(401);
     }
@@ -87,7 +87,7 @@ describe("Project HTTP boundary", () => {
     const sso = setup();
     for (const [path, method] of [["/api/projects", "POST"], ["/api/projects/codepi/token", "POST"],
       ["/api/projects/codepi", "PATCH"], ["/api/today/pick", "POST"], ["/api/today/unpick", "POST"],
-      ["/api/today/done", "POST"]] as const) {
+      ["/api/today/done", "POST"], ["/api/today/delete", "POST"]] as const) {
       const res = await sso.call(request(path, { method, body: { name: "x" }, origin: "https://evil.example" }));
       expect(res.status, path).toBe(403);
     }

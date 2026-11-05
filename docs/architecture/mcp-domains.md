@@ -12,7 +12,7 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 | 所有者 | named RPC | 权威数据 | MCP 能力 |
 | --- | --- | --- | --- |
 | Health API | `HealthMcp` | Health D1 与同步队列 | catalog、records、aggregate、sync status |
-| Project | `ProjectMcp` | 独立 D1；各仓库推送的待办、分支、变更快照与追加交接，网页 today 选择 | work_overview、task_list、task_get、project_get、today_get/today_pick、project_handoff_save |
+| Project | `ProjectMcp` | 独立 D1；各仓库推送的待办、分支、变更快照与追加交接，网页 today 选择与 `owner_deleted` 标记 | work_overview、task_list、task_get、project_get、today_get/today_pick、project_handoff_save |
 | Me | `MeMcp` | 独立 D1；私有 R2 导入原文 | memory_search/save/import、profile、timeline、proposal |
 | GU | `GuMcp` | `gu_workspace_head` 指向的线上版本 | portfolio、cash、trades、rules、reports |
 | Blog（Web Worker） | `BlogMcp` | Web Worker 自有 Blog D1/R2 | 博客查询、草稿与审核辅助；发布仍需 owner 审核 |
@@ -57,15 +57,15 @@ Health 超限响应使用 `health_data_json_v1` JSON 片段分页；保持原参
 
 2026-11-04 起 Project 是个人工作台（[任务](../development/tasks/2026-11-04-project-workbench.md)）：
 各项目仓库合并后用项目令牌推送 `workbench.v1` 快照（待办、分支、changelog），Worker 做凭据形态扫描、
-按内容哈希幂等，消失的待办记为完成；GitHub 拉取同步已删除。待办以仓库为唯一真源，网页不编辑待办内容。
+按内容哈希幂等，消失的待办记为完成；网页今天看板可以挑选、退回、标记主人完成或写入 `owner_deleted`，待办以仓库为唯一真源。GitHub 拉取同步已删除。
 `work_overview` 是开工入口：需要所有者决定、到场、授权、确认的事按截止排序，逾期与 7 天内到期、
 进行中分支、最近 7 天完成。`task_list` 返回紧凑行，使用 `offset/limit`、`next_offset` 和覆盖筛选与
 `revision`，列表变化返回 `cursor_stale`，不得输出漏项的部分列表；`task_get` 读一条待办的四项文字与交接。
 `project_get` 返回规则入口与 Agent 协作适配段（隔离、提交、验收、合并）、按状态计数、分支、近期变更标题和
-每个任务最新交接。`today_get` 每次开窗先读 Beijing day 的 today、pool、done；网页只允许挑选/退回与标记主人事项完成，
+每个任务最新交接。`today_get` 每次开窗先读 Beijing day 的 today、pool、done 与 `deleted`；网页允许挑选/退回、标记主人事项完成和删除池子任务，
 助手可通过 `today_pick` 一次建议最多 20 项且不能覆盖主人挑选。`today_picks` 保存挑选和当天退回，`owner_done` 持久隐藏
-主人完成的任务；标题或分类变化会产生新 key，旧 key 随推送完成并进入 done，新 key 进入 pool。今天里的事尽量不改标题与分类。
-所有回复都在 12 KiB 内，超出时截短列表并写 `truncated`，并保留完整的 today/pool/done 计数；不再使用片段分页。
+主人完成的任务，`owner_deleted` 保存网页删除但仓库仍存在的任务，直到仓库推送移除该 key；标题或分类变化会产生新 key，旧 key 随推送完成并进入 done，新 key 进入 pool。今天里的事尽量不改标题与分类。
+所有回复都在 12 KiB 内，超出时按 `pool → done → deleted → today` 截短列表并写 `truncated`，并保留完整的 today/pool/done/deleted 计数。
 交接挂在任务键或自由任务 ID 上，状态为 in_progress/blocked/ready_for_review/done；分支、base SHA、
 commit、PR 可选，没有远端的仓库也能写。写入只追加；重复请求使用相同 request_id。
 
