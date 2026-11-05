@@ -13,14 +13,8 @@ function response(body: unknown, status = 200) {
 function settings(overrides: Record<string, unknown> = {}) {
   return {
     pending_recompute_days: { days: 0, from: null, to: null },
-    subject_device_ids: [],
-    device_candidates: [
-      { device_id: "dev-a", vendor: "示例厂商", name: "示例手机", room: "示例位置" },
-      { device_id: "dev-b", vendor: null, name: null, room: null },
-    ],
-    app_categories: { 示例编辑器: "开发" },
+    app_categories: { 示例编辑器: "AI 编程" },
     other_network_names: {},
-    anomaly_thresholds: { early_late_minutes: 40, commute_percent: 50 },
     ...overrides,
   };
 }
@@ -50,30 +44,26 @@ afterEach(() => {
 });
 
 describe("Rhythm 设置页", () => {
-  it("选择手机、加 App 归类、改阈值后保存成功", async () => {
+  it("添加 App 归类后只提交归类和网络设置", async () => {
     const calls = stub(body => response(settings({
-      subject_device_ids: body.subject_device_ids,
       app_categories: body.app_categories,
-      anomaly_thresholds: body.anomaly_thresholds,
+      other_network_names: body.other_network_names,
       pending_recompute_days: { days: 3, from: "2026-11-01", to: "2026-11-03" },
     })));
     render(App);
-    await fireEvent.click(await screen.findByRole("checkbox", { name: /示例手机/ }));
-    expect(screen.getByText("未命名设备")).toBeTruthy();
-    await fireEvent.click(screen.getByRole("button", { name: "添加 App" }));
+    expect(screen.queryByText("本人手机")).toBeNull();
+    expect(screen.queryByText("和平时不一样的门槛")).toBeNull();
+    await fireEvent.click(await screen.findByRole("button", { name: "添加 App" }));
     const names = screen.getAllByRole("textbox", { name: "App 名" });
-    await fireEvent.input(names.at(-1)!, { target: { value: "示例沟通" } });
+    await fireEvent.input(names.at(-1)!, { target: { value: "示例对话" } });
     const categories = screen.getAllByRole("combobox", { name: "类别" });
-    await fireEvent.change(categories.at(-1)!, { target: { value: "沟通" } });
-    await fireEvent.input(screen.getByRole("spinbutton", { name: /早或晚至少/ }), { target: { value: "45" } });
+    await fireEvent.change(categories.at(-1)!, { target: { value: "AI 对话" } });
     await fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
     expect(await screen.findByText("已保存。")).toBeTruthy();
     const put = calls.find(call => call.method === "PUT")!;
     expect(put.body).toEqual({
-      subject_device_ids: ["dev-a"],
-      app_categories: { 示例编辑器: "开发", 示例沟通: "沟通" },
+      app_categories: { 示例编辑器: "AI 编程", 示例对话: "AI 对话" },
       other_network_names: {},
-      anomaly_thresholds: { early_late_minutes: 45, commute_percent: 50 },
     });
     expect(screen.getByText("有 3 天需要重算")).toBeTruthy();
   });
@@ -81,7 +71,7 @@ describe("Rhythm 设置页", () => {
   it("后端拒收时显示错误，不显示已保存", async () => {
     stub(() => response({ error: "invalid_settings" }, 400));
     render(App);
-    await screen.findByRole("heading", { name: "本人手机" });
+    await screen.findByRole("heading", { name: "App 归类" });
     await fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("设置没有保存");

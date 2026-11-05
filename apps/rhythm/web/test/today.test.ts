@@ -154,7 +154,7 @@ describe("Rhythm 今天页", () => {
     const segment = await screen.findByRole("button", { name: /其他网络/ });
     await fireEvent.click(segment);
     await waitFor(() => expect(screen.getByText("07:21–07:35 其他网络")).toBeTruthy());
-    expect(screen.getByText("示例网络")).toBeTruthy();
+    expect(screen.getAllByText("示例网络").length).toBeGreaterThan(0);
   });
 
   it("没有指定手机时明确提示", async () => {
@@ -209,7 +209,7 @@ describe("Rhythm 今天页", () => {
       throw new Error(`unexpected request: ${path}`);
     }));
     render(App);
-    expect(await screen.findByText("<script>window.__rhythmXss = 1</script>")).toBeTruthy();
+    expect((await screen.findAllByText("<script>window.__rhythmXss = 1</script>")).length).toBeGreaterThan(0);
     expect(document.querySelector("script")).toBeNull();
     expect(Object.prototype.hasOwnProperty.call(window, "__rhythmXss")).toBe(false);
   });

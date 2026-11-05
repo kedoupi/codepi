@@ -1,8 +1,7 @@
 // 趋势页的纯函数：只做展示用的换算与汇总，不补数据。缺失永远返回 null（页面显示「未知」），不当成 0。
 
 export type DayType = "workday" | "restday";
-export type AppCategory = "开发" | "沟通" | "文档" | "浏览" | "其他";
-
+export type AppCategory = "AI 编程" | "AI 对话" | "工作沟通" | "会议" | "文档" | "浏览" | "私人" | "其他";
 export type FocusMetrics = {
   segmentCount: number | null; totalMinutes: number | null;
   longestMinutes: number | null; communicationInterruptions: number | null;
@@ -71,7 +70,7 @@ export const STATUS_GROUPS = [
   { key: "unknown", label: "未知", statuses: ["unknown"] },
 ] as const;
 
-export const APP_CATEGORIES: AppCategory[] = ["开发", "沟通", "文档", "浏览", "其他"];
+export const APP_CATEGORIES: AppCategory[] = ["AI 编程", "AI 对话", "工作沟通", "会议", "文档", "浏览", "私人", "其他"];
 
 export const MOMENTS = [
   { field: "leaveHomeMinute", label: "离家" },

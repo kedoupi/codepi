@@ -3,40 +3,30 @@
   import { api } from "./api";
   import { APP_CATEGORIES, type AppCategory } from "./trends";
 
-  type Candidate = { device_id: string; vendor: string | null; name: string | null; room: string | null };
   type SettingsPayload = {
     pending_recompute_days: { days: number; from: string | null; to: string | null };
-    subject_device_ids: string[];
-    device_candidates: Candidate[];
     app_categories: Record<string, AppCategory>;
     other_network_names: Record<string, string>;
-    anomaly_thresholds: { early_late_minutes: number; commute_percent: number };
   };
-  type Row = { id: number; key: string; value: string };
+  type Row = { id: number; key: string; value: AppCategory };
 
   let loaded = $state<SettingsPayload | null>(null);
   let message = $state("");
   let status = $state<{ kind: "ok" | "error"; text: string } | null>(null);
   let saving = $state(false);
   let recomputing = $state(false);
-  let subjects = $state<string[]>([]);
   let appRows = $state<Row[]>([]);
-  let networkRows = $state<Row[]>([]);
-  let earlyLate = $state(40);
-  let commutePercent = $state(50);
+  let networkRows = $state<Array<{ id: number; key: string; value: string }>>([]);
   let nextId = 0;
 
   function rows(map: Record<string, string>): Row[] {
-    return Object.entries(map).map(([key, value]) => ({ id: ++nextId, key, value }));
+    return Object.entries(map).map(([key, value]) => ({ id: ++nextId, key, value: value as AppCategory }));
   }
 
   function apply(payload: SettingsPayload) {
     loaded = payload;
-    subjects = [...payload.subject_device_ids];
     appRows = rows(payload.app_categories);
-    networkRows = rows(payload.other_network_names);
-    earlyLate = payload.anomaly_thresholds.early_late_minutes;
-    commutePercent = payload.anomaly_thresholds.commute_percent;
+    networkRows = Object.entries(payload.other_network_names).map(([key, value]) => ({ id: ++nextId, key, value }));
   }
 
   async function load() {
@@ -45,12 +35,7 @@
     catch (error) { loaded = null; message = (error as Error).message; }
   }
 
-  function toggleSubject(id: string, checked: boolean) {
-    subjects = checked ? [...new Set([...subjects, id])] : subjects.filter(item => item !== id);
-  }
-
-  /** 先在页面上把明显的问题拦下来（空行、重复），其余以后端校验为准。 */
-  function collect(list: Row[], label: string): Record<string, string> {
+  function collect<T extends { key: string; value: string }>(list: T[], label: string): Record<string, string> {
     const result: Record<string, string> = {};
     for (const row of list) {
       const key = row.key.trim();
@@ -66,13 +51,11 @@
   async function save(event: SubmitEvent) {
     event.preventDefault();
     status = null;
-    let body;
+    let body: { app_categories: Record<string, string>; other_network_names: Record<string, string> };
     try {
       body = {
-        subject_device_ids: subjects,
         app_categories: collect(appRows, "App 归类"),
         other_network_names: collect(networkRows, "网络改名"),
-        anomaly_thresholds: { early_late_minutes: Number(earlyLate), commute_percent: Number(commutePercent) },
       };
     } catch (error) {
       status = { kind: "error", text: (error as Error).message };
@@ -90,7 +73,10 @@
   }
 
   const pending = $derived(loaded?.pending_recompute_days ?? { days: 0, from: null, to: null });
-  /** 手动重算按 7 天一段依次请求，避免单次请求太大。 */
+  const groupedApps = $derived(APP_CATEGORIES.map(category => ({
+    category,
+    apps: appRows.filter(row => row.value === category),
+  })));
   const RECOMPUTE_CHUNK_DAYS = 7;
 
   function addDays(date: string, days: number): string {
@@ -140,34 +126,24 @@
   {/if}
 
   <form class="settings-form" onsubmit={save}>
-    <section class="panel">
-      <h2>本人手机</h2>
-      <p class="muted">用来判断人在不在家。候选来自家中设备表，只显示名称、厂商和位置标签。</p>
-      {#if loaded.device_candidates.length}
-        <div class="candidate-list">
-          {#each loaded.device_candidates as candidate (candidate.device_id)}
-            <label class="candidate">
-              <input type="checkbox" checked={subjects.includes(candidate.device_id)} onchange={event => toggleSubject(candidate.device_id, event.currentTarget.checked)} />
-              <span><strong>{candidate.name ?? "未命名设备"}</strong><small>{[candidate.vendor, candidate.room].filter(Boolean).join(" · ") || "无厂商或位置信息"}</small></span>
-            </label>
-          {/each}
-        </div>
-      {:else}<p class="empty-small">家中设备表里还没有设备。</p>{/if}
-    </section>
-
-    <section class="panel">
-      <h2>App 归类</h2>
-      <p class="muted">App 名或 bundle id → 类别；「沟通」类会打断专注时段。没列出的 App 都算「其他」。</p>
-      <div class="edit-rows">
+    <section class="panel app-category-panel">
+      <div class="section-heading"><div><h2>App 归类</h2><p class="muted">按 App 名或 bundle id 归类；工作沟通、私人会打断专注。改完后保存会标记已有汇总待重算。</p></div><span class="fine">全部 {appRows.length} 个 App</span></div>
+      <div class="category-overview" aria-label="八类归类概览">
+        {#each groupedApps as group}
+          <article class="category-card" data-category={group.category}><strong>{group.category}</strong><span>{group.apps.length ? group.apps.map(app => app.key).join("、") : "还没有归类的 App"}</span></article>
+        {/each}
+      </div>
+      <h3>全部 App</h3>
+      <div class="edit-rows app-list">
         {#each appRows as row (row.id)}
-          <div class="edit-row">
+          <div class="edit-row app-edit-row">
             <input aria-label="App 名" placeholder="App 名或 bundle id" bind:value={row.key} maxlength="200" />
             <select aria-label="类别" bind:value={row.value}>{#each APP_CATEGORIES as category}<option value={category}>{category}</option>{/each}</select>
             <button type="button" aria-label={`删除 ${row.key || "这一行"}`} onclick={() => (appRows = appRows.filter(item => item.id !== row.id))}>删除</button>
           </div>
         {/each}
       </div>
-      <button type="button" onclick={() => (appRows = [...appRows, { id: ++nextId, key: "", value: "开发" }])}>添加 App</button>
+      <button type="button" onclick={() => (appRows = [...appRows, { id: ++nextId, key: "", value: "其他" }])}>添加 App</button>
     </section>
 
     <section class="panel">
@@ -176,8 +152,8 @@
       <div class="edit-rows">
         {#each networkRows as row (row.id)}
           <div class="edit-row">
-            <input aria-label="网络标识" placeholder="网络标识或网络名" bind:value={row.key} maxlength="200" />
-            <input aria-label="显示名" placeholder="显示名" bind:value={row.value} maxlength="200" />
+            <input aria-label="网络标识" placeholder="网络标识或名称" bind:value={row.key} maxlength="200" />
+            <input aria-label="显示名称" placeholder="显示名称" bind:value={row.value} maxlength="200" />
             <button type="button" aria-label={`删除 ${row.key || "这一行"}`} onclick={() => (networkRows = networkRows.filter(item => item.id !== row.id))}>删除</button>
           </div>
         {/each}
@@ -185,17 +161,9 @@
       <button type="button" onclick={() => (networkRows = [...networkRows, { id: ++nextId, key: "", value: "" }])}>添加网络</button>
     </section>
 
-    <section class="panel">
-      <h2>「和平时不一样」的阈值</h2>
-      <div class="threshold-grid">
-        <label><span>离家、开始办公、离开电脑、到家比平时早或晚至少（分钟）</span><input type="number" min="1" max="1440" step="1" required bind:value={earlyLate} /></label>
-        <label><span>通勤比平时长至少（%）</span><input type="number" min="1" max="300" step="1" required bind:value={commutePercent} /></label>
-      </div>
-    </section>
-
     <div class="form-actions">
-      <button class="primary" type="submit" disabled={saving}>{saving ? "正在保存…" : "保存设置"}</button>
-      {#if status}<p class={status.kind === "ok" ? "save-ok" : "error-text"} role={status.kind === "ok" ? "status" : "alert"}>{status.text}</p>{/if}
+      <button class="primary" type="submit" disabled={saving}>{saving ? "保存中…" : "保存设置"}</button>
+      {#if status}<p class:error-text={status.kind === "error"} class:save-ok={status.kind === "ok"} role={status.kind === "error" ? "alert" : "status"}>{status.text}</p>{/if}
     </div>
     <p class="fine muted">保存后，已汇总的日子会标记为需要重算；不会自动大批量重算。</p>
   </form>
