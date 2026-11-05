@@ -135,26 +135,26 @@ function statusReadFixture() {
     if (resource === "activity_samples") {
       if (!isWorkday(day)) {
         for (let minute = 600; minute <= Math.min(660, activityLimit); minute += 1) {
-          rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" });
+          rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器" });
         }
         return rows;
       }
       for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
-        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: false });
+        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
       for (let minute = 520 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
         if (minute === 720) {
-          rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 });
+          rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40 });
           continue;
         }
         rows.push({
-          sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: false,
+          sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: 0,
           key_idle_sec: 20, pointer_idle_sec: 40,
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
       for (let minute = 1170; minute <= Math.min(1439, activityLimit); minute += 1) {
-        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: false });
+        rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
       return rows;
     }
@@ -180,7 +180,7 @@ function statusReadFixture() {
     }
     if (resource === "heartbeats") {
       for (let minute = 0; minute <= Math.min(1430, limit); minute += 10) {
-        rows.push({ source_id: "home-scanner", observed_at: stamp(day, minute), scan_ok: true, device_count: 2 });
+        rows.push({ source_id: "home-scanner", observed_at: stamp(day, minute), scan_ok: 1, device_count: 2 });
       }
       return rows;
     }

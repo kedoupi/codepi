@@ -16,7 +16,7 @@
     ],
     "events": [],
     "heartbeats": [
-      {"from":"2026-10-26T00:00:00+08:00","to":"2026-10-26T23:50:00+08:00","everyMinutes":10,"scan_ok":true,"device_count":3}
+      {"from":"2026-10-26T00:00:00+08:00","to":"2026-10-26T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":3}
     ],
     "appCategories": {"示例编辑器":"开发","示例沟通":"沟通"},
     "expect": {
@@ -63,7 +63,7 @@
     ],
     "events": [],
     "heartbeats": [
-      {"from":"2026-10-25T00:00:00+08:00","to":"2026-10-25T23:50:00+08:00","everyMinutes":10,"scan_ok":true,"device_count":2}
+      {"from":"2026-10-25T00:00:00+08:00","to":"2026-10-25T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":2}
     ],
     "appCategories": {},
     "expect": {
@@ -86,7 +86,7 @@
     ],
     "events": [],
     "heartbeats": [
-      {"from":"2026-10-27T00:00:00+08:00","to":"2026-10-27T23:50:00+08:00","everyMinutes":10,"scan_ok":true,"device_count":2}
+      {"from":"2026-10-27T00:00:00+08:00","to":"2026-10-27T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":2}
     ],
     "appCategories": {"示例编辑器":"开发"},
     "expect": {
@@ -238,7 +238,7 @@
     "subjectDeviceIds": [],
     "activity": [
       {"from":"2026-11-04T09:00:00+08:00","to":"2026-11-04T10:00:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40,"app_name":"示例编辑器"},
-      {"from":"2026-11-04T10:05:00+08:00","to":"2026-11-04T11:00:00+08:00","everyMinutes":1,"net":"office","idle_sec":1800,"locked":true},
+      {"from":"2026-11-04T10:05:00+08:00","to":"2026-11-04T11:00:00+08:00","everyMinutes":1,"net":"office","idle_sec":1800,"locked":1},
       {"from":"2026-11-04T11:05:00+08:00","to":"2026-11-04T12:00:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40,"app_name":"示例文档"}
     ],
     "devices": [],
@@ -337,6 +337,30 @@
     "expect": {
       "statusAt": {"731":"office_active","732":"unknown"},
       "evidenceAt": {"731":"inferred","732":"no_data"}
+    }
+  },
+  {
+    "name": "整数心跳双设备在家",
+    "date": "2026-11-06",
+    "subjectDeviceIds": ["dev-a", "dev-b"],
+    "activity": [],
+    "devices": [
+      {"device_id":"dev-a","name":"示例手机","room":"卧室"},
+      {"device_id":"dev-b","name":"示例手机","room":"卧室"}
+    ],
+    "snapshots": [
+      {"observed_at":"2026-11-06T07:00:00+08:00","device_id":"dev-a","status":"online","room":"卧室"},
+      {"observed_at":"2026-11-06T07:00:00+08:00","device_id":"dev-b","status":"offline"}
+    ],
+    "events": [],
+    "heartbeats": [
+      {"observed_at":"2026-11-06T07:00:00+08:00","scan_ok":1,"device_count":2}
+    ],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"420":"bedroom","430":"bedroom","441":"unknown"},
+      "contains": [],
+      "notContains": ["leave_home"]
     }
   }
 ]
