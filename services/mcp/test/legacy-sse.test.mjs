@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { MCP_REQUEST_LIMIT } from '@kedoupi/shared/mcp/contract';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { fixture, hash, ORIGIN } from './runtime.mjs';
@@ -109,7 +110,7 @@ test('endpoint is the Durable Object id, replies arrive on the stream and notifi
   assert.equal(notification.status, 202, 'the stateless handler answers notifications with 202');
   const wrongType = await post(f, stream.endpoint, grant.access_token, 'x', { 'Content-Type': 'text/plain' });
   assert.equal(wrongType.status, 415);
-  const huge = await post(f, stream.endpoint, grant.access_token, 'x'.repeat(1 << 20));
+  const huge = await post(f, stream.endpoint, grant.access_token, 'x'.repeat(MCP_REQUEST_LIMIT + 1));
   assert.equal(huge.status, 413, 'the mcp() body limit applies');
 });
 

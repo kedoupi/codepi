@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, ORIGIN, REDIRECT, hash } from './runtime.mjs';
 import { healthData } from './health-pages.mjs';
-import { MCP_LIMITS } from '@kedoupi/shared/mcp/contract';
+import { MCP_LIMITS, MCP_REQUEST_LIMIT } from '@kedoupi/shared/mcp/contract';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -398,7 +398,7 @@ test('protocol bounds bodies, validates media type and rejects unsafe client red
   assert.equal((await f.at('/mcp', { headers })).status, 405);
   assert.equal((await f.at('/mcp', { method: 'POST', headers, body: '{}' })).status, 415);
   const large = await f.at('/mcp', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
-    body: ' '.repeat(MCP_LIMITS.blogBody * 4 + 1) });
+    body: ' '.repeat(MCP_REQUEST_LIMIT + 1) });
   assert.equal(large.status, 413);
   const malformed = await f.at('/mcp', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{' });
   assert.equal(malformed.status, 400);
@@ -427,7 +427,7 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   assert.equal(accepted.body?.result?.structuredContent?.status, 'pending');
   assert.equal((await f.blogDb.prepare('SELECT body_markdown FROM blog_drafts WHERE slug=?').bind('long-post').first()).body_markdown.length, body.length);
   const envelope = await f.at('/mcp', { method: 'POST', headers,
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) + ' '.repeat(MCP_LIMITS.blogBody * 4 + 1) });
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }) + ' '.repeat(MCP_REQUEST_LIMIT + 1) });
   assert.equal(envelope.status, 413);
   const domain = await f.rpc(grant.access_token, 'tools/call', {
     name: 'blog_submit', arguments: { slug: 'too-long', title: 'Too long',
@@ -448,10 +448,9 @@ test('blog submissions accept domain-sized bodies without widening the envelope'
   assert.equal(current.body?.result?.structuredContent?.reason, 'required');
 });
 
-test('blog inline upload carries the original ChatGPT-sized image without an external PUT', async t => {
-  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+function jpegWithSize(size) {
   const jpeg = Buffer.from('/9j/wAALCAABAAEBAREA/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9sAQwACAgICAgIDAgIDBQMDAwUGBQUFBQYIBgYGBgYICggICAgICAoKCgoKCgoKDAwMDAwMDg4ODg4PDw8PDw8PDw8P/90ABAAB/9oACAEBAAA/AP38r//Z', 'base64');
-  let remaining = 236961 - jpeg.length;
+  let remaining = size - jpeg.length;
   const chunks = [jpeg.subarray(0, 2)];
   while (remaining) {
     let size = Math.min(65537, remaining);
@@ -460,7 +459,12 @@ test('blog inline upload carries the original ChatGPT-sized image without an ext
     comment[0] = 0xff; comment[1] = 0xfe; comment.writeUInt16BE(size - 2, 2);
     chunks.push(comment); remaining -= size;
   }
-  const original = Buffer.concat([...chunks, jpeg.subarray(2)]);
+  return Buffer.concat([...chunks, jpeg.subarray(2)]);
+}
+
+test('blog inline upload carries the original ChatGPT-sized image without an external PUT', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const original = jpegWithSize(236961);
   const uploaded = await f.rpc(grant.access_token, 'tools/call', {
     name: 'blog_upload_image', arguments: { alt: 'ChatGPT 原尺寸合成封面', data_base64: original.toString('base64') },
   });
@@ -469,6 +473,26 @@ test('blog inline upload carries the original ChatGPT-sized image without an ext
   const image = uploaded.body.result.structuredContent;
   const stored = await f.blogDb.prepare('SELECT sha256 FROM blog_media WHERE id=?').bind(image.id).first();
   assert.equal(stored.sha256, Buffer.from(await crypto.subtle.digest('SHA-256', original)).toString('hex'));
+});
+
+test('blog inline upload accepts exactly 1 MiB through the MCP envelope', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const original = jpegWithSize(MCP_LIMITS.blogInlineImage);
+  const uploaded = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_upload_image', arguments: { alt: '1 MiB 合成封面', data_base64: original.toString('base64') },
+  });
+  assert.equal(uploaded.status, 200);
+  assert.equal(uploaded.body?.result?.structuredContent?.bytes, MCP_LIMITS.blogInlineImage, JSON.stringify(uploaded.body));
+});
+
+test('blog inline upload rejects 1 MiB plus one decoded byte', async t => {
+  const f = await fixture(t), grant = await f.grant({ scope: 'blog.write' });
+  const original = jpegWithSize(MCP_LIMITS.blogInlineImage + 1);
+  const uploaded = await f.rpc(grant.access_token, 'tools/call', {
+    name: 'blog_upload_image', arguments: { alt: '超限合成封面', data_base64: original.toString('base64') },
+  });
+  assert.equal(uploaded.status, 200);
+  assert.equal(uploaded.body?.result?.structuredContent?.error, 'payload_too_large', JSON.stringify(uploaded.body));
 });
 
 test('a client on the first blog_submit schema reaches the real Blog worker', async t => {
