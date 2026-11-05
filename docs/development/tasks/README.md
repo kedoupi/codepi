@@ -4,11 +4,10 @@
 
 | 工作 | 状态 | 需要你 | 当前事实 | 下一步 |
 | --- | --- | --- | --- | --- |
-| Project 重做为个人工作台（含 MCP） | 待确认 | 授权：签发 codepi 推送令牌 | 2026-11-04 已合并（`64d0754`）并发布 Web、Project（含 0003 迁移）、MCP，匿名与 smoke 验收通过，`GITHUB_TOKEN` 已删除 | codepi 首次推送（所有者签发 codepi 推送令牌后运行脚本）；之后读回网页、`work_overview`、`get_context`；见[任务记录](2026-11-04-project-workbench.md) |
-| Blog/MCP 参数与下架修复续验 | 待确认 | 确认 | PR #218/#219 已合并并发布；记录中有 GU、Project、Me、Health API 四项版本漂移 | 按[2026-10-28 续验记录](2026-10-28-blog-mcp-followup.md)核对真实客户端和漂移，不从旧记录直接执行发布 |
+| Blog/MCP 参数与下架修复续验 | 待确认 | 确认 | PR #218/#219 已合并并发布；记录中的 GU、Project、Me、Health API 四项版本漂移是 10-28 的快照，Project 已于 11-04、11-06 重发，需用 `production-monitor.mjs --require-versions` 刷新 | 按[2026-10-28 续验记录](2026-10-28-blog-mcp-followup.md)核对真实客户端和漂移，不从旧记录直接执行发布 |
 | Health 主睡眠缺失诊断 | 执行 | 无 | PR #206 已合并并发布，真实 Oura 对账和数据修复未执行 | 按[诊断记录](2026-10-26-health-sleep-diagnosis.md)继续数据侧定位，不修改真实数据作为普通开发步骤 |
-| Rhythm 所有者验收 | 待确认 | 确认 | 2026-11-04 首发：D1 `codepi-rhythm`（迁移 0001–0002）、Worker 版本 `fe7e4070`（配对后）、`rhythm.codepi.app`、每日 Cron；SSO 已配对（health `sso_ready=true`），匿名访问跳登录、数据接口 401；上游 `STATUS_READ` 由发布机注入；2026-11-05 已修复并发布 p7，所有者已看到公司与通勤数据，剩余为 11-08 Wi-Fi 名方案 A | 11-08 Wi-Fi 名方案 A |
-| 旧生产 SSO 验收脚本 | 想法 | 决定：更新目标与覆盖范围 | `services/auth/scripts/verify-production.mjs` 仍含退役 Pages 目标且会发送真实邮件 | 使用时先更新目标与覆盖范围，并单独取得真实邮件授权 |
+| Rhythm 所有者验收 | 待确认 | 确认 | 2026-11-04 首发：D1 `codepi-rhythm`（迁移 0001–0002）、Worker 版本 `fe7e4070`（配对后）、`rhythm.codepi.app`、每日 Cron；SSO 已配对（health `sso_ready=true`），匿名访问跳登录、数据接口 401；上游 `STATUS_READ` 由发布机注入；2026-11-05 已修复并发布 p7，所有者已看到公司与通勤数据；p8 布尔修正（`ee05cf4b`）与今天页「工作时段」（`27fffb47`，2026-11-06）已上线；工作页与手机版改版进行中（agent-team run r1105-235701） | 11-08 Wi-Fi 名方案 A |
+| 旧生产 SSO 验收脚本 | 想法 | 决定：是否保留发送真实邮件的覆盖 | `services/auth/scripts/verify-production.mjs` 目标已于 10-29（`05f8866`）更新为 `*.codepi.app`，仍要求 `RESEND_API_KEY` 并会发送真实邮件 | 使用时先更新目标与覆盖范围，并单独取得真实邮件授权 |
 | MCP / Blog / Desk 实际使用 | 待确认 | 确认 | 实现和日期化发布证据已存在，真实客户端、所有者持续使用和部分专项验收不由本地测试证明 | 按各应用 README 和对应档案中的证据验收，不重建既有资源 |
 
 ## 使用约定
