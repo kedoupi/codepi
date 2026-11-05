@@ -4,6 +4,6 @@ INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated
 VALUES (
   'default',
   '["dev-a"]',
-  '{"示例编辑器":"开发","示例沟通":"沟通","示例文档":"文档","示例浏览器":"浏览"}',
+  '{"示例编辑器":"AI 编程","示例沟通":"工作沟通","示例文档":"文档","示例浏览器":"浏览"}',
   '2026-11-03T00:00:00.000Z'
 );

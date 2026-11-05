@@ -277,7 +277,7 @@ export function isOfficeWorkMinute(row: ActivitySample | null, status: DayStatus
 }
 
 function appCategory(row: ActivitySample, mappings: Record<string, AppCategory>): AppCategory {
-  for (const name of [row.app_name ?? "", row.bundle_id ?? ""]) {
+  for (const name of [row.bundle_id ?? "", row.app_name ?? ""]) {
     if (name && mappings[name]) return mappings[name];
   }
   return "其他";

@@ -470,7 +470,7 @@ async function main() {
 
     await db.prepare(
       "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
-    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "开发", "示例沟通": "沟通" }), new Date().toISOString()).run();
+    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "AI 编程", "示例沟通": "工作沟通" }), new Date().toISOString()).run();
 
     const health = await fetch(`${origin}/api/health`);
     assert.equal(health.status, 200);
@@ -570,7 +570,7 @@ async function main() {
     await screenshot(page, "desktop-no-phone.png");
     await db.prepare(
       "INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)",
-    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "开发" }), new Date().toISOString()).run();
+    ).bind("default", JSON.stringify(["dev-a", "dev-b"]), JSON.stringify({ "示例编辑器": "AI 编程" }), new Date().toISOString()).run();
 
     // 上游失败
     upstream.state.fail = true;

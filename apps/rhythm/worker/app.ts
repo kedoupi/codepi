@@ -2,9 +2,9 @@ import { Hono, type Handler } from "hono";
 import { ssoEnabled, ssoReady, SsoError } from "@kedoupi/shared/auth/client";
 import { authenticated, callback, login, logout } from "./auth";
 import { AppError, isoShanghai, json, validateDate } from "./lib";
-import type { DayComputation, Evidence, RhythmStatus } from "./models";
+import { APP_CATEGORIES, type AppCategory, type DayComputation, type Evidence, type RhythmStatus } from "./models";
 import {
-  parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
+  DEFAULT_ANOMALY_THRESHOLDS, parseSettingsUpdate, publicSettings, readPendingRecompute, readSettings, saveSettings, type RhythmSettings,
 } from "./settings";
 import { buildStoredWorkBlocks, calculateDay, currentStatusLookbackMinutes, dayStartEpoch, minuteLabel, shanghaiDate, STATE_THRESHOLDS, STATUS_METHODS, statusLabel } from "./state";
 import {
@@ -232,10 +232,11 @@ function emptyDayMetrics(date: string) {
     wakeMinute: null, leaveHomeMinute: null, startWorkMinute: null,
     leaveComputerMinute: null, arriveHomeMinute: null, returnBedroomMinute: null,
     officeSpanMinutes: null,
-    focus: { segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null },
+    focus: { segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null, segments: null },
     afterWorkWorkMachineMinutes: null, weekendWorkMachineMinutes: null,
     afterWorkRoomMinutes: {}, weekendRoomMinutes: {},
     appCategoryMinutes: {}, hourlyAppCategoryMinutes: {},
+    appMinutes: {}, hourlyActiveMinutes: {}, hourlySwitchCounts: {}, focusSegments: null,
     topAppName: null, topAppMinutes: null,
     otherNetworkMinutes: {},
     coverage: { ratio: null, gapReasonMinutes: {} },
@@ -361,6 +362,164 @@ async function metricsRows(env: Env, from: string, end: string, settings: Rhythm
   const { metrics } = calculateDailyMetrics(await loadStateInput(env, today, settings), now);
   return [...stored, { date: today, metrics, computedAt: new Date(now).toISOString(), version: DAILY_ALGORITHM_VERSION }];
 }
+type WorkAggregate = {
+  officeMinutes: number | null;
+  awayMinutes: number | null;
+  categories: Record<AppCategory, number> | null;
+  topApps: Array<{ name: string; category: AppCategory; minutes: number }> | null;
+  focusTotal: number | null;
+  focusLongest: number | null;
+  focusSegments: number | null;
+  focusSegmentList: DailyMetricsRow["metrics"]["focusSegments"];
+  interruptions: number | null;
+  hourlyActive: Record<string, number> | null;
+  hourlySwitches: Record<string, number> | null;
+};
+
+function aggregateWorkRows(rows: DailyMetricsRow[]): WorkAggregate {
+  const usable = rows.filter(row => row.metrics.officeActiveMinutes !== null);
+  if (!usable.length) {
+    return {
+      officeMinutes: null, awayMinutes: null, categories: null, topApps: null,
+      focusTotal: null, focusLongest: null, focusSegments: null, focusSegmentList: null,
+      interruptions: null, hourlyActive: null, hourlySwitches: null,
+    };
+  }
+  const categories = Object.fromEntries(APP_CATEGORIES.map(category => [category, 0])) as Record<AppCategory, number>;
+  const apps = new Map<string, { category: AppCategory; minutes: number }>();
+  let officeMinutes = 0, awayMinutes = 0, focusTotal = 0, focusLongest = 0, focusSegments = 0, interruptions = 0;
+  let focusTotalKnown = true, focusLongestKnown = true, focusSegmentsKnown = true, interruptionsKnown = true;
+  const hourlyActive: Record<string, number> = {}, hourlySwitches: Record<string, number> = {};
+  for (const row of usable) {
+    const metrics = row.metrics;
+    officeMinutes += metrics.officeActiveMinutes ?? 0;
+    awayMinutes += metrics.statusMinutes.office_away ?? 0;
+    for (const category of APP_CATEGORIES) categories[category] += metrics.appCategoryMinutes[category] ?? 0;
+    for (const [name, app] of Object.entries(metrics.appMinutes)) {
+      const current = apps.get(name);
+      apps.set(name, { category: app.category, minutes: (current?.minutes ?? 0) + app.minutes });
+    }
+    if (metrics.focus.totalMinutes === null) focusTotalKnown = false; else focusTotal += metrics.focus.totalMinutes;
+    if (metrics.focus.longestMinutes === null) focusLongestKnown = false; else focusLongest += metrics.focus.longestMinutes;
+    if (metrics.focus.segmentCount === null) focusSegmentsKnown = false; else focusSegments += metrics.focus.segmentCount;
+    if (metrics.focus.communicationInterruptions === null) interruptionsKnown = false; else interruptions += metrics.focus.communicationInterruptions;
+    for (const [hour, minutes] of Object.entries(metrics.hourlyActiveMinutes)) hourlyActive[hour] = (hourlyActive[hour] ?? 0) + minutes;
+    for (const [hour, count] of Object.entries(metrics.hourlySwitchCounts)) hourlySwitches[hour] = (hourlySwitches[hour] ?? 0) + count;
+  }
+  const divisor = usable.length;
+  return {
+    officeMinutes,
+    awayMinutes,
+    categories,
+    topApps: [...apps.entries()].sort((a, b) => b[1].minutes - a[1].minutes || a[0].localeCompare(b[0]))
+      .slice(0, 5).map(([name, app]) => ({ name, category: app.category, minutes: app.minutes })),
+    focusTotal: focusTotalKnown ? (usable.length === 1 ? focusTotal : focusTotal / divisor) : null,
+    focusLongest: focusLongestKnown ? (usable.length === 1 ? focusLongest : focusLongest / divisor) : null,
+    focusSegments: focusSegmentsKnown ? (usable.length === 1 ? focusSegments : focusSegments / divisor) : null,
+    focusSegmentList: usable.length === 1 ? usable[0].metrics.focusSegments : null,
+    interruptions: interruptionsKnown ? (usable.length === 1 ? interruptions : interruptions / divisor) : null,
+    hourlyActive: hourlyActive,
+    hourlySwitches: hourlySwitches,
+  };
+}
+
+function deltaOf(current: number | null, previous: number | null): number | null {
+  return current === null || previous === null ? null : current - previous;
+}
+
+function workCategories(current: WorkAggregate, previous: WorkAggregate) {
+  const total = current.categories?.["AI 编程"] === undefined
+    ? null : Object.values(current.categories).reduce((sum, minutes) => sum + minutes, 0);
+  const previousTotal = previous.categories === null ? null : Object.values(previous.categories).reduce((sum, minutes) => sum + minutes, 0);
+  return current.categories === null ? null : Object.fromEntries(APP_CATEGORIES.map(category => {
+    const minutes = current.categories![category];
+    const previousMinutes = previous.categories?.[category] ?? null;
+    return [category, {
+      minutes,
+      share: total && total > 0 ? minutes / total : 0,
+      delta_minutes: deltaOf(minutes, previousMinutes),
+      delta_share: total && total > 0 && previousTotal && previousTotal > 0
+        ? minutes / total - previousMinutes! / previousTotal : null,
+    }];
+  }));
+}
+
+function heatmap(rows: DailyMetricsRow[], from: string, to: string) {
+  const workdays = rows.filter(row => row.date >= from && row.date <= to && dayType(row.metrics.dayType === "workday" ? row.date : row.date) === "workday"
+    && row.metrics.officeActiveMinutes !== null);
+  const hours = Array.from({ length: 12 }, (_, index) => String(index + 8).padStart(2, "0"));
+  return {
+    from,
+    to,
+    days_available: workdays.length,
+    hours: hours.map(hour => ({
+      hour,
+      minutes: workdays.length ? workdays.reduce((sum, row) => sum + (row.metrics.hourlyActiveMinutes[hour] ?? 0), 0) / workdays.length : null,
+    })),
+  };
+}
+
+function hourlyWork(current: WorkAggregate) {
+  if (current.hourlyActive === null || current.hourlySwitches === null) return null;
+  const hours = Array.from({ length: 12 }, (_, index) => String(index + 8).padStart(2, "0"));
+  const values = hours.map(hour => current.hourlySwitches![hour] ?? 0);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return hours.map((hour, index) => ({
+    hour,
+    active_minutes: current.hourlyActive![hour] ?? 0,
+    switch_count: values[index],
+    above_average: values[index] > average * 1.5,
+  }));
+}
+
+get("/api/work", async c => {
+  const url = new URL(c.req.url);
+  const date = validateDate(url.searchParams.get("date"));
+  const range = url.searchParams.get("range") ?? "day";
+  if (range !== "day" && range !== "week") throw new AppError("invalid_range", 400);
+  const today = shanghaiDate(Date.now());
+  if (date > today) throw new AppError("invalid_date", 400);
+  const from = range === "day" ? date : weekStart(date);
+  const previousFrom = dateOffset(from, -7);
+  const previousTo = dateOffset(date, -7);
+  const settings = await readSettings(c.env);
+  const rows = await metricsRows(c.env, dateOffset(from, -28), date, settings);
+  const selectedRows = rows.filter(row => row.date >= from && row.date <= date);
+  const previousRows = await metricsRows(c.env, previousFrom, previousTo, settings);
+  const current = aggregateWorkRows(selectedRows);
+  const previous = aggregateWorkRows(previousRows);
+  const categoryTotal = current.categories === null ? null : Object.values(current.categories).reduce((sum, value) => sum + value, 0);
+  const awayShare = current.awayMinutes === null || current.officeMinutes === null || current.officeMinutes + current.awayMinutes === 0
+    ? null : current.awayMinutes / (current.officeMinutes + current.awayMinutes);
+  const previousAwayShare = previous.awayMinutes === null || previous.officeMinutes === null || previous.officeMinutes + previous.awayMinutes === 0
+    ? null : previous.awayMinutes / (previous.officeMinutes + previous.awayMinutes);
+  return json({
+    date,
+    range,
+    from,
+    to: date,
+    missing: current.officeMinutes === null,
+    office_minutes: current.officeMinutes,
+    categories: workCategories(current, previous),
+    away: {
+      minutes: current.awayMinutes,
+      share: awayShare,
+      delta_minutes: deltaOf(current.awayMinutes, previous.awayMinutes),
+      delta_share: awayShare === null || previousAwayShare === null ? null : awayShare - previousAwayShare,
+    },
+    top_apps: current.topApps?.map(app => ({ ...app, share: categoryTotal && categoryTotal > 0 ? app.minutes / categoryTotal : 0 })) ?? null,
+    focus: {
+      total_minutes: current.focusTotal,
+      longest_minutes: current.focusLongest,
+      segment_count: current.focusSegments,
+      segments: range === "day" ? current.focusSegmentList : null,
+      communication_interruptions: current.interruptions,
+    },
+    heatmap: heatmap(rows, dateOffset(date, -27), date),
+    hourly: hourlyWork(current),
+    communication_interruptions: current.interruptions,
+  });
+});
 
 function rangeBounds(url: URL, defaultRange: 7 | 30 = 7) {
   const rawRange = url.searchParams.get("range");
@@ -414,7 +573,7 @@ get("/api/anomalies", async c => {
   // 异常只判断已经过完的日子：今天的时刻和通勤还没定型，容易误报。
   const lastComplete = bounds.end < shanghaiDate(Date.now()) ? bounds.end : dateOffset(shanghaiDate(Date.now()), -1);
   const rows = await metricsRows(c.env, dateOffset(bounds.from, -ANOMALY_BASELINE_DAYS), lastComplete, settings);
-  const result = findAnomalies(rows, settings.anomalyThresholds, bounds.from);
+  const result = findAnomalies(rows, DEFAULT_ANOMALY_THRESHOLDS, bounds.from);
   return json({
     range: bounds.range,
     from: bounds.from,
@@ -448,6 +607,7 @@ get("/api/settings", async c => {
 });
 
 app.put("/api/settings", async c => {
+  const currentSettings = await readSettings(c.env);
   const rawDevices = await readUpstream(c.env, UPSTREAM_HOME_DEVICES_PATH);
   const candidates = deviceCandidates(rawDevices);
   let body: unknown;
@@ -458,7 +618,7 @@ app.put("/api/settings", async c => {
   }
   let settings;
   try {
-    settings = parseSettingsUpdate(body);
+    settings = parseSettingsUpdate(body, currentSettings);
   } catch {
     throw new AppError("invalid_settings", 400);
   }

@@ -84,7 +84,7 @@ function harness(busyDates: string[]) {
 
 const validSettings = {
   subject_device_ids: ["dev-a"],
-  app_categories: { "示例编辑器": "开发", "1Password": "其他" },
+  app_categories: { "示例编辑器": "AI 编程", "1Password": "其他" },
   other_network_names: { "net-a": "示例网络" },
   anomaly_thresholds: { early_late_minutes: 40, commute_percent: 50 },
 };
@@ -97,7 +97,7 @@ describe("P4 接口", () => {
     const missing = await (await h.send(`/api/day?date=${day}`, { cookie })).json() as Record<string, any>;
     expect(missing).toMatchObject({ date: day, missing: true, segments: [], moments: [], workBlocks: [], appBreakdown: [] });
     expect(missing.metrics.officeActiveMinutes).toBeNull();
-    expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null });
+    expect(missing.metrics.focus).toEqual({ segmentCount: null, totalMinutes: null, longestMinutes: null, communicationInterruptions: null, segments: null });
     expect(missing.metrics.coverage.ratio).toBeNull();
     expect(missing.metrics.afterWorkWorkMachineMinutes).toBeNull();
     expect(missing.metrics.appCategoryMinutes).toEqual({});
@@ -178,6 +178,42 @@ describe("P4 接口", () => {
     expect((await h.send("/api/settings", { cookie, method: "PUT", body: validSettings, source: "https://evil.test" })).status).toBe(403);
     expect((await h.send("/api/settings", { method: "PUT", body: validSettings })).status).toBe(401);
   });
+  it("工作页日周接口返回八类、专注、热力图和缺失 null", async () => {
+    const day = daysAgo(3);
+    const h = harness([day]);
+    await env.DB.prepare("INSERT OR REPLACE INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES (?,?,?,?)")
+      .bind("default", JSON.stringify(["dev-a"]), JSON.stringify({ "示例编辑器": "AI 编程" }), new Date().toISOString()).run();
+    expect((await h.send(`/api/work?date=${day}`)).status).toBe(401);
+    const cookie = await h.login();
+    await h.send(`/api/admin/recompute?from=${day}&to=${day}`, { cookie, method: "POST" });
+    const metricsRow = await env.DB.prepare("SELECT app_minutes_json, hourly_active_minutes_json, hourly_switch_counts_json, focus_segments_json FROM daily_metrics WHERE date=?").bind(day).first<{
+      app_minutes_json: string; hourly_active_minutes_json: string; hourly_switch_counts_json: string; focus_segments_json: string;
+    }>();
+    expect(JSON.parse(metricsRow!.app_minutes_json)["示例编辑器"]).toMatchObject({ minutes: 30, category: "AI 编程" });
+    expect(JSON.parse(metricsRow!.hourly_active_minutes_json)["09"]).toBe(30);
+    expect(JSON.parse(metricsRow!.hourly_switch_counts_json)["09"]).toBe(0);
+    expect(JSON.parse(metricsRow!.focus_segments_json)).toMatchObject([{ minutes: 30, primaryCategory: "AI 编程" }]);
+    expect((await h.send(`/api/work?date=${day}`, { cookie })).status).toBe(200);
+    const work = await (await h.send(`/api/work?date=${day}&range=day`, { cookie })).json() as Record<string, any>;
+    expect(work.office_minutes).toBeGreaterThan(0);
+    expect(work.categories["AI 编程"]).toMatchObject({ minutes: 30 });
+    expect(work.top_apps[0]).toMatchObject({ name: "示例编辑器", category: "AI 编程", minutes: 30 });
+    expect(work.focus).toMatchObject({ total_minutes: 30, communication_interruptions: 0 });
+    expect(work.heatmap.hours).toHaveLength(12);
+    expect(work.hourly).toHaveLength(12);
+
+    const week = await (await h.send(`/api/work?date=${day}&range=week`, { cookie })).json() as Record<string, any>;
+    expect(week.range).toBe("week");
+    expect(week.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const missing = harness([]);
+    const missingCookie = await missing.login();
+    const missingBody = await (await missing.send(`/api/work?date=${daysAgo(5)}`, { cookie: missingCookie })).json() as Record<string, any>;
+    expect(missingBody.office_minutes).toBeNull();
+    expect(missingBody.categories).toBeNull();
+    expect(missingBody.top_apps).toBeNull();
+  });
+
 
   it("趋势、异常与可信度：缺失日不当 0，end 为今天时今天实时计算且不落库", async () => {
     const busy = [daysAgo(3), daysAgo(2)];
