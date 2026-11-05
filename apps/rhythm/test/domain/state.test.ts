@@ -193,6 +193,7 @@ describe("缺失数据永远是未知", () => {
       { device_id: "dev-a", observed_at: "2026-11-08T00:02:00+08:00", status: "no-response" as const, room: "卧室" },
     ] });
     expect(snapshot.minuteStatuses[10]).toBe("living_room");
+    expect(snapshot.minuteStatuses[21]).toBe("living_room");
     expect(snapshot.minuteStatuses[23]).toBe("unknown");
     const event = calculateDay({ ...base, events: [
       { device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "online" as const },
@@ -201,6 +202,39 @@ describe("缺失数据永远是未知", () => {
     expect(event.minuteStatuses[10]).toBe("living_room");
     const initial = calculateDay({ ...base, events: [{ device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "no-response" as const }] });
     expect(initial.minuteStatuses[0]).toBe("unknown");
+  });
+  it("no-response 不复活已过期的 online 或 offline 前态", () => {
+    const base = { ...emptyInput("2026-11-08"), subjectDeviceIds: ["dev-a"], devices: [{ device_id: "dev-a", room: "客厅" }] };
+    const staleOnline = calculateDay({ ...base, snapshots: [
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "客厅" },
+      { device_id: "dev-a", observed_at: "2026-11-08T02:00:00+08:00", status: "no-response" as const },
+    ] });
+    expect(staleOnline.minuteStatuses[130]).toBe("unknown");
+    const staleEvent = calculateDay({ ...base, events: [
+      { device_id: "dev-a", event_at: "2026-11-06T00:00:00+08:00", status: "online" as const },
+      { device_id: "dev-a", event_at: "2026-11-08T12:00:00+08:00", status: "no-response" as const },
+    ] });
+    expect(staleEvent.minuteStatuses[720]).toBe("unknown");
+    const staleOffline = calculateDay({ ...base, snapshots: [
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "offline" as const },
+      { device_id: "dev-a", observed_at: "2026-11-08T02:00:00+08:00", status: "no-response" as const },
+    ], activity: [{ sampled_at: "2026-11-04T09:00:00+08:00", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 }] });
+    expect(staleOffline.minuteStatuses[130]).toBe("unknown");
+    const staleLegacyOffline = calculateDay({ ...emptyInput("2026-11-04"), subjectDeviceIds: ["dev-a"], devices: [{ device_id: "dev-a", room: "客厅" }], snapshots: [
+      { device_id: "dev-a", observed_at: "2026-11-04T00:00:00+08:00", status: "offline" as const },
+      { device_id: "dev-a", observed_at: "2026-11-04T02:00:00+08:00", status: "no-response" as const },
+    ], activity: [{ sampled_at: "2026-11-04T09:00:00+08:00", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 }] });
+    expect(staleLegacyOffline.minuteStatuses[540]).toBe("unknown");
+  });
+
+  it("只有无前态 no-response 时，在家相关指标保持未知而不是 0", () => {
+    const day = calculateDay({ ...emptyInput("2026-11-08"), subjectDeviceIds: ["dev-a"], events: [
+      { device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "no-response" },
+    ] });
+    expect(day.metrics.homeMinutes).toBeNull();
+    expect(day.metrics.homeUnknownMinutes).toBeNull();
+    expect(day.metrics.bedroomMinutes).toBeNull();
+    expect(day.metrics.livingRoomMinutes).toBeNull();
   });
 
   it("手机掉线只是没有在家证据，不会被算成离家", () => {

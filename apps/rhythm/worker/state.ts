@@ -147,8 +147,18 @@ function phoneObservations(
   for (const [deviceId, deviceRows] of byDevice) {
     let previous: PhoneObservation | null = null;
     for (const row of deviceRows) {
+      const previousIsFresh = previous !== null && previous.status !== null
+        && row.at - previous.at <= (previous.source === "snapshot"
+          ? STATE_THRESHOLDS.homeFreshnessMinutes
+          : STATE_THRESHOLDS.homeIntervalMaxMinutes) * MS_PER_MINUTE;
       const current: PhoneObservation = row.status === "no-response"
-        ? { deviceId, at: row.at, status: previous?.status ?? null, room: previous?.room ?? null, source: row.source }
+        ? {
+          deviceId,
+          at: row.at,
+          status: previousIsFresh ? previous?.status ?? null : null,
+          room: previousIsFresh ? previous?.room ?? null : null,
+          source: row.source,
+        }
         : {
           deviceId,
           at: row.at,
@@ -518,9 +528,11 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
 
   // 手机事件区间可从前一天覆盖到当天；快照则仍由 phoneAtMinute 应用 20 分钟新鲜度。
   const dayEnd = start + MINUTES_PER_DAY * MS_PER_MINUTE;
-  const phoneChannelUsable = deviceIds.size > 0 && phone.some(row => row.at < dayEnd
-    && (row.source === "event" ? row.at >= start - STATE_THRESHOLDS.homeIntervalMaxMinutes * MS_PER_MINUTE
-      : row.at >= start - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE));
+  const phoneChannelUsable = deviceIds.size > 0 && phone
+    .filter(row => row.status !== null)
+    .some(row => row.at < dayEnd
+      && (row.source === "event" ? row.at >= start - STATE_THRESHOLDS.homeIntervalMaxMinutes * MS_PER_MINUTE
+        : row.at >= start - STATE_THRESHOLDS.homeFreshnessMinutes * MS_PER_MINUTE));
   const workChannelUsable = activity.some(item => item.at >= start && item.at < dayEnd);
   const homeKnown = phoneChannelUsable || workChannelUsable;
   if (phoneChannelUsable && workChannelUsable) {
