@@ -536,20 +536,21 @@ async function main() {
       const noon = segments.find(element => startOf(element) === 720);
       const afterNoon = segments.find(element => startOf(element) === 721);
       const timelineRect = timeline.getBoundingClientRect();
+      const contentWidth = document.querySelector("#content")?.getBoundingClientRect().width ?? 0;
       const ratio = element => (element.getBoundingClientRect().left - timelineRect.left) / timelineRect.width;
       if (!noon || !afterNoon) {
         return {
           hasNoon: false,
           position: getComputedStyle(segments[0]).position,
           firstWidth: segments[0].getBoundingClientRect().width,
-          timelineWidth: timelineRect.width,
+          timelineWidth: timelineRect.width, contentWidth,
         };
       }
       return {
         hasNoon: true,
         position: getComputedStyle(segments[0]).position,
         firstWidth: segments[0].getBoundingClientRect().width,
-        timelineWidth: timelineRect.width,
+        timelineWidth: timelineRect.width, contentWidth,
         noonRatio: ratio(noon),
         noonMinutes: minutesOf(noon),
         afterNoonRatio: ratio(afterNoon),
@@ -557,6 +558,7 @@ async function main() {
     });
     assert.equal(geometry.position, "absolute", "timeline segments are positioned by time");
     assert.ok(geometry.firstWidth <= geometry.timelineWidth, "timeline segment stays within the timeline");
+    assert.ok(geometry.timelineWidth >= geometry.contentWidth * 0.8, `desktop timeline uses the content width: ${geometry.timelineWidth}/${geometry.contentWidth}`);
     if (shanghaiMinute() > 721) assert.equal(geometry.hasNoon, true, "timeline has noon and following one-minute segments after 12:01");
     if (geometry.hasNoon) {
       assert.ok(Math.abs(geometry.noonRatio - 0.5) <= 0.01, `12:00 segment left=${geometry.noonRatio}`);
@@ -668,6 +670,12 @@ async function main() {
     await page.goto(`${origin}/`);
     await waitText(page, "上班通勤（上限）");
     await assertLayout(page, "tablet today", 768);
+    await page.cdp("Emulation.setDeviceMetricsOverride", {
+      width: 1024, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(`${origin}/`);
+    await waitText(page, "上班通勤（上限）");
+    await assertLayout(page, "narrow desktop today", 1024);
     // 移动端 390px
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,

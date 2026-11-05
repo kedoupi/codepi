@@ -131,7 +131,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-detail span { color: var(--color-text-muted); }
 .timeline-detail span.inferred { color: var(--color-warning); }
 .chart-conclusion { color: var(--color-text-muted); font-size: 13px; margin: 20px 0 0; }
-.today-overview { display: grid; grid-template-columns: minmax(240px, 1.2fr) repeat(4, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.today-overview { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
 .today-overview .current-card { margin-bottom: 0; }
 .today-overview .metric-grid { display: contents; }
 .mobile-timeline { display: none; }
