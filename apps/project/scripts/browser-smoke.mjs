@@ -222,7 +222,11 @@ async function main() {
       await assertNoOverflow(page, `mobile ${path}`, 390);
       if (path === "/") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".today-tabs button").length), 3, "mobile today tabs");
-        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "none", "today hides global mobile navigation");
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "grid", "mobile global navigation");
+        await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
+        await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
+        await page.evaluate(() => [...document.querySelectorAll(".tabbar a")].find(link => link.getAttribute("href") === "/board")?.click());
+        await page.waitForFunction(() => location.pathname === "/board" && document.body.innerText.includes("领域 × 状态"));
       } else {
         assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display !== "none"), "mobile tab bar");
       }

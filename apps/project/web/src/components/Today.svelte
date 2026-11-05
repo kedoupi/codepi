@@ -100,14 +100,16 @@
 
   {#if error}<p class="inline-alert" role="alert">{error}</p>{/if}
 
-  <nav class="today-tabs" aria-label="今天看板">
-    <button class:active={tab === "today"} aria-selected={tab === "today"} role="tab" onclick={() => (tab = "today")}>今天</button>
-    <button class:active={tab === "pool"} aria-selected={tab === "pool"} role="tab" onclick={() => (tab = "pool")}>池子</button>
-    <button class:active={tab === "done"} aria-selected={tab === "done"} role="tab" onclick={() => (tab = "done")}>做完</button>
+  <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+  <nav class="today-tabs" aria-label="今天看板" role="tablist">
+    <button id="today-tab-today" class:active={tab === "today"} aria-selected={tab === "today"} aria-controls="today-panel-today" role="tab" onclick={() => (tab = "today")}>今天</button>
+    <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={tab === "pool"} aria-controls="today-panel-pool" role="tab" onclick={() => (tab = "pool")}>池子</button>
+    <button id="today-tab-done" class:active={tab === "done"} aria-selected={tab === "done"} aria-controls="today-panel-done" role="tab" onclick={() => (tab = "done")}>做完</button>
   </nav>
 
   <div class="today-board">
-    <section class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子">
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-pool" class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子" aria-labelledby="today-tab-pool" role="tabpanel">
       <div class="today-column-head"><h2>池子</h2><span>{data.pool.length}</span></div>
       {#if groups.length}
         <div class="pool-groups">
@@ -131,7 +133,8 @@
       {/if}
     </section>
 
-    <section class="today-column main-today-column" class:mobile-hidden={tab !== "today"} aria-label="今天">
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-today" class="today-column main-today-column" class:mobile-hidden={tab !== "today"} aria-label="今天" aria-labelledby="today-tab-today" role="tabpanel">
       <div class="today-column-head"><h2>今天</h2><span>{data.today.length}</span></div>
       <div class="today-groups">
         {#each [{ key: "you", label: "你的" }, { key: "agent", label: "建国的" }] as group (group.key)}
@@ -160,7 +163,8 @@
       </div>
     </section>
 
-    <section class="today-column done-column" class:mobile-hidden={tab !== "done"} aria-label="做完">
+    <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
+    <section id="today-panel-done" class="today-column done-column" class:mobile-hidden={tab !== "done"} aria-label="做完" aria-labelledby="today-tab-done" role="tabpanel">
       <div class="today-column-head"><h2>做完</h2><span>{data.done.length}</span></div>
       {#if data.done.length}
         <ul class="done-today-list">

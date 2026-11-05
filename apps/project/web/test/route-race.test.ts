@@ -17,7 +17,7 @@ const overview = {
     open: 2, need_you: 1, branches: 0, url: "" }],
 };
 
-function backend() {
+function backend(failMutation = false) {
   const calls: string[] = [];
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const path = String(input);
@@ -30,7 +30,7 @@ function backend() {
       return Response.json({ project: { id: "alpha" }, task: { ...overview.need_you[0], what: "示例说明", impact: null, advice: "示例建议",
         need: "决定", source: "docs/a.md", related: [], recorded: "2026-11-01", first_seen: "", last_seen: "" }, handoffs: [] });
     }
-    if (path === "/api/today/unpick") return Response.json({ written: 1 });
+    if (path === "/api/today/unpick") return failMutation ? Response.json({ error: "today_failed" }, { status: 500 }) : Response.json({ written: 1 });
     return Response.json({ error: "not_found" }, { status: 404 });
   }));
   return calls;
@@ -50,6 +50,13 @@ describe("App routing", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "退回池子" }));
     await waitFor(() => expect(calls).toContain("/api/today/unpick"));
     expect(screen.getByText("你的")).toBeTruthy();
+  });
+
+  it("shows a mutation error when returning a task fails", async () => {
+    backend(true);
+    render(App);
+    await fireEvent.click(await screen.findByRole("button", { name: "退回池子" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("today_failed");
   });
 
   it("deep-links straight to a task from a summary link", async () => {

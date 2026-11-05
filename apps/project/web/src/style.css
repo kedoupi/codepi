@@ -272,7 +272,7 @@ button { font: inherit; color: inherit; }
   .grid-2 { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 767px) {
   .shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
   .main { padding: var(--space-4) max(16px, env(safe-area-inset-right, 0px)) calc(84px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
@@ -338,13 +338,12 @@ button { font: inherit; color: inherit; }
 .done-today-list li { display: flex; align-items: start; gap: 8px; color: var(--color-text-muted); font-size: 13px; }
 .done-today-list li svg { color: var(--wb-ok); flex: none; }
 
-@media (max-width: 1023px) and (min-width: 761px) {
+@media (max-width: 1023px) and (min-width: 768px) {
   .today-board { grid-template-columns: minmax(170px, 1fr) minmax(240px, 1.4fr); }
   .done-column { grid-column: 1 / -1; }
 }
 
-@media (max-width: 760px) {
-  .shell.today-mode .tabbar { display: none; }
+@media (max-width: 767px) {
   .today-head { align-items: start; flex-direction: column; gap: var(--space-3); }
   .today-head h1 { font-size: 24px; }
   .today-progress { align-items: start; width: 100%; }
