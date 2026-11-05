@@ -37,12 +37,12 @@ describe("上游行解析", () => {
 
   it("布尔字段兼容布尔值、SQLite 整数和字符串，其余按缺失处理", () => {
     const values = [true, false, 1, 0, "1", "0", "true", "false", null, 2, "yes", NaN, undefined];
-    const activityRows = values.map((locked, index) => ({
+    const activityRows: Array<{ sampled_at: string; locked?: unknown }> = values.map((locked, index) => ({
       sampled_at: `2026-11-01T09:${String(index).padStart(2, "0")}:00+08:00`, locked,
     }));
     activityRows.push({ sampled_at: "2026-11-01T09:20:00+08:00" });
     const activities = parseActivity(activityRows);
-    const heartbeatRows = values.map((scan_ok, index) => ({
+    const heartbeatRows: Array<{ observed_at: string; scan_ok?: unknown }> = values.map((scan_ok, index) => ({
       observed_at: `2026-11-01T10:${String(index).padStart(2, "0")}:00+08:00`, scan_ok,
     }));
     heartbeatRows.push({ observed_at: "2026-11-01T10:20:00+08:00" });
