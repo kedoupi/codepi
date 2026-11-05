@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
+import { currentStatusLookbackMinutes } from "../../worker/state";
 
 type Json = Record<string, unknown>;
 
@@ -90,6 +91,7 @@ describe("Rhythm 今天页", () => {
     render(App);
     expect(await screen.findByText("最近 20 分钟没有可判断的数据 · 工作机每 15 分钟上传一次")).toBeTruthy();
     expect(screen.queryByText(/截至/)).toBeNull();
+    expect(currentStatusLookbackMinutes).toBe(20);
   });
 
   it("点按时间段显示该段明细", async () => {

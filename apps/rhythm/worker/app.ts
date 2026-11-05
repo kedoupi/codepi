@@ -150,7 +150,6 @@ export function selectCurrentStatus(day: DayComputation, currentMinute: number):
   return { minute: currentMinute, statusMinute: statusMinute ?? null };
 }
 
-
 async function loadDay(env: Env, date: string, settings: RhythmSettings, now: number) {
   const input = await loadStateInput(env, date, settings);
   const { activity, heartbeats, snapshots } = input;
@@ -161,15 +160,18 @@ async function loadDay(env: Env, date: string, settings: RhythmSettings, now: nu
     ? Math.min(1439, Math.max(0, Math.floor((now - start) / 60_000)))
     : -1;
   const selection = selectCurrentStatus(day, currentMinute);
-  const current = selection ? {
-    status: day.minuteStatuses[selection.statusMinute ?? selection.minute],
-    evidence: day.minuteEvidence[selection.statusMinute ?? selection.minute],
-    label: statusLabel(day.minuteStatuses[selection.statusMinute ?? selection.minute]),
-    minute: selection.minute,
-    time: minuteLabel(selection.minute),
-    asOf: selection.statusMinute === null ? null : minuteLabel(selection.statusMinute),
-    live: currentMinute >= 0,
-  } : null;
+  const current = selection ? (() => {
+    const statusMinute = selection.statusMinute ?? selection.minute;
+    return {
+      status: day.minuteStatuses[statusMinute],
+      evidence: day.minuteEvidence[statusMinute],
+      label: statusLabel(day.minuteStatuses[statusMinute]),
+      minute: selection.minute,
+      time: minuteLabel(selection.minute),
+      asOf: selection.statusMinute === null ? null : minuteLabel(selection.statusMinute),
+      live: currentMinute >= 0,
+    };
+  })() : null;
   const workLatest = latestTimestamp(activity.map(row => ({ at: row.sampled_at })));
   const homeLatest = latestOf([
     latestTimestamp(heartbeats.map(row => ({ at: row.observed_at }))),
