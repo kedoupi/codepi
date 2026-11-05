@@ -69,7 +69,7 @@ export async function todayView(env: Env, now = new Date(), projectId?: string) 
   const day = today(now);
   const rows = await rowsForToday(env, projectId);
   const open = rows.filter(row => !row.done_at && !row.owner_done_at);
-  const selected = open.filter(row => row.picked_day !== null && row.removed_day !== day);
+  const selected = open.filter(row => row.picked_day !== null && row.removed_day === null);
   const selectedKeys = new Set(selected.map(row => `${row.project_id}\0${row.key}`));
   const pool = open.filter(row => !selectedKeys.has(`${row.project_id}\0${row.key}`));
   const doneKeys = new Set<string>();
@@ -124,15 +124,17 @@ export async function pickToday(env: Env, project: unknown, key: unknown, picked
   const day = today(now);
   const existing = await env.DB.prepare("SELECT picked_by, removed_day FROM today_picks WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first<{ picked_by: "owner" | "agent"; removed_day: string | null }>();
-  if (existing?.removed_day === day) return { written: 0 };
+  if (pickedBy === "agent" && existing?.removed_day === day) return { written: 0 };
   if (existing?.picked_by === "owner" && pickedBy === "agent") return { written: 0 };
   if (existing?.picked_by === pickedBy && existing.removed_day === null) return { written: 0 };
   const createdAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
-  await env.DB.prepare(`INSERT INTO today_picks (project_id, task_key, picked_day, picked_by, removed_day, created_at)
+  const conflictWhere = pickedBy === "agent" ? " WHERE today_picks.picked_by <> 'owner'" : "";
+  const result = await env.DB.prepare(`INSERT INTO today_picks (project_id, task_key, picked_day, picked_by, removed_day, created_at)
     VALUES (?, ?, ?, ?, NULL, ?)
     ON CONFLICT(project_id, task_key) DO UPDATE SET picked_day=excluded.picked_day,
-      picked_by=excluded.picked_by, removed_day=NULL`).bind(projectId, task.key, day, pickedBy, createdAt).run();
-  return { written: 1 };
+      picked_by=excluded.picked_by, removed_day=NULL${conflictWhere}`).bind(
+        projectId, task.key, day, pickedBy, createdAt).run();
+  return { written: Number(result.meta?.changes || 0) };
 }
 
 export async function unpickToday(env: Env, project: unknown, key: unknown, now = new Date()) {
@@ -165,9 +167,7 @@ export function fitToday<T extends { today: unknown[]; pool: unknown[]; done: un
   const result = { ...value, today: [...value.today], pool: [...value.pool], done: [...value.done] } as T & { truncated?: string[] };
   const truncated = new Set<string>();
   while (jsonBytes(result) > budget) {
-    const key = (["today", "pool", "done"] as const)
-      .filter(name => result[name].length > 0)
-      .sort((a, b) => result[b].length - result[a].length)[0];
+    const key = (["pool", "done", "today"] as const).find(name => result[name].length > 0);
     if (!key) break;
     result[key].pop();
     truncated.add(key);
@@ -176,10 +176,52 @@ export function fitToday<T extends { today: unknown[]; pool: unknown[]; done: un
   return result;
 }
 
+async function validateAgentRefs(env: Env, refs: TodayTaskRef[]) {
+  const rows = await env.DB.prepare(`WITH requested AS (
+      SELECT json_extract(value,'$.project') AS project_ref,
+        json_extract(value,'$.key') AS requested_key
+      FROM json_each(?)
+    )
+    SELECT r.project_ref, r.requested_key, p.id AS project_id, t.key AS found_key
+    FROM requested r
+    LEFT JOIN projects p ON p.id=r.project_ref OR lower(p.repo)=lower(r.project_ref)
+    LEFT JOIN tasks t ON t.project_id=p.id AND t.key=r.requested_key`).bind(JSON.stringify(refs)).all<{
+      project_ref: string;
+      requested_key: string;
+      project_id: string | null;
+      found_key: string | null;
+    }>();
+  if (rows.results.length !== refs.length || rows.results.some(row => !row.project_id || !row.found_key)) {
+    throw new AppError("task_not_found", 404);
+  }
+  return rows.results.map(row => ({ project_id: row.project_id!, key: row.found_key! }));
+}
+
 export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new Date()) {
-  let written = 0;
-  for (const target of refs) written += (await pickToday(env, target.project, target.key, "agent", now)).written;
-  return { written };
+  const targets = await validateAgentRefs(env, refs);
+  if (!targets.length) return { written: 0 };
+  const day = today(now);
+  const createdAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const result = await env.DB.prepare(`INSERT INTO today_picks
+      (project_id, task_key, picked_day, picked_by, removed_day, created_at)
+    SELECT json_extract(value,'$.project_id'), json_extract(value,'$.key'), ?, 'agent', NULL, ?
+    FROM json_each(?)
+    WHERE EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.project_id=json_extract(value,'$.project_id')
+        AND t.key=json_extract(value,'$.key') AND t.done_at IS NULL
+    ) AND NOT EXISTS (
+      SELECT 1 FROM owner_done d
+      WHERE d.project_id=json_extract(value,'$.project_id')
+        AND d.task_key=json_extract(value,'$.key')
+    )
+    ON CONFLICT(project_id, task_key) DO UPDATE SET picked_day=excluded.picked_day,
+      picked_by=excluded.picked_by, removed_day=NULL
+    WHERE today_picks.picked_by <> 'owner'
+      AND ((today_picks.removed_day IS NULL AND today_picks.picked_by <> 'agent')
+        OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?))`).bind(
+          day, createdAt, JSON.stringify(targets), day).run();
+  return { written: Number(result.meta?.changes || 0) };
 }
 
 export { ref as todayRef };

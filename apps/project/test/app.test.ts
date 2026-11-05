@@ -74,6 +74,14 @@ describe("Project HTTP boundary", () => {
       expect(page.headers.get("Location")).toBe(`${origin}/login?return=${encodeURIComponent(path)}`);
     }
   });
+  it("requires SSO for today mutations", async () => {
+    const sso = setup();
+    for (const path of ["/api/today/pick", "/api/today/unpick", "/api/today/done"]) {
+      const response = await sso.call(request(path, { method: "POST", body: { project: "codepi", key: "task" } }));
+      expect(response.status, path).toBe(401);
+    }
+  });
+
 
   it("rejects cross-origin browser mutations before authentication", async () => {
     const sso = setup();
@@ -108,6 +116,8 @@ describe("Project HTTP boundary", () => {
     expect(board.pool).toHaveLength(4);
     const pick = await sso.call(request("/api/today/pick", { cookie, body: { project: "codepi", key: board.pool[0].key } }));
     expect(pick.status).toBe(200);
+    const pickedBoard = await (await sso.call(request("/api/today", { cookie }))).json() as { today: { key: string }[] };
+    expect(pickedBoard.today.map(task => task.key)).toContain(board.pool[0].key);
     expect((await sso.call(request("/api/today/unpick", { cookie, body: { project: "codepi", key: board.pool[0].key } }))).status).toBe(200);
 
 

@@ -127,7 +127,7 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
       const projectRef = optional(args.project, value => text(value, "project_required", { max: 200 })!);
       const project = projectRef === undefined ? undefined : await resolveProject(env, projectRef);
       const data = await todayView(env, new Date(), project?.id);
-      return { ok: true, data: { ...fitToday(data, BUDGET), notice: DATA_NOTICE } };
+      return { ok: true, data: fitToday({ ...data, notice: DATA_NOTICE }, BUDGET - 256) };
     }
     if (input.operation === "today_pick") {
       assertKeys(args, ["items"]);

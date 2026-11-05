@@ -1,7 +1,9 @@
 import { env } from "cloudflare:test";
+import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../worker/index";
 import { executeProject } from "../worker/mcp";
+import { jsonBytes } from "../worker/lib";
 import { markOwnerDone, pickToday, todayView, unpickToday } from "../worker/today";
 import { ingestRequest, resetDb, samplePayload, seedProject } from "./helpers";
 
@@ -23,6 +25,7 @@ async function seedToday(tasks: Array<Record<string, unknown>> = [
 ]) {
   const token = await seedProject();
   await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks })), env);
+  return token;
 }
 
 describe("today board", () => {
@@ -56,13 +59,17 @@ describe("today board", () => {
     expect(nextDay.done).toEqual([]);
   });
 
-  it("records same-day agent unpick as a skip and allows it again tomorrow", async () => {
+  it("records same-day agent unpick as a skip, then lets owner override", async () => {
     await seedToday();
     await pickToday(env, "codepi", "agent", "agent", day);
     await unpickToday(env, "codepi", "agent", day);
     expect((await todayView(env, day)).pool.map(task => task.key)).toContain("agent");
     expect((await pickToday(env, "codepi", "agent", "agent", day)).written).toBe(0);
-    expect((await pickToday(env, "codepi", "agent", "agent", new Date("2026-11-06T01:00:00+08:00"))).written).toBe(1);
+    const nextDay = await todayView(env, new Date("2026-11-06T01:00:00+08:00"));
+    expect(nextDay.today.map(task => task.key)).not.toContain("agent");
+    expect(nextDay.pool.map(task => task.key)).toContain("agent");
+    expect((await pickToday(env, "codepi", "agent", "owner", day)).written).toBe(1);
+    expect((await todayView(env, day)).today.map(task => task.key)).toContain("agent");
   });
 
   it("uses the Beijing date boundary for owner completion", async () => {
@@ -73,20 +80,47 @@ describe("today board", () => {
     expect(result.done.map(task => task.key)).toEqual(["you"]);
   });
 
-  it("moves a renamed category/title key to done and puts the new key in pool", async () => {
-    await seedToday([{ key: "old", title: "旧标题", status: "doing", category: "流程", need_kind: "none" }]);
-    const token = await env.DB.prepare("SELECT token_hash FROM ingest_tokens WHERE project_id='codepi'").first<{ token_hash: string }>();
-    expect(token?.token_hash).toMatch(/^[0-9a-f]{64}$/);
-    const projectToken = await seedProject("renamed", "renamed", "owner/renamed");
-    await worker.fetch(ingestRequest("renamed", projectToken, samplePayload({
-      tasks: [{ key: "old", title: "旧标题", status: "doing", category: "流程", need_kind: "none" }],
+  it("clears today state when a repository removes and later recreates a task", async () => {
+    const token = await seedToday([{ title: "可重建事项", status: "decide", category: "流程", need_kind: "decide" }]);
+    const task = await env.DB.prepare("SELECT key FROM tasks WHERE project_id='codepi'").first<{ key: string }>();
+    await pickToday(env, "codepi", task!.key, "owner", day);
+    await markOwnerDone(env, "codepi", task!.key, day);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({
+      tasks: [{ title: "可重建事项", status: "decide", category: "流程", need_kind: "decide" }],
     })), env);
-    await worker.fetch(ingestRequest("renamed", projectToken, samplePayload({
+    const result = await todayView(env, day);
+    const recreated = result.pool.find(item => item.title === "可重建事项");
+    expect(recreated).toBeDefined();
+    expect(recreated).not.toHaveProperty("carried");
+    expect(result.today.map(item => item.title)).not.toContain("可重建事项");
+  });
+
+  it("moves a picked old key to today's done and puts the renamed key in pool", async () => {
+    const token = await seedToday([{ key: "old", title: "旧标题", status: "doing", category: "流程", need_kind: "none" }]);
+    await pickToday(env, "codepi", "old", "owner", day);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({
       tasks: [{ title: "新标题", status: "doing", category: "新分类", need_kind: "none" }],
     })), env);
-    const result = await todayView(env, new Date());
-    expect(result.done.some(task => task.project === "renamed" && task.key !== "old")).toBe(false);
-    expect(result.pool.some(task => task.project === "renamed" && task.title === "新标题")).toBe(true);
+    await env.DB.prepare("UPDATE tasks SET done_at=? WHERE project_id='codepi' AND key='old'")
+      .bind("2026-11-04T16:30:00Z").run();
+    const result = await todayView(env, day);
+    expect(result.done).toContainEqual(expect.objectContaining({ project: "codepi", key: "old" }));
+    expect(result.today.map(task => task.key)).not.toContain("old");
+    expect(result.pool).toContainEqual(expect.objectContaining({ project: "codepi", title: "新标题" }));
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks WHERE project_id='codepi'").first<{ n: number }>())?.n).toBe(0);
+  });
+
+  it("clips today_get within budget while retaining full counts", async () => {
+    await seedToday(Array.from({ length: 300 }, (_, index) => ({
+      key: `pool-${index}`, title: `合成池任务 ${index} ${"长标题".repeat(8)}`,
+      status: "doing", category: "流程", need_kind: "none",
+    })));
+    const board = await data("today_get");
+    expect(jsonBytes(board)).toBeLessThanOrEqual(MCP_LIMITS.detail);
+    expect(board.truncated).toContain("pool");
+    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0 });
+    expect(board.pool.length).toBeLessThan(300);
   });
 
   it("keeps MCP today picks from replacing an owner pick and keeps counts after clipping", async () => {
@@ -100,4 +134,13 @@ describe("today board", () => {
     expect(board.today.some((task: { key: string; who: string }) => task.key === "you" && task.who === "you")).toBe(true);
     expect(board.counts.today).toBe(2);
   });
+  it("validates every MCP today pick before writing any row", async () => {
+    await seedToday();
+    const reply = await owner("today_pick", { items: [
+      { project: "codepi", key: "agent" }, { project: "codepi", key: "missing" },
+    ] });
+    expect(reply).toMatchObject({ ok: false, error: "task_not_found", status: 404 });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks").first<{ n: number }>())?.n).toBe(0);
+  });
+
 });
