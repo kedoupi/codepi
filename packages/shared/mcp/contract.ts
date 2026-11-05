@@ -22,7 +22,7 @@ export type HealthRequest = DomainRequest<HealthOperation>;
 export type HealthReply = DomainReply;
 export type HealthService = DomainService<HealthOperation>;
 
-export const PROJECT_OPERATIONS = ["overview", "task_list", "task_get", "project_get", "handoff_save"] as const;
+export const PROJECT_OPERATIONS = ["overview", "task_list", "task_get", "project_get", "handoff_save", "today_get", "today_pick"] as const;
 export type ProjectOperation = typeof PROJECT_OPERATIONS[number];
 export type ProjectService = DomainService<ProjectOperation>;
 export const TASK_STATUSES = ["in_progress", "blocked", "ready_for_review", "done"] as const;

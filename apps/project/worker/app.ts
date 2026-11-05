@@ -5,6 +5,7 @@ import { applyIngest, assertNoSecrets, authenticateIngest, INGEST_BODY_LIMIT, pa
 import { AppError, assertKeys, bodyJson, integer, json, localDev, oneOf, text } from "./lib";
 import { createProject, isProjectStatus, projectSummaries, resolveProject, rotateToken, updateProject } from "./projects";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind, type ProjectStatus } from "./types";
+import { markOwnerDone, pickToday, todayView, unpickToday } from "./today";
 import { activityLog, getTask, listTasks, overview, projectCard } from "./work";
 
 type AppEnv = { Bindings: Env };
@@ -81,6 +82,12 @@ app.use("*", async (c, next) => {
 getApi("/api/me", () => json({ ok: true, authenticated: true }));
 
 getApi("/api/overview", async c => json(await overview(c.env, { limit: 50, dated: true })));
+getApi("/api/today", async c => {
+  const projectRef = c.req.query("project");
+  const project = projectRef === undefined ? undefined : await resolveProject(c.env, projectRef);
+  return json(await todayView(c.env, new Date(), project?.id));
+});
+
 
 getApi("/api/tasks", async c => {
   const query = (name: string) => c.req.query(name) || undefined;
@@ -119,6 +126,24 @@ getApi("/api/projects/:id", async c => {
 getApi("/api/log", async c => {
   const days = integer(c.req.query("days"), { min: 1, max: 90, fallback: 30 });
   return json(await activityLog(c.env, { days, project: c.req.query("project") || undefined }));
+});
+
+app.post("/api/today/pick", async c => {
+  const body = await bodyJson(c.req.raw, 8 * 1024);
+  assertKeys(body, ["project", "key"]);
+  return json(await pickToday(c.env, body.project, body.key, "owner"));
+});
+
+app.post("/api/today/unpick", async c => {
+  const body = await bodyJson(c.req.raw, 8 * 1024);
+  assertKeys(body, ["project", "key"]);
+  return json(await unpickToday(c.env, body.project, body.key));
+});
+
+app.post("/api/today/done", async c => {
+  const body = await bodyJson(c.req.raw, 8 * 1024);
+  assertKeys(body, ["project", "key"]);
+  return json(await markOwnerDone(c.env, body.project, body.key));
 });
 
 app.post("/api/projects", async c => {

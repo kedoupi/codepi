@@ -129,7 +129,7 @@ test('work tools read pushed tasks through the named RPC with bounded, unpaged r
   const context = await f.tool(grant.access_token, 'get_context', { focus: 'project' });
   const project = context.structuredContent.sources.find(source => source.id === 'project');
   assert.equal(project.summary.metrics[0].label, '需要你');
-  assert.deepEqual(project.next_tools, ['work_overview', 'task_list']);
+  assert.deepEqual(project.next_tools, ["today_get", "work_overview"]);
   for (const retired of ['projects_list']) {
     assert.equal((await f.tool(grant.access_token, retired, {})).isError, true, retired);
   }

@@ -65,7 +65,7 @@ describe("Project HTTP boundary", () => {
 
   it("requires SSO for private APIs and redirects unauthenticated pages to login", async () => {
     const sso = setup();
-    for (const path of ["/api/overview", "/api/tasks", "/api/projects", "/api/log", "/api/projects/codepi"]) {
+    for (const path of ["/api/overview", "/api/today", "/api/tasks", "/api/projects", "/api/log", "/api/projects/codepi"]) {
       expect((await sso.call(request(path))).status, path).toBe(401);
     }
     for (const path of ["/", "/board", "/log", "/p/codepi"]) {
@@ -78,7 +78,8 @@ describe("Project HTTP boundary", () => {
   it("rejects cross-origin browser mutations before authentication", async () => {
     const sso = setup();
     for (const [path, method] of [["/api/projects", "POST"], ["/api/projects/codepi/token", "POST"],
-      ["/api/projects/codepi", "PATCH"]] as const) {
+      ["/api/projects/codepi", "PATCH"], ["/api/today/pick", "POST"], ["/api/today/unpick", "POST"],
+      ["/api/today/done", "POST"]] as const) {
       const res = await sso.call(request(path, { method, body: { name: "x" }, origin: "https://evil.example" }));
       expect(res.status, path).toBe(403);
     }
@@ -99,6 +100,16 @@ describe("Project HTTP boundary", () => {
     expect(overview.counts).toMatchObject({ open: 4, need_you: 2, branches: 1 });
     expect(overview.need_you.map(task => task.title)).toEqual(["选择示例方案", "续费示例服务器"]);
     expect(overview.projects).toMatchObject([{ id: "codepi", open: 4 }]);
+    const board = await (await sso.call(request("/api/today", { cookie }))).json() as {
+      today: { key: string }[]; pool: { key: string }[]; done: { key: string }[]; date: string;
+    };
+    expect(board.date).toMatch(/^2026-11-/);
+    expect(board.today).toEqual([]);
+    expect(board.pool).toHaveLength(4);
+    const pick = await sso.call(request("/api/today/pick", { cookie, body: { project: "codepi", key: board.pool[0].key } }));
+    expect(pick.status).toBe(200);
+    expect((await sso.call(request("/api/today/unpick", { cookie, body: { project: "codepi", key: board.pool[0].key } }))).status).toBe(200);
+
 
     const tasks = await (await sso.call(request("/api/tasks?need=any", { cookie }))).json() as { tasks: { key: string }[] };
     expect(tasks.tasks).toHaveLength(2);

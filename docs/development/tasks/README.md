@@ -16,7 +16,7 @@
 - 新增长任务或跨会话交接时新增 `YYYY-MM-DD-topic.md`；小修复只在回复中交付。
 - 状态改变时更新本表；完成任务只移动到档案索引，不复制完整日志。
 - 新增列的取值：状态为「执行 / 待决定 / 缺陷 / 待确认 / 想法」，分别映射为 `doing / decide / bug / verify / idea`；需要你以「无 / 决定 / 到场 / 授权 / 确认」开头，分别映射为 `none / decide / attend / authorize / confirm`，冒号后的说明随原文保存。
-- 修改任务索引后运行 `node scripts/agent/project-push.mjs`；令牌由所有者签发并保存于 macOS 钥匙串 `codepi-project-push` / `codepi`。脚本推送任务索引五列（工作、状态、需要你、当前事实、下一步）、合并提交标题（日期、标题）、分支名及领先数/最近提交时间、`AGENTS.md` 的 Agent 协作适配段、HEAD sha 与当前分支。
+- 修改任务索引后，经 agent-team 合并后自动推送；不经 agent-team 的手动合并仍需手动运行 `node scripts/agent/project-push.mjs`。令牌由所有者签发并保存于 macOS 钥匙串 `codepi-project-push` / `codepi`。脚本推送任务索引五列（工作、状态、需要你、当前事实、下一步）、合并提交标题（日期、标题）、分支名及领先数/最近提交时间、`AGENTS.md` 的 Agent 协作适配段、HEAD sha 与当前分支。
 - 合并提交标题和任务索引文字都会经过凭据形态扫描；命中规则会拦截整次推送，只报告字段路径，需要改提交标题来源或任务索引文字。
 - `--dry-run` 可只生成摘要，`--if-configured` 可在未配置令牌时安静退出；推送体积上限为 256 KiB。
 - 每个事项链接最新证据；无法确认线上状态时明确写“未核验”，不把旧快照当实时状态。

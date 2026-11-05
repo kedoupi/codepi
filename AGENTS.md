@@ -30,6 +30,7 @@ This is the shared project contract for all coding agents. Tool-specific entry f
 ## Agent 协作适配
 
 The owner's local multi-agent workflow (agent-team) is the default way of working in this repository: (1) the lead agent discusses and researches with the owner (research may be delegated to read-only agents); (2) the lead writes a plan; (3) a read-only agent verifies the plan before execution; (4) lead and owner revise the plan, and the owner approves anything that needs authorization; (5) executor agents implement in an isolated worktree on a task branch; (6) a test terminal runs acceptance and an independent read-only reviewer reviews (at most 3 rounds). When the gate passes, the lead merges into local main automatically and reports. Push to origin, deployment or release, remote migrations, production data changes and secrets still require explicit owner authorization (one approval per goal, covering its listed steps).
+- 合并后：`node scripts/agent/project-push.mjs --if-configured`
 
 - 隔离：worktree
 - 提交：允许（仅限任务分支 `team/<task>`）
