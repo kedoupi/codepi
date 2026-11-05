@@ -7,5 +7,5 @@
 - 认证只走 `@kedoupi/shared/auth/client`，生产 `AUTH_CLIENT_ID=rhythm`；本地 D1 保留自己的 SSO 事务与会话表。浏览器只允许同源请求，主体固定为 Owner。
 - 页面只按文本节点渲染，不使用 `{@html}`；CSP 保持 `script-src 'self'`。桌面与 390px 移动布局复用共享视觉 token 与本应用语义色，不允许横向溢出。
 - 本地检查：`npm test`、`npm run typecheck`、`npm run build`、`npm run test:browser:built`。浏览器冒烟使用合成 SSO 与本地 Worker/D1、假的 `STATUS_READ`。
-- 本期不做每日汇总表、定时任务、设置页编辑 UI 与发布流程；这些属于后续期次，不得在本目录提前引入。
+- 每日汇总 `daily_status` / `daily_metrics` 由每日 Cron 重算最近 3 天；设置页与 `POST /api/admin/recompute` 可手动重算。改状态或汇总口径必须升 `DAILY_ALGORITHM_VERSION` 并同步 `README`；发布与线上重算按 `docs/development/local-release.md` 由所有者授权。
 - 根 workspace、lockfile 与共享 contract 由集成负责人维护；本应用沿用既有依赖版本，不自行增加包或远程资源 UUID。

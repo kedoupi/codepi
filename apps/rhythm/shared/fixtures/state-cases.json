@@ -362,5 +362,24 @@
       "contains": [],
       "notContains": ["leave_home"]
     }
+  },
+  {
+    "name": "事件 no-response 沿用快照前态 freshness",
+    "date": "2026-11-07",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [],
+    "devices": [{"device_id":"dev-a","name":"示例手机","room":"客厅"}],
+    "snapshots": [
+      {"observed_at":"2026-11-07T00:00:00+08:00","device_id":"dev-a","status":"online","room":"客厅"}
+    ],
+    "events": [
+      {"event_at":"2026-11-07T00:10:00+08:00","device_id":"dev-a","status":"no-response"}
+    ],
+    "heartbeats": [],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"10":"living_room","30":"living_room","31":"unknown"},
+      "evidenceAt": {"10":"inferred","30":"inferred","31":"no_data"}
+    }
   }
 ]

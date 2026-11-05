@@ -87,6 +87,7 @@ type PhoneObservation = {
   status: "online" | "offline" | null;
   room: string | null;
   source: "snapshot" | "event";
+  validity: "snapshot" | "event";
 };
 
 function phoneObservations(
@@ -148,7 +149,7 @@ function phoneObservations(
     let previous: PhoneObservation | null = null;
     for (const row of deviceRows) {
       const previousIsFresh = previous !== null && previous.status !== null
-        && row.at - previous.at <= (previous.source === "snapshot"
+        && row.at - previous.at <= (previous.validity === "snapshot"
           ? STATE_THRESHOLDS.homeFreshnessMinutes
           : STATE_THRESHOLDS.homeIntervalMaxMinutes) * MS_PER_MINUTE;
       const current: PhoneObservation = row.status === "no-response"
@@ -158,6 +159,7 @@ function phoneObservations(
           status: previousIsFresh ? previous?.status ?? null : null,
           room: previousIsFresh ? previous?.room ?? null : null,
           source: row.source,
+          validity: previousIsFresh ? previous?.validity ?? row.source : row.source,
         }
         : {
           deviceId,
@@ -165,6 +167,7 @@ function phoneObservations(
           status: row.status === "pending-offline" ? "online" : row.status,
           room: row.status === "offline" ? null : row.room,
           source: row.source,
+          validity: row.source,
         };
       result.push(current);
       previous = current;
@@ -201,7 +204,7 @@ function heartbeatByMinute(heartbeats: Heartbeat[], start: number): HeartbeatMin
 type PhoneMinute = { status: "online" | "offline" | null; room: string | null; evidence: Evidence };
 
 function phoneAtMinute(observation: PhoneObservation | null, heartbeat: HeartbeatMinute, at: number): PhoneMinute {
-  const maxAge = observation?.source === "snapshot"
+  const maxAge = observation?.validity === "snapshot"
     ? STATE_THRESHOLDS.homeFreshnessMinutes
     : STATE_THRESHOLDS.homeIntervalMaxMinutes;
   if (!observation || observation.status === null || at - observation.at > maxAge * MS_PER_MINUTE) {

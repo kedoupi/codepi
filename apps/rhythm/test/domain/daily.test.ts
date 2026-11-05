@@ -66,7 +66,7 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p7-2026-11-05");
+    expect(rows.status.version).toBe("p8-2026-11-05");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
   });

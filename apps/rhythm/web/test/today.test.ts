@@ -5,6 +5,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
+import { currentStatusLookbackMinutes } from "../../worker/state";
 
 type Json = Record<string, unknown>;
 
@@ -77,6 +78,20 @@ describe("Rhythm 今天页", () => {
       expect(Number(button.style.getPropertyValue("--segment-start"))).toBe(segment.startMinute);
       expect(Number(button.style.getPropertyValue("--segment-minutes"))).toBe(segment.minutes);
     }
+  });
+  it("live 且最近 20 分钟没有可判断数据时不显示截至", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      const path = String(input);
+      if (path === "/api/me") return response({ authenticated: true });
+      if (path.startsWith("/api/day")) return response(dayPayload({
+        current: { status: "unknown", label: "未知", evidence: "no_data", minute: 600, time: "10:00", asOf: null, live: true },
+      }));
+      throw new Error(`unexpected request: ${path}`);
+    }));
+    render(App);
+    expect(await screen.findByText("最近 20 分钟没有可判断的数据 · 工作机每 15 分钟上传一次")).toBeTruthy();
+    expect(screen.queryByText(/截至/)).toBeNull();
+    expect(currentStatusLookbackMinutes).toBe(20);
   });
 
   it("点按时间段显示该段明细", async () => {
