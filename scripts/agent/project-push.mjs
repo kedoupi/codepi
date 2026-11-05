@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const ENDPOINT = 'https://project.codepi.app/api/ingest/codepi';
+const ENDPOINT = 'https://project.codepi.app/api/ingest/kedoupi-codepi';
 const KEYCHAIN_SERVICE = 'codepi-project-push';
 const MAX_BODY = 256 * 1024;
 const CHANGELOG_DAYS = 30;
