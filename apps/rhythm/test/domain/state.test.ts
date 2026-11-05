@@ -9,6 +9,7 @@ describe("共享状态用例", () => {
   it("覆盖任务书要求的全部场景", () => {
     expect(cases.map(item => item.name)).toEqual([
       "普通工作日",
+      "双设备频段切换",
       "休息日全天在家",
       "手机落家里",
       "旧数据无 net 字段",
@@ -93,6 +94,73 @@ describe("缺失数据永远是未知", () => {
     expect(day.minuteStatuses[0]).toBe("living_room");
     expect(day.minuteStatuses[2]).toBe("living_room");
     expect(day.moments.map(moment => moment.kind)).not.toContain("leave_home");
+  });
+  it("同一时刻两台设备一台在线一台离线，输入顺序不影响在家判断", () => {
+    const base = {
+      ...emptyInput("2026-11-08"),
+      subjectDeviceIds: ["dev-a", "dev-b"],
+      devices: [{ device_id: "dev-a", room: "客厅" }, { device_id: "dev-b", room: "客厅" }],
+    };
+    const snapshots = [
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "客厅" },
+      { device_id: "dev-b", observed_at: "2026-11-08T00:00:00+08:00", status: "offline" as const, room: null },
+    ];
+    const first = calculateDay({ ...base, snapshots });
+    const second = calculateDay({ ...base, snapshots: [...snapshots].reverse() });
+    expect(first.minuteStatuses[0]).toBe("living_room");
+    expect(second.minuteStatuses[0]).toBe("living_room");
+    expect(first.minuteStatuses).toEqual(second.minuteStatuses);
+  });
+
+  it("只把参与合并的设备计入：已知离线设备可支持旧采样推断", () => {
+    const active = { sampled_at: "2026-11-04T09:00:00+08:00", idle_sec: 30, locked: false, key_idle_sec: 20, pointer_idle_sec: 40 };
+    const base = {
+      ...emptyInput("2026-11-04"),
+      subjectDeviceIds: ["dev-a", "dev-b"],
+      devices: [{ device_id: "dev-a", room: "客厅" }, { device_id: "dev-b", room: "客厅" }],
+      activity: [active],
+    };
+    const offline = calculateDay({ ...base, events: [{ device_id: "dev-a", event_at: "2026-11-04T08:00:00+08:00", status: "offline" }] });
+    expect(offline.minuteStatuses[540]).toBe("office_active");
+    const unknown = calculateDay({ ...base, events: [{ device_id: "dev-a", event_at: "2026-11-04T08:00:00+08:00", status: "offline" }] });
+    expect(unknown.minuteStatuses[540]).toBe("office_active");
+    const online = calculateDay({ ...base, events: [
+      { device_id: "dev-a", event_at: "2026-11-04T08:00:00+08:00", status: "offline" },
+      { device_id: "dev-b", event_at: "2026-11-04T08:00:00+08:00", status: "online" },
+    ] });
+    expect(online.minuteStatuses[540]).toBe("living_room");
+  });
+
+  it("同设备同一时刻按状态排序，多台在线按设备 ID 选择房间", () => {
+    const base = {
+      ...emptyInput("2026-11-08"),
+      subjectDeviceIds: ["dev-b", "dev-a"],
+      devices: [{ device_id: "dev-b", room: "客厅" }, { device_id: "dev-a", room: "卧室" }],
+    };
+    const rows = [
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "offline" as const, room: null },
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "卧室" },
+      { device_id: "dev-b", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "客厅" },
+    ];
+    const day = calculateDay({ ...base, snapshots: rows });
+    expect(day.minuteStatuses[0]).toBe("bedroom");
+  });
+
+  it("no-response 维持单台设备前一状态并刷新新鲜度，没有前态时保持未知", () => {
+    const base = { ...emptyInput("2026-11-08"), subjectDeviceIds: ["dev-a"], devices: [{ device_id: "dev-a", room: "客厅" }] };
+    const snapshot = calculateDay({ ...base, snapshots: [
+      { device_id: "dev-a", observed_at: "2026-11-08T00:00:00+08:00", status: "online" as const, room: "客厅" },
+      { device_id: "dev-a", observed_at: "2026-11-08T00:02:00+08:00", status: "no-response" as const, room: "卧室" },
+    ] });
+    expect(snapshot.minuteStatuses[10]).toBe("living_room");
+    expect(snapshot.minuteStatuses[23]).toBe("unknown");
+    const event = calculateDay({ ...base, events: [
+      { device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "online" as const },
+      { device_id: "dev-a", event_at: "2026-11-08T00:01:00+08:00", status: "no-response" as const },
+    ] });
+    expect(event.minuteStatuses[10]).toBe("living_room");
+    const initial = calculateDay({ ...base, events: [{ device_id: "dev-a", event_at: "2026-11-08T00:00:00+08:00", status: "no-response" as const }] });
+    expect(initial.minuteStatuses[0]).toBe("unknown");
   });
 
   it("手机掉线只是没有在家证据，不会被算成离家", () => {
