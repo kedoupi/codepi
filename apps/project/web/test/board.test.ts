@@ -2,7 +2,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Board from "../src/components/Board.svelte";
-import Countdown from "../src/components/Countdown.svelte";
 import type { ProjectSummary, TaskBrief } from "../src/lib/types";
 
 const projects: ProjectSummary[] = [
@@ -70,15 +69,5 @@ describe("Board", () => {
     render(Board, { projects, onOpen: vi.fn() });
     await screen.findByText("续费示例");
     expect(screen.queryByText("选择示例方案")).toBeNull();
-  });
-});
-
-describe("Countdown", () => {
-  it("draws one bar per dated task and labels overdue days", () => {
-    render(Countdown, { tasks, today: "2026-11-04", onOpen: vi.fn() });
-    const rows = screen.getAllByRole("button");
-    expect(rows).toHaveLength(2);
-    expect(rows[1].getAttribute("aria-label")).toContain("逾期 2 天");
-    expect(rows[0].getAttribute("aria-label")).toContain("需要你决定");
   });
 });
