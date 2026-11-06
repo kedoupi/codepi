@@ -16,9 +16,9 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 2. 项目仓库在合并后运行自己的推送脚本，把待办、分支和 changelog 打包成 `workbench.v1` 快照，
    `POST /api/ingest/<project>`，请求头 `Authorization: Bearer <令牌>`。
 3. Worker 拒绝凭据形态的文本（节点链接、GitHub/OpenAI/AWS/Slack 令牌、私钥、JWT、URL 里的
-令牌参数），只回报字段路径不回显内容；按内容哈希幂等；一次 batch 写入：出现的任务更新，
-消失的任务记 `done_at`（再次出现时恢复），网页删除标记会保留到该 key 重新出现在仓库推送中，分支和 changelog 整体替换，每项目保留 30 份快照，
-90 天前完成的任务删除。已被清掉的 9 条今天仍显示在「做完」里，北京时间今晚 24 点后消失。
+   token 参数），只回报字段路径不回显内容；按内容哈希幂等；一次 batch 写入：出现的任务更新，
+   消失的任务记 `done_at`（再次出现时恢复），网页删除标记会保留到该 key 重新出现在仓库推送中，分支和 changelog 整体替换，每项目保留 30 份快照，
+   90 天前完成的任务删除。2026-11-06（周五）已被清掉的 9 条仅当天显示在做完。
 
 ### `workbench.v1` 快照
 

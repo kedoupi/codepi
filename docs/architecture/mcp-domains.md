@@ -11,6 +11,7 @@ MCP D1 只保存授权、token hash 和本站 SSO 会话，不存项目卡、记
 
 | 所有者 | named RPC | 权威数据 | MCP 能力 |
 | --- | --- | --- | --- |
+| Health API | `HealthMcp` | Health D1 与同步队列 | catalog、records、aggregate、sync status |
 | Project | `ProjectMcp` | 独立 D1；各仓库推送的待办、分支、变更快照与追加交接，网页 today 选择、`owner_deleted` 标记与 `agent_checked` 检查历史 | work_overview、task_list、task_get、project_get、today_get/today_pick/today_check、project_handoff_save |
 | Me | `MeMcp` | 独立 D1；私有 R2 导入原文 | memory_search/save/import、profile、timeline、proposal |
 | GU | `GuMcp` | `gu_workspace_head` 指向的线上版本 | portfolio、cash、trades、rules、reports |

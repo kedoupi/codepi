@@ -155,7 +155,7 @@ export async function todayView(env: Env, now = new Date(), projectId?: string) 
     deleted,
     counts: {
       today: todayItems.length, pool: poolItems.length, done: doneItems.length, deleted: deleted.length,
-      checked: poolItems.filter(task => task.checks?.today).length,
+      checked: todayItems.filter(task => task.checks?.today).length + poolItems.filter(task => task.checks?.today).length,
     },
     date: day,
   };
@@ -190,7 +190,11 @@ export async function pickToday(env: Env, project: unknown, key: unknown, picked
   const day = today(now);
   const existing = await env.DB.prepare("SELECT picked_by, removed_day FROM today_picks WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first<{ picked_by: "owner" | "agent"; removed_day: string | null }>();
-  if (pickedBy === "agent" && existing?.removed_day === day) return { written: 0 };
+  if (pickedBy === "agent" && existing?.removed_day === day) {
+    const checked = await env.DB.prepare("SELECT 1 FROM agent_checked WHERE project_id=? AND task_key=? AND checked_day=?")
+      .bind(projectId, task.key, day).first();
+    if (!checked) return { written: 0 };
+  }
   if (existing?.picked_by === "owner" && pickedBy === "agent") return { written: 0 };
   if (existing?.picked_by === pickedBy && existing.removed_day === null) return { written: 0 };
   const createdAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -279,7 +283,7 @@ async function validateAgentRefs(env: Env, refs: TodayTaskRef[]) {
   if (rows.results.length !== refs.length || rows.results.some(row => !row.project_id || !row.found_key)) {
     throw new AppError("task_not_found", 404);
   }
-  return rows.results.map(row => ({ project_id: row.project_id!, key: row.found_key! }));
+  return rows.results.map(row => ({ project_id: row.project_id!, key: row.found_key!, project_ref: row.project_ref }));
 }
 
 export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new Date()) {
@@ -308,8 +312,12 @@ export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new D
       picked_by=excluded.picked_by, removed_day=NULL
     WHERE today_picks.picked_by <> 'owner'
       AND ((today_picks.removed_day IS NULL AND today_picks.picked_by <> 'agent')
-        OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?))`).bind(
-          day, createdAt, JSON.stringify(targets), day).run();
+        OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?)
+        OR (today_picks.removed_day = ? AND EXISTS (
+          SELECT 1 FROM agent_checked c
+          WHERE c.project_id=today_picks.project_id AND c.task_key=today_picks.task_key
+            AND c.checked_day=today_picks.removed_day
+        )))`).bind(day, createdAt, JSON.stringify(targets), day, day).run();
   return { written: Number(result.meta?.changes || 0) };
 }
 
@@ -317,7 +325,11 @@ export async function checkAgentToday(env: Env, refs: AgentTodayRef[], now = new
   const cleanRefs = refs.map(agentRef);
   const targets = await validateAgentRefs(env, cleanRefs);
   if (!targets.length) return { written: 0, skipped: 0 };
-  const targetRows = targets.map((target, index) => ({ ...target, note: cleanRefs[index].note }));
+  const noteByRef = new Map(cleanRefs.map(ref => [`${ref.project}\0${ref.key}`, ref.note]));
+  const targetRows = targets.map(target => ({
+    ...target,
+    note: noteByRef.get(`${target.project_ref}\0${target.key}`)!,
+  }));
   const statuses = await env.DB.prepare(`SELECT json_extract(value,'$.project_id') AS project_id,
       json_extract(value,'$.key') AS task_key, t.done_at,
       od.done_at AS owner_done_at, ox.deleted_at AS owner_deleted_at
@@ -339,18 +351,20 @@ export async function checkAgentToday(env: Env, refs: AgentTodayRef[], now = new
   if (!eligible.length) return { written: 0, skipped };
   const day = today(now);
   const checkedAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
-  const result = await env.DB.prepare(`INSERT INTO agent_checked
-      (project_id, task_key, checked_day, note, checked_at)
-    SELECT json_extract(value,'$.project_id'), json_extract(value,'$.key'), ?,
-      json_extract(value,'$.note'), ? FROM json_each(?) WHERE true
-    ON CONFLICT(project_id, task_key, checked_day) DO UPDATE SET note=excluded.note, checked_at=excluded.checked_at`)
-    .bind(day, checkedAt, JSON.stringify(eligible)).run();
-  await env.DB.prepare(`UPDATE today_picks SET removed_day=?
-    WHERE removed_day IS NULL AND EXISTS (
-      SELECT 1 FROM json_each(?) v
-      WHERE today_picks.project_id=json_extract(v.value,'$.project_id')
-        AND today_picks.task_key=json_extract(v.value,'$.key')
-    )`).bind(day, JSON.stringify(eligible)).run();
+  const [result] = await env.DB.batch([
+    env.DB.prepare(`INSERT INTO agent_checked
+        (project_id, task_key, checked_day, note, checked_at)
+      SELECT json_extract(value,'$.project_id'), json_extract(value,'$.key'), ?,
+        json_extract(value,'$.note'), ? FROM json_each(?) WHERE true
+      ON CONFLICT(project_id, task_key, checked_day) DO UPDATE SET note=excluded.note, checked_at=excluded.checked_at`)
+      .bind(day, checkedAt, JSON.stringify(eligible)),
+    env.DB.prepare(`UPDATE today_picks SET picked_by='agent', removed_day=?
+      WHERE removed_day IS NULL AND EXISTS (
+        SELECT 1 FROM json_each(?) v
+        WHERE today_picks.project_id=json_extract(v.value,'$.project_id')
+          AND today_picks.task_key=json_extract(v.value,'$.key')
+      )`).bind(day, JSON.stringify(eligible)),
+  ]);
   return { written: Number(result.meta?.changes || 0), skipped };
 }
 

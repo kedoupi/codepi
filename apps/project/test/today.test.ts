@@ -174,9 +174,11 @@ describe("today board", () => {
     expect(removed.pool.map(task => task.key)).not.toContain("recreated");
     expect(removed.done.map(task => task.key)).not.toContain("recreated");
     expect(removed.deleted.map(task => task.key)).not.toContain("recreated");
+    await env.DB.prepare("DELETE FROM tasks WHERE project_id='codepi' AND key='recreated'").run();
     await worker.fetch(ingestRequest("codepi", token, samplePayload({
       tasks: [{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }],
     })), env);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM owner_deleted WHERE project_id='codepi' AND task_key='recreated'").first<{ n: number }>())?.n).toBe(0);
     const result = await todayView(env, day);
     expect(result.pool.map(task => task.key)).toEqual(["recreated"]);
     expect(result.deleted).toEqual([]);
@@ -197,9 +199,12 @@ describe("today board", () => {
     expect((await todayView(env, day)).pool[0]).toMatchObject({
       key: "checked", checks: { count: 1, last_note: "第一天结论", today: true },
     });
-    expect((await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "更新结论" }], new Date("2026-11-05T12:00:00+08:00"))).written).toBe(1);
-    const sameDay = (await todayView(env, day)).pool.find(task => task.key === "checked");
-    expect(sameDay?.checks).toMatchObject({ count: 1, last_note: "更新结论", today: true });
+    expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], day)).toEqual({ written: 1 });
+    await unpickToday(env, "codepi", "checked", day);
+    expect((await todayView(env, day)).pool[0]).toMatchObject({ key: "checked" });
+    const secondDay = (await todayView(env, new Date("2026-11-06T12:00:00+08:00"))).pool.find(task => task.key === "checked");
+    expect(secondDay?.checks).toMatchObject({ count: 1, today: false });
+    expect((await todayView(env, new Date("2026-11-06T12:00:00+08:00"))).counts.checked).toBe(0);
     await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第二天结论" }], new Date("2026-11-06T12:00:00+08:00"));
     await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第三天结论" }], new Date("2026-11-07T12:00:00+08:00"));
     const next = (await todayView(env, new Date("2026-11-07T18:00:00+08:00"))).pool.find(task => task.key === "checked");

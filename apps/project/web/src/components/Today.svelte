@@ -93,7 +93,7 @@
   function checkedLine(task: PoolItem) {
     if (!task.checks) return "";
     const parts = new Intl.DateTimeFormat("zh-CN", {
-      month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+      month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, hourCycle: "h23",
       timeZone: "Asia/Shanghai",
     }).formatToParts(new Date(task.checks.last_at));
     const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";

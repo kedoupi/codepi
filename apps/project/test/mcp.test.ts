@@ -155,6 +155,21 @@ describe("ProjectMcp", () => {
     expect((await data("handoff_save", handoffArgs({ branch: "team/x", base_sha: TEST_BASE_SHA }))).deduplicated).toBe(false);
   });
 
+  it("validates today_check inputs and preserves checked counts when clipping today_get", async () => {
+    const existing = (await data("task_list")).tasks[0].key;
+    expect(await owner("today_check", { items: Array.from({ length: 21 }, () => ({ project: "codepi", key: existing, note: "检查" })) }))
+      .toMatchObject({ ok: false, error: "invalid_arguments", status: 400 });
+    expect(await owner("today_check", { items: [{ project: "codepi", key: existing, note: "x".repeat(201) }] }))
+      .toMatchObject({ ok: false, error: "invalid_note", status: 400 });
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: manyTasks(300) })), env);
+    const key = (await data("task_list", { limit: 1 })).tasks[0].key;
+    expect(await owner("today_check", { items: [{ project: "codepi", key, note: "已检查" }] }))
+      .toMatchObject({ ok: true, data: { written: 1, skipped: 0 } });
+    const board = await data("today_get");
+    expect(board.truncated).toContain("pool");
+    expect(board.counts.checked).toBe(1);
+  });
+
   it("summary reports need-you counts and links within the overview budget", async () => {
     const summary = await buildSummary(env, "kdp-owner");
     expect(summary.status).toBe("ok");
