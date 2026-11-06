@@ -138,11 +138,15 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
     if (deletedKeys.has(key)) continue;
     done.set(key, card(row.project_id, row.title, null, row.done_at));
   }
+  const titleRows = ownerDoneRows.length ? await env.DB.prepare(`SELECT t.project_id, t.key, t.title FROM tasks t
+    WHERE t.project_id IN (${ownerDoneRows.map(() => "?").join(",")}) AND t.key IN (${ownerDoneRows.map(() => "?").join(",")})`)
+    .bind(...ownerDoneRows.map(row => row.project_id), ...ownerDoneRows.map(row => row.task_key)).all<{ project_id: string; key: string; title: string }>() : { results: [] };
+  const titles = new Map(titleRows.results.map(row => [`${row.project_id}\0${row.key}`, row.title]));
   for (const row of ownerDoneRows) {
     const key = `${row.project_id}\0${row.task_key}`;
     if (deletedKeys.has(key) || done.has(key)) continue;
-    const task = await env.DB.prepare("SELECT title FROM tasks WHERE project_id=? AND key=?").bind(row.project_id, row.task_key).first<{ title: string }>();
-    if (task) done.set(key, card(row.project_id, task.title, null, row.done_at));
+    const title = titles.get(key);
+    if (title) done.set(key, card(row.project_id, title, null, row.done_at));
   }
 
   const days = new Map<string, JournalDay>();

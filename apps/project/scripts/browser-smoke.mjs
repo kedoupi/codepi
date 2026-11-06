@@ -244,8 +244,10 @@ async function main() {
     assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "seven journal days");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell.is-today").length), 1, "journal today outline");
     assert.ok(await page.evaluate(() => document.querySelector(".journal-day-cell.is-future")), "journal future day style");
-    await page.evaluate(() => document.querySelector(".journal-day-cell:not(.is-future)")?.click());
-    await page.waitForFunction(() => document.querySelector(".journal-day"));
+    const targetDate = await page.evaluate(() => [...document.querySelectorAll(".journal-day-cell:not(.is-future)")].find(cell => !cell.classList.contains("is-today"))?.querySelector("time")?.getAttribute("datetime"));
+    assert.ok(targetDate, "past journal day target");
+    await page.evaluate(date => document.querySelector(`.journal-day-cell time[datetime="${date}"]`)?.closest("button")?.click(), targetDate);
+    await page.waitForFunction(date => document.querySelector(`#journal-day-${date}`)?.open === true, targetDate);
     await assertNoOverflow(page, "desktop journal", 1440);
     await page.screenshot({ path: "desktop-journal.png" });
 

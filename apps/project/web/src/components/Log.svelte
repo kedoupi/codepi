@@ -47,6 +47,12 @@
 
   onMount(() => {
     void load();
+    const onPop = () => {
+      week = new URLSearchParams(location.search).get("week") || "";
+      void load();
+    };
+    addEventListener("popstate", onPop);
+    return () => removeEventListener("popstate", onPop);
   });
 
   const today = $derived(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date()));
@@ -90,7 +96,10 @@
 
   function jump(date: string) {
     if (date > today) return;
-    document.getElementById(`journal-day-${date}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const target = document.getElementById(`journal-day-${date}`);
+    if (!(target instanceof HTMLDetailsElement)) return;
+    target.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function toggleDone(date: string) {
