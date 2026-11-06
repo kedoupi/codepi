@@ -11,7 +11,7 @@ const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
   'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
-  'project.codepi.app', 'me.codepi.app', 'rhythm.codepi.app']);
+  'project.codepi.app', 'me.codepi.app', 'jw.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
 // staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
@@ -626,7 +626,7 @@ function checkService(spec, cfg, index, violations) {
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
-        rhythm: ['https://rhythm.codepi.app/api/auth/callback'],
+        rhythm: ['https://jw.codepi.app/api/auth/callback'],
       },
     };
     for (const [envName, env] of environments) {
@@ -701,9 +701,9 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'rhythm', file: 'apps/rhythm/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-rhythm',
       d1Name: 'codepi-rhythm', envKey: 'staging', provisionOnRelease: true, authClientId: 'rhythm',
-      allowPlanned: { worker: true, d1: true, hosts: ['rhythm.codepi.app'] },
-      routesRequired: true, requiredRoutes: { prod: ['rhythm.codepi.app'] },
-      customDomainRoutes: ['rhythm.codepi.app'],
+      allowPlanned: { worker: true, d1: true, hosts: ['jw.codepi.app'] },
+      routesRequired: true, requiredRoutes: { prod: ['jw.codepi.app'] },
+      customDomainRoutes: ['jw.codepi.app'],
       placeholderServiceBindings: { STATUS_READ: 'status-read-placeholder' },
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'www', file: 'apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-www', envKey: 'staging',

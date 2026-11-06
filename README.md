@@ -23,7 +23,7 @@
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
 | `apps/project/` | `project.codepi.app` | `codepi-project` | 个人工作台：各项目推送的待办、需要你的事、分支、变更与任务交接 |
 | `apps/me/` | `me.codepi.app` | `codepi-me` | 确认区、个人资料与经历 |
-| `apps/rhythm/` | `rhythm.codepi.app` | `codepi-rhythm` | 私人作息时间线、关键时刻与来源口径 |
+| `apps/rhythm/` | `jw.codepi.app` | `codepi-rhythm` | 私人作息时间线、关键时刻与来源口径 |
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，客户端表见 shared/auth/clients.ts |
 | `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，逐工具授权与领域 RPC；独立授权 D1 |
 | `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[Ops 说明](services/ops/README.md)与[运维说明](docs/development/cloudflare-operations.md) |
