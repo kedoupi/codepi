@@ -123,9 +123,9 @@
   </header>
 
   <nav class="journal-week-nav" aria-label="周切换">
-    <button class="button" onclick={() => selectWeek(shift(data.week.start, -7))}>上一周</button>
+    <button class="button" onclick={() => selectWeek(shift(data!.week.start, -7))}>上一周</button>
     <button class="button" onclick={() => selectWeek("")} disabled={!week}>本周</button>
-    <button class="button" onclick={() => selectWeek(shift(data.week.start, 7))}>下一周</button>
+    <button class="button" onclick={() => selectWeek(shift(data!.week.start, 7))}>下一周</button>
   </nav>
 
   <section class="journal-summary" aria-label="本周汇总">

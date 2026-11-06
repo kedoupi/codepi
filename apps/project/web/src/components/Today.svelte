@@ -151,7 +151,7 @@
       <div class="pool-filters" aria-label="池子筛选">
         <label class="pool-search"><span class="sr-only">搜索池子</span><input type="search" placeholder="搜索标题或分类" aria-label="搜索标题或分类" bind:value={poolQuery} /></label>
         <button class="pill" class:on={needOnly} aria-pressed={needOnly} onclick={() => (needOnly = !needOnly)}>只看需要你 · {searchedPool.filter(task => task.need_kind !== "none").length}</button>
-        <button class="pill" class:on={dueSoon} aria-pressed={dueSoon} onclick={() => (dueSoon = !dueSoon)}>7 天内到期 · {searchedPool.filter(task => task.due && task.due <= addDays(data.date, 7)).length}</button>
+        <button class="pill" class:on={dueSoon} aria-pressed={dueSoon} onclick={() => (dueSoon = !dueSoon)}>7 天内到期 · {searchedPool.filter(task => task.due && task.due <= addDays(data!.date, 7)).length}</button>
         {#if poolQuery || needOnly || dueSoon}<button class="link-button pool-clear" onclick={() => { poolQuery = ""; needOnly = false; dueSoon = false; }}>清除筛选</button>{/if}
       </div>
       {#if groups.length}
