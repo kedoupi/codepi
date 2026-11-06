@@ -22,4 +22,4 @@
 - Project build 与桌面/390px 浏览器冒烟通过。
 - 迁移检查与 `git diff --check` 通过。
 - `node scripts/agent/check.mjs --base main --run` 通过：35 个选定本地检查全部通过。
-- 尚未提交当前改动。
+- 已提交 `9e0bb46 feat(project): record assistant daily checks`，工作区干净。
