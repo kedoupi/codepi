@@ -122,7 +122,9 @@ function statusReadFixture() {
   const weekday = date => new Date(`${date}T00:00:00Z`).getUTCDay();
   const isWorkday = date => weekday(date) >= 1 && weekday(date) <= 5;
   const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
-  const lateDay = [1, 2, 3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
+  const lateDay = [3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
+  // /api/day 只实时计算今天和昨天；用最近工作日制造可直接读取的 outside 长空档。
+  const outsideDay = [1, 2, 3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
   const stamp = (day, minute) => new Date(Date.parse(`${day}T00:00:00+08:00`) + minute * 60_000).toISOString();
 
   function dayRows(day, resource) {
@@ -142,7 +144,7 @@ function statusReadFixture() {
       for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
-      for (let minute = 520 + shift + jitter + (day === lateDay ? 100 : 0); minute <= Math.min(1085, activityLimit); minute += 1) {
+      for (let minute = 620 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
         if (minute === 720) {
           rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40 });
           continue;
@@ -220,6 +222,7 @@ function statusReadFixture() {
   return {
     state,
     lateDay,
+    outsideDay,
     async fetch(request) {
       const url = new URL(request.url);
       state.calls.push(url.pathname);
@@ -586,10 +589,16 @@ async function main() {
       button.click();
     });
     await page.waitForFunction(() => document.querySelector(".page-heading h1")?.textContent !== "");
-    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await page.goto(`${origin}/?date=${upstream.outsideDay}`);
     await page.waitForFunction(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0);
     const outsideDesktop = await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length);
     assert.ok(outsideDesktop > 0, "desktop timeline shows inferred outside gap");
+    const outsideSurface = await page.evaluate(() => ({
+      cardStatus: document.querySelector(".current-card")?.getAttribute("data-status"),
+      legend: Boolean(document.querySelector('.timeline-legend [data-status="outside"]')),
+    }));
+    assert.ok(outsideSurface.cardStatus, "current status card carries a status data attribute");
+    assert.equal(outsideSurface.legend, true, "timeline legend includes outside");
     await assertLayout(page, "desktop outside day", 1440);
     await screenshot(page, "desktop-outside-day.png");
     const headingAfter = await page.evaluate(() => document.querySelector(".page-heading h1")?.textContent || "");
@@ -644,6 +653,8 @@ async function main() {
     for (const heading of ["作息叠图", "通勤（上限）", "每天几点", "在家", "和平时不一样的日子", "数据可信度"]) {
       assert.ok(await sectionVisible(page, heading), `desktop trends shows ${heading}`);
     }
+    assert.ok(await page.evaluate(() => Boolean(document.querySelector('#status-hours .timeline-legend [data-status="outside"]'))), "trends legend includes outside");
+    assert.ok(await page.evaluate(() => document.querySelectorAll('#status-hours rect[data-series="outside"]').length > 0), "trends status chart draws outside");
     const trendState = await page.evaluate(() => ({
       bars: document.querySelectorAll("#status-hours .bar").length,
       filled: document.querySelectorAll("#status-hours rect[data-series]").length,
@@ -723,7 +734,7 @@ async function main() {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
     });
     await page.goto(`${origin}/`);
-    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await page.goto(`${origin}/?date=${upstream.outsideDay}`);
     await page.waitForFunction(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0);
     assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile time blocks show inferred outside gap");
     await assertLayout(page, "mobile outside day", 390);
@@ -800,7 +811,7 @@ async function main() {
     await assertTheme(page, "mobile dark today", "dark");
     await assertLayout(page, "mobile dark today", 390);
     assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile dark today has work blocks");
-    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await page.goto(`${origin}/?date=${upstream.outsideDay}`);
     await page.waitForFunction(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0);
     await assertTheme(page, "mobile dark outside", "dark");
     assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile dark time blocks show inferred outside gap");
@@ -812,7 +823,7 @@ async function main() {
     await waitText(page, "每天各状态各占几小时");
     await assertTheme(page, "desktop dark trends", "dark");
     await fullScreenshot(page, "desktop-trends-dark.png");
-    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await page.goto(`${origin}/?date=${upstream.outsideDay}`);
     await page.waitForFunction(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0);
     await assertTheme(page, "desktop dark outside", "dark");
     assert.ok(await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0), "desktop dark timeline shows inferred outside gap");

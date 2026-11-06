@@ -625,7 +625,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   // where the home scanner was healthy for that minute. A missing scan stays
   // unknown, preserving the distinction between absence and missing data.
   const fillOutside = (from: number, to: number) => {
-    if (from < 0 || to <= from) return;
+    if (deviceIds.size === 0 || from < 0 || to <= from) return;
     const length = to - from - 1;
     if (length <= STATE_THRESHOLDS.commuteMaxMinutes) return;
     for (let minute = from + 1; minute < to && minute <= lastMinute; minute++) {
@@ -642,7 +642,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   if (lastOffice >= 0) {
     const after = homeIndices.find(index => index > lastOffice);
     if (after !== undefined) fillOutside(lastOffice, after);
-    else fillOutside(lastOffice, lastMinute + 1);
+    else if (isCurrentDay && phoneMinutes[lastMinute].status !== "offline") fillOutside(lastOffice, lastMinute + 1);
   }
   const moments: KeyMoment[] = [];
   const livingIndex = statuses.indexOf("living_room");
