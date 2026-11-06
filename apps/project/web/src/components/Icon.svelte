@@ -1,6 +1,6 @@
 <script lang="ts">
   type Name = "attend" | "decide" | "authorize" | "confirm" | "none" | "clock" | "alert" | "branch" | "check"
-    | "today" | "board" | "folder" | "log" | "plus" | "close" | "list";
+    | "today" | "folder" | "log" | "plus" | "close" | "list";
   let { name, size = 16 }: { name: Name; size?: number } = $props();
 </script>
 

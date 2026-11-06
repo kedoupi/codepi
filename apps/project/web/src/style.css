@@ -177,19 +177,6 @@ button { font: inherit; color: inherit; }
 .activity { display: block; width: 100%; height: 56px; }
 .activity-bar { fill: var(--wb-you); }
 
-/* Board */
-.heat-panel { gap: var(--space-2); }
-.heat-scroll { overflow-x: auto; }
-.heat { border-collapse: separate; border-spacing: 3px; font-size: 12.5px; min-width: 420px; width: 100%; }
-.heat th { font-weight: 500; color: var(--color-text-muted); text-align: center; padding: 2px 4px; white-space: nowrap; }
-.heat th[scope="row"] { text-align: left; color: var(--color-text); }
-.heat-cell { width: 100%; height: 30px; border: 0; border-radius: 5px; font-family: var(--font-mono); font-size: 12.5px; cursor: pointer; background: var(--wb-sunk); }
-.heat-cell:disabled { cursor: default; }
-.heat-1 { background: var(--heat-1); }
-.heat-2 { background: var(--heat-2); }
-.heat-3 { background: var(--heat-3); color: var(--color-action-text); }
-.heat-4 { background: var(--heat-4); color: var(--color-action-text); }
-.heat-cell[aria-pressed="true"] { outline: 2px solid var(--color-text); outline-offset: -2px; }
 .filters { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .filters input[type="search"], select { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-control);
   background: var(--color-surface); color: var(--color-text); max-width: 100%; }
