@@ -34,7 +34,7 @@ const REGISTRY_ROWS = [
   ['worker-me', 'production', 'worker', 'codepi-me', 'me.codepi.app', 'planned'],
   ['d1-me', 'production', 'd1', 'codepi-me', '-', 'planned'],
   ['r2-me-imports', 'production', 'r2', 'codepi-me-imports', '-', 'planned'],
-  ['worker-rhythm', 'production', 'worker', 'codepi-rhythm', 'rhythm.codepi.app', 'planned'],
+  ['worker-rhythm', 'production', 'worker', 'codepi-rhythm', 'jw.codepi.app', 'planned'],
   ['d1-rhythm', 'production', 'd1', 'codepi-rhythm', '-', 'planned'],
   ['r2-blog-uploads', 'production', 'r2', 'codepi-blog-uploads', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
@@ -131,7 +131,7 @@ function authConfig() {
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
-        rhythm: ['https://rhythm.codepi.app/api/auth/callback'],
+        rhythm: ['https://jw.codepi.app/api/auth/callback'],
       }),
     },
     d1_databases: [{ binding: 'DB', database_name: 'codepi-auth', database_id: U.auth, migrations_dir: 'migrations' }],
@@ -274,7 +274,7 @@ function domainConfig(app) {
 name = "codepi-${app}"
 main = "worker/index.ts"
 routes = [
-  { pattern = "${app}.codepi.app", custom_domain = true }
+  { pattern = "${app === 'rhythm' ? 'jw' : app}.codepi.app", custom_domain = true }
 ]
 [assets]
 directory = "./dist"
@@ -389,7 +389,7 @@ test('Rhythm reserves its planned Worker, D1, host and the deploy-time upstream 
 name = "codepi-rhythm"
 main = "worker/index.ts"
 routes = [
-  { pattern = "rhythm.codepi.app", custom_domain = true }
+  { pattern = "jw.codepi.app", custom_domain = true }
 ]
 [assets]
 directory = "./dist"
@@ -413,7 +413,7 @@ ${OBSERVABILITY}${extra}`;
   assert.deepEqual(run(legal), []);
   for (const [config, needle] of [
     [rhythmConfig().replace('database_name = "codepi-rhythm"', 'database_name = "codepi-me"'), 'database_name'],
-    [rhythmConfig().replace('pattern = "rhythm.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],
+    [rhythmConfig().replace('pattern = "jw.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],
     [rhythmConfig().replace('AUTH_CLIENT_ID = "rhythm"', 'AUTH_CLIENT_ID = "me"'), 'AUTH_CLIENT_ID'],
     [rhythmConfig().replace('service = "codepi-auth"', 'service = "codepi-mcp"'), 'codepi-auth'],
     [rhythmConfig().replace('service = "status-read-placeholder"', 'service = "some-private-upstream"'), 'placeholder service binding STATUS_READ'],

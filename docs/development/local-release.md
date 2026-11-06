@@ -267,7 +267,7 @@ Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署
 
 1. 前置：私有上游只读 Worker（`STATUS_READ` 指向的服务）已在同一账户部署并读回；Auth 已发布（`rhythm` 回调已在 `SSO_EXTRA_REDIRECT_URIS`，此时 Rhythm 客户端尚未配对、其他客户端不受影响）。
 2. 在发布 shell 设置 `RHYTHM_STATUS_READ_SERVICE`。`deploy-domain.mjs` 在任何 Wrangler 调用前校验：源 `wrangler.toml` 恰有一个 `STATUS_READ` 绑定且仍是占位 `status-read-placeholder`、环境变量是合法 Worker 名且不等于占位；真实名只写进临时配置，不改源文件、不进输出证据。
-3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，首次上传 Worker、绑定 `rhythm.codepi.app` 与每日 Cron。此时 `/api/health` 返回 503（未配对）属初始化中状态，不记成功。
+3. `pnpm build` 后运行 `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA> --provision-d1`：按精确名称创建或解析 D1 `codepi-rhythm`，执行 `apps/rhythm/migrations`，首次上传 Worker、绑定 `jw.codepi.app` 与每日 Cron。此时 `/api/health` 返回 503（未配对）属初始化中状态，不记成功。
 4. Worker 已存在后，在同一个持锁的发布 shell 内**回到仓库根目录**（第 3 步在 `apps/rhythm` 里执行，先 `cd ../..`）配对 SSO 密钥（与 Project/Me 相同，不能重入自带锁的 CLI）：
    `node --input-type=module -e 'const { pairClientSecret } = await import("./scripts/cloudflare/pair-mcp-secret.mjs"); console.log(JSON.stringify(await pairClientSecret({ client: "rhythm" })));'`
    同一随机值写入 Auth 的 `SSO_CLIENT_SECRET_RHYTHM` 与 `codepi-rhythm` 的 `AUTH_CLIENT_SECRET`，只输出前后版本；`/api/health` 须返回 200、`source=rhythm`、`sso_enabled=true`、`sso_ready=true`，任一端失败即停止。

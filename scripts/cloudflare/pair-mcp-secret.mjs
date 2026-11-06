@@ -20,7 +20,7 @@ export const PAIRING_CLIENTS = Object.freeze({
     identified: body => body?.source === 'me' && body?.sso_enabled === true && body?.sso_ready === true,
   },
   rhythm: {
-    worker: 'codepi-rhythm', authSecret: 'SSO_CLIENT_SECRET_RHYTHM', origin: 'https://rhythm.codepi.app',
+    worker: 'codepi-rhythm', authSecret: 'SSO_CLIENT_SECRET_RHYTHM', origin: 'https://jw.codepi.app',
     identified: body => body?.source === 'rhythm' && body?.sso_enabled === true && body?.sso_ready === true,
   },
 });
