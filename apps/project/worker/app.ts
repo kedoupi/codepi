@@ -6,6 +6,7 @@ import { AppError, assertKeys, bodyJson, integer, json, localDev, oneOf, text } 
 import { createProject, isProjectStatus, projectSummaries, resolveProject, rotateToken, updateProject } from "./projects";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind, type ProjectStatus } from "./types";
 import { deleteToday, markOwnerDone, pickToday, todayView, unpickToday } from "./today";
+import { journal } from "./journal";
 import { activityLog, getTask, listTasks, overview, projectCard } from "./work";
 
 type AppEnv = { Bindings: Env };
@@ -127,6 +128,9 @@ getApi("/api/log", async c => {
   const days = integer(c.req.query("days"), { min: 1, max: 90, fallback: 30 });
   return json(await activityLog(c.env, { days, project: c.req.query("project") || undefined }));
 });
+getApi("/api/journal", async c => {
+  return json(await journal(c.env, c.req.query("week"), c.req.query("project") || undefined));
+});
 
 app.post("/api/today/pick", async c => {
   const body = await bodyJson(c.req.raw, 8 * 1024);
@@ -197,6 +201,11 @@ app.on(["GET", "HEAD"], ["/", "/board", "/log", "/p/:id"], async c => {
   if (!await authenticated(c.req.raw, c.env)) {
     const target = new URL("/login", c.req.url);
     target.searchParams.set("return", `${c.req.path}${new URL(c.req.url).search}`);
+    return Response.redirect(target.href, 302);
+  }
+  if (c.req.path === "/board") {
+    const target = new URL("/", c.req.url);
+    target.search = new URL(c.req.url).search;
     return Response.redirect(target.href, 302);
   }
   return indexAsset(c.req.raw, c.env);

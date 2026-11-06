@@ -20,6 +20,9 @@
   let busy = $state("");
   let tab = $state<Tab>("today");
   let mobile = $state(false);
+  let poolQuery = $state("");
+  let needOnly = $state(false);
+  let dueSoon = $state(false);
 
   async function load() {
     try {
@@ -56,9 +59,21 @@
     return () => media?.removeEventListener("change", updateMobile);
   });
 
+  const searchedPool = $derived.by(() => {
+    const query = poolQuery.trim().toLocaleLowerCase();
+    return (data?.pool ?? []).filter(task => !query || `${task.title} ${task.category}`.toLocaleLowerCase().includes(query));
+  });
+  const filteredPool = $derived.by(() => {
+    const dueLimit = data ? addDays(data.date, 7) : "";
+    return searchedPool.filter(task => {
+      if (needOnly && task.need_kind === "none") return false;
+      if (dueSoon && (!task.due || task.due > dueLimit)) return false;
+      return true;
+    });
+  });
   const groups = $derived.by(() => {
     const grouped = new Map<string, PoolItem[]>();
-    for (const task of data?.pool ?? []) {
+    for (const task of filteredPool) {
       const items = grouped.get(task.category) ?? [];
       items.push(task);
       grouped.set(task.category, items);
@@ -81,6 +96,9 @@
     return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: "Asia/Shanghai" }).format(dateValue(date));
   }
 
+  function addDays(date: string, amount: number) {
+    return new Date(Date.parse(`${date}T00:00:00Z`) + amount * 86400_000).toISOString().slice(0, 10);
+  }
   function dueLine(task: TodayItem) {
     if (task.carried) return "昨天没做完";
     return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
@@ -104,7 +122,7 @@
 {#if error && !data}
   <p class="inline-alert" role="alert">{error}</p>
 {:else if !data}
-  <p class="loading">正在读取今天的看板…</p>
+  <p class="loading">正在读取今天…</p>
 {:else}
   <header class="today-head">
     <div>
@@ -120,7 +138,7 @@
   {#if error}<p class="inline-alert" role="alert">{error}</p>{/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-  <nav class="today-tabs" aria-label="今天看板" role={mobile ? "tablist" : undefined}>
+  <nav class="today-tabs" aria-label="今天" role={mobile ? "tablist" : undefined}>
     <button id="today-tab-today" class:active={tab === "today"} aria-selected={mobile ? tab === "today" : undefined} aria-controls={mobile ? "today-panel-today" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "today")}>今天</button>
     <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={mobile ? tab === "pool" : undefined} aria-controls={mobile ? "today-panel-pool" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "pool")}>池子</button>
     <button id="today-tab-done" class:active={tab === "done"} aria-selected={mobile ? tab === "done" : undefined} aria-controls={mobile ? "today-panel-done" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "done")}>做完</button>
@@ -129,7 +147,13 @@
   <div class="today-board">
     <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
     <section id="today-panel-pool" class="today-column pool-column" class:mobile-hidden={tab !== "pool"} aria-label="池子" aria-labelledby={mobile ? "today-tab-pool" : undefined} role={mobile ? "tabpanel" : undefined}>
-      <div class="today-column-head"><h2>池子</h2><span>{data.pool.length}</span></div>
+      <div class="today-column-head"><h2>池子</h2><span>{filteredPool.length} / {data.pool.length}</span></div>
+      <div class="pool-filters" aria-label="池子筛选">
+        <label class="pool-search"><span class="sr-only">搜索池子</span><input type="search" placeholder="搜索标题或分类" aria-label="搜索标题或分类" bind:value={poolQuery} /></label>
+        <button class="pill" class:on={needOnly} aria-pressed={needOnly} onclick={() => (needOnly = !needOnly)}>只看需要你 · {searchedPool.filter(task => task.need_kind !== "none").length}</button>
+        <button class="pill" class:on={dueSoon} aria-pressed={dueSoon} onclick={() => (dueSoon = !dueSoon)}>7 天内到期 · {searchedPool.filter(task => task.due && task.due <= addDays(data!.date, 7)).length}</button>
+        {#if poolQuery || needOnly || dueSoon}<button class="link-button pool-clear" onclick={() => { poolQuery = ""; needOnly = false; dueSoon = false; }}>清除筛选</button>{/if}
+      </div>
       {#if groups.length}
         <div class="pool-groups">
           {#each groups as group (group.category)}
@@ -151,6 +175,8 @@
             </details>
           {/each}
         </div>
+      {:else}
+        <p class="today-empty">没有符合条件的池子任务。{#if poolQuery || needOnly || dueSoon} <button class="link-button" onclick={() => { poolQuery = ""; needOnly = false; dueSoon = false; }}>清除筛选</button>{/if}</p>
       {/if}
     </section>
 

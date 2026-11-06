@@ -174,7 +174,7 @@ describe("ProjectMcp", () => {
     const summary = await buildSummary(env, "kdp-owner");
     expect(summary.status).toBe("ok");
     expect(summary.metrics[0]).toEqual({ label: "需要你", value: "2" });
-    expect(summary.attention[0].href).toContain("/board?task=codepi%2F");
+    expect(summary.attention[0].href).toContain("/?task=codepi%2F");
     expect(jsonBytes(summary)).toBeLessThanOrEqual(MCP_LIMITS.overview);
     expect((await buildSummary(env, "other")).status).toBe("unavailable");
     await resetDb();

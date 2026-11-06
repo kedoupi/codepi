@@ -7,14 +7,13 @@
   import Icon from "./components/Icon.svelte";
   import Login from "./components/Login.svelte";
   import Today from "./components/Today.svelte";
-  import Board from "./components/Board.svelte";
   import ProjectPage from "./components/ProjectPage.svelte";
   import Log from "./components/Log.svelte";
   import TaskDrawer from "./components/TaskDrawer.svelte";
   import AddProject from "./components/AddProject.svelte";
   import "./style.css";
 
-  type Route = { view: "today" } | { view: "board" } | { view: "log" } | { view: "project"; id: string } | { view: "login" };
+  type Route = { view: "today" } | { view: "log" } | { view: "project"; id: string } | { view: "login" };
 
   let phase = $state<"loading" | "ready" | "login" | "error">("loading");
   let route = $state<Route>({ view: "today" });
@@ -28,7 +27,7 @@
   function parse(): Route {
     const path = location.pathname;
     if (path === "/login") return { view: "login" };
-    if (path === "/board") return { view: "board" };
+    if (path === "/board") return { view: "today" };
     if (path === "/log") return { view: "log" };
     const match = path.match(/^\/p\/([^/]+)\/?$/);
     if (match) {
@@ -126,7 +125,6 @@
 
   const nav = [
     { view: "today", path: "/", label: "今天", icon: "today" },
-    { view: "board", path: "/board", label: "看板", icon: "board" },
     { view: "log", path: "/log", label: "动态", icon: "log" },
   ] as const;
 </script>
@@ -169,8 +167,6 @@
     <main class="main">
       {#if route.view === "today"}
         <Today />
-      {:else if route.view === "board"}
-        <Board {projects} onOpen={openTask} />
       {:else if route.view === "log"}
         <Log {projects} />
       {:else if route.view === "project"}
@@ -185,10 +181,6 @@
           <Icon name={item.icon} size={20} /><span>{item.label}</span>
         </a>
       {/each}
-      <a href={projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/"} class:active={route.view === "project"}
-        onclick={event => link(event, projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/")}>
-        <Icon name="folder" size={20} /><span>项目</span>
-      </a>
     </nav>
   </div>
   {#if task}

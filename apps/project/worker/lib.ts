@@ -170,7 +170,7 @@ export function projectUrl(env: Env, projectId: string) {
 }
 
 export function taskUrl(env: Env, projectId: string, key: string) {
-  return `${env.PROJECT_ORIGIN || "https://project.codepi.app"}/board?task=${encodeURIComponent(`${projectId}/${key}`)}`;
+  return `${env.PROJECT_ORIGIN || "https://project.codepi.app"}/?task=${encodeURIComponent(`${projectId}/${key}`)}`;
 }
 
 export function secureResponse(response: Response) {
