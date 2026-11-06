@@ -67,7 +67,7 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p10-2026-11-06");
+    expect(rows.status.version).toBe("p11-2026-11-06");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
   });
@@ -155,7 +155,9 @@ describe("每日指标", () => {
 
   it("缺口原因：心跳缺失、手机没扫到、其余归工作机", () => {
     const base = input();
-    const heartbeats = [];
+    const heartbeats = [
+      { observed_at: "2026-11-03T00:00:00+08:00", scan_ok: true },
+    ];
     for (let minute = 0; minute < 60; minute += 5) {
       heartbeats.push({ observed_at: `2026-11-03T20:${String(minute).padStart(2, "0")}:00+08:00`, scan_ok: true });
     }

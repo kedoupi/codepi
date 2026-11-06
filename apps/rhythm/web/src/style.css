@@ -8,6 +8,7 @@
   --rhythm-bedroom: #2F4F8F;
   --rhythm-living: #7FA3DA;
   --rhythm-commute: #D9822B;
+  --rhythm-outside: #5368A8;
   --rhythm-office: #1F7A63;
   --rhythm-away: #9FD0BF;
   --rhythm-meeting-status: #B85C38;
@@ -29,6 +30,7 @@
   --rhythm-bedroom: #8EA9E6;
   --rhythm-living: #A7C0EB;
   --rhythm-commute: #F1A65A;
+  --rhythm-outside: #A8B7EE;
   --rhythm-office: #72C7AD;
   --rhythm-away: #8EC6B2;
   --rhythm-meeting-status: #E18F6C;
@@ -94,6 +96,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .current-card[data-status="bedroom"] { border-left-color: var(--rhythm-bedroom); }
 .current-card[data-status="living_room"],.current-card[data-status="home"] { border-left-color: var(--rhythm-living); }
 .current-card[data-status="commute"] { border-left-color: var(--rhythm-commute); }
+.current-card[data-status="outside"] { border-left-color: var(--rhythm-outside); }
 .current-card[data-status="office_away"] { border-left-color: var(--rhythm-away); }
 .current-card[data-status="office_meeting"] { border-left-color: var(--rhythm-meeting-status); }
 .current-card[data-status="other_network"] { border-left-color: var(--rhythm-other); }
@@ -115,6 +118,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-segment[data-status="office_away"] { background: var(--rhythm-away); }
 .timeline-segment[data-status="office_meeting"] { background: var(--rhythm-meeting-status); color: white; }
 .timeline-segment[data-status="commute"] { background: var(--rhythm-commute); }
+.timeline-segment[data-status="outside"] { background: var(--rhythm-outside); color: white; }
 .timeline-segment[data-status="other_network"] { background: var(--rhythm-other); color: white; }
 .timeline-segment[data-status="not_arrived"] { background: var(--color-background); color: var(--color-text-muted); }
 .timeline-segment[data-status="not_arrived"] span { display: none; }
@@ -129,6 +133,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-legend i[data-status="office_away"] { background: var(--rhythm-away); }
 .timeline-legend i[data-status="office_meeting"] { background: var(--rhythm-meeting-status); }
 .timeline-legend i[data-status="commute"] { background: var(--rhythm-commute); }
+.timeline-legend i[data-status="outside"] { background: var(--rhythm-outside); }
 .timeline-legend i[data-status="other_network"] { background: var(--rhythm-other); }
 .timeline-legend i[data-status="not_arrived"] { background: var(--color-background); border: 1px solid var(--color-border-strong); }
 .timeline-legend i.unknown { background: repeating-linear-gradient(135deg, var(--rhythm-unknown), var(--rhythm-unknown) 3px, color-mix(in srgb, var(--color-surface) 55%, var(--rhythm-unknown)) 3px, color-mix(in srgb, var(--color-surface) 55%, var(--rhythm-unknown)) 6px); }
@@ -151,6 +156,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .time-block[data-status="office_away"] .time-block-bar { background: var(--rhythm-away); }
 .time-block[data-status="office_meeting"] .time-block-bar { background: var(--rhythm-meeting-status); }
 .time-block[data-status="commute"] .time-block-bar { background: var(--rhythm-commute); }
+.time-block[data-status="outside"] .time-block-bar { background: var(--rhythm-outside); }
 .time-block[data-status="other_network"] .time-block-bar { background: var(--rhythm-other); }
 .time-block strong { display: block; margin-bottom: 3px; }
 .time-block .evidence { margin-left: 6px; vertical-align: 1px; }
@@ -252,6 +258,7 @@ footer { padding: 16px 32px 32px; color: var(--color-text-muted); font-size: 12p
 .chart [data-series="office_away"] { fill: var(--rhythm-away); }
 .chart [data-series="office_meeting"] { fill: var(--rhythm-meeting-status); }
 .chart [data-series="commute"] { fill: var(--rhythm-commute); }
+.chart [data-series="outside"] { fill: var(--rhythm-outside); }
 .chart [data-series="other_network"] { fill: var(--rhythm-other); }
 .chart [data-series="AI 编程"] { fill: var(--rhythm-development); }
 .chart [data-series="AI 对话"] { fill: var(--rhythm-ai-chat); }

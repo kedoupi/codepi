@@ -26,6 +26,7 @@ describe("共享状态用例", () => {
       "网络标签 cutoff 边界",
       "整数心跳双设备在家",
       "事件 no-response 沿用快照前态 freshness",
+      "长空档在外与扫描缺口",
     ]);
   });
   for (const item of cases) {
@@ -393,6 +394,19 @@ describe("通勤是推断且有上限", () => {
     expect(beyond.minuteStatuses[60]).toBe("unknown");
     expect(beyond.metrics.commuteToWorkMinutes).toBe(0);
     expect(beyond.minuteStatuses).not.toContain("commute");
+  });
+});
+describe("在外状态", () => {
+  it("长空档只在扫描正常时记为在外，且不新增离家或到家", () => {
+    const item = cases.find(candidate => candidate.name === "长空档在外与扫描缺口")!;
+    const day = calculateDay(toStateInput(item));
+    expect(day.minuteStatuses[510]).toBe("outside");
+    expect(day.minuteEvidence[510]).toBe("inferred");
+    expect(day.minuteStatuses[500]).toBe("unknown");
+    expect(day.moments.map(moment => moment.kind)).toContain("start_work");
+    expect(day.moments.map(moment => moment.kind)).toContain("leave_computer");
+    expect(day.moments.map(moment => moment.kind)).not.toContain("leave_home");
+    expect(day.moments.map(moment => moment.kind)).not.toContain("arrive_home");
   });
 });
 

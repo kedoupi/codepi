@@ -808,7 +808,7 @@ get("/api/sources", async c => {
     status,
     label: statusLabel(status),
     method: STATUS_METHODS[status],
-    evidence: status === "office_away" || status === "office_meeting" || status === "commute" ? "inferred" : status === "unknown" ? "no_data" : "seen",
+    evidence: status === "office_away" || status === "office_meeting" || status === "commute" || status === "outside" ? "inferred" : status === "unknown" ? "no_data" : "seen",
   }));
   return json({
     timezone: "Asia/Shanghai",

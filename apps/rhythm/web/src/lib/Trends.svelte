@@ -81,7 +81,7 @@
     if (!workday || !workday.days) return "还没有已汇总的工作日，暂时算不出平均。";
     const groups = statusGroups(workday.statusMinutes) ?? [];
     const get = (key: string) => groups.find(group => group.key === key)?.value ?? null;
-    return `工作日平均：在家 ${hoursText(get("home"))}，在电脑前 ${hoursText(get("office_active"))}，开会 ${hoursText(get("office_meeting"))}，通勤 ${hoursText(get("commute"))}，未知 ${hoursText(get("unknown"))}。`;
+    return `工作日平均：在家 ${hoursText(get("home"))}，在电脑前 ${hoursText(get("office_active"))}，开会 ${hoursText(get("office_meeting"))}，通勤 ${hoursText(get("commute"))}，在外 ${hoursText(get("outside"))}，未知 ${hoursText(get("unknown"))}。`;
   });
   const overlaySummary = $derived.by(() => {
     const leave = average(complete.map(day => day.metrics.leaveHomeMinute));

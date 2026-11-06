@@ -474,6 +474,8 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   const deviceIds = new Set(input.subjectDeviceIds);
   const phone = phoneObservations(input.snapshots, input.events, input.devices, deviceIds, calculationAllowedAt);
   const phoneMinutes = phoneMinutesByMinute(input, calculationAllowedAt, phone);
+  const heartbeatMinutes = heartbeatByMinute(input.heartbeats, start);
+
   const legacyCutoffAt = Date.parse(legacyNetworkCutoff);
 
   // 每条样本只归属它自己所在的那一分钟；同一分钟多条样本取最后一条。
@@ -619,6 +621,29 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     if (after !== undefined) fillCommute(lastOffice, after);
   }
 
+  // Longer gaps between home and office anchors are inferred as outside only
+  // where the home scanner was healthy for that minute. A missing scan stays
+  // unknown, preserving the distinction between absence and missing data.
+  const fillOutside = (from: number, to: number) => {
+    if (from < 0 || to <= from) return;
+    const length = to - from - 1;
+    if (length <= STATE_THRESHOLDS.commuteMaxMinutes) return;
+    for (let minute = from + 1; minute < to && minute <= lastMinute; minute++) {
+      if (statuses[minute] === "unknown" && heartbeatMinutes[minute].scanOkInWindow) {
+        statuses[minute] = "outside";
+        evidence[minute] = "inferred";
+      }
+    }
+  };
+  if (firstOffice >= 0) {
+    const before = homeIndices.filter(index => index < firstOffice).at(-1);
+    if (before !== undefined) fillOutside(before, firstOffice);
+  }
+  if (lastOffice >= 0) {
+    const after = homeIndices.find(index => index > lastOffice);
+    if (after !== undefined) fillOutside(lastOffice, after);
+    else fillOutside(lastOffice, lastMinute + 1);
+  }
   const moments: KeyMoment[] = [];
   const livingIndex = statuses.indexOf("living_room");
   if (livingIndex >= 0) {
@@ -631,26 +656,29 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   }
   for (let minute = 1; minute <= lastMinute; minute++) {
     const before = statuses[minute - 1], after = statuses[minute];
-    if (isHome(before) && !isHome(after) && after !== "unknown") {
+    if (isHome(before) && !isHome(after) && after !== "unknown" && after !== "outside") {
       pushMoment(moments, { kind: "leave_home", minute, label: "离家", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 离开在家状态` });
     }
+
     if (isOfficePresence(after) && !isOfficePresence(before)) {
       pushMoment(moments, { kind: "start_work", minute, label: "开始办公", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 公司网络进入工作状态` });
     }
-    if (isOfficePresence(before) && (after === "office_away" || after === "commute") && before !== "office_away") {
+    if (isOfficePresence(before) && (after === "office_away" || after === "commute" || after === "outside") && before !== "office_away") {
       pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
         detail: `${minuteLabel(minute)} 离开公司工作状态` });
-    } else if (after === "commute" && before !== "commute" && statuses.slice(0, minute).some(isOfficePresence)
+    } else if ((after === "commute" || after === "outside") && before !== "commute" && before !== "outside" && statuses.slice(0, minute).some(isOfficePresence)
       && !moments.some(moment => moment.kind === "leave_computer")) {
       pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
         detail: `${minuteLabel(minute)} 离开公司工作状态` });
     }
-    if (!isHome(before) && isHome(after) && before !== "unknown") {
+
+    if (!isHome(before) && isHome(after) && before !== "unknown" && before !== "outside") {
       pushMoment(moments, { kind: "arrive_home", minute, label: "到家", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 手机回到家中` });
     }
+
     if (after === "bedroom" && before !== "bedroom" && before !== null) {
       pushMoment(moments, { kind: "return_bedroom", minute, label: "回卧室", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 手机进入卧室` });
@@ -730,6 +758,7 @@ export function statusLabel(status: DayStatus): string {
     office_away: "公司 · 离座",
     office_meeting: "公司 · 开会",
     commute: "通勤",
+    outside: "在外",
     other_network: "其他网络",
     unknown: "未知",
     not_arrived: "未到",
@@ -744,6 +773,7 @@ export const STATUS_METHODS: Record<RhythmStatus, string> = {
   office_away: "工作机连接的是公司网络，但锁屏或没有操作，且夹在两段办公之间。",
   office_meeting: "公司网络、电池供电且未锁屏，按电源状态推断开会。",
   commute: "手机最后一次在家到工作机第一次在公司工作状态之间；下班方向相反。",
+  outside: "离开公司后到回家前，没有设备看到你；家中扫描正常、超过 2 小时。",
   other_network: "工作机连接的是其他网络，显示网络名称，没有则显示网络标识。",
-  unknown: "两路都没有新鲜数据，或看不出人在哪里。",
+  unknown: "采集中断或没有数据。",
 };

@@ -142,7 +142,7 @@ function statusReadFixture() {
       for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
-      for (let minute = 520 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
+      for (let minute = 520 + shift + jitter + (day === lateDay ? 100 : 0); minute <= Math.min(1085, activityLimit); minute += 1) {
         if (minute === 720) {
           rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40 });
           continue;
@@ -586,6 +586,12 @@ async function main() {
       button.click();
     });
     await page.waitForFunction(() => document.querySelector(".page-heading h1")?.textContent !== "");
+    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await waitText(page, "在外");
+    const outsideDesktop = await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length);
+    assert.ok(outsideDesktop > 0, "desktop timeline shows inferred outside gap");
+    await assertLayout(page, "desktop outside day", 1440);
+    await screenshot(page, "desktop-outside-day.png");
     const headingAfter = await page.evaluate(() => document.querySelector(".page-heading h1")?.textContent || "");
     assert.notEqual(headingAfter, headingBefore, "date switching changes the day heading");
     await assertLayout(page, "desktop previous day", 1440);
@@ -717,6 +723,11 @@ async function main() {
       width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
     });
     await page.goto(`${origin}/`);
+    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await waitText(page, "在外");
+    assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile time blocks show inferred outside gap");
+    await assertLayout(page, "mobile outside day", 390);
+    await screenshot(page, "mobile-outside-day.png");
     await waitText(page, "上班通勤（上限）");
     await waitText(page, "一天怎么过的");
     await waitText(page, "工作时段");
@@ -789,6 +800,11 @@ async function main() {
     await assertTheme(page, "mobile dark today", "dark");
     await assertLayout(page, "mobile dark today", 390);
     assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile dark today has work blocks");
+    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await waitText(page, "在外");
+    await assertTheme(page, "mobile dark outside", "dark");
+    assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile dark time blocks show inferred outside gap");
+    await fullScreenshot(page, "mobile-outside-dark.png");
     await page.cdp("Emulation.setDeviceMetricsOverride", {
       width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
@@ -796,6 +812,11 @@ async function main() {
     await waitText(page, "每天各状态各占几小时");
     await assertTheme(page, "desktop dark trends", "dark");
     await fullScreenshot(page, "desktop-trends-dark.png");
+    await page.goto(`${origin}/?date=${upstream.lateDay}`);
+    await waitText(page, "在外");
+    await assertTheme(page, "desktop dark outside", "dark");
+    assert.ok(await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0), "desktop dark timeline shows inferred outside gap");
+    await fullScreenshot(page, "desktop-outside-dark.png");
     await page.goto(`${origin}/settings`);
     await waitText(page, "App 归类");
     await fullScreenshot(page, "desktop-settings-dark.png");
