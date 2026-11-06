@@ -3,7 +3,7 @@
 kedoupi（codepi）的私有工作台。Worker 名为 `codepi-project`，生产入口为
 `https://project.codepi.app`，本地开发端口为 `8795`。它汇总各个项目从自己仓库推上来的
 待办、需要所有者出手的事、进行中分支和变更记录，并通过内部 `ProjectMcp` 向统一 MCP 提供
-`work_overview`、`task_list`、`task_get`、`project_get`、`today_get`、`today_pick`、`project_handoff_save`。
+`work_overview`、`task_list`、`task_get`、`project_get`、`today_get`、`today_pick`、`today_check`、`project_handoff_save`。
 
 2026-11-04 起由「GitHub 同步的项目卡」重做为工作台（任务记录见
 [2026-11-04-project-workbench](../../docs/development/tasks/2026-11-04-project-workbench.md)）：
@@ -17,8 +17,8 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
    `POST /api/ingest/<project>`，请求头 `Authorization: Bearer <令牌>`。
 3. Worker 拒绝凭据形态的文本（节点链接、GitHub/OpenAI/AWS/Slack 令牌、私钥、JWT、URL 里的
    token 参数），只回报字段路径不回显内容；按内容哈希幂等；一次 batch 写入：出现的任务更新，
-   消失的任务记 `done_at`（再次出现时恢复），分支和 changelog 整体替换，每项目保留 30 份快照，
-   90 天前完成的任务删除。
+   消失的任务记 `done_at`（再次出现时恢复），网页删除标记会保留到该 key 重新出现在仓库推送中，分支和 changelog 整体替换，每项目保留 30 份快照，
+   90 天前完成的任务删除。2026-11-06（周五）已被清掉的 9 条仅当天显示在做完。
 
 ### `workbench.v1` 快照
 
@@ -83,9 +83,10 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 
 ## ProjectMcp
 
-`ProjectMcp.execute` 的操作为 `overview`、`task_list`、`task_get`、`project_get`、`handoff_save`、`today_get`、`today_pick`，
+`ProjectMcp.execute` 的操作为 `overview`、`task_list`、`task_get`、`project_get`、`handoff_save`、`today_get`、`today_pick`、`today_check`，
 每个回复不超过 12 KiB，不再有片段分页：`overview` 与 `project_get` 超出时按 `truncated` 列出截短的列表，
-计数保持准确；`today_get` 的 `deleted` 是主人在网页删除、仓库里还在的待办，助手应在仓库删除对应待办；它也按
+计数保持准确；`today_get` 的 `deleted` 是主人在网页删除、仓库里还在的待办，助手应在仓库删除对应待办；池子和今天项目可带 `checks`（检查天数、最近结论、是否今天检查），
+`today_check` 记录助手今天已检查但尚未完成的事项并将其移回池子，同日重复会更新结论；它也按
 `pool → done → deleted → today` 顺序截短并保持计数准确。`task_list` 用 `offset` + `revision`（筛选与完整结果的 SHA-256），续页缺首屏
 revision 或列表变化时返回 `cursor_stale`。`handoff_save` 的 `task` 是任务键或自由任务 ID，
 `branch`、`base_sha` 可选，`request_id` 内容相同才幂等。`summary` 给 `get_context`：需要你、
@@ -97,7 +98,7 @@ revision 或列表变化时返回 `cursor_stale`。`handoff_save` 的 `task` 是
 运行时变量：`SSO_ENABLED=1`、`AUTH_CLIENT_ID=project`、`AUTH_ORIGIN`、`PROJECT_ORIGIN`、`BUILD_SHA`；
 Secret 只有 `AUTH_CLIENT_SECRET`。推送令牌不在 Worker 配置里，由所有者在网页生成。
 
-迁移 `0003_workbench.sql` 删除旧同步表并把 `projects`、`handoffs` 原行复制到新结构；上线前先按
+迁移 `0003_workbench.sql` 删除旧同步表并把 `projects`、`handoffs` 原行复制到新结构；`0004_today.sql`、`0005_owner_deleted.sql` 和 `0006_agent_checked.sql` 追加今天看板状态。上线前先按
 [备份与恢复](../../docs/development/cloudflare-backup-restore.md)导出生产 D1。
 
 ## 本地开发与检查

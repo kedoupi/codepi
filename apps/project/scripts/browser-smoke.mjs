@@ -77,10 +77,13 @@ function mockScript() {
     const deleted = new Set();
     const today = {
       today: open.filter(item => ["t1", "t2"].includes(item.key)).map(item => ({ ...item, carried: false, who: who(item) })),
-      pool: open.filter(item => ["t3", "t5", "t6"].includes(item.key)),
+      pool: open.filter(item => ["t3", "t5", "t6"].includes(item.key)).map(item => item.key === "t6"
+        ? { ...item, checks: { count: 2, last_at: new Date().toISOString(), last_note: "合成检查结论", today: true } }
+        : item),
       done: tasks.filter(item => item.done_at),
     };
     const visible = name => today[name].filter(item => !deleted.has(item.key));
+    const checked = [...visible("today"), ...visible("pool")].filter(item => item.checks?.today).length;
     const todayResponse = () => ({
       today: visible("today"),
       pool: visible("pool"),
@@ -89,7 +92,7 @@ function mockScript() {
         project: item.project, key: item.key, title: item.title, deleted_at: new Date().toISOString(),
       })),
       counts: { today: visible("today").length, pool: visible("pool").length, done: visible("done").length,
-        deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).length },
+        deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).length, checked },
       date: day,
     });
     const projects = [
@@ -206,6 +209,7 @@ async function main() {
     assert.ok(columnBoxes[0].left < columnBoxes[1].left && columnBoxes[1].left < columnBoxes[2].left, "today columns increase left-to-right");
     assert.equal(new Set(columnBoxes.map(box => box.top)).size, 1, "today columns share a top edge");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".pool-groups details").length), 3, "pool categories");
+    assert.ok(await page.evaluate(() => document.body.innerText.includes("查过 2 次 · 最近")), "desktop checked hint");
     assert.equal(await page.evaluate(() => document.querySelector('[role="tablist"]')), null, "desktop hides tablist semantics");
     assert.equal(await page.evaluate(() => document.querySelector('[role="tabpanel"]')), null, "desktop hides tabpanel semantics");
     await assertNoOverflow(page, "desktop today", 1440);
@@ -253,6 +257,7 @@ async function main() {
         assert.equal(await page.evaluate(() => document.querySelectorAll('[role="tabpanel"]').length), 3, "mobile tabpanel semantics");
         await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
         await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
+        assert.ok(await page.evaluate(() => document.querySelector("#today-panel-pool")?.innerText.includes("查过 2 次 · 最近")), "mobile checked hint");
         await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("示例想法"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
         await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
         await page.evaluate(() => [...document.querySelectorAll(".tabbar a")].find(link => link.getAttribute("href") === "/board")?.click());

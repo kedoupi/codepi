@@ -13,7 +13,7 @@ import { resolveProject } from "./projects";
 import { buildSummary } from "./summary";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind } from "./types";
 import { fit, getTask, overview, projectCard, taskPage, type TaskFilter } from "./work";
-import { fitToday, pickAgentToday, todayRef, todayView } from "./today";
+import { checkAgentToday, fitToday, pickAgentToday, todayRef, todayView } from "./today";
 
 const BUDGET = MCP_LIMITS.detail;
 
@@ -139,6 +139,17 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
         return todayRef(target.project, target.key);
       });
       return { ok: true, data: await pickAgentToday(env, refs) };
+    }
+    if (input.operation === "today_check") {
+      assertKeys(args, ["items"]);
+      if (!Array.isArray(args.items) || args.items.length > 20) throw new AppError("invalid_arguments", 400);
+      const refs = args.items.map(value => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new AppError("invalid_arguments", 400);
+        const target = value as Record<string, unknown>;
+        assertKeys(target, ["project", "key", "note"]);
+        return { ...todayRef(target.project, target.key), note: text(target.note, "invalid_note", { min: 1, max: 200 })! };
+      });
+      return { ok: true, data: await checkAgentToday(env, refs) };
     }
     if (input.operation === "handoff_save") {
       const project = await resolveProject(env, text(args.project, "project_required", { max: 200 })!);
