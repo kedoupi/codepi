@@ -57,6 +57,39 @@ describe("共享状态用例", () => {
     });
   }
 });
+describe("开会状态", () => {
+  const sample = (minute: number, extra: Partial<ActivitySample> = {}): ActivitySample => ({
+    sampled_at: `2026-11-06T${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}:00+08:00`,
+    net: "office", power: "Battery Power", locked: false, key_idle_sec: 10, pointer_idle_sec: 10, app_name: "会议 App", ...extra,
+  });
+
+  it("公司网络、电池、有键鼠时记为开会并隔离工位指标", () => {
+    const day = calculateDay({ ...emptyInput("2026-11-06"), activity: Array.from({ length: 60 }, (_, offset) => sample(650 + offset)) });
+    expect(day.minuteStatuses[650]).toBe("office_meeting");
+    expect(day.minuteStatuses[709]).toBe("office_meeting");
+    expect(day.metrics.officeMeetingMinutes).toBe(65);
+    expect(day.metrics.officeActiveMinutes).toBe(0);
+    expect(day.appBreakdown).toEqual([]);
+    expect(day.meetingAppBreakdown?.[0]).toMatchObject({ category: "其他", minutes: 60 });
+    expect(day.workBlocks[0]).toMatchObject({ kind: "meeting", status: "office_meeting" });
+  });
+
+  it("接电无键鼠与锁屏仍为离座，未知电源的旧活跃样本仍为在工位", () => {
+    const base = emptyInput("2026-11-06");
+    const away = calculateDay({ ...base, activity: [sample(640, { power: "AC Power" }), sample(650, { power: "AC Power", key_idle_sec: 999, pointer_idle_sec: 999 }), sample(660, { power: "AC Power" })] });
+    const locked = calculateDay({ ...base, activity: [sample(640, { power: "AC Power" }), sample(650, { power: "Battery Power", locked: true }), sample(660, { power: "AC Power" })] });
+    const legacy = calculateDay({ ...base, activity: [sample(650, { power: null })] });
+    expect(away.minuteStatuses[650]).toBe("office_away");
+    expect(locked.minuteStatuses[650]).toBe("office_away");
+    expect(legacy.minuteStatuses[650]).toBe("office_active");
+  });
+
+  it("在工位转开会或开会转回工位不生成离开电脑", () => {
+    const day = calculateDay({ ...emptyInput("2026-11-06"), activity: Array.from({ length: 21 }, (_, offset) => sample(640 + offset, offset >= 10 && offset < 20 ? {} : { power: "AC Power" })) });
+    expect(day.moments.filter(moment => moment.kind === "leave_computer")).toEqual([]);
+    expect(day.moments.filter(moment => moment.kind === "start_work").map(moment => moment.minute)).toEqual([640]);
+  });
+});
 
 function emptyInput(date: string): StateInput {
   return {

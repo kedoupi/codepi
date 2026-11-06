@@ -1,5 +1,5 @@
 export const RHYTHM_STATUSES = [
-  "bedroom", "living_room", "home", "office_active", "office_away",
+  "bedroom", "living_room", "home", "office_active", "office_away", "office_meeting",
   "commute", "other_network", "unknown",
 ] as const;
 export type RhythmStatus = typeof RHYTHM_STATUSES[number];
@@ -90,7 +90,7 @@ export type StateInput = {
 export type StatusSegment = { status: DayStatus; startMinute: number; endMinute: number; evidence: Evidence };
 export type KeyMoment = { kind: MomentKind; minute: number; label: string; evidence: Evidence; detail: string };
 export type AppBreakdown = { category: AppCategory; minutes: number; share: number; apps: Array<{ name: string; minutes: number }> };
-export type WorkBlockKind = "active" | "away" | "other";
+export type WorkBlockKind = "active" | "away" | "meeting" | "other";
 export type WorkBlockApp = { name: string; minutes: number };
 export type WorkBlock = {
   kind: WorkBlockKind;
@@ -118,6 +118,7 @@ export type DayMetrics = {
   commuteToWorkMinutes: number | null;
   commuteHomeMinutes: number | null;
   officeActiveMinutes: number | null;
+  officeMeetingMinutes?: number | null;
   homeMinutes: number | null;
   bedroomMinutes: number | null;
   livingRoomMinutes: number | null;
@@ -134,6 +135,7 @@ export type DayComputation = {
   workBlocks: WorkBlock[];
   metrics: DayMetrics;
   appBreakdown: AppBreakdown[];
+  meetingAppBreakdown?: AppBreakdown[];
   keyboardMouseMinutes: { keyboard: number | null; pointer: number | null; both: number | null };
   /** 当天自己有没有这一路数据（不含回看窗口与同批其他日期）。 */
   channels: { work: boolean; phone: boolean };
@@ -164,7 +166,7 @@ export type CoverageMetrics = {
 };
 
 export type DailyMetrics = DayMetrics & {
-  statusMinutes: Record<RhythmStatus, number>;
+  statusMinutes: Record<string, number>;
   wakeMinute: number | null;
   leaveHomeMinute: number | null;
   startWorkMinute: number | null;
@@ -172,6 +174,9 @@ export type DailyMetrics = DayMetrics & {
   arriveHomeMinute: number | null;
   returnBedroomMinute: number | null;
   officeSpanMinutes: number | null;
+  meetingSessions?: number | null;
+  meetingAppCategoryMinutes?: Record<AppCategory, number>;
+  meetingAppMinutes?: Record<string, { minutes: number; category: AppCategory }> | null;
   focus: FocusMetrics;
   afterWorkWorkMachineMinutes: number | null;
   weekendWorkMachineMinutes: number | null;

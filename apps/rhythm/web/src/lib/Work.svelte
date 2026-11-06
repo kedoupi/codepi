@@ -11,6 +11,12 @@
   type WorkPayload = {
     date: string; range: "day" | "week"; from: string; to: string; missing: boolean;
     office_minutes: number | null;
+    meeting_minutes: number | null;
+    work_minutes: number | null;
+    meeting_sessions: number | null;
+    meeting_share: number | null;
+    meeting_categories: Record<Category, number> | null;
+    days?: Array<{ date: string; office_minutes: number | null; meeting_minutes: number | null; work_minutes: number | null; meeting_sessions: number | null }>;
     categories: Record<Category, CategoryValue> | null;
     away: { minutes: number | null; share: number | null; delta_minutes: number | null; delta_share: number | null };
     top_apps: AppValue[] | null;
@@ -110,7 +116,9 @@
 
   {#if work}
     <section class="panel work-time-panel">
-      <div class="section-heading"><div><h2>工作时间花在哪</h2><p class="muted">从第一次操作到最后一次操作 · 离座单独列出</p></div><strong class="work-total">在公司 {duration(work.office_minutes)}</strong></div>
+      <div class="section-heading"><div><h2>工作时间花在哪</h2><p class="muted">在工位与开会合计；离座单独列出</p></div><strong class="work-total">工作时长 {duration(work.work_minutes)}</strong></div>
+      <div class="metric-grid compact"><article class="metric-card"><span>在工位</span><strong>{duration(work.office_minutes)}</strong></article><article class="metric-card"><span>开会</span><strong>{duration(work.meeting_minutes)}</strong><small>{work.meeting_sessions === null ? "暂无场次数据" : `${work.meeting_sessions} 场`} · {work.meeting_share === null ? "暂无比例" : `${Math.round(work.meeting_share * 100)}%`}</small></article></div>
+      {#if work.range === "week" && work.days?.length}<div class="work-week-days" aria-label="本周每天工作时长">{#each work.days as item}<div><span>{item.date}</span><strong>{duration(item.work_minutes, true)}</strong><small>开会 {duration(item.meeting_minutes, true)}</small></div>{/each}</div>{/if}
       {#if work.categories}
         <div class="work-category-bar" role="img" aria-label="时间去向">{#each categoryItems as item}<span data-category={item.category} style={`flex:${Math.max(item.minutes, 0)} 1 0`}></span>{/each}<span data-category="离座" style={`flex:${Math.max(work.away.minutes ?? 0, 0)} 1 0`}></span></div>
         <div class="work-category-grid">

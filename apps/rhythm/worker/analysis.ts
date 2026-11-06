@@ -20,6 +20,7 @@ export type MetricAverage = {
   commuteToWorkMinutes: number | null;
   commuteHomeMinutes: number | null;
   officeActiveMinutes: number | null;
+  meetingMinutes?: number | null;
   homeMinutes: number | null;
   officeSpanMinutes: number | null;
   afterWorkWorkMachineMinutes: number | null;
@@ -70,6 +71,7 @@ function averageFiltered(filtered: DailyMetricsRow[], dayType: DayType | "all"):
     commuteToWorkMinutes: first("commuteToWorkMinutes"),
     commuteHomeMinutes: first("commuteHomeMinutes"),
     officeActiveMinutes: first("officeActiveMinutes"),
+    meetingMinutes: average(filtered.map(row => row.metrics.officeMeetingMinutes ?? null)),
     homeMinutes: first("homeMinutes"),
     officeSpanMinutes: first("officeSpanMinutes"),
     afterWorkWorkMachineMinutes: first("afterWorkWorkMachineMinutes"),
