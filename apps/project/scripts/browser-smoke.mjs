@@ -166,22 +166,53 @@ function mockScript() {
       if (url.pathname === "/api/journal") {
         const todayDate = new Date(`${day}T00:00:00Z`);
         const monday = shift(-((todayDate.getUTCDay() + 6) % 7));
+        const mondayOffset = Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000;
+        const requested = url.searchParams.get("week");
+        const offset = requested ? (Date.parse(`${requested}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86400000 : 0;
+        const start = shift(mondayOffset + offset);
         const journalDays = Array.from({ length: 7 }, (_, index) => {
-          const date = shift(Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000 + index);
-          const current = date === day;
-          return { date, count: current ? 3 : 0, counts: { completed: current ? 1 : 0, changed: current ? 2 : 0 },
-            released: current ? [{ project: "alpha", title: "示例上线", summary: null, at: null }] : [],
-            completed: current ? [{ project: "alpha", title: "已完成的示例", summary: null, at: new Date().toISOString() }] : [],
+          const date = shift(mondayOffset + offset + index);
+          const current = date === day && !requested;
+          const completed = current ? Array.from({ length: 4 }, (_, index) => ({ project: "alpha", title: `完成示例 ${index + 1}`, summary: null, at: new Date().toISOString() })) : [];
+          return { date, count: current ? completed.length + 2 : 0, counts: { completed: completed.length, changed: current ? 2 : 0 },
+            released: current ? [{ project: "alpha", title: "示例上线", summary: null, at: null }] : [], completed,
             checked: current ? [{ project: "alpha", title: "已检查的示例", summary: null, at: new Date().toISOString(), note: "检查结论" }] : [],
             other: current ? [{ project: "alpha", title: "示例改动", summary: null, at: null }] : [] };
         });
-        return json({ as_of: new Date().toISOString(), week: { start: monday, end: shift(6 + (Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000)) },
-          summary: { completed: 1, released: 1, checked: 1 }, days: journalDays, truncated: false });
+        return json({ as_of: new Date().toISOString(), week: { start, end: shift(mondayOffset + offset + 6) },
+          summary: { completed: requested ? 0 : 4, released: requested ? 0 : 1, checked: requested ? 0 : 1 }, days: journalDays, truncated: false });
       }
       if (url.pathname === "/api/auth/logout" && method === "POST") return json({ ok: true });
       return json({ error: "not_found" }, 404);
     };
   };
+}
+
+async function assertJournalInteractions(page) {
+  const currentUrl = await page.evaluate(() => location.href);
+  const currentWeek = await page.evaluate(() => document.querySelector(".journal-week")?.textContent || "");
+  const todayDate = await page.evaluate(() => document.querySelector(".journal-day-cell.is-today time")?.getAttribute("datetime"));
+  assert.ok(todayDate, "journal today date");
+  assert.ok(await page.evaluate(date => [...document.querySelectorAll(".journal-day")].filter(day => day.id < `journal-day-${date}`).every(day => !day.open), todayDate), "past journal days are folded");
+  assert.equal(await page.evaluate(date => document.querySelector(`#journal-day-${date}`)?.open, todayDate), true, "today journal day is open");
+  assert.equal(await page.evaluate(date => document.querySelector(`#journal-day-${date}`)?.querySelectorAll(".journal-done").length, todayDate), 3, "journal completion preview has three items");
+  assert.ok(await page.evaluate(date => document.querySelector(`#journal-day-${date}`)?.innerText.includes("另 1 件"), todayDate), "journal remaining completion label");
+  assert.equal(await page.evaluate(() => document.querySelectorAll(".activity, .activity-bar, svg.activity").length), 0, "old activity chart removed");
+  await page.evaluate(() => [...document.querySelectorAll(".journal-week-nav button")].find(button => button.textContent === "上一周")?.click());
+  await page.waitForFunction(() => location.search.includes("week="));
+  await page.waitForFunction(previous => document.querySelector(".journal-week")?.textContent !== previous, currentWeek);
+  const previousWeek = await page.evaluate(() => document.querySelector(".journal-week")?.textContent || "");
+  assert.notEqual(previousWeek, currentWeek, "previous week heading changes");
+  assert.notEqual(await page.evaluate(() => location.href), currentUrl, "previous week URL changes");
+  await page.waitForFunction(() => !document.querySelector("body")?.innerText.includes("完成示例 1"), "previous week content reloads");
+  await page.evaluate(() => history.back());
+  await page.waitForFunction(previous => document.querySelector(".journal-week")?.textContent === previous, currentWeek);
+  await page.waitForFunction(() => document.querySelector("body")?.innerText.includes("完成示例 1"), "browser back restores current week");
+  assert.equal(await page.evaluate(() => location.href), currentUrl, "browser back restores current URL");
+  const targetDate = await page.evaluate(date => [...document.querySelectorAll(".journal-day-cell:not(.is-future)")].find(cell => cell.querySelector("time")?.getAttribute("datetime") !== date)?.querySelector("time")?.getAttribute("datetime"), todayDate);
+  assert.ok(targetDate, "past journal day target");
+  await page.evaluate(date => document.querySelector(`.journal-day-cell time[datetime="${date}"]`)?.closest("button")?.click(), targetDate);
+  await page.waitForFunction(date => document.querySelector(`#journal-day-${date}`)?.open === true, targetDate);
 }
 
 async function assertNoOverflow(page, label, width) {
@@ -244,10 +275,7 @@ async function main() {
     assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "seven journal days");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell.is-today").length), 1, "journal today outline");
     assert.ok(await page.evaluate(() => document.querySelector(".journal-day-cell.is-future")), "journal future day style");
-    const targetDate = await page.evaluate(() => [...document.querySelectorAll(".journal-day-cell:not(.is-future)")].find(cell => !cell.classList.contains("is-today"))?.querySelector("time")?.getAttribute("datetime"));
-    assert.ok(targetDate, "past journal day target");
-    await page.evaluate(date => document.querySelector(`.journal-day-cell time[datetime="${date}"]`)?.closest("button")?.click(), targetDate);
-    await page.waitForFunction(date => document.querySelector(`#journal-day-${date}`)?.open === true, targetDate);
+    await assertJournalInteractions(page);
     await assertNoOverflow(page, "desktop journal", 1440);
     await page.screenshot({ path: "desktop-journal.png" });
 
@@ -289,6 +317,7 @@ async function main() {
         await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
       } else if (path === "/log") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "mobile seven journal days");
+        await assertJournalInteractions(page);
       } else if (path.startsWith("/board")) {
         assert.ok(await page.evaluate(() => document.querySelector(".drawer")), "board link opens task drawer on today");
       } else {
