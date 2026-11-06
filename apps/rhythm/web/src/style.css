@@ -179,6 +179,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .bar-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .bar-track { height: 14px; background: var(--color-background); border-radius: 99px; overflow: hidden; margin: 7px 0; }
 .bar-track span { display: block; height: 100%; border-radius: inherit; background: var(--rhythm-app-other); }
+.work-category-bar span[data-category="开会"] { background: var(--rhythm-meeting-status); }
 .bar-track span[data-category="AI 编程"] { background: var(--rhythm-development); }
 .bar-track span[data-category="AI 对话"] { background: var(--rhythm-ai-chat); }
 .bar-track span[data-category="工作沟通"] { background: var(--rhythm-communication); }
@@ -319,6 +320,7 @@ footer { padding: 16px 32px 32px; color: var(--color-text-muted); font-size: 12p
 .work-category-bar span[data-category="私人"],.work-color[data-color="private"],.top-app-row i[data-category="私人"] { background: var(--rhythm-private); }
 .work-category-bar span[data-category="其他"],.work-color[data-color="app-other"],.top-app-row i[data-category="其他"] { background: var(--rhythm-app-other); }
 .work-category-bar span[data-category="离座"],.work-color[data-color="away"] { background: var(--rhythm-away); }
+.work-color[data-color="meeting-status"] { background: var(--rhythm-meeting-status); }
 .work-category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; }
 .work-category-row { display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 8px; min-width: 0; }
 .work-color { width: 12px; height: 12px; margin-top: 5px; border-radius: 3px; }
@@ -454,6 +456,7 @@ footer { padding: 16px 32px 32px; color: var(--color-text-muted); font-size: 12p
   .hour-bar-row > i { height: 12px; overflow: hidden; border-radius: 99px; background: var(--color-background); }
   .hour-bar-row > i b { display: block; height: 100%; border-radius: inherit; background: var(--rhythm-office); }
   .hour-bar-row > i b.heat-unknown { width: 100%; background: repeating-linear-gradient(135deg, var(--rhythm-unknown), var(--rhythm-unknown) 4px, var(--color-surface) 4px, var(--color-surface) 8px); }
+  .work-week-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .switch-chart { gap: 3px; }
   .segmented { width: 100%; }
   .segmented button { flex: 1; min-width: 0; }

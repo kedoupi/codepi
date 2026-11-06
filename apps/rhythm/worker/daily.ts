@@ -182,30 +182,29 @@ export type WorkAvailability = {
 };
 
 export function workAvailability(segments: Array<{ status: string; startMinute: number; endMinute: number }>): WorkAvailability {
-  const blocks: Array<{ startMinute: number; endMinute: number; away: boolean }> = [];
+  const statuses = new Array<string>(1440).fill("other");
   for (const segment of segments) {
-    if (segment.status === "office_active" || segment.status === "office_away") {
-      const previous = blocks.at(-1);
-      if (previous && previous.away === (segment.status === "office_away") && segment.startMinute <= previous.endMinute + 1) previous.endMinute = Math.max(previous.endMinute, segment.endMinute);
-      else blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: segment.status === "office_away" });
-      continue;
-    }
-    if (segment.status === "office_meeting") { blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: true }); continue; }
-    blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: true });
+    for (let minute = Math.max(0, segment.startMinute); minute <= Math.min(1439, segment.endMinute); minute += 1) statuses[minute] = segment.status;
   }
   const longestIn = (from: number, to: number) => {
-    let longest = 0, run = 0;
-    for (const block of blocks) {
-      const start = Math.max(block.startMinute, from), end = Math.min(block.endMinute, to);
-      if (start > end) continue;
-      if (block.away) { longest = Math.max(longest, run); run = 0; }
-      else run += end - start + 1;
+    let longest = 0, run = 0, minute = from;
+    while (minute <= to) {
+      const status = statuses[minute];
+      if (status === "office_active") { run += 1; minute += 1; continue; }
+      if (status === "office_away") {
+        let end = minute;
+        while (end + 1 <= to && statuses[end + 1] === "office_away") end += 1;
+        if (end - minute + 1 <= 10) { minute = end + 1; continue; }
+      }
+      longest = Math.max(longest, run);
+      run = 0;
+      minute += 1;
     }
     return Math.max(longest, run);
   };
-  const morning = longestIn(0, 719), afternoon = longestIn(720, 1439);
+  const morning = longestIn(0, 719), afternoon = longestIn(720, 1439), allDay = longestIn(0, 1439);
   return {
-    longest_minutes: Math.max(morning, afternoon),
+    longest_minutes: allDay,
     morning: { longest_minutes: morning, has_90_minutes: morning >= 90 },
     afternoon: { longest_minutes: afternoon, has_90_minutes: afternoon >= 90 },
   };

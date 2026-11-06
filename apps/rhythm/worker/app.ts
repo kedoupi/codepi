@@ -620,8 +620,9 @@ get("/api/work", async c => {
     const prior = dayWorkStats(dateOffset(day, -7), previousByDate.get(dateOffset(day, -7)), statusByDate.get(dateOffset(day, -7)));
     return { ...stats, work_delta_minutes: deltaOf(stats.work_minutes, prior.work_minutes), meeting_delta_minutes: deltaOf(stats.meeting_minutes, prior.meeting_minutes) };
   });
-  const totalMeetingSessions = selectedDayStats.every(day => day.meeting_sessions !== null)
-    ? selectedDayStats.reduce((sum, day) => sum + (day.meeting_sessions ?? 0), 0) : null;
+  const knownSessionDays = selectedDayStats.filter(day => day.meeting_sessions !== null);
+  const totalMeetingSessions = knownSessionDays.length
+    ? knownSessionDays.reduce((sum, day) => sum + (day.meeting_sessions ?? 0), 0) : null;
   const focusAvailability = aggregateAvailability(selectedDayStats);
   const awayShare = current.awayMinutes === null || current.workMinutes === null || current.workMinutes === 0
     ? null : current.awayMinutes / current.workMinutes;

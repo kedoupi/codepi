@@ -137,6 +137,7 @@
           {#each categoryItems as item}
             <div class="work-category-row"><span class="work-color" data-color={categoryColors[item.category]}></span><div><strong>{item.category}</strong><span>{duration(item.minutes)} · {Math.round(item.share * 100)}%</span><small>{delta(item.delta_minutes)}</small></div></div>
           {/each}
+          <div class="work-category-row"><span class="work-color" data-color="meeting-status"></span><div><strong>开会</strong><span>{duration(work.meeting_minutes)} · {work.meeting_share === null ? "暂无数据" : `${Math.round(work.meeting_share * 100)}%`}</span><small>{delta(work.meeting_delta_minutes)}</small></div></div>
           <div class="work-category-row"><span class="work-color" data-color="away"></span><div><strong>离座</strong><span>{duration(work.away.minutes)} · {work.away.share === null ? "暂无数据" : `${Math.round(work.away.share * 100)}%`}</span><small>{delta(work.away.delta_minutes)}</small></div></div>
         </div>
       {:else}
