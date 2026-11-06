@@ -27,8 +27,11 @@
 4. 共享实现：`packages/shared/styles/tokens.css`、`packages/shared/styles/site.css`、`packages/shared/brand.ts`。
 5. 各应用主题文件（只能在第 12 节允许的范围内扩展）。
 
+设计稿 **必须** 只放在固定的设计画布 `https://claude.ai/artifact/6ktcuY2pcMxnmZMKSTEJtj` 里：一个项目只用一张画布，不新建。画布按层级排：先放全局的设计规范、公共组件和图表主题；再按项目分节（www、JW、project、健康，以后的新应用也在这里加一节），每节依次是产品架构、功能图、项目组件（继承全局）、电脑页面、手机页面（用户 2026-11-07 决定）。
+
 | 用途 | 文件 |
 | --- | --- |
+| 设计画布（唯一） | `https://claude.ai/artifact/6ktcuY2pcMxnmZMKSTEJtj` |
 | 品牌原件 v2.0.0（文档、token 源、交互与加载规范） | `packages/shared/brand/codepi-v2.0/` |
 | 品牌原件 v1.5（值、资产、平台规范、QA） | `packages/shared/brand/codepi-v1.5/` |
 | 共享 token（唯一 CSS 来源） | `packages/shared/styles/tokens.css` |
