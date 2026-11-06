@@ -102,6 +102,11 @@ test('real named RPC: blog source appears only with a blog.read grant', async t 
 
 test('work tools read pushed tasks through the named RPC with bounded, unpaged replies', async t => {
   const f = await fixture(t), grant = await f.grant({ scope: 'context.read projects.read projects.write' });
+  const sources = await f.tool(grant.access_token, 'list_data_sources', {});
+  const projectTools = sources.structuredContent.sources.find(source => source.id === 'project').tools;
+  assert.ok(projectTools.includes('today_check'));
+  const readOnly = await f.grant({ scope: 'context.read projects.read' });
+  assert.equal((await f.tool(readOnly.access_token, 'today_check', { items: [{ project: 'synthetic-repo', key: 'synthetic-task', note: '检查' }] })).isError, true);
   const overview = await f.tool(grant.access_token, 'work_overview', {});
   assert.equal(overview.isError, undefined, JSON.stringify(overview.structuredContent));
   assert.equal(overview.structuredContent.counts.need_you, 1);

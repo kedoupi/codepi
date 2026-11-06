@@ -4,13 +4,15 @@
   import type { TaskBrief } from "../lib/types";
   import Icon from "./Icon.svelte";
 
-  type TodayItem = TaskBrief & { carried: boolean; who: "you" | "agent" };
+  type AgentChecks = { count: number; last_at: string; last_note: string; today: boolean };
+  type PoolItem = TaskBrief & { checks?: AgentChecks };
+  type TodayItem = TaskBrief & { carried: boolean; who: "you" | "agent"; checks?: AgentChecks };
   type Tab = "today" | "pool" | "done";
   type TodayData = {
     today: TodayItem[];
-    pool: TaskBrief[];
+    pool: PoolItem[];
     done: TaskBrief[];
-    counts: { today: number; pool: number; done: number; deleted: number };
+    counts: { today: number; pool: number; done: number; deleted: number; checked: number };
     date: string;
   };
   let data = $state<TodayData | null>(null);
@@ -55,7 +57,7 @@
   });
 
   const groups = $derived.by(() => {
-    const grouped = new Map<string, TaskBrief[]>();
+    const grouped = new Map<string, PoolItem[]>();
     for (const task of data?.pool ?? []) {
       const items = grouped.get(task.category) ?? [];
       items.push(task);
@@ -86,6 +88,16 @@
 
   function poolDue(task: TaskBrief) {
     return task.due ? `截止 ${task.due.slice(5)} ${weekday(task.due)}` : "";
+  }
+
+  function checkedLine(task: PoolItem) {
+    if (!task.checks) return "";
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+      timeZone: "Asia/Shanghai",
+    }).formatToParts(new Date(task.checks.last_at));
+    const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+    return `查过 ${task.checks.count} 次 · 最近 ${part("month")}-${part("day")} ${part("hour")}:${part("minute")}`;
   }
 </script>
 
@@ -126,7 +138,7 @@
               <ul class="pool-list">
                 {#each group.items as task (`${task.project}/${task.key}`)}
                   <li>
-                    <div class="pool-task"><span>{task.title}</span>{#if task.due}<small>{poolDue(task)}</small>{/if}</div>
+                    <div class="pool-task"><span>{task.title}</span>{#if task.due}<small>{poolDue(task)}</small>{/if}{#if task.checks}<small>{checkedLine(task)}</small>{/if}</div>
                     <div class="pool-actions">
                       <button class="pick-button" disabled={busy !== ""} aria-label={`放进今天：${task.title}`}
                         onclick={() => void mutate("/api/today/pick", task)}>放进今天 →</button>

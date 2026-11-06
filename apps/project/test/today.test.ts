@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../worker/index";
 import { executeProject } from "../worker/mcp";
 import { jsonBytes } from "../worker/lib";
-import { deleteToday, markOwnerDone, pickToday, pickAgentToday, todayView, unpickToday } from "../worker/today";
+import { checkAgentToday, deleteToday, markOwnerDone, pickToday, pickAgentToday, todayView, unpickToday } from "../worker/today";
 import { ingestRequest, resetDb, samplePayload, seedProject } from "./helpers";
 
 const day = new Date("2026-11-05T00:30:00+08:00");
@@ -46,7 +46,7 @@ describe("today board", () => {
     ]);
     expect(result.pool.map(task => task.key)).toEqual([]);
     expect(result.done.map(task => task.key)).toEqual(["confirm", "late"]);
-    expect(result.counts).toEqual({ today: 2, pool: 0, done: 2, deleted: 0 });
+    expect(result.counts).toEqual({ today: 2, pool: 0, done: 2, deleted: 0, checked: 0 });
   });
 
   it("keeps owner_done hidden on later days and rejects agent-owned completion", async () => {
@@ -119,7 +119,7 @@ describe("today board", () => {
     const board = await data("today_get");
     expect(jsonBytes(board)).toBeLessThanOrEqual(MCP_LIMITS.detail);
     expect(board.truncated).toContain("pool");
-    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0, deleted: 0 });
+    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0, deleted: 0, checked: 0 });
     expect(board.pool.length).toBeLessThan(300);
   });
 
@@ -160,15 +160,20 @@ describe("today board", () => {
     expect(result.today.map(task => task.key)).toEqual(["agent"]);
     expect(result.done.map(task => task.key)).toEqual(["you", "late"]);
     expect(result.deleted).toEqual([{ project: "codepi", key: "confirm", title: "需要确认", deleted_at: "2026-11-04T16:30:00Z" }]);
-    expect(result.counts).toEqual({ today: 1, pool: 0, done: 2, deleted: 1 });
+    expect(result.counts).toEqual({ today: 1, pool: 0, done: 2, deleted: 1, checked: 0 });
   });
 
-  it("clears owner_deleted on ingest and allows a recreated key back into the pool", async () => {
+  it("keeps owner_deleted after removal and clears it when the key is recreated", async () => {
     const token = await seedToday([{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }]);
     await deleteToday(env, "codepi", "recreated", day);
     expect((await todayView(env, day)).deleted.map(task => task.key)).toEqual(["recreated"]);
     await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
-    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM owner_deleted WHERE project_id='codepi'").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM owner_deleted WHERE project_id='codepi'").first<{ n: number }>())?.n).toBe(1);
+    const removed = await todayView(env, day);
+    expect(removed.today.map(task => task.key)).not.toContain("recreated");
+    expect(removed.pool.map(task => task.key)).not.toContain("recreated");
+    expect(removed.done.map(task => task.key)).not.toContain("recreated");
+    expect(removed.deleted.map(task => task.key)).not.toContain("recreated");
     await worker.fetch(ingestRequest("codepi", token, samplePayload({
       tasks: [{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }],
     })), env);
@@ -182,6 +187,41 @@ describe("today board", () => {
     await deleteToday(env, "codepi", "deleted", day);
     expect(await pickAgentToday(env, [{ project: "codepi", key: "deleted" }], day)).toEqual({ written: 0 });
     expect((await todayView(env, day)).deleted.map(task => task.key)).toEqual(["deleted"]);
+  });
+
+  it("records checks across days, updates same-day notes, and moves picks back to the pool", async () => {
+    await seedToday([{ key: "checked", title: "待检查", status: "doing", category: "流程", need_kind: "none" }]);
+    await pickToday(env, "codepi", "checked", "owner", day);
+    expect(await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第一天结论" }], day)).toEqual({ written: 1, skipped: 0 });
+    expect((await todayView(env, day)).today).toEqual([]);
+    expect((await todayView(env, day)).pool[0]).toMatchObject({
+      key: "checked", checks: { count: 1, last_note: "第一天结论", today: true },
+    });
+    expect((await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "更新结论" }], new Date("2026-11-05T12:00:00+08:00"))).written).toBe(1);
+    const sameDay = (await todayView(env, day)).pool.find(task => task.key === "checked");
+    expect(sameDay?.checks).toMatchObject({ count: 1, last_note: "更新结论", today: true });
+    await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第二天结论" }], new Date("2026-11-06T12:00:00+08:00"));
+    await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第三天结论" }], new Date("2026-11-07T12:00:00+08:00"));
+    const next = (await todayView(env, new Date("2026-11-07T18:00:00+08:00"))).pool.find(task => task.key === "checked");
+    expect(next?.checks).toMatchObject({ count: 3, last_note: "第三天结论", today: true });
+  });
+
+  it("skips completed or deleted tasks, while missing refs fail before any write", async () => {
+    await seedToday([
+      { key: "done", title: "已完成", status: "decide", category: "流程", need_kind: "decide" },
+      { key: "deleted", title: "已删除", status: "doing", category: "流程", need_kind: "none" },
+      { key: "open", title: "可检查", status: "doing", category: "流程", need_kind: "none" },
+    ]);
+    await markOwnerDone(env, "codepi", "done", day);
+    await deleteToday(env, "codepi", "deleted", day);
+    await expect(checkAgentToday(env, [{ project: "codepi", key: "open", note: "结论" }, { project: "codepi", key: "missing", note: "不会写入" }], day))
+      .rejects.toMatchObject({ code: "task_not_found", status: 404 });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM agent_checked").first<{ n: number }>())?.n).toBe(0);
+    expect(await checkAgentToday(env, [
+      { project: "codepi", key: "done", note: "跳过" },
+      { project: "codepi", key: "deleted", note: "跳过" },
+      { project: "codepi", key: "open", note: "写入" },
+    ], day)).toEqual({ written: 1, skipped: 2 });
   });
  
 

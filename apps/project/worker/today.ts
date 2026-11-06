@@ -1,12 +1,20 @@
-import { AppError, jsonBytes, today } from "./lib";
+import { AppError, jsonBytes, text, today } from "./lib";
 import { resolveProject } from "./projects";
 import type { Env, NeedKind, TaskBrief, TaskRow } from "./types";
 
 export type TodayWho = "you" | "agent";
 
+export interface AgentChecks {
+  count: number;
+  last_at: string;
+  last_note: string;
+  today: boolean;
+}
+
 export interface TodayItem extends TaskBrief {
   carried: boolean;
   who: TodayWho;
+  checks?: AgentChecks;
 }
 
 interface TodayRow extends TaskRow {
@@ -15,6 +23,10 @@ interface TodayRow extends TaskRow {
   removed_day: string | null;
   owner_done_at: string | null;
   owner_deleted_at: string | null;
+  check_count: number;
+  last_checked_at: string | null;
+  last_checked_note: string | null;
+  checked_today: number;
 }
 
 export interface DeletedItem {
@@ -27,6 +39,15 @@ export interface DeletedItem {
 interface TodayTaskRef {
   project: string;
   key: string;
+}
+
+export interface AgentTodayRef extends TodayTaskRef {
+  note: string;
+}
+
+function agentRef(value: AgentTodayRef): AgentTodayRef {
+  const target = ref(value.project, value.key);
+  return { ...target, note: text(value.note, "invalid_note", { min: 1, max: 200 })! };
 }
 
 function who(needKind: NeedKind): TodayWho {
@@ -57,26 +78,53 @@ function byDueAndPosition(a: TodayRow, b: TodayRow): number {
   return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
-function item(row: TodayRow, day: string): TodayItem {
-  return { ...brief(row), carried: row.picked_day !== null && row.picked_day < day, who: who(row.need_kind) };
+function checkInfo(row: TodayRow): AgentChecks | undefined {
+  if (!row.check_count || !row.last_checked_at || !row.last_checked_note) return undefined;
+  return {
+    count: Number(row.check_count),
+    last_at: row.last_checked_at,
+    last_note: row.last_checked_note,
+    today: Boolean(row.checked_today),
+  };
 }
 
-async function rowsForToday(env: Env, projectId?: string): Promise<TodayRow[]> {
+function item(row: TodayRow, day: string): TodayItem {
+  const checks = checkInfo(row);
+  return { ...brief(row), carried: row.picked_day !== null && row.picked_day < day, who: who(row.need_kind), ...(checks ? { checks } : {}) };
+}
+
+function poolItem(row: TodayRow): TaskBrief & { checks?: AgentChecks } {
+  const checks = checkInfo(row);
+  return { ...brief(row), ...(checks ? { checks } : {}) };
+}
+
+async function rowsForToday(env: Env, projectId: string | undefined, day: string): Promise<TodayRow[]> {
   const scope = projectId ? "t.project_id=?" : "p.status<>'archived'";
-  return (await env.DB.prepare(`SELECT t.*, tp.picked_day, tp.picked_by, tp.removed_day,
-      od.done_at AS owner_done_at, ox.deleted_at AS owner_deleted_at
+  return (await env.DB.prepare(`WITH checks AS (
+      SELECT project_id, task_key, COUNT(*) AS check_count, MAX(checked_at) AS last_checked_at,
+        MAX(CASE WHEN checked_day=? THEN 1 ELSE 0 END) AS checked_today
+      FROM agent_checked GROUP BY project_id, task_key
+    )
+    SELECT t.*, tp.picked_day, tp.picked_by, tp.removed_day,
+      od.done_at AS owner_done_at, ox.deleted_at AS owner_deleted_at,
+      c.check_count, c.last_checked_at,
+      (SELECT note FROM agent_checked ac
+        WHERE ac.project_id=t.project_id AND ac.task_key=t.key
+        ORDER BY ac.checked_at DESC LIMIT 1) AS last_checked_note,
+      c.checked_today
     FROM tasks t JOIN projects p ON p.id=t.project_id
     LEFT JOIN today_picks tp ON tp.project_id=t.project_id AND tp.task_key=t.key
     LEFT JOIN owner_done od ON od.project_id=t.project_id AND od.task_key=t.key
     LEFT JOIN owner_deleted ox ON ox.project_id=t.project_id AND ox.task_key=t.key
+    LEFT JOIN checks c ON c.project_id=t.project_id AND c.task_key=t.key
     WHERE ${scope}
-    ORDER BY t.project_id, t.position, t.key`).bind(...(projectId ? [projectId] : [])).all<TodayRow>()).results;
+    ORDER BY t.project_id, t.position, t.key`).bind(day, ...(projectId ? [projectId] : [])).all<TodayRow>()).results;
 }
 
 /** Build the owner board for one Beijing calendar day. */
 export async function todayView(env: Env, now = new Date(), projectId?: string) {
   const day = today(now);
-  const rows = await rowsForToday(env, projectId);
+  const rows = await rowsForToday(env, projectId, day);
   const open = rows.filter(row => !row.done_at && !row.owner_done_at && !row.owner_deleted_at);
   const selected = open.filter(row => row.picked_day !== null && row.removed_day === null);
   const selectedKeys = new Set(selected.map(row => `${row.project_id}\0${row.key}`));
@@ -98,14 +146,17 @@ export async function todayView(env: Env, now = new Date(), projectId?: string) 
   pool.sort(byDueAndPosition);
   done.sort(byDueAndPosition);
   const todayItems = selected.map(row => item(row, day));
-  const poolItems = pool.map(row => brief(row));
+  const poolItems = pool.map(row => poolItem(row));
   const doneItems = done.map(row => brief(row));
   return {
     today: todayItems,
     pool: poolItems,
     done: doneItems,
     deleted,
-    counts: { today: todayItems.length, pool: poolItems.length, done: doneItems.length, deleted: deleted.length },
+    counts: {
+      today: todayItems.length, pool: poolItems.length, done: doneItems.length, deleted: deleted.length,
+      checked: poolItems.filter(task => task.checks?.today).length,
+    },
     date: day,
   };
 }
@@ -260,6 +311,47 @@ export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new D
         OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?))`).bind(
           day, createdAt, JSON.stringify(targets), day).run();
   return { written: Number(result.meta?.changes || 0) };
+}
+
+export async function checkAgentToday(env: Env, refs: AgentTodayRef[], now = new Date()) {
+  const cleanRefs = refs.map(agentRef);
+  const targets = await validateAgentRefs(env, cleanRefs);
+  if (!targets.length) return { written: 0, skipped: 0 };
+  const targetRows = targets.map((target, index) => ({ ...target, note: cleanRefs[index].note }));
+  const statuses = await env.DB.prepare(`SELECT json_extract(value,'$.project_id') AS project_id,
+      json_extract(value,'$.key') AS task_key, t.done_at,
+      od.done_at AS owner_done_at, ox.deleted_at AS owner_deleted_at
+    FROM json_each(?) v
+    JOIN tasks t ON t.project_id=json_extract(v.value,'$.project_id')
+      AND t.key=json_extract(v.value,'$.key')
+    LEFT JOIN owner_done od ON od.project_id=t.project_id AND od.task_key=t.key
+    LEFT JOIN owner_deleted ox ON ox.project_id=t.project_id AND ox.task_key=t.key`).bind(JSON.stringify(targetRows)).all<{
+      project_id: string;
+      task_key: string;
+      done_at: string | null;
+      owner_done_at: string | null;
+      owner_deleted_at: string | null;
+    }>();
+  const skipped = statuses.results.filter(row => row.done_at || row.owner_done_at || row.owner_deleted_at).length;
+  const eligible = targetRows.filter(target => !statuses.results.some(row =>
+    row.project_id === target.project_id && row.task_key === target.key &&
+    (row.done_at || row.owner_done_at || row.owner_deleted_at)));
+  if (!eligible.length) return { written: 0, skipped };
+  const day = today(now);
+  const checkedAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const result = await env.DB.prepare(`INSERT INTO agent_checked
+      (project_id, task_key, checked_day, note, checked_at)
+    SELECT json_extract(value,'$.project_id'), json_extract(value,'$.key'), ?,
+      json_extract(value,'$.note'), ? FROM json_each(?) WHERE true
+    ON CONFLICT(project_id, task_key, checked_day) DO UPDATE SET note=excluded.note, checked_at=excluded.checked_at`)
+    .bind(day, checkedAt, JSON.stringify(eligible)).run();
+  await env.DB.prepare(`UPDATE today_picks SET removed_day=?
+    WHERE removed_day IS NULL AND EXISTS (
+      SELECT 1 FROM json_each(?) v
+      WHERE today_picks.project_id=json_extract(v.value,'$.project_id')
+        AND today_picks.task_key=json_extract(v.value,'$.key')
+    )`).bind(day, JSON.stringify(eligible)).run();
+  return { written: Number(result.meta?.changes || 0), skipped };
 }
 
 export { ref as todayRef };
