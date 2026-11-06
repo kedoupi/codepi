@@ -59,7 +59,14 @@ function mockScript() {
     const json = (value, status = 200) => new Response(JSON.stringify(value), {
       status, headers: { "Content-Type": "application/json" },
     });
-    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
+    const fixedNow = "2026-11-04T04:00:00Z";
+    const RealDate = Date;
+    class SmokeDate extends RealDate {
+      constructor(...args) { super(...(args.length ? args : [fixedNow])); }
+      static now() { return new RealDate(fixedNow).getTime(); }
+    }
+    window.Date = SmokeDate;
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new SmokeDate());
     const shift = n => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
     const task = (key, title, status, category, need_kind, due, project = "alpha", done_at = null) =>
       ({ project, key, title, status, category, need_kind, due, done_at });
@@ -166,12 +173,11 @@ function mockScript() {
       if (url.pathname === "/api/journal") {
         const todayDate = new Date(`${day}T00:00:00Z`);
         const monday = shift(-((todayDate.getUTCDay() + 6) % 7));
-        const mondayOffset = Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000;
         const requested = url.searchParams.get("week");
-        const offset = requested ? (Date.parse(`${requested}T00:00:00Z`) - Date.parse(`${day}T00:00:00Z`)) / 86400000 : 0;
-        const start = shift(mondayOffset + offset);
+        const start = requested || monday;
+        const startOffset = Date.parse(`${start}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000;
         const journalDays = Array.from({ length: 7 }, (_, index) => {
-          const date = shift(mondayOffset + offset + index);
+          const date = shift(startOffset + index);
           const current = date === day && !requested;
           const completed = current ? Array.from({ length: 4 }, (_, index) => ({ project: "alpha", title: `完成示例 ${index + 1}`, summary: null, at: new Date().toISOString() })) : [];
           return { date, count: current ? completed.length + 2 : 0, counts: { completed: completed.length, changed: current ? 2 : 0 },
@@ -179,7 +185,7 @@ function mockScript() {
             checked: current ? [{ project: "alpha", title: "已检查的示例", summary: null, at: new Date().toISOString(), note: "检查结论" }] : [],
             other: current ? [{ project: "alpha", title: "示例改动", summary: null, at: null }] : [] };
         });
-        return json({ as_of: new Date().toISOString(), week: { start, end: shift(mondayOffset + offset + 6) },
+        return json({ as_of: new Date().toISOString(), week: { start, end: shift(startOffset + 6) },
           summary: { completed: requested ? 0 : 4, released: requested ? 0 : 1, checked: requested ? 0 : 1 }, days: journalDays, truncated: false });
       }
       if (url.pathname === "/api/auth/logout" && method === "POST") return json({ ok: true });
@@ -190,7 +196,7 @@ function mockScript() {
 
 async function assertJournalInteractions(page) {
   const currentUrl = await page.evaluate(() => location.href);
-  const currentWeek = await page.evaluate(() => document.querySelector(".journal-week")?.textContent || "");
+  const currentWeek = await page.evaluate(() => document.querySelector(".journal-week")?.textContent.trim() || "");
   const todayDate = await page.evaluate(() => document.querySelector(".journal-day-cell.is-today time")?.getAttribute("datetime"));
   assert.ok(todayDate, "journal today date");
   assert.ok(await page.evaluate(date => [...document.querySelectorAll(".journal-day")].filter(day => day.id < `journal-day-${date}`).every(day => !day.open), todayDate), "past journal days are folded");
@@ -200,14 +206,16 @@ async function assertJournalInteractions(page) {
   assert.equal(await page.evaluate(() => document.querySelectorAll(".activity, .activity-bar, svg.activity").length), 0, "old activity chart removed");
   await page.evaluate(() => [...document.querySelectorAll(".journal-week-nav button")].find(button => button.textContent === "上一周")?.click());
   await page.waitForFunction(() => location.search.includes("week="));
-  await page.waitForFunction(previous => document.querySelector(".journal-week")?.textContent !== previous, currentWeek);
-  const previousWeek = await page.evaluate(() => document.querySelector(".journal-week")?.textContent || "");
-  assert.notEqual(previousWeek, currentWeek, "previous week heading changes");
+  const requestedWeek = await page.evaluate(() => new URL(location.href).searchParams.get("week"));
+  assert.ok(requestedWeek, "previous week query is present");
+  const previousStart = new Date(Date.parse(`${currentWeek.split(" 至 ")[0]}T00:00:00Z`) - 7 * 86400000).toISOString().slice(0, 10);
+  const expectedEnd = new Date(Date.parse(`${previousStart}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
+  await page.waitForFunction(expected => document.querySelector(".journal-week")?.textContent.trim() === expected, `${previousStart} 至 ${expectedEnd}`);
+  await page.waitForFunction(() => !document.querySelector("body")?.innerText.includes("完成示例 1"));
   assert.notEqual(await page.evaluate(() => location.href), currentUrl, "previous week URL changes");
-  await page.waitForFunction(() => !document.querySelector("body")?.innerText.includes("完成示例 1"), "previous week content reloads");
   await page.evaluate(() => history.back());
-  await page.waitForFunction(previous => document.querySelector(".journal-week")?.textContent === previous, currentWeek);
-  await page.waitForFunction(() => document.querySelector("body")?.innerText.includes("完成示例 1"), "browser back restores current week");
+  await page.waitForFunction(expected => document.querySelector(".journal-week")?.textContent.trim() === expected, currentWeek);
+  await page.waitForFunction(() => document.querySelector("body")?.innerText.includes("完成示例 1"));
   assert.equal(await page.evaluate(() => location.href), currentUrl, "browser back restores current URL");
   const targetDate = await page.evaluate(date => [...document.querySelectorAll(".journal-day-cell:not(.is-future)")].find(cell => cell.querySelector("time")?.getAttribute("datetime") !== date)?.querySelector("time")?.getAttribute("datetime"), todayDate);
   assert.ok(targetDate, "past journal day target");
@@ -223,7 +231,8 @@ async function assertNoOverflow(page, label, width) {
 
 async function visit(page, url, text) {
   await page.goto(url);
-  await page.waitForFunction(expected => document.body.innerText.includes(expected), text);
+  if (new URL(url).pathname === "/log") await page.waitForFunction(() => document.querySelectorAll(".journal-day-cell").length === 7);
+  else await page.waitForFunction(expected => document.body.innerText.includes(expected), text);
 }
 
 async function main() {

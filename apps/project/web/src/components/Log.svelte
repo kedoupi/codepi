@@ -30,18 +30,24 @@
   let project = $state("");
   let week = $state(new URLSearchParams(location.search).get("week") || "");
   let expandedDone = $state(new Set<string>());
+  let loadSequence = 0;
 
   async function load() {
+    const request = ++loadSequence;
     loaded = false;
+    data = null;
     try {
       const params = new URLSearchParams();
       if (week) params.set("week", week);
-      data = await api(`/api/journal${params.size ? `?${params}` : ""}`) as unknown as Journal;
+      const result = await api(`/api/journal${params.size ? `?${params}` : ""}`) as unknown as Journal;
+      if (request !== loadSequence) return;
+      data = result;
       error = "";
     } catch (cause) {
+      if (request !== loadSequence) return;
       error = cause instanceof Error ? cause.message : "读取失败";
     } finally {
-      loaded = true;
+      if (request === loadSequence) loaded = true;
     }
   }
 
