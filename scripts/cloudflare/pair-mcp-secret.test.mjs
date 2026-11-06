@@ -11,7 +11,7 @@ const ok = result => Response.json({ success: true, result });
 function fixture({ failAt, unready = false, undeployed = false, client = 'mcp', pairingReady = true, healthSource } = {}) {
   const writes = [];
   const worker = `codepi-${client}`;
-  const origin = `https://${client}.codepi.app`;
+  const origin = client === 'rhythm' ? 'https://jw.codepi.app' : `https://${client}.codepi.app`;
   const request = async (url, init = {}) => {
     const target = new URL(url);
     if (target.origin === origin) {
