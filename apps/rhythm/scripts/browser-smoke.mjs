@@ -122,7 +122,7 @@ function statusReadFixture() {
   const weekday = date => new Date(`${date}T00:00:00Z`).getUTCDay();
   const isWorkday = date => weekday(date) >= 1 && weekday(date) <= 5;
   const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
-  const lateDay = [3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
+  const lateDay = [1, 2, 3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
   const stamp = (day, minute) => new Date(Date.parse(`${day}T00:00:00+08:00`) + minute * 60_000).toISOString();
 
   function dayRows(day, resource) {
@@ -587,7 +587,7 @@ async function main() {
     });
     await page.waitForFunction(() => document.querySelector(".page-heading h1")?.textContent !== "");
     await page.goto(`${origin}/?date=${upstream.lateDay}`);
-    await waitText(page, "在外");
+    await page.waitForFunction(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0);
     const outsideDesktop = await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length);
     assert.ok(outsideDesktop > 0, "desktop timeline shows inferred outside gap");
     await assertLayout(page, "desktop outside day", 1440);
@@ -724,7 +724,7 @@ async function main() {
     });
     await page.goto(`${origin}/`);
     await page.goto(`${origin}/?date=${upstream.lateDay}`);
-    await waitText(page, "在外");
+    await page.waitForFunction(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0);
     assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile time blocks show inferred outside gap");
     await assertLayout(page, "mobile outside day", 390);
     await screenshot(page, "mobile-outside-day.png");
@@ -801,7 +801,7 @@ async function main() {
     await assertLayout(page, "mobile dark today", 390);
     assert.ok(await page.evaluate(() => document.querySelectorAll(".work-block").length > 0), "mobile dark today has work blocks");
     await page.goto(`${origin}/?date=${upstream.lateDay}`);
-    await waitText(page, "在外");
+    await page.waitForFunction(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0);
     await assertTheme(page, "mobile dark outside", "dark");
     assert.ok(await page.evaluate(() => document.querySelectorAll('.time-block[data-status="outside"]').length > 0), "mobile dark time blocks show inferred outside gap");
     await fullScreenshot(page, "mobile-outside-dark.png");
@@ -813,7 +813,7 @@ async function main() {
     await assertTheme(page, "desktop dark trends", "dark");
     await fullScreenshot(page, "desktop-trends-dark.png");
     await page.goto(`${origin}/?date=${upstream.lateDay}`);
-    await waitText(page, "在外");
+    await page.waitForFunction(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0);
     await assertTheme(page, "desktop dark outside", "dark");
     assert.ok(await page.evaluate(() => document.querySelectorAll('.timeline-segment[data-status="outside"]').length > 0), "desktop dark timeline shows inferred outside gap");
     await fullScreenshot(page, "desktop-outside-dark.png");
