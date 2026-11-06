@@ -72,6 +72,15 @@ describe("today board", () => {
     expect((await todayView(env, day)).today.map(task => task.key)).toContain("agent");
   });
 
+  it("does not let the assistant re-pick after the owner returns and checks it", async () => {
+    await seedToday([{ key: "returned", title: "主人退回", status: "doing", category: "流程", need_kind: "none" }]);
+    await pickToday(env, "codepi", "returned", "agent", day);
+    await unpickToday(env, "codepi", "returned", day);
+    expect(await checkAgentToday(env, [{ project: "codepi", key: "returned", note: "已检查但未完成" }], day))
+      .toEqual({ written: 1, skipped: 0 });
+    expect(await pickAgentToday(env, [{ project: "codepi", key: "returned" }], day)).toEqual({ written: 0 });
+  });
+
   it("uses the Beijing date boundary for owner completion", async () => {
     await seedToday();
     await markOwnerDone(env, "codepi", "you", new Date("2026-11-04T16:30:00Z"));
@@ -199,8 +208,10 @@ describe("today board", () => {
     expect((await todayView(env, day)).pool[0]).toMatchObject({
       key: "checked", checks: { count: 1, last_note: "第一天结论", today: true },
     });
-    expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], day)).toEqual({ written: 1 });
-    await unpickToday(env, "codepi", "checked", day);
+    expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], day)).toEqual({ written: 0 });
+    const nextDayTime = new Date("2026-11-06T12:00:00+08:00");
+    expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], nextDayTime)).toEqual({ written: 1 });
+    await unpickToday(env, "codepi", "checked", nextDayTime);
     expect((await todayView(env, day)).pool[0]).toMatchObject({ key: "checked" });
     const secondDay = (await todayView(env, new Date("2026-11-06T12:00:00+08:00"))).pool.find(task => task.key === "checked");
     expect(secondDay?.checks).toMatchObject({ count: 1, today: false });

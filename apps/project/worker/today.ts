@@ -110,7 +110,7 @@ async function rowsForToday(env: Env, projectId: string | undefined, day: string
       c.check_count, c.last_checked_at,
       (SELECT note FROM agent_checked ac
         WHERE ac.project_id=t.project_id AND ac.task_key=t.key
-        ORDER BY ac.checked_at DESC LIMIT 1) AS last_checked_note,
+        ORDER BY ac.checked_at DESC, ac.checked_day DESC LIMIT 1) AS last_checked_note,
       c.checked_today
     FROM tasks t JOIN projects p ON p.id=t.project_id
     LEFT JOIN today_picks tp ON tp.project_id=t.project_id AND tp.task_key=t.key
@@ -190,11 +190,7 @@ export async function pickToday(env: Env, project: unknown, key: unknown, picked
   const day = today(now);
   const existing = await env.DB.prepare("SELECT picked_by, removed_day FROM today_picks WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first<{ picked_by: "owner" | "agent"; removed_day: string | null }>();
-  if (pickedBy === "agent" && existing?.removed_day === day) {
-    const checked = await env.DB.prepare("SELECT 1 FROM agent_checked WHERE project_id=? AND task_key=? AND checked_day=?")
-      .bind(projectId, task.key, day).first();
-    if (!checked) return { written: 0 };
-  }
+  if (pickedBy === "agent" && existing?.removed_day === day) return { written: 0 };
   if (existing?.picked_by === "owner" && pickedBy === "agent") return { written: 0 };
   if (existing?.picked_by === pickedBy && existing.removed_day === null) return { written: 0 };
   const createdAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -312,12 +308,8 @@ export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new D
       picked_by=excluded.picked_by, removed_day=NULL
     WHERE today_picks.picked_by <> 'owner'
       AND ((today_picks.removed_day IS NULL AND today_picks.picked_by <> 'agent')
-        OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?)
-        OR (today_picks.removed_day = ? AND EXISTS (
-          SELECT 1 FROM agent_checked c
-          WHERE c.project_id=today_picks.project_id AND c.task_key=today_picks.task_key
-            AND c.checked_day=today_picks.removed_day
-        )))`).bind(day, createdAt, JSON.stringify(targets), day, day).run();
+        OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?))`).bind(
+          day, createdAt, JSON.stringify(targets), day).run();
   return { written: Number(result.meta?.changes || 0) };
 }
 
