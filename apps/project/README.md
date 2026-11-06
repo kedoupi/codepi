@@ -78,7 +78,7 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 | `POST /api/projects/:id/token` | 重新生成令牌 |
 | `PATCH /api/projects/:id` | 改名称或 `active`/`paused`/`archived`；归档项目不进看板与 MCP |
 | `GET /api/log` | 旧动态接口，供兼容调用，网页使用 `/api/journal`。|
-| `GET /api/journal` | 严格 SSO 的周日报；`week=YYYY-MM-DD` 取该日所在北京周一至周日，支持 `project` 筛选，返回完成/上线/查过汇总和每天卡片。上线按 changelog 标题含「上线」「发布」「部署」关键词判断，这是已知局限，后续可改为推送带标记；跨项目上线标题仅在标准化后长度至少 6 字且相同或互相包含时去重。|
+| `GET /api/journal` | 严格 SSO 的周日报；`week=YYYY-MM-DD` 取该日所在北京周一至周日，支持 `project` 筛选，返回完成/上线/查过汇总和每天卡片。上线按 changelog 标题含「上线」「发布」「部署」关键词判断，这是已知局限，后续可改为推送带标记；跨项目上线标题完全相同即去重，互相包含时要求较短一方标准化后至少 6 字。|
 
 除 ingest 外的 `/api/*` 都要严格 SSO；写请求还要同源 Origin。
 

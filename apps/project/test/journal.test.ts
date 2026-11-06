@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { checkAgentToday } from "../worker/today";
+import { checkAgentToday, markOwnerDone } from "../worker/today";
 import { journal } from "../worker/journal";
 import worker from "../worker/index";
 import { ingestRequest, resetDb, samplePayload, seedProject } from "./helpers";
@@ -56,6 +56,20 @@ describe("journal", () => {
     expect(result.summary).toEqual({ completed: 1, released: 4, checked: 1 });
   });
 
+  it("reads more than sixty owner completions without per-row title queries", async () => {
+    const token = await seedProject();
+    const tasks = Array.from({ length: 61 }, (_, index) => ({
+      key: `owner-${index}`, title: `主人完成 ${index}`, status: "doing", category: "流程", need_kind: "decide",
+    }));
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks })), env);
+    for (let index = 0; index < tasks.length; index++) {
+      await markOwnerDone(env, "codepi", tasks[index].key, day);
+    }
+    const result = await journal(env, "2026-11-04", undefined, day);
+    expect(result.summary.completed).toBe(61);
+    expect(result.days[2].completed).toHaveLength(61);
+    expect(result.days[2].completed.map(item => item.title)).toContain("主人完成 60");
+  });
   it("accepts an empty week without throwing", async () => {
     const result = await journal(env, "2026-12-14", undefined, day);
     expect(result.days).toHaveLength(7);

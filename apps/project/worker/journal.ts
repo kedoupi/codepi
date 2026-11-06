@@ -113,10 +113,11 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
       WHERE ${scope("t")} AND t.done_at IS NOT NULL AND t.done_at>=? AND t.done_at<?
       ORDER BY t.done_at, t.project_id, t.position LIMIT ?`)
       .bind(...projectParams, utcStart(start), utcStart(after), MAX_ROWS + 1).all<TaskRow & { project_name: string }>(),
-    env.DB.prepare(`SELECT od.project_id, od.task_key, od.done_at FROM owner_done od JOIN projects p ON p.id=od.project_id
+    env.DB.prepare(`SELECT od.project_id, od.task_key, od.done_at, t.title FROM owner_done od JOIN projects p ON p.id=od.project_id
+      LEFT JOIN tasks t ON t.project_id=od.project_id AND t.key=od.task_key
       WHERE ${scope("od")} AND od.done_at>=? AND od.done_at<?
       ORDER BY od.done_at, od.project_id, od.task_key LIMIT ?`)
-      .bind(...projectParams, utcStart(start), utcStart(after), MAX_ROWS + 1).all<{ project_id: string; task_key: string; done_at: string }>(),
+      .bind(...projectParams, utcStart(start), utcStart(after), MAX_ROWS + 1).all<{ project_id: string; task_key: string; done_at: string; title: string | null }>(),
     env.DB.prepare(`SELECT ac.*, t.title, p.name AS project_name FROM agent_checked ac
       JOIN projects p ON p.id=ac.project_id LEFT JOIN tasks t ON t.project_id=ac.project_id AND t.key=ac.task_key
       WHERE ${scope("ac")} AND ac.checked_day>=? AND ac.checked_day<=?
@@ -138,15 +139,10 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
     if (deletedKeys.has(key)) continue;
     done.set(key, card(row.project_id, row.title, null, row.done_at));
   }
-  const titleRows = ownerDoneRows.length ? await env.DB.prepare(`SELECT t.project_id, t.key, t.title FROM tasks t
-    WHERE t.project_id IN (${ownerDoneRows.map(() => "?").join(",")}) AND t.key IN (${ownerDoneRows.map(() => "?").join(",")})`)
-    .bind(...ownerDoneRows.map(row => row.project_id), ...ownerDoneRows.map(row => row.task_key)).all<{ project_id: string; key: string; title: string }>() : { results: [] };
-  const titles = new Map(titleRows.results.map(row => [`${row.project_id}\0${row.key}`, row.title]));
   for (const row of ownerDoneRows) {
     const key = `${row.project_id}\0${row.task_key}`;
     if (deletedKeys.has(key) || done.has(key)) continue;
-    const title = titles.get(key);
-    if (title) done.set(key, card(row.project_id, title, null, row.done_at));
+    if (row.title) done.set(key, card(row.project_id, row.title, null, row.done_at));
   }
 
   const days = new Map<string, JournalDay>();
