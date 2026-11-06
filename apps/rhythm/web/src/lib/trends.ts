@@ -9,11 +9,11 @@ export type FocusMetrics = {
 
 export type DailyMetrics = {
   commuteToWorkMinutes: number | null; commuteHomeMinutes: number | null;
-  officeActiveMinutes: number | null; homeMinutes: number | null;
-  statusMinutes: Record<string, number>;
+  officeActiveMinutes: number | null; officeMeetingMinutes?: number | null; homeMinutes: number | null;
   wakeMinute: number | null; leaveHomeMinute: number | null; startWorkMinute: number | null;
   leaveComputerMinute: number | null; arriveHomeMinute: number | null; returnBedroomMinute: number | null;
   officeSpanMinutes: number | null;
+  statusMinutes: Record<string, number>;
   focus: FocusMetrics;
   afterWorkWorkMachineMinutes: number | null; weekendWorkMachineMinutes: number | null;
   appCategoryMinutes: Record<string, number>;
@@ -27,12 +27,13 @@ export type DailyMetrics = {
 export type TrendDay = {
   date: string; dayType: DayType | null; missing: boolean; partial?: boolean;
   computedAt?: string; metrics: DailyMetrics | null;
+  segments?: Array<{ status: string; startMinute: number; endMinute: number }>;
 };
 
 export type MetricAverage = {
   days: number; dayType: DayType | "all";
   commuteToWorkMinutes: number | null; commuteHomeMinutes: number | null;
-  officeActiveMinutes: number | null; homeMinutes: number | null; officeSpanMinutes: number | null;
+  officeActiveMinutes: number | null; meetingMinutes?: number | null; homeMinutes: number | null; officeSpanMinutes: number | null;
   afterWorkWorkMachineMinutes: number | null; weekendWorkMachineMinutes: number | null;
   topAppMinutes: number | null;
   statusMinutes: Record<string, number>; appCategoryMinutes: Record<string, number>;
@@ -65,6 +66,7 @@ export const STATUS_GROUPS = [
   { key: "home", label: "在家", statuses: ["bedroom", "living_room", "home"] },
   { key: "office_active", label: "公司 · 在电脑前", statuses: ["office_active"] },
   { key: "office_away", label: "公司 · 离座", statuses: ["office_away"] },
+  { key: "office_meeting", label: "公司 · 开会", statuses: ["office_meeting"] },
   { key: "commute", label: "通勤", statuses: ["commute"] },
   { key: "other_network", label: "其他网络", statuses: ["other_network"] },
   { key: "unknown", label: "未知", statuses: ["unknown"] },
@@ -222,6 +224,7 @@ export function weekComparisonRows(comparison: TrendsPayload["week_comparison"])
     ["上班通勤（上限）", current.commuteToWorkMinutes, previous.commuteToWorkMinutes, "duration"],
     ["下班通勤（上限）", current.commuteHomeMinutes, previous.commuteHomeMinutes, "duration"],
     ["在电脑前", current.officeActiveMinutes, previous.officeActiveMinutes, "duration"],
+    ["开会", current.meetingMinutes ?? null, previous.meetingMinutes ?? null, "duration"],
     ["在公司（首末操作）", current.officeSpanMinutes, previous.officeSpanMinutes, "duration"],
     ["在家", current.homeMinutes, previous.homeMinutes, "duration"],
     ["专注总时长", current.focus.totalMinutes, previous.focus.totalMinutes, "duration"],

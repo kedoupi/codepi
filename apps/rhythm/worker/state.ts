@@ -271,9 +271,22 @@ function isActiveSample(row: ActivitySample): boolean {
   return idle.length > 0 && Math.min(...idle) < STATE_THRESHOLDS.activeIdleSeconds;
 }
 
-export function isOfficeWorkMinute(row: ActivitySample | null, status: DayStatus, evidence: Evidence): boolean {
+function isBatteryPower(row: ActivitySample | null): boolean {
+  const power = row?.power?.trim().toLowerCase();
+  return power === "battery" || power === "battery power" || power === "电池";
+}
+
+function isOfficePresence(status: DayStatus): boolean {
+  return status === "office_active" || status === "office_meeting" || status === "office_away";
+}
+
+function isOfficeAnchor(status: DayStatus): boolean {
+  return status === "office_active" || status === "office_meeting";
+}
+
+export function isOfficeWorkMinute(row: ActivitySample | null, status: DayStatus, _evidence: Evidence): boolean {
   if (!row || !isActiveSample(row)) return false;
-  return row.net === "office" || (status === "office_active" && evidence === "inferred");
+  return status === "office_active";
 }
 
 function appCategory(row: ActivitySample, mappings: Record<string, AppCategory>): AppCategory {
@@ -297,15 +310,15 @@ function buildSegments(statuses: DayStatus[], evidence: Evidence[]): StatusSegme
 function buildAppBreakdown(
   minuteSamples: Array<ActivitySample | null>,
   statuses: DayStatus[],
-  evidence: Evidence[],
+  _evidence: Evidence[],
   mappings: Record<string, AppCategory>,
+  target: "office_active" | "office_meeting",
 ): AppBreakdown[] {
   const byCategory = new Map<AppCategory, Map<string, number>>();
   minuteSamples.forEach((row, minute) => {
-    // 只统计样本自己所在的那一分钟；net=office 保留手机落家里的历史口径，旧采样推断的 office_active 也计入。
-    if (!isOfficeWorkMinute(row, statuses[minute], evidence[minute])) return;
-    const category = appCategory(row!, mappings);
-    const app = row!.app_name?.trim() || row!.bundle_id?.trim() || "未标注应用";
+    if (statuses[minute] !== target || !row || (target === "office_active" && !isActiveSample(row))) return;
+    const category = appCategory(row, mappings);
+    const app = row.app_name?.trim() || row.bundle_id?.trim() || "未标注应用";
     const apps = byCategory.get(category) ?? new Map<string, number>();
     apps.set(app, (apps.get(app) ?? 0) + 1);
     byCategory.set(category, apps);
@@ -324,18 +337,18 @@ function buildAppBreakdown(
 /** 小于该分钟数的离座空档并入前后相邻的在电脑前块。 */
 export const workBlockMinGapMinutes = 2;
 
-type WorkBlockRun = { kind: "active" | "away" | "other"; status: DayStatus; startMinute: number; endMinute: number; gapMinutes: number };
+type WorkBlockRun = { kind: "active" | "away" | "meeting" | "other"; status: DayStatus; startMinute: number; endMinute: number; gapMinutes: number };
 
 function workBlockRuns(statuses: DayStatus[]): WorkBlockRun[] {
-  const first = statuses.findIndex(status => status === "office_active" || status === "office_away");
+  const first = statuses.findIndex(status => isOfficePresence(status));
   if (first < 0) return [];
   let last = -1;
   for (let minute = statuses.length - 1; minute >= 0; minute -= 1) {
-    if (statuses[minute] === "office_active" || statuses[minute] === "office_away") { last = minute; break; }
+    if (isOfficePresence(statuses[minute])) { last = minute; break; }
   }
   const runs: WorkBlockRun[] = [];
   const kindOf = (status: DayStatus): WorkBlockRun["kind"] =>
-    status === "office_active" ? "active" : status === "office_away" ? "away" : "other";
+    status === "office_active" ? "active" : status === "office_away" ? "away" : status === "office_meeting" ? "meeting" : "other";
   for (let minute = first; minute <= last; minute += 1) {
     const status = statuses[minute];
     const kind = kindOf(status);
@@ -380,13 +393,13 @@ function workBlockApps(
   const allApps = sortedApps.map(([name, minutes]) => ({ name, minutes }));
   const topApps = allApps.slice(0, 3);
   const primary = topApps[0];
-  const inferred = run.kind === "away"
+  const inferred = run.kind === "away" || run.kind === "meeting"
     ? true
     : Array.from({ length: run.endMinute - run.startMinute + 1 }, (_, offset) => run.startMinute + offset)
       .some(minute => statuses[minute] === "office_active" && evidence[minute] === "inferred");
   const activeMinutes = Array.from({ length: run.endMinute - run.startMinute + 1 }, (_, offset) => run.startMinute + offset)
     .filter(minute => statuses[minute] === "office_active").length;
-  const status = run.kind === "active" ? "office_active" : run.kind === "away" ? "office_away" : run.status;
+  const status = run.kind === "active" ? "office_active" : run.kind === "away" ? "office_away" : run.kind === "meeting" ? "office_meeting" : run.status;
   return {
     kind: run.kind,
     status,
@@ -512,7 +525,10 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     });
   }
 
-  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal) && item.active);
+  const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal) && item.active && !isBatteryPower(item.sample));
+  const officeMeeting = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal)
+    && item.sample?.locked !== true && isBatteryPower(item.sample));
+  const officePresent = minuteRows.map((_item, minute) => officeActive[minute] || officeMeeting[minute]);
   const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal));
   const statuses: DayStatus[] = [];
   const evidence: Evidence[] = [];
@@ -534,6 +550,18 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
       continue;
     }
     if (item.sample?.net === "home") { statuses.push("home"); evidence.push("seen"); details.push(""); continue; }
+    if (item.legacySignal && isBatteryPower(item.sample) && item.sample?.locked !== true) {
+      statuses.push("office_meeting");
+      evidence.push("inferred");
+      details.push("网络标签上线前，按电池供电且未锁屏推断开会");
+      continue;
+    }
+    if (item.office && isBatteryPower(item.sample) && item.sample?.locked !== true) {
+      statuses.push("office_meeting");
+      evidence.push("inferred");
+      details.push("公司网络、电池供电且未锁屏，推断开会");
+      continue;
+    }
     if (item.legacySignal && item.active) {
       statuses.push("office_active");
       evidence.push("inferred");
@@ -541,7 +569,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
       continue;
     }
     if (item.office && item.active) { statuses.push("office_active"); evidence.push("seen"); details.push(""); continue; }
-    if ((item.office || item.legacySignal) && officeAwayCandidate(officeActive, officeSignal, minute)) {
+    if ((item.office || item.legacySignal) && officeAwayCandidate(officePresent, officeSignal, minute)) {
       statuses.push("office_away");
       evidence.push("inferred");
       details.push("");
@@ -561,10 +589,11 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   const isHome = (value: DayStatus) => value === "bedroom" || value === "living_room" || value === "home";
   const homeIndices: number[] = [];
   statuses.forEach((value, index) => { if (isHome(value)) homeIndices.push(index); });
-  const firstOffice = officeActive.findIndex(Boolean);
+  const officePresence = statuses.map(isOfficeAnchor);
+  const firstOffice = officePresence.findIndex(Boolean);
   let lastOffice = -1;
-  for (let index = officeActive.length - 1; index >= 0; index--) {
-    if (officeActive[index]) { lastOffice = index; break; }
+  for (let index = officePresence.length - 1; index >= 0; index -= 1) {
+    if (officePresence[index]) { lastOffice = index; break; }
   }
 
   // 通勤 covers the gap between the last home observation and the first
@@ -606,13 +635,17 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
       pushMoment(moments, { kind: "leave_home", minute, label: "离家", evidence: evidence[minute],
         detail: `${minuteLabel(minute)} 离开在家状态` });
     }
-    if (after === "office_active" && before !== "office_active") {
+    if (isOfficePresence(after) && !isOfficePresence(before)) {
       pushMoment(moments, { kind: "start_work", minute, label: "开始办公", evidence: evidence[minute],
-        detail: `${minuteLabel(minute)} 公司网络出现键鼠活动` });
+        detail: `${minuteLabel(minute)} 公司网络进入工作状态` });
     }
-    if (before === "office_active" && (after === "office_away" || after === "commute")) {
+    if (isOfficePresence(before) && (after === "office_away" || after === "commute") && before !== "office_away") {
       pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
-        detail: `${minuteLabel(minute)} 不再保持活跃采样` });
+        detail: `${minuteLabel(minute)} 离开公司工作状态` });
+    } else if (after === "commute" && before !== "commute" && statuses.slice(0, minute).some(isOfficePresence)
+      && !moments.some(moment => moment.kind === "leave_computer")) {
+      pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
+        detail: `${minuteLabel(minute)} 离开公司工作状态` });
     }
     if (!isHome(before) && isHome(after) && before !== "unknown") {
       pushMoment(moments, { kind: "arrive_home", minute, label: "到家", evidence: evidence[minute],
@@ -629,6 +662,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     commuteToWorkMinutes: null as number | null,
     commuteHomeMinutes: null as number | null,
     officeActiveMinutes: null as number | null,
+    officeMeetingMinutes: null as number | null,
     homeMinutes: null as number | null,
     bedroomMinutes: null as number | null,
     livingRoomMinutes: null as number | null,
@@ -648,7 +682,10 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     metrics.commuteToWorkMinutes = statuses.filter((value, index) => value === "commute" && (firstOffice < 0 || index < firstOffice)).length;
     metrics.commuteHomeMinutes = statuses.filter((value, index) => value === "commute" && (lastOffice < 0 || index > lastOffice)).length;
   }
-  if (workChannelUsable) metrics.officeActiveMinutes = statuses.filter(value => value === "office_active").length;
+  if (workChannelUsable) {
+    metrics.officeActiveMinutes = statuses.filter(value => value === "office_active").length;
+    metrics.officeMeetingMinutes = statuses.filter(value => value === "office_meeting").length;
+  }
   if (homeKnown) {
     metrics.homeMinutes = statuses.filter(isHome).length;
     metrics.homeUnknownMinutes = statuses.filter(value => value === "home").length;
@@ -677,7 +714,8 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
     moments,
     workBlocks: buildWorkBlocks(minuteOwnSample, statuses, evidence),
     metrics,
-    appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories),
+    appBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories, "office_active"),
+    meetingAppBreakdown: buildAppBreakdown(minuteOwnSample, statuses, evidence, input.appCategories, "office_meeting"),
     keyboardMouseMinutes: workChannelUsable ? { keyboard, pointer, both } : { keyboard: null, pointer: null, both: null },
     channels: { work: workChannelUsable, phone: phoneChannelUsable },
   };
@@ -690,6 +728,7 @@ export function statusLabel(status: DayStatus): string {
     home: "在家",
     office_active: "公司 · 在电脑前",
     office_away: "公司 · 离座",
+    office_meeting: "公司 · 开会",
     commute: "通勤",
     other_network: "其他网络",
     unknown: "未知",
@@ -703,7 +742,8 @@ export const STATUS_METHODS: Record<RhythmStatus, string> = {
   home: "本人手机在线但房间标签为空；或工作机连接的是家里网络。",
   office_active: "工作机连接的是公司网络，且最近几分钟有键鼠操作、未锁屏；网络标签上线前按操作和手机不在家推断。",
   office_away: "工作机连接的是公司网络，但锁屏或没有操作，且夹在两段办公之间。",
-  commute: "手机最后一次在家到工作机第一次在电脑前之间；下班方向相反。",
+  office_meeting: "公司网络、电池供电且未锁屏，按电源状态推断开会。",
+  commute: "手机最后一次在家到工作机第一次在公司工作状态之间；下班方向相反。",
   other_network: "工作机连接的是其他网络，显示网络名称，没有则显示网络标识。",
   unknown: "两路都没有新鲜数据，或看不出人在哪里。",
 };

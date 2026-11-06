@@ -198,7 +198,7 @@ it("来源页给出每个状态的判断方法、口径与不采集清单", asyn
   expect(body.sources.home.name).toBeTruthy();
   expect(body.sources.work.method).toContain("键鼠");
   expect(body.states.map((state: { status: string }) => state.status)).toEqual([
-    "bedroom", "living_room", "home", "office_active", "office_away", "commute", "other_network", "unknown",
+    "bedroom", "living_room", "home", "office_active", "office_away", "office_meeting", "commute", "other_network", "unknown",
   ]);
   for (const state of body.states) expect(state.method).toBeTruthy();
   expect(body.caveats.length).toBeGreaterThanOrEqual(5);

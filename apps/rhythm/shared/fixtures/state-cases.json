@@ -93,7 +93,7 @@
       "statusAt": {"60":"living_room","600":"living_room","1080":"living_room"},
       "contains": [],
       "notContains": ["start_work","leave_home"],
-      "appCategories": {"AI 编程": 541},
+      "appCategories": {},
       "metrics": {"commuteToWorkMinutes":0,"commuteHomeMinutes":0,"officeActiveMinutes":0,"homeMinutes":1101,"bedroomMinutes":0,"livingRoomMinutes":1101,"homeUnknownMinutes":0}
     }
   },

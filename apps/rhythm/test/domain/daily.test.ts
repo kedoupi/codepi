@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDailyMetrics, dailyRows } from "../../worker/daily";
+import { calculateDailyMetrics, dailyRows, workAvailability } from "../../worker/daily";
 import type { StateInput } from "../../worker/models";
 import { phonePresenceByMinute, shanghaiDate } from "../../worker/state";
 
@@ -67,9 +67,57 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p9-2026-11-06");
+    expect(rows.status.version).toBe("p10-2026-11-06");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
+  });
+  it("专注可用度按会议与离座打断，统计上午下午 90 分钟整块", () => {
+    const availability = workAvailability([
+      { status: "office_active", startMinute: 100, endMinute: 199 },
+      { status: "office_meeting", startMinute: 200, endMinute: 210 },
+      { status: "office_active", startMinute: 211, endMinute: 250 },
+      { status: "office_away", startMinute: 251, endMinute: 260 },
+      { status: "office_active", startMinute: 261, endMinute: 350 },
+    ]);
+    expect(availability).toEqual({
+      longest_minutes: 130,
+      morning: { longest_minutes: 130, has_90_minutes: true },
+      afternoon: { longest_minutes: 0, has_90_minutes: false },
+    });
+  });
+  it("开会分钟不进专注段与每小时工位活跃", () => {
+    const meetingInput = input();
+    const meetingRows = meetingInput.activity.map(row => ({ ...row, power: "电池", app_name: "示例会议" }));
+    const result = calculateDailyMetrics({ ...meetingInput, activity: meetingRows, appCategories: { "示例会议": "会议" } });
+    expect(result.metrics.officeMeetingMinutes).toBeGreaterThan(0);
+    expect(result.metrics.officeActiveMinutes).toBe(0);
+    expect(result.metrics.focus).toMatchObject({ segmentCount: 0, totalMinutes: 0, longestMinutes: 0, communicationInterruptions: 0 });
+    expect(result.metrics.hourlyActiveMinutes).toEqual({});
+    expect(result.metrics.appCategoryMinutes["会议"]).toBe(0);
+    expect(result.metrics.meetingAppCategoryMinutes?.["会议"]).toBe(30);
+  });
+  it("十分钟以内离座不切断在工位整块，但不计离座分钟", () => {
+    expect(workAvailability([
+      { status: "office_active", startMinute: 100, endMinute: 159 },
+      { status: "office_away", startMinute: 160, endMinute: 169 },
+      { status: "office_active", startMinute: 170, endMinute: 229 },
+    ]).longest_minutes).toBe(120);
+  });
+
+  it("十一分钟离座切断在工位整块", () => {
+    expect(workAvailability([
+      { status: "office_active", startMinute: 100, endMinute: 159 },
+      { status: "office_away", startMinute: 160, endMinute: 170 },
+      { status: "office_active", startMinute: 171, endMinute: 230 },
+    ]).longest_minutes).toBe(60);
+  });
+
+  it("开会始终切断在工位整块", () => {
+    expect(workAvailability([
+      { status: "office_active", startMinute: 100, endMinute: 159 },
+      { status: "office_meeting", startMinute: 160, endMinute: 169 },
+      { status: "office_active", startMinute: 170, endMinute: 229 },
+    ]).longest_minutes).toBe(60);
   });
 
   it("同一批原始数据里没数据的那天各指标为 null，不是 0", () => {

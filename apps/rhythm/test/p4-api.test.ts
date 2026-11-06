@@ -222,7 +222,7 @@ describe("P4 接口", () => {
     const metricsRow = await env.DB.prepare("SELECT app_minutes_json, hourly_active_minutes_json, hourly_switch_counts_json, focus_segments_json FROM daily_metrics WHERE date=?").bind(day).first<{
       app_minutes_json: string; hourly_active_minutes_json: string; hourly_switch_counts_json: string; focus_segments_json: string;
     }>();
-    expect(JSON.parse(metricsRow!.app_minutes_json)["示例编辑器"]).toMatchObject({ minutes: 30, category: "AI 编程" });
+    expect(JSON.parse(metricsRow!.app_minutes_json).active["示例编辑器"]).toMatchObject({ minutes: 30, category: "AI 编程" });
     expect(JSON.parse(metricsRow!.hourly_active_minutes_json)["09"]).toBe(30);
     expect(JSON.parse(metricsRow!.hourly_switch_counts_json)["09"]).toBe(0);
     expect(JSON.parse(metricsRow!.focus_segments_json)).toMatchObject([{ minutes: 30, primaryCategory: "AI 编程" }]);
@@ -233,11 +233,18 @@ describe("P4 接口", () => {
     expect(work.top_apps[0]).toMatchObject({ name: "示例编辑器", category: "AI 编程", minutes: 30 });
     expect(work.focus).toMatchObject({ total_minutes: 30, communication_interruptions: 0 });
     expect(work.heatmap.hours).toHaveLength(12);
+    expect(work).toHaveProperty("meeting_minutes");
+    expect(work).toHaveProperty("meeting_sessions");
+    expect(work).toHaveProperty("work_minutes");
+    expect(work).toHaveProperty("meeting_delta_minutes");
+    expect(work).toHaveProperty("work_delta_minutes");
     expect(work.hourly).toHaveLength(12);
 
     const week = await (await h.send(`/api/work?date=${day}&range=week`, { cookie })).json() as Record<string, any>;
     expect(week.range).toBe("week");
     expect(week.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(week.days).toHaveLength(7);
+    expect(week.days.every((item: Record<string, unknown>) => "work_delta_minutes" in item && "meeting_delta_minutes" in item)).toBe(true);
 
     const missing = harness([]);
     const missingCookie = await missing.login();
@@ -245,6 +252,44 @@ describe("P4 接口", () => {
     expect(missingBody.office_minutes).toBeNull();
     expect(missingBody.categories).toBeNull();
     expect(missingBody.top_apps).toBeNull();
+  });
+  it("工作接口合并五分钟内会议间隔，并保留会议与工作分钟", async () => {
+    const day = daysAgo(3);
+    await insertHeatmapMetric(day, { "09": 60 });
+    await env.DB.prepare("UPDATE daily_metrics SET status_minutes_json=?, version=? WHERE date=?")
+      .bind(JSON.stringify({ office_active: 60, office_meeting: 20, office_away: 0 }), "p10-2026-11-06", day).run();
+    await env.DB.prepare("INSERT INTO daily_status (date, segments_json, computed_at, version) VALUES (?, ?, ?, ?)")
+      .bind(day, JSON.stringify([
+        { status: "office_active", startMinute: 540, endMinute: 599, evidence: "seen" },
+        { status: "office_meeting", startMinute: 600, endMinute: 609, evidence: "inferred" },
+        { status: "office_away", startMinute: 610, endMinute: 614, evidence: "inferred" },
+        { status: "office_meeting", startMinute: 615, endMinute: 619, evidence: "inferred" },
+        { status: "office_meeting", startMinute: 626, endMinute: 630, evidence: "inferred" },
+      ]), new Date().toISOString(), "p10-2026-11-06").run();
+    const h = harness([]);
+    const cookie = await h.login();
+    const work = await (await h.send(`/api/work?date=${day}`, { cookie })).json() as Record<string, any>;
+    expect(work.meeting_minutes).toBe(20);
+    expect(work.work_minutes).toBe(80);
+    expect(work.meeting_sessions).toBe(2);
+  });
+  it("进行中一周的会议场次只累加已知日，未来无数据日不影响总数", async () => {
+    const monday = new Date(`${today}T00:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    const knownDay = monday.toISOString().slice(0, 10);
+    await insertHeatmapMetric(knownDay, { "09": 30 });
+    await env.DB.prepare("UPDATE daily_metrics SET status_minutes_json=?, version=? WHERE date=?")
+      .bind(JSON.stringify({ office_active: 30, office_meeting: 30 }), "p10-2026-11-06", knownDay).run();
+    await env.DB.prepare("INSERT INTO daily_status (date, segments_json, computed_at, version) VALUES (?, ?, ?, ?)")
+      .bind(knownDay, JSON.stringify([
+        { status: "office_meeting", startMinute: 540, endMinute: 549, evidence: "inferred" },
+        { status: "office_meeting", startMinute: 570, endMinute: 579, evidence: "inferred" },
+      ]), new Date().toISOString(), "p10-2026-11-06").run();
+    const h = harness([]);
+    const cookie = await h.login();
+    const work = await (await h.send(`/api/work?date=${today}&range=week`, { cookie })).json() as Record<string, any>;
+    expect(work.days).toHaveLength(7);
+    expect(work.meeting_sessions).toBe(2);
   });
 
   it("工作页热力图按周一至周五分别计算有样本日均值", async () => {
@@ -285,6 +330,8 @@ describe("P4 接口", () => {
     expect(legacy.top_apps).toBeNull();
     expect(legacy.hourly).toBeNull();
     expect(legacy.focus.segments).toBeNull();
+    expect(legacy.meeting_minutes).toBeNull();
+    expect(legacy.work_minutes).toBeNull();
     expect(legacy.heatmap.days_available).toBe(0);
 
     const yesterday = daysAgo(1);

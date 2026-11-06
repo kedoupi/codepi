@@ -1,12 +1,12 @@
 import { calculateDay, dayStartEpoch, isOfficeWorkMinute, phonePresenceByMinute, shanghaiDate, STATE_THRESHOLDS, weekdayOf } from "./state";
-import { APP_CATEGORIES, normalizeAppCategory } from "./models";
+import { APP_CATEGORIES, RHYTHM_STATUSES, normalizeAppCategory } from "./models";
 import type {
   ActivitySample, AppCategory, DailyMetrics, DailyMetricsRow, DailyStatusRow, DayComputation,
-  DayType, FocusSegment, GapReason, RhythmStatus, StateInput,
+  DayType, DayStatus, FocusSegment, GapReason, RhythmStatus, StateInput,
 } from "./models";
 import type { Env } from "./types";
 
-export const DAILY_ALGORITHM_VERSION = "p9-2026-11-06";
+export const DAILY_ALGORITHM_VERSION = "p10-2026-11-06";
 const MINUTES_PER_DAY = 1440;
 const MS_PER_MINUTE = 60_000;
 export { APP_CATEGORIES };
@@ -17,8 +17,12 @@ function activeSample(row: ActivitySample | null): boolean {
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   return idle.length > 0 && Math.min(...idle) < STATE_THRESHOLDS.activeIdleSeconds;
 }
-function officeActiveSample(row: ActivitySample | null): boolean {
-  return row?.net === "office" && activeSample(row);
+function officeActiveSample(row: ActivitySample | null, status: DayStatus): boolean {
+  return status === "office_active" && activeSample(row);
+}
+
+function officeMeetingSample(row: ActivitySample | null, status: DayStatus): boolean {
+  return status === "office_meeting" && row !== null;
 }
 
 function appName(row: ActivitySample | null): string {
@@ -171,6 +175,41 @@ function gapReason(heartbeat: boolean | null, phoneSeen: boolean, phoneConfigure
   return "work_machine_missing";
 }
 
+export type WorkAvailability = {
+  longest_minutes: number;
+  morning: { longest_minutes: number; has_90_minutes: boolean };
+  afternoon: { longest_minutes: number; has_90_minutes: boolean };
+};
+
+export function workAvailability(segments: Array<{ status: string; startMinute: number; endMinute: number }>): WorkAvailability {
+  const statuses = new Array<string>(1440).fill("other");
+  for (const segment of segments) {
+    for (let minute = Math.max(0, segment.startMinute); minute <= Math.min(1439, segment.endMinute); minute += 1) statuses[minute] = segment.status;
+  }
+  const longestIn = (from: number, to: number) => {
+    let longest = 0, run = 0, minute = from;
+    while (minute <= to) {
+      const status = statuses[minute];
+      if (status === "office_active") { run += 1; minute += 1; continue; }
+      if (status === "office_away") {
+        let end = minute;
+        while (end + 1 <= to && statuses[end + 1] === "office_away") end += 1;
+        if (end - minute + 1 <= 10) { minute = end + 1; continue; }
+      }
+      longest = Math.max(longest, run);
+      run = 0;
+      minute += 1;
+    }
+    return Math.max(longest, run);
+  };
+  const morning = longestIn(0, 719), afternoon = longestIn(720, 1439), allDay = longestIn(0, 1439);
+  return {
+    longest_minutes: allDay,
+    morning: { longest_minutes: morning, has_90_minutes: morning >= 90 },
+    afternoon: { longest_minutes: afternoon, has_90_minutes: afternoon >= 90 },
+  };
+}
+
 export function calculateDailyMetrics(input: StateInput, now?: number): {
   day: DayComputation;
   metrics: DailyMetrics;
@@ -178,13 +217,14 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
   const day = calculateDay(input, now);
   const samples = minuteSamples(input, now);
   const statusMinutes = Object.fromEntries(
-    (["bedroom", "living_room", "home", "office_active", "office_away", "commute", "other_network", "unknown"] as RhythmStatus[])
-      .map(status => [status, day.minuteStatuses.filter(value => value === status).length]),
+    RHYTHM_STATUSES.map(status => [status, day.minuteStatuses.filter(value => value === status).length]),
   ) as Record<RhythmStatus, number>;
   const appCategoryMinutes = emptyCategories();
+  const meetingAppCategoryMinutes = emptyCategories();
   const hourlyAppCategoryMinutes: Record<string, Record<AppCategory, number>> = {};
   const otherNetworkMinutes: Record<string, number> = {};
   const appMinutes = new Map<string, { minutes: number; category: AppCategory }>();
+  const meetingAppMinutes = new Map<string, { minutes: number; category: AppCategory }>();
   const hourlyActiveMinutes: Record<string, number> = {};
   const hourlySwitchCounts: Record<string, number> = {};
   let previousOfficeApp: string | null = null;
@@ -193,16 +233,24 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
 
   let lastOffice = -1;
   for (let minute = 0; minute < day.minuteStatuses.length; minute += 1) {
-    if (day.minuteStatuses[minute] === "office_active") lastOffice = minute;
+    const status = day.minuteStatuses[minute];
+    if (status === "office_active" || status === "office_meeting") lastOffice = minute;
     const row = samples[minute];
-    if (officeActiveSample(row)) {
+    if (officeActiveSample(row, status)) {
       const category = categoryOf(row, input.appCategories);
       appCategoryMinutes[category] += 1;
       const hour = String(Math.floor(minute / 60)).padStart(2, "0");
       hourlyAppCategoryMinutes[hour] ??= emptyCategories();
       hourlyAppCategoryMinutes[hour][category] += 1;
     }
-    if (officeActiveSample(row)) {
+    if (officeMeetingSample(row, status)) {
+      const category = categoryOf(row, input.appCategories);
+      const name = appName(row);
+      meetingAppCategoryMinutes[category] += 1;
+      const existing = meetingAppMinutes.get(name);
+      meetingAppMinutes.set(name, { minutes: (existing?.minutes ?? 0) + 1, category });
+    }
+    if (officeActiveSample(row, status)) {
       const hour = String(Math.floor(minute / 60)).padStart(2, "0");
       hourlyActiveMinutes[hour] = (hourlyActiveMinutes[hour] ?? 0) + 1;
       hourlySwitchCounts[hour] ??= 0;
@@ -256,7 +304,7 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     if (day.minuteStatuses[minute] !== "unknown") continue;
     gapReasonMinutes[gapReason(heartbeats[minute], phoneSeen[minute], phoneConfigured)] += 1;
   }
-  const firstOffice = day.minuteStatuses.findIndex(status => status === "office_active");
+  const firstOffice = day.minuteStatuses.findIndex(status => status === "office_active" || status === "office_meeting");
   const officeSpanMinutes = firstOffice >= 0 && lastOffice >= firstOffice ? lastOffice - firstOffice + 1 : null;
   const topApp = [...appMinutes.entries()].sort((a, b) => b[1].minutes - a[1].minutes || a[0].localeCompare(b[0]))[0];
   const findMoment = (kind: string) => day.moments.find(moment => moment.kind === kind)?.minute ?? null;
@@ -273,6 +321,8 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     arriveHomeMinute: findMoment("arrive_home"),
     returnBedroomMinute: findMoment("return_bedroom"),
     officeSpanMinutes,
+    meetingAppCategoryMinutes,
+    meetingAppMinutes: Object.fromEntries(meetingAppMinutes),
     focus,
     afterWorkWorkMachineMinutes: day.channels.work ? afterWorkWorkMachineMinutes : null,
     weekendWorkMachineMinutes: day.channels.work ? weekendWorkMachineMinutes : null,
@@ -317,6 +367,15 @@ export async function readDailyStatus(env: Env, date: string): Promise<DailyStat
     return null;
   }
 }
+export async function readDailyStatusRange(env: Env, from: string, to: string): Promise<DailyStatusRow[]> {
+  const result = await env.DB.prepare(
+    "SELECT date, segments_json, computed_at, version FROM daily_status WHERE date >= ? AND date <= ? ORDER BY date",
+  ).bind(from, to).all<{ date: string; segments_json: string; computed_at: string; version: string }>();
+  return result.results.flatMap(row => {
+    try { return [{ date: row.date, segments: JSON.parse(row.segments_json), computedAt: row.computed_at, version: row.version }]; }
+    catch { return []; }
+  });
+}
 
 export async function readDailyMetrics(env: Env, date: string): Promise<DailyMetricsRow | null> {
   const row = await env.DB.prepare("SELECT * FROM daily_metrics WHERE date=?")
@@ -332,6 +391,16 @@ function categoryMinutesFromJson(value: unknown): Record<AppCategory, number> {
     if (normalized && typeof minutes === "number" && Number.isFinite(minutes)) result[normalized] += minutes;
   }
   return result;
+}
+
+function categoryBucketsFromJson(value: unknown): { active: Record<AppCategory, number>; meeting: Record<AppCategory, number> } {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const root = value as Record<string, unknown>;
+    if ("active" in root || "meeting" in root) {
+      return { active: categoryMinutesFromJson(root.active), meeting: categoryMinutesFromJson(root.meeting) };
+    }
+  }
+  return { active: categoryMinutesFromJson(value), meeting: emptyCategories() };
 }
 
 function hourlyCategoriesFromJson(value: unknown): Record<string, Record<AppCategory, number>> {
@@ -357,14 +426,26 @@ function parseAppMinutes(value: unknown): Record<string, { minutes: number; cate
   return result;
 }
 
+function appBucketsFromJson(value: unknown) {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const root = value as Record<string, unknown>;
+    if ("active" in root || "meeting" in root) return { active: parseAppMinutes(root.active), meeting: parseAppMinutes(root.meeting) };
+  }
+  return { active: parseAppMinutes(value), meeting: {} };
+}
+
 function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | null {
   try {
     const json = <T = unknown>(key: string) => parseJson<T>(row[key]);
     const present = (key: string) => row[key] !== null && row[key] !== undefined;
+    const statusMinutes = json<Record<RhythmStatus, number>>("status_minutes_json");
+    const categoryBuckets = categoryBucketsFromJson(json("app_category_minutes_json"));
+    const appBuckets = appBucketsFromJson(present("app_minutes_json") ? json("app_minutes_json") : null);
     const metrics: DailyMetrics = {
-      statusMinutes: json<Record<RhythmStatus, number>>("status_minutes_json"),
+      statusMinutes,
       commuteToWorkMinutes: row.commute_to_work_minutes as number | null,
       commuteHomeMinutes: row.commute_home_minutes as number | null,
+      officeMeetingMinutes: typeof statusMinutes.office_meeting === "number" ? statusMinutes.office_meeting : null,
       wakeMinute: row.wake_minute as number | null,
       leaveHomeMinute: row.leave_home_minute as number | null,
       startWorkMinute: row.start_work_minute as number | null,
@@ -377,6 +458,8 @@ function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | n
       livingRoomMinutes: row.living_room_minutes as number | null,
       homeUnknownMinutes: row.home_unknown_minutes as number | null,
       officeSpanMinutes: row.office_span_minutes as number | null,
+      meetingAppCategoryMinutes: categoryBuckets.meeting,
+      meetingAppMinutes: present("app_minutes_json") ? appBuckets.meeting : null,
       focus: {
         segmentCount: row.focus_segment_count as number | null,
         totalMinutes: row.focus_total_minutes as number | null,
@@ -388,9 +471,9 @@ function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | n
       weekendWorkMachineMinutes: row.weekend_work_machine_minutes as number | null,
       afterWorkRoomMinutes: json<Record<string, number>>("after_work_room_minutes_json"),
       weekendRoomMinutes: json<Record<string, number>>("weekend_room_minutes_json"),
-      appCategoryMinutes: categoryMinutesFromJson(json("app_category_minutes_json")),
+      appCategoryMinutes: categoryBuckets.active,
       hourlyAppCategoryMinutes: hourlyCategoriesFromJson(json("hourly_app_category_minutes_json")),
-      appMinutes: present("app_minutes_json") ? parseAppMinutes(json("app_minutes_json")) : null,
+      appMinutes: present("app_minutes_json") ? appBuckets.active : null,
       hourlyActiveMinutes: present("hourly_active_minutes_json") ? json<Record<string, number>>("hourly_active_minutes_json") : null,
       hourlySwitchCounts: present("hourly_switch_counts_json") ? json<Record<string, number>>("hourly_switch_counts_json") : null,
       focusSegments: present("focus_segments_json") ? parseJson(row.focus_segments_json) as FocusSegment[] : null,
@@ -433,8 +516,8 @@ export async function upsertDailyRows(env: Env, rows: DailyRows): Promise<void> 
       m.returnBedroomMinute, m.officeActiveMinutes, m.homeMinutes, m.bedroomMinutes, m.livingRoomMinutes,
       m.homeUnknownMinutes, m.officeSpanMinutes, m.focus.segmentCount, m.focus.totalMinutes, m.focus.longestMinutes,
       m.focus.communicationInterruptions, m.afterWorkWorkMachineMinutes, m.weekendWorkMachineMinutes,
-      JSON.stringify(m.afterWorkRoomMinutes), JSON.stringify(m.weekendRoomMinutes), JSON.stringify(m.appCategoryMinutes),
-      JSON.stringify(m.hourlyAppCategoryMinutes), JSON.stringify(m.appMinutes), JSON.stringify(m.hourlyActiveMinutes),
+      JSON.stringify(m.afterWorkRoomMinutes), JSON.stringify(m.weekendRoomMinutes), JSON.stringify({ active: m.appCategoryMinutes, meeting: m.meetingAppCategoryMinutes }),
+      JSON.stringify(m.hourlyAppCategoryMinutes), JSON.stringify({ active: m.appMinutes, meeting: m.meetingAppMinutes }), JSON.stringify(m.hourlyActiveMinutes),
       JSON.stringify(m.hourlySwitchCounts), JSON.stringify(m.focusSegments), m.topAppName, m.topAppMinutes,
       JSON.stringify(m.otherNetworkMinutes), m.coverage.ratio, JSON.stringify(m.coverage.gapReasonMinutes),
       m.dayType, rows.metrics.computedAt, rows.metrics.version,
