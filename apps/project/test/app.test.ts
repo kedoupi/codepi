@@ -65,7 +65,7 @@ describe("Project HTTP boundary", () => {
 
   it("requires SSO for private APIs and redirects unauthenticated pages to login", async () => {
     const sso = setup();
-    for (const path of ["/api/overview", "/api/today", "/api/tasks", "/api/projects", "/api/log", "/api/projects/codepi"]) {
+    for (const path of ["/api/overview", "/api/today", "/api/tasks", "/api/projects", "/api/log", "/api/journal", "/api/projects/codepi"]) {
       expect((await sso.call(request(path))).status, path).toBe(401);
     }
     for (const path of ["/", "/board", "/log", "/p/codepi"]) {
@@ -73,6 +73,13 @@ describe("Project HTTP boundary", () => {
       expect(page.status, path).toBe(302);
       expect(page.headers.get("Location")).toBe(`${origin}/login?return=${encodeURIComponent(path)}`);
     }
+  });
+  it("redirects the retired board route to today while preserving task query", async () => {
+    const sso = setup();
+    const cookie = await sso.login("/board?task=codepi%2Ftask");
+    const response = await sso.call(request("/board?task=codepi%2Ftask", { cookie }));
+    expect(response.status).toBe(302);
+    expect(response.headers.get("Location")).toBe(`${origin}/?task=codepi%2Ftask`);
   });
   it("requires SSO for today mutations", async () => {
     const sso = setup();

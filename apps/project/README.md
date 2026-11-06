@@ -54,10 +54,10 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 
 | 路径 | 内容 |
 | --- | --- |
-| `/` 今天 | 顶部日期与「已完成 x / y」进度；左侧池子按分类折叠；中间按「你的 / 助手的」分组挑选今天的待办；右侧只留当天做完的事。桌面三列，手机为「今天 / 池子 / 做完」三个标签；可将待办放进今天、退回池子、删除池子任务或标记你的事项完成。|
-| `/board` 看板 | 分类 × 状态热力格（点格子筛选）；待决定、执行、缺陷、待确认、想法、最近完成六列；项目、只看需要你、搜索；`?need=any`、`?due=late|7`、`?task=<project>/<key>` 可直接打开 |
-| `/p/:id` 项目 | 状态构成条、项目卡（规则入口与 Agent 协作适配段）、分支、该项目待办、最近变更、每个任务最新交接、推送令牌与项目状态 |
-| `/log` 动态 | 最近 30 天每天的变更与完成柱图和按天列表 |
+| `/` 今天 | 顶部日期与「已完成 x / y」进度；池子按分类折叠并支持标题/分类搜索、「只看需要你」和「7 天内到期」组合筛选；中间按「你的 / 建国的」分组挑选今天的待办；右侧只留当天做完的事。桌面三列，手机为「今天 / 池子 / 做完」三个标签。|
+| `/log` 动态（工作日报） | 当前周一到周日的完成、上线、查过汇总与 7 格每日条数；每天按上线、完成、查过和其它改动分块，可切换周与项目。|
+| `/board` | 旧链接由 Worker 302 到 `/`，保留 `?task=` 以打开任务抽屉。|
+| `/p/:id` 项目 | 状态构成条、项目卡（规则入口与 Agent 协作适配段）、分支、该项目待办、最近变更、每个任务最新交接、推送令牌与项目状态。|
 
 任务详情在侧边抽屉里（URL 带 `?task=`），显示是什么、不做会怎样、建议、需要你、出处与交接。
 所有文本按纯文本渲染；图表只用 SVG 属性与 class 着色，保持 `style-src 'self'`。
@@ -69,15 +69,16 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 | `GET /api/health` | 公开构建与 SSO 状态 |
 | `GET /api/auth/login` / `callback`、`POST /api/auth/logout` | 共享 SSO |
 | `POST /api/ingest/:project` | 项目令牌推送快照；不走 SSO 与 Origin 校验，错误令牌与未知项目同为 401 |
-| `GET /api/overview` | 看板、项目页和任务详情使用的概览统计；首页今天看板使用 `GET /api/today`。|
-| `POST /api/today/pick`、`/unpick`、`/done`、`/delete` | 今天看板的挑选、退回、标记完成与池子删除；删除写入 `owner_deleted`，待办仍需在仓库中删除。|
+| `GET /api/overview` | 项目页和任务详情使用的概览统计；首页今天使用 `GET /api/today`。|
+| `POST /api/today/pick`、`/unpick`、`/done`、`/delete` | 今天的挑选、退回、标记完成与池子删除；删除写入 `owner_deleted`，待办仍需在仓库中删除。|
 | `GET /api/tasks` | `project`、`status`、`need`（含 `any`）、`category`、`include_done=1` |
 | `GET /api/tasks/:project/:key` | 任务详情与交接 |
 | `GET /api/projects`、`GET /api/projects/:id` | 项目列表；项目卡（含令牌创建与最近使用时间，不含令牌） |
 | `POST /api/projects` | 建项目，`{ id, name, repo? }`，一次性返回令牌 |
 | `POST /api/projects/:id/token` | 重新生成令牌 |
 | `PATCH /api/projects/:id` | 改名称或 `active`/`paused`/`archived`；归档项目不进看板与 MCP |
-| `GET /api/log` | `days` 1–90，变更与完成合流 |
+| `GET /api/log` | 旧动态接口，供兼容调用，网页使用 `/api/journal`。|
+| `GET /api/journal` | 严格 SSO 的周日报；`week=YYYY-MM-DD` 取该日所在北京周一至周日，支持 `project` 筛选，返回完成/上线/查过汇总和每天卡片。上线按 changelog 标题含「上线」「发布」「部署」关键词判断，这是已知局限，后续可改为推送带标记。|
 
 除 ingest 外的 `/api/*` 都要严格 SSO；写请求还要同源 Origin。
 

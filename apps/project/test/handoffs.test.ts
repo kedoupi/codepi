@@ -44,7 +44,7 @@ describe("secret scan", () => {
   it("does not flag ordinary task text", () => {
     const fine = [
       "推送令牌放钥匙串，不进仓库", "GITHUB_TOKEN 2027-01-18 到期前轮换", "订阅地址不写进文档",
-      "https://project.codepi.app/board", "按 token 形态扫描", "vless 协议说明", "docs/vps.md",
+      "https://project.codepi.app/?task=codepi%2Ftask", "按 token 形态扫描", "vless 协议说明", "docs/vps.md",
       "token: 到期前在后台轮换并更新钥匙串", "password: 改存到 1Password 并更新说明",
     ];
     for (const value of fine) expect(findSecret(value), value).toBeNull();

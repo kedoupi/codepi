@@ -163,9 +163,20 @@ function mockScript() {
           token: { created_at: new Date().toISOString(), last_used_at: null },
         });
       }
-      if (url.pathname === "/api/log") {
-        return json({ items: [{ kind: "change", project: "alpha", date: day, title: "示例变更", summary: null, at: null },
-          { kind: "done", project: "alpha", date: day, title: "已完成的示例", summary: null, at: new Date().toISOString() }] });
+      if (url.pathname === "/api/journal") {
+        const todayDate = new Date(`${day}T00:00:00Z`);
+        const monday = shift(-((todayDate.getUTCDay() + 6) % 7));
+        const journalDays = Array.from({ length: 7 }, (_, index) => {
+          const date = shift(Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000 + index);
+          const current = date === day;
+          return { date, count: current ? 3 : 0, counts: { completed: current ? 1 : 0, changed: current ? 2 : 0 },
+            released: current ? [{ project: "alpha", title: "示例上线", summary: null, at: null }] : [],
+            completed: current ? [{ project: "alpha", title: "已完成的示例", summary: null, at: new Date().toISOString() }] : [],
+            checked: current ? [{ project: "alpha", title: "已检查的示例", summary: null, at: new Date().toISOString(), note: "检查结论" }] : [],
+            other: current ? [{ project: "alpha", title: "示例改动", summary: null, at: null }] : [] };
+        });
+        return json({ as_of: new Date().toISOString(), week: { start: monday, end: shift(6 + (Date.parse(`${monday}T00:00:00Z`) / 86400000 - Date.parse(`${day}T00:00:00Z`) / 86400000)) },
+          summary: { completed: 1, released: 1, checked: 1 }, days: journalDays, truncated: false });
       }
       if (url.pathname === "/api/auth/logout" && method === "POST") return json({ ok: true });
       return json({ error: "not_found" }, 404);
@@ -229,39 +240,55 @@ async function main() {
     assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns at 1024px");
     await assertNoOverflow(page, "1024px today", 1024);
     await page.cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
-    await visit(page, `${origin}/board`, "领域 × 状态");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".board .column").length), 6, "six board columns");
-    await page.evaluate(() => [...document.querySelectorAll(".pill")].find(b => b.textContent.includes("只看需要你")).click());
-    await page.waitForFunction(() => !document.querySelector(".board").innerText.includes("示例想法"));
-    await page.evaluate(() => [...document.querySelectorAll(".card")].find(card => card.textContent?.includes("选择示例方案"))?.click());
+    await visit(page, `${origin}/log`, "工作日报");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "seven journal days");
+    assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell.is-today").length), 1, "journal today outline");
+    assert.ok(await page.evaluate(() => document.querySelector(".journal-day-cell.is-future")), "journal future day style");
+    await page.evaluate(() => document.querySelector(".journal-day-cell:not(.is-future)")?.click());
+    await page.waitForFunction(() => document.querySelector(".journal-day"));
+    await assertNoOverflow(page, "desktop journal", 1440);
+    await page.screenshot({ path: "desktop-journal.png" });
+
+    await visit(page, `${origin}/board?task=alpha%2Ft1`, "今天");
     await page.waitForFunction(() => document.querySelector(".drawer")?.innerText.includes("示例建议"));
-    assert.ok(await page.evaluate(() => !document.querySelector(".drawer script")), "task text is rendered as text");
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll(".nav a")].map(link => link.textContent?.trim())), ["今天", "动态"], "desktop navigation has two items");
     await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     await page.waitForFunction(() => !document.querySelector(".drawer"));
-    await assertNoOverflow(page, "desktop board", 1440);
-    await page.screenshot({ path: "desktop-board.png" });
+    await assertNoOverflow(page, "desktop board redirect", 1440);
 
     await visit(page, `${origin}/p/alpha`, "项目卡");
     assert.ok(await page.evaluate(() => document.body.innerText.includes("agent-team merge")), "adapter merge command");
-    await visit(page, `${origin}/log`, "每天的变更与完成");
 
     await page.cdp("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
-    for (const [path, text, shot] of [["/", "今天", "mobile-today.png"], ["/board", "最近完成", "mobile-board.png"],
-      ["/p/alpha", "推送与设置", "mobile-project.png"], ["/log", "动态", "mobile-log.png"]]) {
+    for (const [path, text, shot] of [["/", "今天", "mobile-today.png"], ["/p/alpha", "推送与设置", "mobile-project.png"], ["/log", "工作日报", "mobile-log.png"], ["/board?task=alpha%2Ft1", "今天", "mobile-board-redirect.png"]]) {
       await visit(page, `${origin}${path}`, text);
       await assertNoOverflow(page, `mobile ${path}`, 390);
       if (path === "/") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".today-tabs button").length), 3, "mobile today tabs");
         assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "grid", "mobile global navigation");
+        assert.equal(await page.evaluate(() => document.querySelectorAll(".tabbar a").length), 2, "mobile navigation has two items");
         assert.ok(await page.evaluate(() => document.querySelector('[role="tablist"]')), "mobile tablist semantics");
         assert.equal(await page.evaluate(() => document.querySelectorAll('[role="tabpanel"]').length), 3, "mobile tabpanel semantics");
         await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
         await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
-        assert.ok(await page.evaluate(() => document.querySelector("#today-panel-pool")?.innerText.includes("查过 2 次 · 最近")), "mobile checked hint");
+        assert.ok(await page.evaluate(() => document.querySelector("input[aria-label=\"搜索标题或分类\"]")), "pool search");
+        await page.evaluate(() => {
+          const input = document.querySelector("input[aria-label=\"搜索标题或分类\"]");
+          input.value = "授权";
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
+        await page.evaluate(() => [...document.querySelectorAll(".pool-filters .pill")].find(button => button.textContent?.includes("只看需要你"))?.click());
+        await page.evaluate(() => [...document.querySelectorAll(".pool-filters .pill")].find(button => button.textContent?.includes("7 天内到期"))?.click());
+        assert.ok(await page.evaluate(() => document.querySelector(".pool-clear")), "pool filter clear control");
+        await page.evaluate(() => document.querySelector(".pool-clear")?.click());
+        await page.waitForFunction(() => document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
         await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("示例想法"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
         await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
-        await page.evaluate(() => [...document.querySelectorAll(".tabbar a")].find(link => link.getAttribute("href") === "/board")?.click());
-        await page.waitForFunction(() => location.pathname === "/board" && document.body.innerText.includes("领域 × 状态"));
+      } else if (path === "/log") {
+        assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "mobile seven journal days");
+      } else if (path.startsWith("/board")) {
+        assert.ok(await page.evaluate(() => document.querySelector(".drawer")), "board link opens task drawer on today");
       } else {
         assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display !== "none"), "mobile tab bar");
       }

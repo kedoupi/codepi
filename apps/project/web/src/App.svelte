@@ -181,10 +181,6 @@
           <Icon name={item.icon} size={20} /><span>{item.label}</span>
         </a>
       {/each}
-      <a href={projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/"} class:active={route.view === "project"}
-        onclick={event => link(event, projects[0] ? `/p/${encodeURIComponent(projects[0].id)}` : "/")}>
-        <Icon name="folder" size={20} /><span>项目</span>
-      </a>
     </nav>
   </div>
   {#if task}

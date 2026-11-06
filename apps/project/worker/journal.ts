@@ -1,6 +1,6 @@
 import { addDays, AppError, today } from "./lib";
 import { resolveProject } from "./projects";
-import type { ChangelogRow, Env, ProjectRow, TaskRow } from "./types";
+import type { ChangelogRow, Env, TaskRow } from "./types";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_ROWS = 500;
@@ -56,7 +56,7 @@ function normalize(value: string, project?: { id: string; name: string }) {
       .join("|");
     if (prefix) title = title.replace(new RegExp(`^\\s*(?:${prefix})(?:\\s*[:：\\-—|/]\\s*|\\s+)`, "iu"), "");
   }
-  return title.toLocaleLowerCase().replace(/[\\p{P}\\p{S}\\s]+/gu, "");
+  return title.toLocaleLowerCase().replace(/[\p{P}\p{S}\s]+/gu, "");
 }
 
 function release(title: string) {
@@ -123,18 +123,22 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
       ORDER BY ac.checked_day, ac.project_id, ac.checked_at LIMIT ?`)
       .bind(...projectParams, start, end, MAX_ROWS + 1).all<CheckRow>(),
   ]);
+  const changeRows = changes.results.slice(0, MAX_ROWS);
+  const taskRows = tasks.results.slice(0, MAX_ROWS);
+  const ownerDoneRows = ownerDone.results.slice(0, MAX_ROWS);
+  const checkRows = checks.results.slice(0, MAX_ROWS);
 
   const projectMap = new Map(projectRows.results.map(item => [item.id, item]));
   const deleted = await env.DB.prepare(`SELECT od.project_id, od.task_key FROM owner_deleted od JOIN projects p ON p.id=od.project_id
     WHERE ${scope("od")}`).bind(...projectParams).all<{ project_id: string; task_key: string }>();
   const deletedKeys = new Set(deleted.results.map(item => `${item.project_id}\0${item.task_key}`));
   const done = new Map<string, JournalCard>();
-  for (const row of tasks.results) {
+  for (const row of taskRows) {
     const key = `${row.project_id}\0${row.key}`;
     if (deletedKeys.has(key)) continue;
     done.set(key, card(row.project_id, row.title, null, row.done_at));
   }
-  for (const row of ownerDone.results) {
+  for (const row of ownerDoneRows) {
     const key = `${row.project_id}\0${row.task_key}`;
     if (deletedKeys.has(key) || done.has(key)) continue;
     const task = await env.DB.prepare("SELECT title FROM tasks WHERE project_id=? AND key=?").bind(row.project_id, row.task_key).first<{ title: string }>();
@@ -147,7 +151,7 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
     days.set(date, { date, count: 0, counts: { completed: 0, changed: 0 }, released: [], completed: [], checked: [], other: [] });
   }
   const changesByDay = new Map<string, ChangeRow[]>();
-  for (const row of changes.results) {
+  for (const row of changeRows) {
     const list = changesByDay.get(row.date) ?? [];
     list.push(row);
     changesByDay.set(row.date, list);
@@ -165,7 +169,7 @@ export async function journal(env: Env, week?: string, projectRef?: string, now 
     const day = days.get(date);
     if (day) day.completed.push(item);
   }
-  for (const row of checks.results) {
+  for (const row of checkRows) {
     const day = days.get(row.checked_day);
     if (!day || !row.title) continue;
     day.checked.push({ project: row.project_id, title: row.title, summary: null, at: row.checked_at, note: row.note });

@@ -122,7 +122,7 @@
 {#if error && !data}
   <p class="inline-alert" role="alert">{error}</p>
 {:else if !data}
-  <p class="loading">正在读取今天的看板…</p>
+  <p class="loading">正在读取今天…</p>
 {:else}
   <header class="today-head">
     <div>
@@ -138,7 +138,7 @@
   {#if error}<p class="inline-alert" role="alert">{error}</p>{/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
-  <nav class="today-tabs" aria-label="今天看板" role={mobile ? "tablist" : undefined}>
+  <nav class="today-tabs" aria-label="今天" role={mobile ? "tablist" : undefined}>
     <button id="today-tab-today" class:active={tab === "today"} aria-selected={mobile ? tab === "today" : undefined} aria-controls={mobile ? "today-panel-today" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "today")}>今天</button>
     <button id="today-tab-pool" class:active={tab === "pool"} aria-selected={mobile ? tab === "pool" : undefined} aria-controls={mobile ? "today-panel-pool" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "pool")}>池子</button>
     <button id="today-tab-done" class:active={tab === "done"} aria-selected={mobile ? tab === "done" : undefined} aria-controls={mobile ? "today-panel-done" : undefined} role={mobile ? "tab" : undefined} onclick={() => (tab = "done")}>做完</button>
