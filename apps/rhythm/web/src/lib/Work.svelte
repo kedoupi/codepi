@@ -13,10 +13,13 @@
     office_minutes: number | null;
     meeting_minutes: number | null;
     work_minutes: number | null;
+    work_delta_minutes: number | null;
+    meeting_delta_minutes: number | null;
     meeting_sessions: number | null;
     meeting_share: number | null;
     meeting_categories: Record<Category, number> | null;
-    days?: Array<{ date: string; office_minutes: number | null; meeting_minutes: number | null; work_minutes: number | null; meeting_sessions: number | null }>;
+    days: Array<{ date: string; office_minutes: number | null; meeting_minutes: number | null; work_minutes: number | null; work_delta_minutes: number | null; meeting_delta_minutes: number | null; meeting_sessions: number | null }>;
+    focus_availability: { longest_minutes: number; morning: { longest_minutes: number; has_90_minutes: boolean }; afternoon: { longest_minutes: number; has_90_minutes: boolean } } | null;
     categories: Record<Category, CategoryValue> | null;
     away: { minutes: number | null; share: number | null; delta_minutes: number | null; delta_share: number | null };
     top_apps: AppValue[] | null;
@@ -56,6 +59,14 @@
     if (minutes === null) return "暂无数据";
     if (minutes === 0) return "与上周相同";
     return `比上周 ${minutes > 0 ? "+" : "−"}${duration(Math.abs(minutes))}`;
+  }
+  function compactDelta(minutes: number | null): string {
+    if (minutes === null) return "暂无数据";
+    return minutes === 0 ? "持平" : `${minutes > 0 ? "+" : "−"}${duration(Math.abs(minutes), true)}`;
+  }
+
+  function availabilityText(period: { longest_minutes: number; has_90_minutes: boolean }): string {
+    return period.has_90_minutes ? "有 ≥90 分钟整块" : `没有 ≥90 分钟整块 · 最长 ${duration(period.longest_minutes)}`;
   }
 
   function dateLabel(value: WorkPayload): string {
@@ -100,7 +111,7 @@
     <div>
       <p class="eyebrow">工作 / WORK</p>
       <h1>工作</h1>
-      <p class="muted">{work ? `${dateLabel(work)} · 公司网络且有键鼠操作的分钟` : "按天查看工作时间、专注和被打断情况。"}</p>
+      <p class="muted">{work ? `${dateLabel(work)} · 工作时长 = 在工位 + 开会` : "按天查看工作时间、专注和被打断情况。"}</p>
     </div>
     <div class="segmented" role="group" aria-label="范围">
       <button aria-pressed={range === "day"} onclick={() => switchRange("day")}>今天</button>
@@ -117,10 +128,11 @@
   {#if work}
     <section class="panel work-time-panel">
       <div class="section-heading"><div><h2>工作时间花在哪</h2><p class="muted">在工位与开会合计；离座单独列出</p></div><strong class="work-total">工作时长 {duration(work.work_minutes)}</strong></div>
-      <div class="metric-grid compact"><article class="metric-card"><span>在工位</span><strong>{duration(work.office_minutes)}</strong></article><article class="metric-card"><span>开会</span><strong>{duration(work.meeting_minutes)}</strong><small>{work.meeting_sessions === null ? "暂无场次数据" : `${work.meeting_sessions} 场`} · {work.meeting_share === null ? "暂无比例" : `${Math.round(work.meeting_share * 100)}%`}</small></article></div>
-      {#if work.range === "week" && work.days?.length}<div class="work-week-days" aria-label="本周每天工作时长">{#each work.days as item}<div><span>{item.date}</span><strong>{duration(item.work_minutes, true)}</strong><small>开会 {duration(item.meeting_minutes, true)}</small></div>{/each}</div>{/if}
+      <div class="metric-grid compact"><article class="metric-card"><span>在工位</span><strong>{duration(work.office_minutes)}</strong></article><article class="metric-card"><span>开会</span><strong>{duration(work.meeting_minutes)}</strong><small>{delta(work.meeting_delta_minutes)} · {work.meeting_sessions === null ? "暂无场次数据" : `${work.meeting_sessions} 场`} · {work.meeting_share === null ? "暂无比例" : `${Math.round(work.meeting_share * 100)}%`}</small></article></div>
+      <p class="fine muted">工作时长较上周：{delta(work.work_delta_minutes)}</p>
+      {#if work.range === "week"}<div class="work-week-days" aria-label="本周每天工作时长">{#each work.days as item}<div><span>{item.date.slice(5)}</span><strong>{duration(item.work_minutes, true)}</strong><small>工作较上周 {compactDelta(item.work_delta_minutes)}</small><small>开会 {duration(item.meeting_minutes, true)} · 较上周 {compactDelta(item.meeting_delta_minutes)}</small></div>{/each}</div>{/if}
       {#if work.categories}
-        <div class="work-category-bar" role="img" aria-label="时间去向">{#each categoryItems as item}<span data-category={item.category} style={`flex:${Math.max(item.minutes, 0)} 1 0`}></span>{/each}<span data-category="离座" style={`flex:${Math.max(work.away.minutes ?? 0, 0)} 1 0`}></span></div>
+        <div class="work-category-bar" role="img" aria-label="时间去向">{#each categoryItems as item}<span data-category={item.category} style={`flex:${Math.max(item.minutes, 0)} 1 0`}></span>{/each}<span data-category="开会" style={`flex:${Math.max(work.meeting_minutes ?? 0, 0)} 1 0`}></span><span data-category="离座" style={`flex:${Math.max(work.away.minutes ?? 0, 0)} 1 0`}></span></div>
         <div class="work-category-grid">
           {#each categoryItems as item}
             <div class="work-category-row"><span class="work-color" data-color={categoryColors[item.category]}></span><div><strong>{item.category}</strong><span>{duration(item.minutes)} · {Math.round(item.share * 100)}%</span><small>{delta(item.delta_minutes)}</small></div></div>
@@ -137,6 +149,7 @@
       <section class="panel focus-panel">
         <div class="section-heading"><div><h2>专注</h2><p class="muted">连续至少 25 分钟在电脑前，且没有切到沟通或私人 App。</p></div></div>
         <div class="metric-grid compact"><article class="metric-card"><span>专注总时长</span><strong>{duration(work.focus.total_minutes, true)}</strong></article><article class="metric-card"><span>最长一段</span><strong>{duration(work.focus.longest_minutes, true)}</strong></article><article class="metric-card"><span>{range === "week" ? "每天平均段数" : "段数"}</span><strong>{work.focus.segment_count === null ? "暂无数据" : range === "week" ? work.focus.segment_count.toFixed(1) : work.focus.segment_count}</strong></article></div>
+        {#if work.focus_availability}<div class="metric-grid compact"><article class="metric-card"><span>最长连续在工位</span><strong>{duration(work.focus_availability.longest_minutes)}</strong></article><article class="metric-card"><span>上午可用度</span><strong>{work.focus_availability.morning.has_90_minutes ? "可用" : "不足 90 分钟"}</strong><small>{availabilityText(work.focus_availability.morning)}</small></article><article class="metric-card"><span>下午可用度</span><strong>{work.focus_availability.afternoon.has_90_minutes ? "可用" : "不足 90 分钟"}</strong><small>{availabilityText(work.focus_availability.afternoon)}</small></article></div>{:else}<p class="empty-small">专注可用度暂无数据</p>{/if}
         {#if work.focus.segments?.length}
           <div class="focus-desktop-timeline" role="img" aria-label="08:00 到 20:00 专注时间线"><div class="focus-track">{#each work.focus.segments as segment}<span class:focus-interrupted={segment.interruptedAt.length > 0} style={`left:${Math.max(0, (segment.startMinute - 480) / 720 * 100)}%;width:${Math.max(0, (segment.endMinute - segment.startMinute) / 720 * 100)}%`} title={`${clock(segment.startMinute)}–${clock(segment.endMinute)} ${duration(segment.minutes)}`}></span>{/each}</div><div class="focus-axis"><span>08:00</span><span>10:00</span><span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span></div></div>
           <div class="focus-mobile-list">{#each work.focus.segments as segment}<div class="focus-segment"><i class:focus-interrupted={segment.interruptedAt.length > 0}></i><div><strong>{clock(segment.startMinute)}–{clock(segment.endMinute)}</strong><small>{segment.primaryCategory}{segment.interruptedAt.length ? " · 有沟通打断" : ""}</small></div><span>{duration(segment.minutes)}</span></div>{/each}</div>
@@ -153,6 +166,6 @@
     </div>
 
     <section class="panel interruptions-panel"><div class="section-heading"><div><h2>被打断</h2><p class="muted">橙色表示高于当天平均 1.5 倍。</p></div><strong>{work.communication_interruptions === null ? "暂无数据" : `${work.communication_interruptions.toFixed(range === "week" ? 1 : 0)} 次`}</strong></div>{#if work.hourly?.length}<div class="switch-chart" role="img" aria-label="每小时切换 App 次数">{#each work.hourly as item}<div class:above-average={item.above_average} class="switch-bar"><strong>{item.switch_count === null ? "暂无数据" : Math.round(item.switch_count)}</strong><i style={`height:${item.switch_count === null ? 0 : item.switch_count / maxSwitches * 96}px`}></i><span>{item.hour}</span></div>{/each}</div><p class="chart-conclusion">沟通打断专注 {work.communication_interruptions === null ? "暂无数据" : `${work.communication_interruptions.toFixed(range === "week" ? 1 : 0)} 次`}；偏多时段高于当天平均 1.5 倍。</p>{:else}<p class="empty-small">暂无数据</p>{/if}</section>
-    <section class="panel work-method"><h2>口径</h2><p class="muted">只算公司网络、且有键鼠操作的分钟；App 按设置里的归类计；离座 = 锁屏或无操作且夹在两段办公之间。分钟采样，是近似值。</p></section>
+    <section class="panel work-method"><h2>口径</h2><p class="muted">工位与 App 只算 `office_active` 状态；开会单独计入工作时长；离座 = 接电或电源未知、无键鼠且夹在公司工作状态之间。分钟采样，是近似值。</p></section>
   {/if}
 </section>

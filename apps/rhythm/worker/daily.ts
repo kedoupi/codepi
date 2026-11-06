@@ -175,15 +175,40 @@ function gapReason(heartbeat: boolean | null, phoneSeen: boolean, phoneConfigure
   return "work_machine_missing";
 }
 
-function meetingSessionCount(day: DayComputation): number {
-  let count = 0;
-  let previousEnd = -Infinity;
-  for (const segment of day.segments) {
-    if (segment.status !== "office_meeting") continue;
-    if (segment.startMinute - previousEnd - 1 > 5) count += 1;
-    previousEnd = segment.endMinute;
+export type WorkAvailability = {
+  longest_minutes: number;
+  morning: { longest_minutes: number; has_90_minutes: boolean };
+  afternoon: { longest_minutes: number; has_90_minutes: boolean };
+};
+
+export function workAvailability(segments: Array<{ status: string; startMinute: number; endMinute: number }>): WorkAvailability {
+  const blocks: Array<{ startMinute: number; endMinute: number; away: boolean }> = [];
+  for (const segment of segments) {
+    if (segment.status === "office_active" || segment.status === "office_away") {
+      const previous = blocks.at(-1);
+      if (previous && previous.away === (segment.status === "office_away") && segment.startMinute <= previous.endMinute + 1) previous.endMinute = Math.max(previous.endMinute, segment.endMinute);
+      else blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: segment.status === "office_away" });
+      continue;
+    }
+    if (segment.status === "office_meeting") { blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: true }); continue; }
+    blocks.push({ startMinute: segment.startMinute, endMinute: segment.endMinute, away: true });
   }
-  return count;
+  const longestIn = (from: number, to: number) => {
+    let longest = 0, run = 0;
+    for (const block of blocks) {
+      const start = Math.max(block.startMinute, from), end = Math.min(block.endMinute, to);
+      if (start > end) continue;
+      if (block.away) { longest = Math.max(longest, run); run = 0; }
+      else run += end - start + 1;
+    }
+    return Math.max(longest, run);
+  };
+  const morning = longestIn(0, 719), afternoon = longestIn(720, 1439);
+  return {
+    longest_minutes: Math.max(morning, afternoon),
+    morning: { longest_minutes: morning, has_90_minutes: morning >= 90 },
+    afternoon: { longest_minutes: afternoon, has_90_minutes: afternoon >= 90 },
+  };
 }
 
 export function calculateDailyMetrics(input: StateInput, now?: number): {
@@ -297,7 +322,6 @@ export function calculateDailyMetrics(input: StateInput, now?: number): {
     arriveHomeMinute: findMoment("arrive_home"),
     returnBedroomMinute: findMoment("return_bedroom"),
     officeSpanMinutes,
-    meetingSessions: day.channels.work ? meetingSessionCount(day) : null,
     meetingAppCategoryMinutes,
     meetingAppMinutes: Object.fromEntries(meetingAppMinutes),
     focus,
@@ -435,7 +459,6 @@ function parseDailyMetricsRow(row: Record<string, unknown>): DailyMetricsRow | n
       livingRoomMinutes: row.living_room_minutes as number | null,
       homeUnknownMinutes: row.home_unknown_minutes as number | null,
       officeSpanMinutes: row.office_span_minutes as number | null,
-      meetingSessions: null,
       meetingAppCategoryMinutes: categoryBuckets.meeting,
       meetingAppMinutes: present("app_minutes_json") ? appBuckets.meeting : null,
       focus: {
@@ -495,7 +518,7 @@ export async function upsertDailyRows(env: Env, rows: DailyRows): Promise<void> 
       m.homeUnknownMinutes, m.officeSpanMinutes, m.focus.segmentCount, m.focus.totalMinutes, m.focus.longestMinutes,
       m.focus.communicationInterruptions, m.afterWorkWorkMachineMinutes, m.weekendWorkMachineMinutes,
       JSON.stringify(m.afterWorkRoomMinutes), JSON.stringify(m.weekendRoomMinutes), JSON.stringify({ active: m.appCategoryMinutes, meeting: m.meetingAppCategoryMinutes }),
-      JSON.stringify(m.hourlyAppCategoryMinutes), JSON.stringify(m.appMinutes), JSON.stringify(m.hourlyActiveMinutes),
+      JSON.stringify(m.hourlyAppCategoryMinutes), JSON.stringify({ active: m.appMinutes, meeting: m.meetingAppMinutes }), JSON.stringify(m.hourlyActiveMinutes),
       JSON.stringify(m.hourlySwitchCounts), JSON.stringify(m.focusSegments), m.topAppName, m.topAppMinutes,
       JSON.stringify(m.otherNetworkMinutes), m.coverage.ratio, JSON.stringify(m.coverage.gapReasonMinutes),
       m.dayType, rows.metrics.computedAt, rows.metrics.version,

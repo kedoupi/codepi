@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDailyMetrics, dailyRows } from "../../worker/daily";
+import { calculateDailyMetrics, dailyRows, workAvailability } from "../../worker/daily";
 import type { StateInput } from "../../worker/models";
 import { phonePresenceByMinute, shanghaiDate } from "../../worker/state";
 
@@ -70,6 +70,20 @@ describe("每日指标", () => {
     expect(rows.status.version).toBe("p10-2026-11-06");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
+  });
+  it("专注可用度按会议与离座打断，统计上午下午 90 分钟整块", () => {
+    const availability = workAvailability([
+      { status: "office_active", startMinute: 100, endMinute: 199 },
+      { status: "office_meeting", startMinute: 200, endMinute: 210 },
+      { status: "office_active", startMinute: 211, endMinute: 250 },
+      { status: "office_away", startMinute: 251, endMinute: 260 },
+      { status: "office_active", startMinute: 261, endMinute: 350 },
+    ]);
+    expect(availability).toEqual({
+      longest_minutes: 100,
+      morning: { longest_minutes: 100, has_90_minutes: true },
+      afternoon: { longest_minutes: 0, has_90_minutes: false },
+    });
   });
 
   it("同一批原始数据里没数据的那天各指标为 null，不是 0", () => {

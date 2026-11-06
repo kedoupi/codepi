@@ -13,11 +13,12 @@ import {
 } from "./upstream";
 import type { Env } from "./types";
 import { dateDistance, dateOffset, loadStateInput, recomputeRange } from "./recompute";
-import { calculateDailyMetrics, DAILY_ALGORITHM_VERSION, dayType, readDailyMetrics, readDailyMetricsRange, readDailyStatus, readDailyStatusRange } from "./daily";
+import { calculateDailyMetrics, DAILY_ALGORITHM_VERSION, dayType, readDailyMetrics, readDailyMetricsRange, readDailyStatus, readDailyStatusRange, workAvailability } from "./daily";
 import {
   ANOMALY_BASELINE, ANOMALY_BASELINE_DAYS, averageAllMetrics, averageMetrics, findAnomalies, qualityDays, trendDays, weekStart,
 } from "./analysis";
-import type { DailyMetricsRow } from "./models";
+import type { DailyMetricsRow, DailyStatusRow } from "./models";
+import type { WorkAvailability } from "./daily";
 
 type AppEnv = { Bindings: Env };
 
@@ -386,6 +387,24 @@ async function metricsRows(env: Env, from: string, end: string, settings: Rhythm
   }
   return [...byDate.values()].sort((left, right) => left.date.localeCompare(right.date));
 }
+async function workStatusRows(env: Env, from: string, to: string, settings: RhythmSettings) {
+  const today = shanghaiDate(Date.now());
+  const [stored, recent] = await Promise.all([
+    readDailyStatusRange(env, from, to),
+    (async () => {
+      const rows = [];
+      for (let date = from; dateDistance(date, to) >= 0; date = dateOffset(date, 1)) {
+        const distance = dateDistance(date, today);
+        if (distance < 0 || distance > 1) continue;
+        const { day } = await calculateDailyMetrics(await loadStateInput(env, date, settings), date === today ? Date.now() : undefined);
+        rows.push({ date, segments: day.segments, computedAt: new Date().toISOString(), version: DAILY_ALGORITHM_VERSION });
+      }
+      return rows;
+    })(),
+  ]);
+  return new Map([...stored, ...recent].filter(row => row.version === DAILY_ALGORITHM_VERSION).map(row => [row.date, row]));
+}
+
 type WorkAggregate = {
   officeMinutes: number | null;
   meetingMinutes: number | null;
@@ -480,13 +499,56 @@ function meetingSessions(segments: Array<{ status: string; startMinute: number; 
   return count;
 }
 
+type DayWorkStats = {
+  date: string;
+  office_minutes: number | null;
+  meeting_minutes: number | null;
+  work_minutes: number | null;
+  work_delta_minutes: number | null;
+  meeting_delta_minutes: number | null;
+  meeting_sessions: number | null;
+  focus_availability: WorkAvailability | null;
+};
+
+function dayWorkStats(date: string, row: DailyMetricsRow | undefined, status: DailyStatusRow | undefined): DayWorkStats {
+  const officeMinutes = row?.metrics.officeActiveMinutes ?? null;
+  const meetingMinutes = typeof row?.metrics.officeMeetingMinutes === "number" ? row.metrics.officeMeetingMinutes : null;
+  return {
+    date,
+    office_minutes: officeMinutes,
+    meeting_minutes: meetingMinutes,
+    work_minutes: officeMinutes === null || meetingMinutes === null ? null : officeMinutes + meetingMinutes,
+    work_delta_minutes: null,
+    meeting_delta_minutes: null,
+    meeting_sessions: status ? meetingSessions(status.segments) : null,
+    focus_availability: status ? workAvailability(status.segments) : null,
+  };
+}
+
+
+function aggregateAvailability(days: DayWorkStats[]) {
+  const available = days.filter(day => day.focus_availability !== null);
+  if (!available.length) return null;
+  return {
+    longest_minutes: Math.max(...available.map(day => day.focus_availability!.longest_minutes)),
+    morning: {
+      longest_minutes: Math.max(...available.map(day => day.focus_availability!.morning.longest_minutes)),
+      has_90_minutes: available.some(day => day.focus_availability!.morning.has_90_minutes),
+    },
+    afternoon: {
+      longest_minutes: Math.max(...available.map(day => day.focus_availability!.afternoon.longest_minutes)),
+      has_90_minutes: available.some(day => day.focus_availability!.afternoon.has_90_minutes),
+    },
+  };
+}
+
 function deltaOf(current: number | null, previous: number | null): number | null {
   return current === null || previous === null ? null : current - previous;
 }
 
 function workCategories(current: WorkAggregate, previous: WorkAggregate) {
-  const total = current.officeMinutes;
-  const previousTotal = previous.officeMinutes;
+  const total = current.workMinutes;
+  const previousTotal = previous.workMinutes;
   return current.categories === null ? null : Object.fromEntries(APP_CATEGORIES.map(category => {
     const minutes = current.categories![category];
     const previousMinutes = previous.categories?.[category] ?? null;
@@ -547,27 +609,20 @@ get("/api/work", async c => {
   const rows = await metricsRows(c.env, dateOffset(from, -28), date, settings);
   const selectedRows = rows.filter(row => row.date >= from && row.date <= date);
   const previousRows = await metricsRows(c.env, previousFrom, previousTo, settings);
-  const statusRows = await readDailyStatusRange(c.env, previousFrom, date);
-  if (date >= today) {
-    const { day } = await calculateDailyMetrics(await loadStateInput(c.env, date, settings), date === today ? Date.now() : undefined);
-    statusRows.push({ date, segments: day.segments, computedAt: new Date().toISOString(), version: DAILY_ALGORITHM_VERSION });
-  }
-  const statusByDate = new Map(statusRows.filter(row => row.version === DAILY_ALGORITHM_VERSION).map(row => [row.date, row]));
+  const statusByDate = await workStatusRows(c.env, previousFrom, date, settings);
   const current = aggregateWorkRows(selectedRows);
   const previous = aggregateWorkRows(previousRows);
-  const selectedDayStats = selectedRows.map(row => {
-    const status = statusByDate.get(row.date);
-    return {
-      date: row.date,
-      office_minutes: row.metrics.officeActiveMinutes,
-      meeting_minutes: typeof row.metrics.officeMeetingMinutes === "number" ? row.metrics.officeMeetingMinutes : null,
-      work_minutes: row.metrics.officeActiveMinutes === null || typeof row.metrics.officeMeetingMinutes !== "number"
-        ? null : row.metrics.officeActiveMinutes + row.metrics.officeMeetingMinutes,
-      meeting_sessions: status ? meetingSessions(status.segments) : null,
-    };
+  const previousByDate = new Map(previousRows.map(row => [row.date, row]));
+  const selectedByDate = new Map(selectedRows.map(row => [row.date, row]));
+  const selectedDayStats = Array.from({ length: range === "week" ? 7 : 1 }, (_, index) => {
+    const day = dateOffset(from, index);
+    const stats = dayWorkStats(day, selectedByDate.get(day), statusByDate.get(day));
+    const prior = dayWorkStats(dateOffset(day, -7), previousByDate.get(dateOffset(day, -7)), statusByDate.get(dateOffset(day, -7)));
+    return { ...stats, work_delta_minutes: deltaOf(stats.work_minutes, prior.work_minutes), meeting_delta_minutes: deltaOf(stats.meeting_minutes, prior.meeting_minutes) };
   });
-  const meetingSessionsKnown = selectedDayStats.every(day => day.meeting_sessions !== null);
-  const totalMeetingSessions = meetingSessionsKnown ? selectedDayStats.reduce((sum, day) => sum + (day.meeting_sessions ?? 0), 0) : null;
+  const totalMeetingSessions = selectedDayStats.every(day => day.meeting_sessions !== null)
+    ? selectedDayStats.reduce((sum, day) => sum + (day.meeting_sessions ?? 0), 0) : null;
+  const focusAvailability = aggregateAvailability(selectedDayStats);
   const awayShare = current.awayMinutes === null || current.workMinutes === null || current.workMinutes === 0
     ? null : current.awayMinutes / current.workMinutes;
   const previousAwayShare = previous.awayMinutes === null || previous.workMinutes === null || previous.workMinutes === 0
@@ -589,14 +644,15 @@ get("/api/work", async c => {
     meeting_share: current.meetingMinutes === null || current.workMinutes === null || current.workMinutes === 0
       ? null : current.meetingMinutes / current.workMinutes,
     meeting_categories: current.meetingCategories,
-    days: range === "week" ? selectedDayStats : undefined,
+    days: selectedDayStats,
+    focus_availability: focusAvailability,
     away: {
       minutes: current.awayMinutes,
       share: awayShare,
       delta_minutes: deltaOf(current.awayMinutes, previous.awayMinutes),
       delta_share: awayShare === null || previousAwayShare === null ? null : awayShare - previousAwayShare,
     },
-    top_apps: current.topApps?.map(app => ({ ...app, share: current.officeMinutes && current.officeMinutes > 0 ? app.minutes / current.officeMinutes : 0 })) ?? null,
+    top_apps: current.topApps?.map(app => ({ ...app, share: current.workMinutes && current.workMinutes > 0 ? app.minutes / current.workMinutes : 0 })) ?? null,
     focus: {
       total_minutes: current.focusTotal,
       longest_minutes: current.focusLongest,

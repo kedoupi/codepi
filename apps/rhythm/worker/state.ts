@@ -526,6 +526,9 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
   }
 
   const officeActive = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal) && item.active && !isBatteryPower(item.sample));
+  const officeMeeting = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal)
+    && item.sample?.locked !== true && isBatteryPower(item.sample));
+  const officePresent = minuteRows.map((_item, minute) => officeActive[minute] || officeMeeting[minute]);
   const officeSignal = minuteRows.map((item, minute) => minute <= lastMinute && (item.office || item.legacySignal));
   const statuses: DayStatus[] = [];
   const evidence: Evidence[] = [];
@@ -566,7 +569,7 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
       continue;
     }
     if (item.office && item.active) { statuses.push("office_active"); evidence.push("seen"); details.push(""); continue; }
-    if ((item.office || item.legacySignal) && officeAwayCandidate(officeActive, officeSignal, minute)) {
+    if ((item.office || item.legacySignal) && officeAwayCandidate(officePresent, officeSignal, minute)) {
       statuses.push("office_away");
       evidence.push("inferred");
       details.push("");
@@ -637,6 +640,10 @@ export function calculateDay(input: StateInput, now?: number): DayComputation {
         detail: `${minuteLabel(minute)} 公司网络进入工作状态` });
     }
     if (isOfficePresence(before) && (after === "office_away" || after === "commute") && before !== "office_away") {
+      pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
+        detail: `${minuteLabel(minute)} 离开公司工作状态` });
+    } else if (after === "commute" && before !== "commute" && statuses.slice(0, minute).some(isOfficePresence)
+      && !moments.some(moment => moment.kind === "leave_computer")) {
       pushMoment(moments, { kind: "leave_computer", minute, label: "离开电脑", evidence: "inferred",
         detail: `${minuteLabel(minute)} 离开公司工作状态` });
     }

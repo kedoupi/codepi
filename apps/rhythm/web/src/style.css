@@ -9,6 +9,7 @@
   --rhythm-living: #7FA3DA;
   --rhythm-commute: #D9822B;
   --rhythm-office: #1F7A63;
+  --rhythm-away: #9FD0BF;
   --rhythm-meeting-status: #B85C38;
   --rhythm-other: #7D5BB0;
   --rhythm-unknown: #C9C6BD;
@@ -29,6 +30,7 @@
   --rhythm-living: #A7C0EB;
   --rhythm-commute: #F1A65A;
   --rhythm-office: #72C7AD;
+  --rhythm-away: #8EC6B2;
   --rhythm-meeting-status: #E18F6C;
   --rhythm-other: #BD9DE3;
   --rhythm-unknown: #716C64;
@@ -92,6 +94,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .current-card[data-status="bedroom"] { border-left-color: var(--rhythm-bedroom); }
 .current-card[data-status="living_room"],.current-card[data-status="home"] { border-left-color: var(--rhythm-living); }
 .current-card[data-status="commute"] { border-left-color: var(--rhythm-commute); }
+.current-card[data-status="office_away"] { border-left-color: var(--rhythm-away); }
 .current-card[data-status="office_meeting"] { border-left-color: var(--rhythm-meeting-status); }
 .current-card[data-status="other_network"] { border-left-color: var(--rhythm-other); }
 .current-card[data-status="unknown"] { border-left-color: var(--rhythm-unknown); }
@@ -109,6 +112,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-segment[data-status="bedroom"] { background: var(--rhythm-bedroom); color: white; }
 .timeline-segment[data-status="living_room"],.timeline-segment[data-status="home"] { background: var(--rhythm-living); }
 .timeline-segment[data-status="office_active"] { background: var(--rhythm-office); color: white; }
+.timeline-segment[data-status="office_away"] { background: var(--rhythm-away); }
 .timeline-segment[data-status="office_meeting"] { background: var(--rhythm-meeting-status); color: white; }
 .timeline-segment[data-status="commute"] { background: var(--rhythm-commute); }
 .timeline-segment[data-status="other_network"] { background: var(--rhythm-other); color: white; }
@@ -122,6 +126,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-legend i[data-status="bedroom"] { background: var(--rhythm-bedroom); }
 .timeline-legend i[data-status="living_room"],.timeline-legend i[data-status="home"] { background: var(--rhythm-living); }
 .timeline-legend i[data-status="office_active"] { background: var(--rhythm-office); }
+.timeline-legend i[data-status="office_away"] { background: var(--rhythm-away); }
 .timeline-legend i[data-status="office_meeting"] { background: var(--rhythm-meeting-status); }
 .timeline-legend i[data-status="commute"] { background: var(--rhythm-commute); }
 .timeline-legend i[data-status="other_network"] { background: var(--rhythm-other); }
@@ -143,6 +148,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .time-block[data-status="bedroom"] .time-block-bar { background: var(--rhythm-bedroom); }
 .time-block[data-status="living_room"] .time-block-bar,.time-block[data-status="home"] .time-block-bar { background: var(--rhythm-living); }
 .time-block[data-status="office_active"] .time-block-bar { background: var(--rhythm-office); }
+.time-block[data-status="office_away"] .time-block-bar { background: var(--rhythm-away); }
 .time-block[data-status="office_meeting"] .time-block-bar { background: var(--rhythm-meeting-status); }
 .time-block[data-status="commute"] .time-block-bar { background: var(--rhythm-commute); }
 .time-block[data-status="other_network"] .time-block-bar { background: var(--rhythm-other); }
@@ -185,6 +191,7 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .work-block { min-width: 0; border: 1px solid var(--color-border); border-left: 5px solid var(--rhythm-unknown); border-radius: var(--radius-control); padding: 14px 16px; overflow-wrap: anywhere; }
 .work-block[data-kind="active"] { border-left-color: var(--rhythm-office); }
 .work-block[data-kind="away"] { border-left-color: var(--rhythm-away); }
+.work-block[data-kind="meeting"] { border-left-color: var(--rhythm-meeting-status); }
 .work-block-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .work-block-kind { display: block; margin-top: 4px; color: var(--color-text-muted); font-size: 13px; }
 .work-block-heading strong { display: block; margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -241,6 +248,7 @@ footer { padding: 16px 32px 32px; color: var(--color-text-muted); font-size: 12p
 .chart .hatch-fg { fill: var(--rhythm-unknown); }
 .chart [data-series="home"] { fill: var(--rhythm-living); }
 .chart [data-series="office_active"] { fill: var(--rhythm-office); }
+.chart [data-series="office_away"] { fill: var(--rhythm-away); }
 .chart [data-series="office_meeting"] { fill: var(--rhythm-meeting-status); }
 .chart [data-series="commute"] { fill: var(--rhythm-commute); }
 .chart [data-series="other_network"] { fill: var(--rhythm-other); }

@@ -174,7 +174,6 @@ export type DailyMetrics = DayMetrics & {
   arriveHomeMinute: number | null;
   returnBedroomMinute: number | null;
   officeSpanMinutes: number | null;
-  meetingSessions?: number | null;
   meetingAppCategoryMinutes?: Record<AppCategory, number>;
   meetingAppMinutes?: Record<string, { minutes: number; category: AppCategory }> | null;
   focus: FocusMetrics;

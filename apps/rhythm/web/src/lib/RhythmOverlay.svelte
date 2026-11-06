@@ -76,6 +76,9 @@
           {/if}
           {#if m.startWorkMinute !== null && m.leaveComputerMinute !== null && m.leaveComputerMinute > m.startWorkMinute}
             <rect data-series="office_active" x={pct(x(m.startWorkMinute))} y={top} width={pct(x(m.leaveComputerMinute) - x(m.startWorkMinute))} height={rowHeight}></rect>
+          {#if m.officeMeetingMinutes && m.startWorkMinute !== null}
+            <rect data-series="office_meeting" x={pct(x(m.startWorkMinute))} y={top} width={pct((m.officeMeetingMinutes / 1440) * plotWidth)} height={rowHeight}></rect>
+          {/if}
           {/if}
           {#if m.leaveHomeMinute === null && m.startWorkMinute === null && (m.homeMinutes ?? 0) > 0}
             <rect data-series="home" x={pct(left)} y={top} width={pct(plotWidth)} height={rowHeight} opacity="0.55"></rect>

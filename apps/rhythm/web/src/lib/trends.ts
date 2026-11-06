@@ -225,6 +225,7 @@ export function weekComparisonRows(comparison: TrendsPayload["week_comparison"])
     ["在电脑前", current.officeActiveMinutes, previous.officeActiveMinutes, "duration"],
     ["开会", current.meetingMinutes ?? null, previous.meetingMinutes ?? null, "duration"],
     ["在公司（首末操作）", current.officeSpanMinutes, previous.officeSpanMinutes, "duration"],
+    ["在家", current.homeMinutes, previous.homeMinutes, "duration"],
     ["专注总时长", current.focus.totalMinutes, previous.focus.totalMinutes, "duration"],
     ["专注段数", current.focus.segmentCount, previous.focus.segmentCount, "count"],
   ];

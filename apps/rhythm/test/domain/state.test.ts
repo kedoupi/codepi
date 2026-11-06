@@ -89,6 +89,31 @@ describe("开会状态", () => {
     expect(day.moments.filter(moment => moment.kind === "leave_computer")).toEqual([]);
     expect(day.moments.filter(moment => moment.kind === "start_work").map(moment => moment.minute)).toEqual([640]);
   });
+  it("在工位与开会之间的接电空档，以及开会之间的空档，记为离座", () => {
+    const base = emptyInput("2026-11-06");
+    const sampleAt = (minute: number, power: string, idle = 10) => sample(minute, { power, key_idle_sec: idle, pointer_idle_sec: idle });
+    const day = calculateDay({ ...base, activity: [
+      sampleAt(640, "接电"), sampleAt(650, "接电", 999), sampleAt(660, "电池"),
+      sampleAt(680, "电池"), sampleAt(690, "接电", 999), sampleAt(700, "电池"),
+    ] });
+    expect(day.minuteStatuses[650]).toBe("office_away");
+    expect(day.minuteStatuses[690]).toBe("office_away");
+  });
+  it("最后一段开会转通勤时记录一次离开电脑", () => {
+    const at = (minute: number, power: string) => sample(minute, { power });
+    const day = calculateDay({
+      ...emptyInput("2026-11-06"),
+      activity: [at(620, "接电"), at(650, "电池")],
+      devices: [{ device_id: "dev-a", room: "客厅" }],
+      snapshots: [
+        { device_id: "dev-a", observed_at: "2026-11-06T09:40:00+08:00", status: "online", room: "客厅" },
+        { device_id: "dev-a", observed_at: "2026-11-06T12:10:00+08:00", status: "online", room: "客厅" },
+      ],
+      subjectDeviceIds: ["dev-a"],
+    });
+    expect(day.minuteStatuses[656]).toBe("commute");
+    expect(day.moments.filter(moment => moment.kind === "leave_computer").map(moment => moment.minute)).toEqual([656]);
+  });
 });
 
 function emptyInput(date: string): StateInput {
