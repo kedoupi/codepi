@@ -2,7 +2,7 @@
 import migration from "../migrations/0003_work_page.sql?raw";
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { readDailyMetrics } from "../worker/daily";
+import { dailyRows, readDailyMetrics, upsertDailyRows } from "../worker/daily";
 import { readSettings } from "../worker/settings";
 
 const replaySql = migration.replace(/^ALTER TABLE[^\n]+;\n/gm, "");
@@ -68,5 +68,22 @@ describe("0003 work page migration", () => {
     await env.DB.prepare("UPDATE daily_metrics SET app_category_minutes_json=? WHERE date=?").bind(JSON.stringify({ 开发: 4, 沟通: 3 }), "2026-11-03").run();
     const row = await readDailyMetrics(env, "2026-11-03");
     expect(row?.metrics.appCategoryMinutes).toMatchObject({ "AI 编程": 4, "工作沟通": 3 });
+  });
+  it("会议 App JSON 写入后可读回，旧平面格式仍归入 active", async () => {
+    await env.DB.prepare("INSERT INTO daily_metrics (date, status_minutes_json, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, app_minutes_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, '{}', '{}', '{}', '{}', '{}', ?, '{}', '{}', 'workday', ?, 'p10-2026-11-06')")
+      .bind("2026-11-03", JSON.stringify({ 示例编辑器: { minutes: 4, category: "AI 编程" } }), "2026-11-05T00:00:00.000Z").run();
+    const legacy = await readDailyMetrics(env, "2026-11-03");
+    expect(legacy?.metrics.appMinutes?.["示例编辑器"]).toMatchObject({ minutes: 4, category: "AI 编程" });
+    expect(legacy?.metrics.meetingAppMinutes).toEqual({});
+
+    const rows = dailyRows({
+      date: "2026-11-03", devices: [], snapshots: [], events: [], heartbeats: [], subjectDeviceIds: [],
+      appCategories: { "示例会议": "会议" },
+      activity: [{ sampled_at: "2026-11-03T09:00:00+08:00", net: "office", power: "电池", locked: false, key_idle_sec: 10, pointer_idle_sec: 10, app_name: "示例会议" }],
+    }, undefined, "2026-11-03T20:30:00.000Z");
+    await upsertDailyRows(env, rows);
+    const stored = await readDailyMetrics(env, "2026-11-03");
+    expect(stored?.metrics.appMinutes).toEqual({});
+    expect(stored?.metrics.meetingAppMinutes?.["示例会议"]).toMatchObject({ minutes: 1, category: "会议" });
   });
 });

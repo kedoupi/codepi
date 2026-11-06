@@ -273,6 +273,24 @@ describe("P4 接口", () => {
     expect(work.work_minutes).toBe(80);
     expect(work.meeting_sessions).toBe(2);
   });
+  it("进行中一周的会议场次只累加已知日，未来无数据日不影响总数", async () => {
+    const monday = new Date(`${today}T00:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    const knownDay = monday.toISOString().slice(0, 10);
+    await insertHeatmapMetric(knownDay, { "09": 30 });
+    await env.DB.prepare("UPDATE daily_metrics SET status_minutes_json=?, version=? WHERE date=?")
+      .bind(JSON.stringify({ office_active: 30, office_meeting: 30 }), "p10-2026-11-06", knownDay).run();
+    await env.DB.prepare("INSERT INTO daily_status (date, segments_json, computed_at, version) VALUES (?, ?, ?, ?)")
+      .bind(knownDay, JSON.stringify([
+        { status: "office_meeting", startMinute: 540, endMinute: 549, evidence: "inferred" },
+        { status: "office_meeting", startMinute: 570, endMinute: 579, evidence: "inferred" },
+      ]), new Date().toISOString(), "p10-2026-11-06").run();
+    const h = harness([]);
+    const cookie = await h.login();
+    const work = await (await h.send(`/api/work?date=${today}&range=week`, { cookie })).json() as Record<string, any>;
+    expect(work.days).toHaveLength(7);
+    expect(work.meeting_sessions).toBe(2);
+  });
 
   it("工作页热力图按周一至周五分别计算有样本日均值", async () => {
     const monday = priorWeekday(1);

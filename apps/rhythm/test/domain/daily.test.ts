@@ -85,6 +85,17 @@ describe("每日指标", () => {
       afternoon: { longest_minutes: 0, has_90_minutes: false },
     });
   });
+  it("开会分钟不进专注段与每小时工位活跃", () => {
+    const meetingInput = input();
+    const meetingRows = meetingInput.activity.map(row => ({ ...row, power: "电池", app_name: "示例会议" }));
+    const result = calculateDailyMetrics({ ...meetingInput, activity: meetingRows, appCategories: { "示例会议": "会议" } });
+    expect(result.metrics.officeMeetingMinutes).toBeGreaterThan(0);
+    expect(result.metrics.officeActiveMinutes).toBe(0);
+    expect(result.metrics.focus).toMatchObject({ segmentCount: 0, totalMinutes: 0, longestMinutes: 0, communicationInterruptions: 0 });
+    expect(result.metrics.hourlyActiveMinutes).toEqual({});
+    expect(result.metrics.appCategoryMinutes["会议"]).toBe(0);
+    expect(result.metrics.meetingAppCategoryMinutes?.["会议"]).toBe(30);
+  });
   it("十分钟以内离座不切断在工位整块，但不计离座分钟", () => {
     expect(workAvailability([
       { status: "office_active", startMinute: 100, endMinute: 159 },

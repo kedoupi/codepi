@@ -167,6 +167,6 @@
     </div>
 
     <section class="panel interruptions-panel"><div class="section-heading"><div><h2>被打断</h2><p class="muted">橙色表示高于当天平均 1.5 倍。</p></div><strong>{work.communication_interruptions === null ? "暂无数据" : `${work.communication_interruptions.toFixed(range === "week" ? 1 : 0)} 次`}</strong></div>{#if work.hourly?.length}<div class="switch-chart" role="img" aria-label="每小时切换 App 次数">{#each work.hourly as item}<div class:above-average={item.above_average} class="switch-bar"><strong>{item.switch_count === null ? "暂无数据" : Math.round(item.switch_count)}</strong><i style={`height:${item.switch_count === null ? 0 : item.switch_count / maxSwitches * 96}px`}></i><span>{item.hour}</span></div>{/each}</div><p class="chart-conclusion">沟通打断专注 {work.communication_interruptions === null ? "暂无数据" : `${work.communication_interruptions.toFixed(range === "week" ? 1 : 0)} 次`}；偏多时段高于当天平均 1.5 倍。</p>{:else}<p class="empty-small">暂无数据</p>{/if}</section>
-    <section class="panel work-method"><h2>口径</h2><p class="muted">工位与 App 只算 `office_active` 状态；开会单独计入工作时长；离座 = 接电或电源未知、无键鼠且夹在公司工作状态之间。分钟采样，是近似值。</p></section>
+    <section class="panel work-method"><h2>口径</h2><p class="muted">工位与 App 只算公司网络、未锁屏且有键鼠操作的分钟；开会单独计入工作时长；离座 = 接电或电源未知、无键鼠且夹在公司工作状态之间。分钟采样，是近似值。</p></section>
   {/if}
 </section>

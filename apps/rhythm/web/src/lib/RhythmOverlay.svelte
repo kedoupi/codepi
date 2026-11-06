@@ -76,10 +76,12 @@
           {/if}
           {#if m.startWorkMinute !== null && m.leaveComputerMinute !== null && m.leaveComputerMinute > m.startWorkMinute}
             <rect data-series="office_active" x={pct(x(m.startWorkMinute))} y={top} width={pct(x(m.leaveComputerMinute) - x(m.startWorkMinute))} height={rowHeight}></rect>
-          {#if m.officeMeetingMinutes && m.startWorkMinute !== null}
-            <rect data-series="office_meeting" x={pct(x(m.startWorkMinute))} y={top} width={pct((m.officeMeetingMinutes / 1440) * plotWidth)} height={rowHeight}></rect>
           {/if}
-          {/if}
+          {#each day.segments ?? [] as segment}
+            {#if segment.status === "office_meeting"}
+              <rect data-series="office_meeting" x={pct(x(segment.startMinute))} y={top} width={pct(x(segment.endMinute + 1) - x(segment.startMinute))} height={rowHeight}></rect>
+            {/if}
+          {/each}
           {#if m.leaveHomeMinute === null && m.startWorkMinute === null && (m.homeMinutes ?? 0) > 0}
             <rect data-series="home" x={pct(left)} y={top} width={pct(plotWidth)} height={rowHeight} opacity="0.55"></rect>
           {/if}

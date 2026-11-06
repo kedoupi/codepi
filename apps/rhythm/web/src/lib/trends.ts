@@ -27,6 +27,7 @@ export type DailyMetrics = {
 export type TrendDay = {
   date: string; dayType: DayType | null; missing: boolean; partial?: boolean;
   computedAt?: string; metrics: DailyMetrics | null;
+  segments?: Array<{ status: string; startMinute: number; endMinute: number }>;
 };
 
 export type MetricAverage = {

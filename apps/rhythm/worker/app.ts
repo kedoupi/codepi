@@ -683,6 +683,8 @@ get("/api/trends", async c => {
   const bounds = rangeBounds(new URL(c.req.url));
   const comparisonFrom = dateOffset(weekStart(bounds.end), -7);
   const rows = await metricsRows(c.env, comparisonFrom, bounds.end, await readSettings(c.env));
+  const statusRows = await readDailyStatusRange(c.env, bounds.from, bounds.end);
+  const statusByDate = new Map(statusRows.filter(row => row.version === DAILY_ALGORITHM_VERSION).map(row => [row.date, row]));
   const selectedRows = rows.filter(row => row.date >= bounds.from);
   // 今天还没过完：只在逐日列表里展示，不进平均值与按周对比。
   const today = shanghaiDate(Date.now());
@@ -697,7 +699,7 @@ get("/api/trends", async c => {
     from: bounds.from,
     to: bounds.end,
     days_available: selectedRows.length,
-    days: trendDays(bounds.from, bounds.end, selectedRows).map(day => ({ ...day, partial: day.date === today })),
+    days: trendDays(bounds.from, bounds.end, selectedRows).map(day => ({ ...day, partial: day.date === today, segments: statusByDate.get(day.date)?.segments })),
     averages: {
       workday: averageMetrics(completeRows, "workday"),
       restday: averageMetrics(completeRows, "restday"),
