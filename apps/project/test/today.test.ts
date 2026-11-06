@@ -183,7 +183,6 @@ describe("today board", () => {
     expect(removed.pool.map(task => task.key)).not.toContain("recreated");
     expect(removed.done.map(task => task.key)).not.toContain("recreated");
     expect(removed.deleted.map(task => task.key)).not.toContain("recreated");
-    await env.DB.prepare("DELETE FROM tasks WHERE project_id='codepi' AND key='recreated'").run();
     await worker.fetch(ingestRequest("codepi", token, samplePayload({
       tasks: [{ key: "recreated", title: "可重建事项", status: "doing", category: "流程", need_kind: "none" }],
     })), env);
@@ -191,6 +190,21 @@ describe("today board", () => {
     const result = await todayView(env, day);
     expect(result.pool.map(task => task.key)).toEqual(["recreated"]);
     expect(result.deleted).toEqual([]);
+  });
+
+  it("clears owner_deleted when a pruned task is recreated", async () => {
+    const token = await seedToday([{ key: "pruned", title: "清理后重建", status: "doing", category: "流程", need_kind: "none" }]);
+    await deleteToday(env, "codepi", "pruned", day);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
+    const old = new Date(Date.now() - (90 + 1) * 86400_000).toISOString();
+    await env.DB.prepare("UPDATE tasks SET done_at=? WHERE project_id='codepi' AND key='pruned'").bind(old).run();
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: [] })), env);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE project_id='codepi' AND key='pruned'").first<{ n: number }>())?.n).toBe(0);
+    await worker.fetch(ingestRequest("codepi", token, samplePayload({
+      tasks: [{ key: "pruned", title: "清理后重建", status: "doing", category: "流程", need_kind: "none" }],
+    })), env);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM owner_deleted WHERE project_id='codepi' AND task_key='pruned'").first<{ n: number }>())?.n).toBe(0);
+    expect((await todayView(env, day)).pool.map(task => task.key)).toEqual(["pruned"]);
   });
 
   it("does not let the assistant pick a deleted task", async () => {
@@ -203,12 +217,18 @@ describe("today board", () => {
   it("records checks across days, updates same-day notes, and moves picks back to the pool", async () => {
     await seedToday([{ key: "checked", title: "待检查", status: "doing", category: "流程", need_kind: "none" }]);
     await pickToday(env, "codepi", "checked", "owner", day);
+    await unpickToday(env, "codepi", "checked", day);
     expect(await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第一天结论" }], day)).toEqual({ written: 1, skipped: 0 });
     expect((await todayView(env, day)).today).toEqual([]);
     expect((await todayView(env, day)).pool[0]).toMatchObject({
       key: "checked", checks: { count: 1, last_note: "第一天结论", today: true },
     });
+    expect(await checkAgentToday(env, [{ project: "codepi", key: "checked", note: "第二次结论" }], day)).toEqual({ written: 1, skipped: 0 });
+    expect((await todayView(env, day)).pool[0]).toMatchObject({
+      key: "checked", checks: { count: 1, last_note: "第二次结论", today: true },
+    });
     expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], day)).toEqual({ written: 0 });
+    expect(await pickToday(env, "codepi", "checked", "agent", day)).toEqual({ written: 0 });
     const nextDayTime = new Date("2026-11-06T12:00:00+08:00");
     expect(await pickAgentToday(env, [{ project: "codepi", key: "checked" }], nextDayTime)).toEqual({ written: 1 });
     await unpickToday(env, "codepi", "checked", nextDayTime);

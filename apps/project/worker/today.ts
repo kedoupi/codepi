@@ -188,10 +188,11 @@ export async function pickToday(env: Env, project: unknown, key: unknown, picked
   if (await env.DB.prepare("SELECT 1 FROM owner_deleted WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first()) return { written: 0 };
   const day = today(now);
+  if (pickedBy === "agent" && await env.DB.prepare("SELECT 1 FROM agent_checked WHERE project_id=? AND task_key=? AND checked_day=?")
+    .bind(projectId, task.key, day).first()) return { written: 0 };
   const existing = await env.DB.prepare("SELECT picked_by, removed_day FROM today_picks WHERE project_id=? AND task_key=?")
     .bind(projectId, task.key).first<{ picked_by: "owner" | "agent"; removed_day: string | null }>();
   if (pickedBy === "agent" && existing?.removed_day === day) return { written: 0 };
-  if (existing?.picked_by === "owner" && pickedBy === "agent") return { written: 0 };
   if (existing?.picked_by === pickedBy && existing.removed_day === null) return { written: 0 };
   const createdAt = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   const conflictWhere = pickedBy === "agent" ? " WHERE today_picks.picked_by <> 'owner'" : "";
@@ -303,13 +304,21 @@ export async function pickAgentToday(env: Env, refs: TodayTaskRef[], now = new D
       SELECT 1 FROM owner_deleted x
       WHERE x.project_id=json_extract(value,'$.project_id')
         AND x.task_key=json_extract(value,'$.key')
+    ) AND NOT EXISTS (
+      SELECT 1 FROM agent_checked c
+      WHERE c.project_id=json_extract(value,'$.project_id')
+        AND c.task_key=json_extract(value,'$.key') AND c.checked_day=?
     )
     ON CONFLICT(project_id, task_key) DO UPDATE SET picked_day=excluded.picked_day,
       picked_by=excluded.picked_by, removed_day=NULL
     WHERE today_picks.picked_by <> 'owner'
+      AND NOT EXISTS (
+        SELECT 1 FROM agent_checked c
+        WHERE c.project_id=today_picks.project_id AND c.task_key=today_picks.task_key AND c.checked_day=?
+      )
       AND ((today_picks.removed_day IS NULL AND today_picks.picked_by <> 'agent')
         OR (today_picks.removed_day IS NOT NULL AND today_picks.removed_day <> ?))`).bind(
-          day, createdAt, JSON.stringify(targets), day).run();
+          day, createdAt, JSON.stringify(targets), day, day, day).run();
   return { written: Number(result.meta?.changes || 0) };
 }
 
