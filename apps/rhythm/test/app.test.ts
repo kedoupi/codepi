@@ -198,7 +198,7 @@ it("来源页给出每个状态的判断方法、口径与不采集清单", asyn
   expect(body.sources.home.name).toBeTruthy();
   expect(body.sources.work.method).toContain("键鼠");
   expect(body.states.map((state: { status: string }) => state.status)).toEqual([
-    "bedroom", "living_room", "home", "office_active", "office_away", "office_meeting", "commute", "other_network", "unknown",
+    "bedroom", "living_room", "home", "office_active", "office_away", "office_meeting", "commute", "outside", "other_network", "unknown",
   ]);
   for (const state of body.states) expect(state.method).toBeTruthy();
   expect(body.caveats.length).toBeGreaterThanOrEqual(5);
@@ -270,6 +270,14 @@ it("当前状态卡保留当前时刻并把状态截至最近可判断分钟", (
   const minuteEvidence = Array(1440).fill("no_data");
   minuteStatuses[580] = "office_active";
   minuteEvidence[580] = "seen";
+  const day = { minuteStatuses, minuteEvidence } as unknown as DayComputation;
+  expect(selectCurrentStatus(day, 600)).toEqual({ minute: 600, statusMinute: 580 });
+});
+it("当前状态卡把 outside 作为可回退的推断状态", () => {
+  const minuteStatuses = Array(1440).fill("unknown");
+  const minuteEvidence = Array(1440).fill("no_data");
+  minuteStatuses[580] = "outside";
+  minuteEvidence[580] = "inferred";
   const day = { minuteStatuses, minuteEvidence } as unknown as DayComputation;
   expect(selectCurrentStatus(day, 600)).toEqual({ minute: 600, statusMinute: 580 });
 });

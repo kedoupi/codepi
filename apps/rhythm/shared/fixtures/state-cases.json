@@ -381,5 +381,63 @@
       "statusAt": {"10":"living_room","30":"living_room","31":"unknown"},
       "evidenceAt": {"10":"inferred","30":"inferred","31":"no_data"}
     }
+  },
+  {
+    "name": "长空档在外与扫描缺口",
+    "date": "2026-11-10",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [
+      {"from":"2026-11-10T09:30:00+08:00","to":"2026-11-10T10:00:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40},
+      {"from":"2026-11-10T17:00:00+08:00","to":"2026-11-10T17:30:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40}
+    ],
+    "devices": [{"device_id":"dev-a","name":"示例手机","vendor":"示例厂商","room":"客厅"}],
+    "snapshots": [],
+    "events": [
+      {"event_at":"2026-11-10T07:00:00+08:00","device_id":"dev-a","status":"online","room":"客厅"},
+      {"event_at":"2026-11-10T07:01:00+08:00","device_id":"dev-a","status":"offline"},
+      {"event_at":"2026-11-10T20:00:00+08:00","device_id":"dev-a","status":"online","room":"客厅"},
+      {"event_at":"2026-11-10T20:01:00+08:00","device_id":"dev-a","status":"offline"}
+    ],
+    "heartbeats": [
+      {"from":"2026-11-10T00:00:00+08:00","to":"2026-11-10T07:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":1},
+      {"from":"2026-11-10T08:00:00+08:00","to":"2026-11-10T08:20:00+08:00","everyMinutes":1,"scan_ok":0,"device_count":1},
+      {"from":"2026-11-10T08:30:00+08:00","to":"2026-11-10T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":1}
+    ],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"420":"living_room","500":"unknown","510":"outside","540":"outside","570":"office_active","1049":"office_active","1100":"outside","1199":"outside","1200":"living_room"},
+      "evidenceAt": {"500":"no_data","510":"inferred","1199":"inferred"},
+      "contains": ["start_work","leave_computer"],
+      "metrics": {"commuteToWorkMinutes":0,"commuteHomeMinutes":0,"officeActiveMinutes":72,"homeMinutes":2,"livingRoomMinutes":2,"homeUnknownMinutes":0}
+    }
+  },
+  {
+    "name": "下班长空档在外到家",
+    "date": "2026-11-11",
+    "subjectDeviceIds": ["dev-a"],
+    "activity": [
+      {"from":"2026-11-11T09:00:00+08:00","to":"2026-11-11T09:30:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40},
+      {"sampled_at":"2026-11-11T09:31:00+08:00","idle_sec":999,"locked":false},
+      {"from":"2026-11-11T17:00:00+08:00","to":"2026-11-11T17:51:00+08:00","everyMinutes":1,"net":"office","idle_sec":30,"locked":false,"key_idle_sec":20,"pointer_idle_sec":40},
+      {"sampled_at":"2026-11-11T17:52:00+08:00","idle_sec":999,"locked":false}
+    ],
+    "devices": [{"device_id":"dev-a","name":"示例手机","vendor":"示例厂商","room":"客厅"}],
+    "snapshots": [],
+    "events": [
+      {"event_at":"2026-11-11T07:00:00+08:00","device_id":"dev-a","status":"online","room":"客厅"},
+      {"event_at":"2026-11-11T07:01:00+08:00","device_id":"dev-a","status":"offline"},
+      {"event_at":"2026-11-11T20:49:00+08:00","device_id":"dev-a","status":"online","room":"客厅"},
+      {"event_at":"2026-11-11T20:50:00+08:00","device_id":"dev-a","status":"offline"}
+    ],
+    "heartbeats": [
+      {"from":"2026-11-11T00:00:00+08:00","to":"2026-11-11T23:50:00+08:00","everyMinutes":10,"scan_ok":1,"device_count":1}
+    ],
+    "appCategories": {},
+    "expect": {
+      "statusAt": {"420":"living_room","421":"commute","539":"commute","540":"office_active","571":"unknown","1071":"office_active","1072":"outside","1248":"outside","1249":"living_room"},
+      "evidenceAt": {"421":"inferred","1072":"inferred","1248":"inferred"},
+      "contains": ["leave_home","start_work","leave_computer"],
+      "notContains": ["arrive_home"]
+    }
   }
-]
+ ]

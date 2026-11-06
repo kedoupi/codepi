@@ -1,6 +1,6 @@
 export const RHYTHM_STATUSES = [
   "bedroom", "living_room", "home", "office_active", "office_away", "office_meeting",
-  "commute", "other_network", "unknown",
+  "commute", "outside", "other_network", "unknown",
 ] as const;
 export type RhythmStatus = typeof RHYTHM_STATUSES[number];
 export type DayStatus = RhythmStatus | "not_arrived";

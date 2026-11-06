@@ -61,13 +61,14 @@ export type QualityPayload = {
   }>;
 };
 
-/** 趋势图里的状态分组：家里暂不区分卧室与客厅（用户 2026-11-04 决定），统一并成「在家」。 */
+/** 趋势图里的状态分组：家里暂不区分卧室与客厅，统一并成「在家」。 */
 export const STATUS_GROUPS = [
   { key: "home", label: "在家", statuses: ["bedroom", "living_room", "home"] },
   { key: "office_active", label: "公司 · 在电脑前", statuses: ["office_active"] },
   { key: "office_away", label: "公司 · 离座", statuses: ["office_away"] },
   { key: "office_meeting", label: "公司 · 开会", statuses: ["office_meeting"] },
   { key: "commute", label: "通勤", statuses: ["commute"] },
+  { key: "outside", label: "在外", statuses: ["outside"] },
   { key: "other_network", label: "其他网络", statuses: ["other_network"] },
   { key: "unknown", label: "未知", statuses: ["unknown"] },
 ] as const;

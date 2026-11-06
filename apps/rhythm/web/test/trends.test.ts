@@ -19,7 +19,7 @@ function response(body: unknown, status = 200) {
 function metrics(overrides: Partial<DailyMetrics> = {}): DailyMetrics {
   return {
     commuteToWorkMinutes: 60, commuteHomeMinutes: 70, officeActiveMinutes: 480, homeMinutes: 720,
-    statusMinutes: { bedroom: 0, living_room: 0, home: 720, office_active: 480, office_away: 60, commute: 130, other_network: 0, unknown: 50 },
+    statusMinutes: { bedroom: 0, living_room: 0, home: 720, office_active: 480, office_away: 60, commute: 130, outside: 30, other_network: 0, unknown: 20 },
     wakeMinute: null, leaveHomeMinute: 480, startWorkMinute: 540, leaveComputerMinute: 1080, arriveHomeMinute: 1150, returnBedroomMinute: null,
     officeSpanMinutes: 540,
     focus: { segmentCount: 3, totalMinutes: 150, longestMinutes: 70, communicationInterruptions: 2 },
@@ -105,9 +105,10 @@ describe("趋势换算", () => {
     expect(deltaText(null, "duration")).toBe("无法比较");
   });
 
-  it("卧室、客厅与在家合并成「在家」，合计仍是 24 小时", () => {
-    const groups = statusGroups({ bedroom: 100, living_room: 50, home: 20, office_active: 600, unknown: 670 })!;
+  it("卧室、客厅与在家合并，且保留在外分组", () => {
+    const groups = statusGroups({ bedroom: 100, living_room: 50, home: 20, office_active: 600, outside: 30, unknown: 640 })!;
     expect(groups.find(group => group.key === "home")?.value).toBe(170);
+    expect(groups.find(group => group.key === "outside")?.value).toBe(30);
     expect(groups.reduce((sum, group) => sum + group.value, 0)).toBe(1440);
   });
 

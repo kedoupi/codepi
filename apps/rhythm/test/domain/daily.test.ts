@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calculateDailyMetrics, dailyRows, workAvailability } from "../../worker/daily";
+import { loadCases, toStateInput } from "../../shared/cases";
 import type { StateInput } from "../../worker/models";
 import { phonePresenceByMinute, shanghaiDate } from "../../worker/state";
 
@@ -67,9 +68,19 @@ describe("每日指标", () => {
   it("生成可幂等写入的状态和指标行", () => {
     const rows = dailyRows(input(), undefined, "2026-11-03T20:30:00.000Z");
     expect(rows.status.date).toBe("2026-11-03");
-    expect(rows.status.version).toBe("p10-2026-11-06");
+    expect(rows.status.version).toBe("p11-2026-11-06");
     expect(rows.metrics.metrics.dayType).toBe("workday");
     expect(rows.metrics.computedAt).toBe("2026-11-03T20:30:00.000Z");
+  });
+  it("每日汇总包含 outside，且 outside 不计入工作、在家和通勤", () => {
+    const item = loadCases().find(candidate => candidate.name === "下班长空档在外到家")!;
+    const result = calculateDailyMetrics(toStateInput(item));
+    expect(result.metrics.statusMinutes).toHaveProperty("outside");
+    expect(result.metrics.statusMinutes.outside).toBe(177);
+    expect(result.metrics.officeActiveMinutes).toBe(83);
+    expect(result.metrics.homeMinutes).toBe(2);
+    expect(result.metrics.commuteToWorkMinutes).toBe(119);
+    expect(result.metrics.commuteHomeMinutes).toBe(0);
   });
   it("专注可用度按会议与离座打断，统计上午下午 90 分钟整块", () => {
     const availability = workAvailability([
@@ -155,7 +166,9 @@ describe("每日指标", () => {
 
   it("缺口原因：心跳缺失、手机没扫到、其余归工作机", () => {
     const base = input();
-    const heartbeats = [];
+    const heartbeats = [
+      { observed_at: "2026-11-03T00:00:00+08:00", scan_ok: true },
+    ];
     for (let minute = 0; minute < 60; minute += 5) {
       heartbeats.push({ observed_at: `2026-11-03T20:${String(minute).padStart(2, "0")}:00+08:00`, scan_ok: true });
     }

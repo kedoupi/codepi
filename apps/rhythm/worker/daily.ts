@@ -6,7 +6,7 @@ import type {
 } from "./models";
 import type { Env } from "./types";
 
-export const DAILY_ALGORITHM_VERSION = "p10-2026-11-06";
+export const DAILY_ALGORITHM_VERSION = "p11-2026-11-06";
 const MINUTES_PER_DAY = 1440;
 const MS_PER_MINUTE = 60_000;
 export { APP_CATEGORIES };

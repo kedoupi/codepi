@@ -26,6 +26,8 @@ describe("共享状态用例", () => {
       "网络标签 cutoff 边界",
       "整数心跳双设备在家",
       "事件 no-response 沿用快照前态 freshness",
+      "长空档在外与扫描缺口",
+      "下班长空档在外到家",
     ]);
   });
   for (const item of cases) {
@@ -393,6 +395,56 @@ describe("通勤是推断且有上限", () => {
     expect(beyond.minuteStatuses[60]).toBe("unknown");
     expect(beyond.metrics.commuteToWorkMinutes).toBe(0);
     expect(beyond.minuteStatuses).not.toContain("commute");
+  });
+});
+describe("在外状态", () => {
+  it("17:51 最后活动到 20:49 到家只把 17:52–20:48 记为在外", () => {
+    const item = cases.find(candidate => candidate.name === "下班长空档在外到家")!;
+    const day = calculateDay(toStateInput(item));
+    expect(day.minuteStatuses[1071]).toBe("office_active");
+    expect(day.minuteStatuses.slice(1072, 1249).every(status => status === "outside")).toBe(true);
+    expect(day.minuteStatuses[1249]).toBe("living_room");
+    expect(day.moments.filter(moment => moment.kind === "leave_computer").map(moment => moment.minute)).toEqual([1072]);
+    expect(day.moments.map(moment => moment.kind)).not.toContain("arrive_home");
+    expect(day.minuteStatuses.filter(status => status === "outside")).toHaveLength(177);
+  });
+
+  it("同形状的 120 分钟以内缺口仍为通勤", () => {
+    const input = toStateInput(cases.find(candidate => candidate.name === "下班长空档在外到家")!);
+    input.events = input.events.map(event => event.event_at.startsWith("2026-11-11T20:49")
+      ? { ...event, event_at: "2026-11-11T19:00:00+08:00" }
+      : event.event_at.startsWith("2026-11-11T20:50")
+        ? { ...event, event_at: "2026-11-11T19:01:00+08:00" }
+        : event);
+    const day = calculateDay(input);
+    expect(day.minuteStatuses[1100]).toBe("commute");
+    expect(day.minuteStatuses).not.toContain("outside");
+  });
+
+  it("未配置手机、没有办公锚点、历史日未回家都不推断在外", () => {
+    const exact = toStateInput(cases.find(candidate => candidate.name === "下班长空档在外到家")!);
+    const noPhone = calculateDay({ ...exact, subjectDeviceIds: [] });
+    expect(noPhone.minuteStatuses).not.toContain("outside");
+
+    const noOffice = calculateDay({ ...exact, activity: [] });
+    expect(noOffice.minuteStatuses).not.toContain("outside");
+
+    const noReturn = calculateDay({ ...exact, events: exact.events.filter(event => !event.event_at.startsWith("2026-11-11T20:49") && !event.event_at.startsWith("2026-11-11T20:50")) });
+    expect(noReturn.minuteStatuses).not.toContain("outside");
+  });
+
+  it("当天尾部手机离线或扫描失败时保持未知", () => {
+    const exact = toStateInput(cases.find(candidate => candidate.name === "下班长空档在外到家")!);
+    const offlineAtNight = calculateDay({
+      ...exact,
+      events: [...exact.events.filter(event => !event.event_at.startsWith("2026-11-11T20:49") && !event.event_at.startsWith("2026-11-11T20:50")), { device_id: "dev-a", event_at: "2026-11-11T20:00:00+08:00", status: "offline" }],
+    }, Date.parse("2026-11-11T23:00:00+08:00"));
+    expect(offlineAtNight.minuteStatuses[1200]).toBe("unknown");
+    expect(offlineAtNight.minuteStatuses).not.toContain("outside");
+
+    const scanFailed = calculateDay({ ...exact, heartbeats: exact.heartbeats.map(row => ({ ...row, scan_ok: false })) });
+    expect(scanFailed.minuteStatuses[1200]).toBe("unknown");
+    expect(scanFailed.minuteStatuses).not.toContain("outside");
   });
 });
 

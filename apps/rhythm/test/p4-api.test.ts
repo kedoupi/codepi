@@ -257,7 +257,7 @@ describe("P4 接口", () => {
     const day = daysAgo(3);
     await insertHeatmapMetric(day, { "09": 60 });
     await env.DB.prepare("UPDATE daily_metrics SET status_minutes_json=?, version=? WHERE date=?")
-      .bind(JSON.stringify({ office_active: 60, office_meeting: 20, office_away: 0 }), "p10-2026-11-06", day).run();
+      .bind(JSON.stringify({ office_active: 60, office_meeting: 20, office_away: 0 }), "p11-2026-11-06", day).run();
     await env.DB.prepare("INSERT INTO daily_status (date, segments_json, computed_at, version) VALUES (?, ?, ?, ?)")
       .bind(day, JSON.stringify([
         { status: "office_active", startMinute: 540, endMinute: 599, evidence: "seen" },
@@ -265,7 +265,7 @@ describe("P4 接口", () => {
         { status: "office_away", startMinute: 610, endMinute: 614, evidence: "inferred" },
         { status: "office_meeting", startMinute: 615, endMinute: 619, evidence: "inferred" },
         { status: "office_meeting", startMinute: 626, endMinute: 630, evidence: "inferred" },
-      ]), new Date().toISOString(), "p10-2026-11-06").run();
+      ]), new Date().toISOString(), "p11-2026-11-06").run();
     const h = harness([]);
     const cookie = await h.login();
     const work = await (await h.send(`/api/work?date=${day}`, { cookie })).json() as Record<string, any>;
@@ -279,12 +279,12 @@ describe("P4 接口", () => {
     const knownDay = monday.toISOString().slice(0, 10);
     await insertHeatmapMetric(knownDay, { "09": 30 });
     await env.DB.prepare("UPDATE daily_metrics SET status_minutes_json=?, version=? WHERE date=?")
-      .bind(JSON.stringify({ office_active: 30, office_meeting: 30 }), "p10-2026-11-06", knownDay).run();
+      .bind(JSON.stringify({ office_active: 30, office_meeting: 30 }), "p11-2026-11-06", knownDay).run();
     await env.DB.prepare("INSERT INTO daily_status (date, segments_json, computed_at, version) VALUES (?, ?, ?, ?)")
       .bind(knownDay, JSON.stringify([
         { status: "office_meeting", startMinute: 540, endMinute: 549, evidence: "inferred" },
         { status: "office_meeting", startMinute: 570, endMinute: 579, evidence: "inferred" },
-      ]), new Date().toISOString(), "p10-2026-11-06").run();
+      ]), new Date().toISOString(), "p11-2026-11-06").run();
     const h = harness([]);
     const cookie = await h.login();
     const work = await (await h.send(`/api/work?date=${today}&range=week`, { cookie })).json() as Record<string, any>;
