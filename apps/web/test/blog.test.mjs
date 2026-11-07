@@ -280,6 +280,7 @@ test('blog endpoints require owner session and origin', async t => {
   const f = await deskFixture(t);
   assert.equal((await f.call('/api/blog/drafts')).status, 401);
   const login = await f.otpLogin('desk');
+  assert.equal((await f.call('/api/blog/drafts', login.localCookie, undefined, { Origin: 'http://evil.test' })).status, 403);
   assert.equal((await f.call('/api/blog/drafts', login.localCookie, {}, { Origin: 'http://evil.test' })).status, 403);
 });
 
