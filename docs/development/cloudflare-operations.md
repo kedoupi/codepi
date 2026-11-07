@@ -222,8 +222,9 @@ pnpm exec wrangler r2 bucket lifecycle list codepi-ops-backups
 后者真实运行 Workerd、Workflows、GU named RPC 和本地 D1/R2，只使用合成数据与网络 stub；
 并把备份恢复至另一组隔离 D1/R2，验证匿名拒绝、会话下载与逐字节一致。
 
-原 `production-monitor.yml` / `d1-backup.yml` 保留为手动应急入口，已去掉 push 和
-schedule。GitHub CI 仍可验证代码，其账户分钟耗尽不影响 CF 定时任务。
+原 `production-monitor.yml` / `d1-backup.yml` 手动应急入口已于 2026-11-07 删除，GitHub 仓库不再保存
+Cloudflare 凭据（所有者决定发布、备份、巡检都在本机）；应急时在本机运行 `scripts/cloudflare/production-monitor.mjs`
+与 `scripts/cloudflare/d1-backup.mjs`。GitHub CI 只做代码校验，其账户分钟耗尽不影响 CF 定时任务。
 Cloudflare 本身不可用时，不能依靠同平台调度监控自身；跨平台密文与恢复私钥的独立
 保管仍是恢复边界。资源事实和本次上线证据见
 [登记表](cloudflare-resource-registry.md) 与 [任务记录](tasks/2026-10-19-cloudflare-operations.md)。

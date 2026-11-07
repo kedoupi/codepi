@@ -8,7 +8,7 @@ const root = new URL('../../', import.meta.url);
 const workspaceFiles = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'];
 
 test('all workflow actions are pinned to immutable official commits', async () => {
-  for (const name of ['d1-backup', 'deploy-platform', 'production-monitor']) {
+  for (const name of ['deploy-platform']) {
     const workflow = await readFile(new URL(`.github/workflows/${name}.yml`, root), 'utf8');
     const uses = workflow.split('\n').filter(line => /\buses:/.test(line));
     assert.ok(uses.length > 0, `${name}: expected Actions uses`);
@@ -72,11 +72,14 @@ test('CI push plans use the pushed source rather than unrelated worktree changes
   assert.deepEqual(JSON.parse(result.stdout).jobs, []);
 });
 
-test('manual fallback monitoring remains strict and read-only', async () => {
-  const workflow = await readFile(new URL('.github/workflows/production-monitor.yml', root), 'utf8');
-  assert.match(workflow, /fetch-depth: 0/);
-  assert.match(workflow, /production-monitor\.mjs --require-d1 --require-versions/);
-  assert.doesNotMatch(workflow, /^  (?:schedule|push):/m);
-  assert.match(workflow, /^  workflow_dispatch:/m);
-  assert.doesNotMatch(workflow, /continue-on-error|contents: write/);
+test('GitHub workflows hold no Cloudflare credentials; fallback monitor and backup run locally', async () => {
+  // 2026-11-07 owner decision: releases, backups and monitoring run on the owner's machine; GitHub only validates.
+  const { readdir } = await import('node:fs/promises');
+  const dir = new URL('.github/workflows/', root);
+  for (const name of await readdir(dir)) {
+    const text = await readFile(new URL(name, dir), 'utf8');
+    assert.doesNotMatch(text, /secrets\.CLOUDFLARE_/, `${name} must not use Cloudflare secrets`);
+  }
+  assert.ok(!(await readdir(dir)).includes('production-monitor.yml'));
+  assert.ok(!(await readdir(dir)).includes('d1-backup.yml'));
 });

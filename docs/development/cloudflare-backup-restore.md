@@ -28,7 +28,7 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
 ## 备份架构
 
 - 自动任务由 `services/ops` 的 Cloudflare Cron/Workflows 执行，每日 UTC 18:00
-  （北京时间次日 02:00）；原 `d1-backup.yml` 为手动应急入口，不再定时消耗 runner。
+  （北京时间次日 02:00）；原 GitHub `d1-backup.yml` 手动应急入口已于 2026-11-07 删除（所有者决定发布、备份、巡检都在本机，GitHub 不再保存 Cloudflare 凭据）；应急导出在本机运行 `node scripts/cloudflare/d1-backup.mjs --out <目录>`。
 - 通过 D1 polling export API 依次导出 `DATABASE_NAMES` 中的全部生产库（包含 MCP 授权库）。导出可能暂时影响该库请求，
   因此安排在低峰；不创建第二套业务环境。
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；

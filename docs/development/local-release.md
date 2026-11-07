@@ -207,7 +207,7 @@ node scripts/cloudflare/release-observe.mjs --sha "$release_sha" --nonce <短标
 不自动重跑旧 Actions 部署。凭证、域名、数据清理必须保持各自授权边界。
 
 定时巡检与加密日备由 `services/ops` 的 Cloudflare Cron/Workflows 执行，原
-`production-monitor.yml` / `d1-backup.yml` 仅保留手动应急入口。验收须核实真实
+GitHub `production-monitor.yml` / `d1-backup.yml` 已于 2026-11-07 删除，应急巡检与导出在本机运行对应脚本。验收须核实真实
 Workflow 实例、R2 当前 v4 完整清单和私有访问；GitHub Release 不是当前自动备份通道，
 外部灾备副本与隔离恢复另行记录。详见[定时运维](cloudflare-operations.md)。
 本地仍可执行 `node scripts/cloudflare/production-monitor.mjs --require-d1 --require-versions`。
