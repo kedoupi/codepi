@@ -23,31 +23,77 @@ export function githubHistory({ token, request = fetch, repository } = {}) {
     if (ref !== 'main') assert.ok(commit.sha.startsWith(ref), 'GitHub resolved a different build');
     return commit.sha;
   };
+  const filePaths = entries => {
+    const paths = new Set();
+    for (const file of entries) {
+      assert.ok(typeof file?.filename === 'string', 'invalid GitHub commit path');
+      paths.add(file.filename);
+      if (file.previous_filename !== undefined) {
+        assert.ok(typeof file.previous_filename === 'string', 'invalid GitHub previous commit path');
+        paths.add(file.previous_filename);
+      }
+    }
+    return paths;
+  };
+  const commitParents = commit => {
+    assert.ok(Array.isArray(commit?.parents) && commit.parents.length > 0,
+      'GitHub commit parents are unavailable');
+    return commit.parents.map(parent => {
+      assert.match(parent?.sha ?? '', SHA, 'invalid GitHub parent commit SHA');
+      return parent.sha;
+    });
+  };
   const changedFiles = async sha => {
-    const files = [];
+    const files = new Set();
+    let parents;
     for (let page = 1; page <= 30; page++) {
       const result = await get(`/commits/${sha}?per_page=100&page=${page}`);
       assert.equal(result?.sha, sha, 'GitHub commit changed during pagination');
+      parents ??= commitParents(result);
       assert.ok(Array.isArray(result.files), 'GitHub commit file history is unavailable');
-      for (const file of result.files) {
-        assert.ok(typeof file.filename === 'string', 'invalid GitHub commit path');
-        files.push(file.filename);
-        if (file.previous_filename) files.push(file.previous_filename);
-      }
-      if (result.files.length < 100) return files;
+      for (const file of filePaths(result.files)) files.add(file);
+      if (result.files.length < 100) return { files, parents };
     }
     throw new Error('GitHub commit file list may be truncated; history cannot be verified');
+  };
+  const compareFiles = async (parent, merge) => {
+    const files = new Set();
+    let fileCount = 0;
+    for (let page = 1; page <= 3; page++) {
+      const comparison = await get(`/compare/${parent}...${merge}?per_page=100&page=${page}`);
+      assert.equal(comparison?.status, 'ahead', 'GitHub parent comparison is not ahead');
+      assert.equal(comparison.merge_base_commit?.sha, parent,
+        'GitHub parent comparison has an unexpected merge base');
+      assert.ok(Array.isArray(comparison.files), 'GitHub parent comparison files are unavailable');
+      assert.ok(comparison.files.length <= 100, 'GitHub parent comparison page is too large');
+      fileCount += comparison.files.length;
+      if (fileCount >= 300) {
+        throw new Error('GitHub comparison file list may be truncated; history cannot be verified');
+      }
+      for (const file of filePaths(comparison.files)) files.add(file);
+      if (comparison.files.length < 100) return files;
+    }
+    throw new Error('GitHub comparison file list may be truncated; history cannot be verified');
   };
   return {
     resolve,
     async compare(service, source, main) {
       if (source === main) return { source, main, current: true };
       const commits = [];
+      const netFiles = new Set();
+      let netFileCount = 0;
       let total;
       for (let page = 1; page <= MAX_COMMITS / 100; page++) {
         const comparison = await get(`/compare/${source}...${main}?per_page=100&page=${page}`);
         assert.ok(comparison?.status === 'ahead' && comparison.merge_base_commit?.sha === source,
           'production source is not an ancestor of main');
+        assert.ok(Array.isArray(comparison.files), 'GitHub comparison files are unavailable');
+        assert.ok(comparison.files.length <= 100, 'GitHub comparison page is too large');
+        netFileCount += comparison.files.length;
+        if (netFileCount >= 300) {
+          throw new Error('GitHub comparison file list may be truncated; history cannot be verified');
+        }
+        for (const file of filePaths(comparison.files)) netFiles.add(file);
         total ??= comparison.total_commits;
         assert.ok(Number.isInteger(total) && total > 0 && total <= MAX_COMMITS,
           'GitHub comparison exceeds the bounded history limit');
@@ -62,11 +108,17 @@ export function githubHistory({ token, request = fetch, repository } = {}) {
       }
       assert.ok(commits.length === total && new Set(commits).size === total && commits.at(-1) === main,
         'GitHub comparison history is incomplete');
-      let current = true;
+      const changed = new Set(netFiles);
       for (const sha of commits) {
-        if (affectedWorkers(await changedFiles(sha)).includes(service)) current = false;
+        const commit = await changedFiles(sha);
+        let files = commit.files;
+        for (const parent of commit.parents.slice(1)) {
+          const parentFiles = await compareFiles(parent, sha);
+          files = new Set([...files].filter(file => parentFiles.has(file)));
+        }
+        for (const file of files) changed.add(file);
       }
-      return { source, main, current };
+      return { source, main, current: !affectedWorkers(changed).includes(service) };
     },
   };
 }
