@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>CodePi 图表组件（Chart.js）</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<style>
+body{margin:0;background:#FFFFFF;font-family:Inter,"Noto Sans SC",sans-serif}
+.c{width:640px;padding:0;background:#FFFFFF}
+.c canvas{display:block}
+</style></head><body>
+<div id="wrap"></div>
+<script>
+// ── CodePi 图表主题：全部取自设计规范 v2 变量 ──
+const T = { text:'#2D2A28', muted:'#706A64', grid:'#E7E3DC', surface2:'#F3EFE8', action:'#C94F20', chartMuted:'#E2DCD2', chartRef:'#B9B1A6',
+  sleep:'#2F4F8F', home:'#7FA3DA', commute:'#D9822B', desk:'#1F7A63', meeting:'#B85C38', away:'#9FD0BF', out:'#7D5BB0', unknown:'#C9C6BD', future:'#EFEBE4',
+  deep:'#2F4F8F', light:'#4E73B8', rem:'#7FA3DA', awake:'#C9C6BD', okTint:'#E6F2EC',
+  cat:{'AI 编程':'#2E6DB4','AI 对话':'#7FA3DA','工作沟通':'#E08A2E','会议':'#9A5A1C','文档':'#8A63B8','浏览':'#3BA39B','私人':'#C7B27A','其他':'#B5B1A6'} };
+Chart.defaults.font.family = 'Inter, "Noto Sans SC", sans-serif';
+Chart.defaults.font.size = 12;
+Chart.defaults.color = T.muted;
+Chart.defaults.borderColor = T.grid;
+Chart.defaults.animation = false;
+Chart.defaults.devicePixelRatio = 2;
+Chart.defaults.plugins.legend.labels.boxWidth = 8;
+Chart.defaults.plugins.legend.labels.boxHeight = 8;
+Chart.defaults.plugins.legend.labels.useBorderRadius = true;
+Chart.defaults.plugins.legend.labels.borderRadius = 2;
+Chart.defaults.plugins.legend.position = 'bottom';
+Chart.defaults.plugins.legend.align = 'start';
+Chart.defaults.elements.bar.borderRadius = 3;
+Chart.defaults.scale.grid.drawTicks = false;
+Chart.defaults.scale.border = { display: false };
+const charts = [];
+function mk(id, h, cfg, w = 640) {
+  const d = document.createElement('div'); d.className = 'c'; d.id = id; d.style.width = w + 'px'; d.style.height = h + 'px';
+  const cv = document.createElement('canvas'); d.appendChild(cv); document.getElementById('wrap').appendChild(d);
+  cfg.options = Object.assign({ responsive: true, maintainAspectRatio: false }, cfg.options || {});
+  charts.push(new Chart(cv, cfg));
+}
+const hm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+
+// JW-1 0–24 点时间线：浮动横条（indexAxis y）
+const seg = [[0,456,'卧室',T.sleep],[456,476,'在家',T.home],[476,548,'通勤',T.commute],[548,655,'在电脑前',T.desk],[655,705,'开会',T.meeting],[705,740,'在电脑前',T.desk],[740,785,'离座',T.away],[785,967,'在电脑前',T.desk],[967,1440,'还没到',T.future]];
+mk('jw-timeline', 120, { type:'bar', data:{ labels:['今天'], datasets: seg.map(s => ({ label:s[2], data:[[s[0], s[1]]], backgroundColor:s[3], borderRadius:0, barPercentage:1, categoryPercentage:.9, borderSkipped:false })) },
+  options:{ indexAxis:'y', plugins:{ legend:{ labels:{ filter:(it, d) => d.datasets.findIndex(x => x.label === it.text) === it.datasetIndex } }, tooltip:{ enabled:false } },
+    scales:{ x:{ min:0, max:1440, ticks:{ stepSize:360, callback:v => hm(v) }, grid:{ display:false } }, y:{ display:false, stacked:true } } } });
+
+// JW-2 每天各状态各占几小时：堆叠柱
+const days = ['10/30','10/31','11/1','11/2','11/3','11/4','11/5','工作日均'];
+const st = [['卧室',T.sleep,[7.5,7.4,8.2,8.0,7.3,7.6,7.4,7.5]],['在家',T.home,[4,4.2,11.8,12,4.1,3.9,4.3,4.1]],['通勤',T.commute,[2.4,2.5,0,0,2.4,2.6,2.5,2.5]],['在电脑前',T.desk,[8.9,9.1,0,0,9.0,8.7,8.9,8.9]],['开会',T.meeting,[.8,.5,0,0,.9,1.0,.6,.8]],['离座',T.away,[.4,.3,0,0,.3,.2,.3,.3]],['在外',T.out,[0,0,4,4,0,0,0,0]]];
+mk('jw-stacked', 280, { type:'bar', data:{ labels:days, datasets: st.map(s => ({ label:s[0], data:s[2], backgroundColor:s[1], borderRadius:0, barPercentage:.72 })) },
+  options:{ plugins:{ tooltip:{ enabled:false } }, scales:{ x:{ stacked:true, grid:{ display:false } }, y:{ stacked:true, max:24, ticks:{ stepSize:6, callback:v => v + ' 时' } } } } });
+
+// JW-3 每天几点：范围浮动条 + 平均点
+const rng = [['离家',[430,500],462],['开始办公',[515,600],548],['离开电脑',[1050,1140],1092],['到家',[1120,1230],1160]];
+mk('jw-range', 200, { type:'scatter', data:{ datasets:[
+  ...rng.map((r, i) => ({ type:'line', label:i === 0 ? '范围' : '', data:[{ x:r[1][0], y:r[0] }, { x:r[1][1], y:r[0] }], borderColor:T.chartMuted, borderWidth:10, borderCapStyle:'round', pointRadius:0, order:2 })),
+  { label:'平均', order:0, data:rng.map(r => ({ x:r[2], y:r[0] })), backgroundColor:T.action, pointRadius:6 } ] },
+  options:{ plugins:{ legend:{ labels:{ filter:i => i.text } }, tooltip:{ enabled:false } }, scales:{ x:{ type:'linear', min:360, max:1440, ticks:{ stepSize:180, callback:v => hm(v) } }, y:{ type:'category', labels:rng.map(r => r[0]), offset:true, grid:{ display:false } } } } });
+
+// JW-4 哪些钟头最出活：矩阵热力（chartjs-chart-matrix）
+const hrs = [...Array(12)].map((_, i) => String(8 + i).padStart(2, '0')); const wd = ['周一','周二','周三','周四','周五'];
+let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+const heat = []; wd.forEach(d => hrs.forEach(h => heat.push({ x:h, y:d, v: h === '12' ? 8 : Math.round(20 + rnd() * 40) })));
+mk('jw-heat', 220, { type:'matrix', data:{ datasets:[{ label:'在电脑前分钟', data:heat, backgroundColor:c => { const v = c.raw.v / 60; return `rgba(31,122,99,${(0.12 + v * .88).toFixed(2)})`; },
+  width:({ chart }) => (chart.chartArea || {}).width / 12 - 3, height:({ chart }) => (chart.chartArea || {}).height / 5 - 3, borderRadius:3 }] },
+  options:{ plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ type:'category', labels:hrs, grid:{ display:false } }, y:{ type:'category', labels:wd, offset:true, grid:{ display:false } } } } });
+
+// JW-5 八类去向：横向条
+const cats = [['AI 编程',156],['工作沟通',46],['会议',44],['浏览',38],['AI 对话',0],['文档',0],['私人',0],['其他',0]];
+mk('jw-cats', 260, { type:'bar', data:{ labels:cats.map(c => c[0]), datasets:[{ data:cats.map(c => c[1]), backgroundColor:cats.map(c => T.cat[c[0]]), barPercentage:.6 }] },
+  options:{ indexAxis:'y', plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ ticks:{ callback:v => Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0') } }, y:{ grid:{ display:false } } } } });
+
+// JW-6 被打断：柱状，高于平均 1.5 倍标橙
+const inter = [2,3,6,4,1,2,7,3,2,1,1,0]; const avg = inter.reduce((a, b) => a + b) / inter.length;
+mk('jw-inter', 200, { type:'bar', data:{ labels:hrs, datasets:[{ label:'打断次数', data:inter, backgroundColor:inter.map(v => v >= avg * 1.5 ? T.action : T.chartMuted), barPercentage:.7 }] },
+  options:{ plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ grid:{ display:false } }, y:{ ticks:{ stepSize:2 } } } } });
+
+// H-1 主睡眠 HRV：折线 + 个人参考带（两条线之间填充）
+const lbl14 = [...Array(14)].map((_, i) => '10/' + (24 + i > 31 ? '' : '') + (i < 8 ? 24 + i : '')).map((_, i) => i < 8 ? '10/' + (24 + i) : '11/' + (i - 7));
+const hrv = [28,31,27,33,29,null,32,30,34,31,28,33,29,30];
+mk('h-hrv', 220, { type:'line', data:{ labels:lbl14, datasets:[
+  { label:'参考上限', data:Array(14).fill(34), borderWidth:0, pointRadius:0, fill:'+1', backgroundColor:T.okTint, order:3 },
+  { label:'参考下限', data:Array(14).fill(27), borderWidth:0, pointRadius:0, fill:false, order:3 },
+  { label:'主睡眠 HRV', order:0, data:hrv, borderColor:T.text, borderWidth:1.75, pointRadius:hrv.map((_, i) => i === 13 ? 5 : 2.5), pointBackgroundColor:hrv.map((_, i) => i === 13 ? T.action : T.text), spanGaps:false, tension:0 } ] },
+  options:{ plugins:{ filler:{ drawTime:'beforeDatasetsDraw' }, legend:{ labels:{ filter:i => i.text === '主睡眠 HRV' } }, tooltip:{ enabled:false } }, scales:{ x:{ grid:{ display:false }, ticks:{ maxTicksLimit:7 } }, y:{ min:20, max:40, ticks:{ stepSize:5, callback:v => v + ' ms' } } } } });
+
+// H-2 近 14 天睡眠：柱 + 均值虚线
+const sl = [7.2,6.8,7.5,null,7.1,6.5,7.8,7.0,6.9,7.3,6.2,7.4,6.6,6.7];
+mk('h-sleep14', 220, { data:{ labels:lbl14, datasets:[
+  { type:'bar', label:'每日总睡眠', data:sl, backgroundColor:sl.map((_, i) => i === 13 ? T.action : T.chartMuted), barPercentage:.75 },
+  { type:'line', label:'14 天均值', data:Array(14).fill(7.0), borderColor:T.muted, borderDash:[4, 4], borderWidth:1, pointRadius:0 } ] },
+  options:{ plugins:{ tooltip:{ enabled:false } }, scales:{ x:{ grid:{ display:false }, ticks:{ maxTicksLimit:7 } }, y:{ min:0, max:9, ticks:{ stepSize:3, callback:v => v + ' 小时' } } } } });
+
+// H-3 睡眠分期：浮动横条
+const stg = [['清醒',T.awake,[[0,9],[180,190],[410,440]]],['REM',T.rem,[[70,100],[215,255],[350,395]]],['浅睡',T.light,[[9,70],[110,180],[255,350]]],['深睡',T.deep,[[30,70],[135,180],[290,325]]]];
+const ds = []; stg.forEach(([n, c, rs]) => rs.forEach((r, k) => ds.push({ label:n, data:stg.map(s => s[0] === n ? r : null), backgroundColor:c, borderRadius:3, barPercentage:.7, grouped:false })));
+mk('h-stages', 200, { type:'bar', data:{ labels:stg.map(s => s[0]), datasets:ds },
+  options:{ indexAxis:'y', plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ min:0, max:440, ticks:{ stepSize:110, callback:v => hm((v + 10) % 1440) } }, y:{ grid:{ display:false } } } } });
+
+// H-4 30 天准备度：矩阵热力（一行 30 格）
+const rd = [...Array(30)].map((_, i) => ({ x:String(i + 1), y:'准备度', v:(i === 6 || i === 7) ? null : Math.round(60 + rnd() * 30) }));
+mk('h-ready', 110, { type:'matrix', data:{ datasets:[{ data:rd, backgroundColor:c => c.raw.v == null ? 'rgba(0,0,0,0)' : `rgba(31,122,99,${(0.2 + (c.raw.v - 60) / 30 * .8).toFixed(2)})`, borderColor:c => c.raw.v == null ? T.chartRef : (c.dataIndex === 22 ? T.action : 'rgba(0,0,0,0)'), borderWidth:c => c.raw.v == null || c.dataIndex === 22 ? 1.5 : 0,
+  width:({ chart }) => (chart.chartArea || {}).width / 30 - 3, height:({ chart }) => (chart.chartArea || {}).height - 6, borderRadius:3 }] },
+  options:{ plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ type:'category', labels:rd.map(r => r.x), grid:{ display:false }, ticks:{ callback:(v, i) => i === 0 ? '10-08' : (i === 29 ? '11-06' : '') , autoSkip:false, maxRotation:0, minRotation:0 } }, y:{ type:'category', labels:['准备度'], display:false } } } });
+
+// H-5 对比：逐日对齐双折线
+mk('h-compare-line', 200, { type:'line', data:{ labels:['第 1 天','第 2 天','第 3 天','第 4 天','第 5 天','第 6 天','第 7 天'], datasets:[
+  { label:'10/31 — 11/06', data:[6.2,7.6,5.8,7.4,6.0,null,5.9], borderColor:T.text, borderWidth:1.75, pointRadius:3, pointBackgroundColor:T.text, spanGaps:false, tension:0 },
+  { label:'10/24 — 10/30', data:[7.1,7.0,7.3,6.9,7.2,7.4,6.8], borderColor:T.chartRef, borderWidth:1.75, pointRadius:3, pointBackgroundColor:T.chartRef, tension:0 } ] },
+  options:{ plugins:{ tooltip:{ enabled:false } }, scales:{ x:{ grid:{ display:false } }, y:{ min:5, max:8, ticks:{ stepSize:1, callback:v => v + ' 小时' } } } } });
+
+// H-6 对比：两期分布散点
+mk('h-compare-dots', 160, { type:'scatter', data:{ datasets:[
+  { label:'当前区间', data:[6.2,7.6,5.8,7.4,6.0,5.9].map(x => ({ x, y:1 })), backgroundColor:T.action, pointRadius:6 },
+  { label:'对照区间', data:[7.1,7.0,7.3,6.9,7.2,7.4,6.8].map(x => ({ x, y:0 })), backgroundColor:T.chartRef, pointRadius:6 } ] },
+  options:{ plugins:{ tooltip:{ enabled:false } }, scales:{ x:{ min:5.5, max:8, ticks:{ callback:v => v + ' 小时' } }, y:{ min:-.6, max:1.6, display:false } } } });
+
+// H-7 评分迷你折线（无坐标）
+mk('h-mini', 64, { type:'line', data:{ labels:[1,2,3,4,5,6,7], datasets:[{ data:[74,79,77,80,76,78,72], borderColor:T.text, borderWidth:1.75, pointRadius:[0,0,0,0,0,0,4], pointBackgroundColor:T.action, tension:0 }] },
+  options:{ plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ display:false }, y:{ display:false } } } }, 280);
+
+// P-1 待办构成：单条堆叠
+const comp = [['待决定',3,T.commute],['执行',4,T.desk],['缺陷',2,'#B42318'],['待确认',2,T.home],['想法',1,T.unknown]];
+mk('p-composition', 90, { type:'bar', data:{ labels:['待办'], datasets:comp.map(c => ({ label:c[0] + ' ' + c[1], data:[c[1]], backgroundColor:c[2], borderRadius:0, barPercentage:1, categoryPercentage:.8 })) },
+  options:{ indexAxis:'y', plugins:{ tooltip:{ enabled:false } }, scales:{ x:{ stacked:true, display:false }, y:{ stacked:true, display:false } } } });
+
+// P-2 动态：本周每天条数
+mk('p-week', 160, { type:'bar', data:{ labels:['一','二','三','四','五','六','日'], datasets:[{ data:[2,0,5,9,6,0,0], backgroundColor:[2,0,5,9,6,0,0].map((_, i) => i === 4 ? T.action : T.chartMuted), barPercentage:.6 }] },
+  options:{ plugins:{ legend:{ display:false }, tooltip:{ enabled:false } }, scales:{ x:{ grid:{ display:false } }, y:{ ticks:{ stepSize:3 } } } } });
+window.__done = true;
+</script></body></html>

@@ -1,0 +1,74 @@
+{
+  "theme": "codepi",
+  "boards": [
+    {
+      "name": "Ctx-WWW",
+      "type": "context",
+      "title": "www · 上下文图",
+      "intro": "codepi.app 网站和谁打交道：谁来访问、读谁的数据、被谁托管。不画内部结构。",
+      "system": {"name": "codepi.app 网站", "sub": "公开站 + 本人工作台"},
+      "actors": [
+        {"id": "visitor", "name": "访客", "sub": "人 · 任何人", "kind": "person", "side": "left"},
+        {"id": "owner", "name": "本人", "sub": "人 · 站点所有者", "kind": "person", "side": "left"},
+        {"id": "auth", "name": "统一登录", "sub": "外部系统 · 统一认证", "side": "left"},
+        {"id": "rss", "name": "RSS 阅读器", "sub": "外部系统", "side": "right"},
+        {"id": "ai", "name": "AI 客户端", "sub": "外部系统 · 经 MCP", "side": "right"},
+        {"id": "apps", "name": "各应用只读概览", "sub": "外部系统 · 健康 / GU / 公众号", "side": "right"},
+        {"id": "github", "name": "GitHub", "sub": "外部系统 · 源码", "side": "right"},
+        {"id": "cf", "name": "Cloudflare", "sub": "外部系统 · 托管与网络", "side": "bottom"}
+      ],
+      "edges": [
+        {"from": "visitor", "to": "system", "label": "浏览 页面"},
+        {"from": "owner", "to": "system", "label": "审核 博客"},
+        {"from": "system", "to": "auth", "label": "校验 登录"},
+        {"from": "rss", "to": "system", "label": "拉取 RSS"},
+        {"from": "ai", "to": "system", "label": "提交 博客草稿"},
+        {"from": "system", "to": "apps", "label": "读取 概览"},
+        {"from": "github", "to": "system", "label": "提供 源码"},
+        {"from": "system", "to": "cf", "label": "托管 运行"}
+      ],
+      "legend": [["core", "本系统"], ["person", "人"], ["ext", "外部系统"], ["ln", "箭头 = 动作方向，标签 = 动词 + 对象"]]
+    },
+    {
+      "name": "Arch-WWW",
+      "type": "layers",
+      "title": "www · 分层架构图",
+      "intro": "网站由哪些部分组成：自上而下是渠道、应用、能力、数据、基础设施，下层支撑上层；右侧是贯穿各层的支撑体系。",
+      "layers": [
+        {"name": "渠道层", "blocks": [{"name": "公开站", "sub": "/"}, {"name": "我的工作台", "sub": "/desk/", "hot": true}]},
+        {"name": "应用层", "blocks": ["首页", "博客", "文章", "关于 · 隐私", "工作台概览", "博客审核"]},
+        {"name": "能力层", "blocks": ["统一登录", {"name": "博客审核流", "hot": true}, "概览聚合", "摘要生成", "RSS 订阅", "草稿预览"]},
+        {"name": "数据层", "blocks": [{"name": "文章与修订", "sub": "D1", "hot": true}, {"name": "分类", "sub": "D1"}, {"name": "草稿与上传", "sub": "D1"}, {"name": "博客配图", "sub": "R2"}, {"name": "登录会话", "sub": "D1"}]},
+        {"name": "基础设施", "blocks": ["Worker", "静态资源", "DNS 与域名"]}
+      ],
+      "bars": [{"name": "安全与权限"}, {"name": "发布与运维"}],
+      "legend": [["strip", "层条 / 竖条"], ["block", "模块"], ["hot", "重点（博客审核主线）"], ["text", "D1 / R2 = 数据库 / 对象存储"]]
+    },
+    {
+      "name": "Feat-WWW",
+      "type": "tree",
+      "title": "www · 功能树",
+      "intro": "网站有哪些功能：从左到右三级，产品 → 页面模块 → 功能点；功能点用动宾短语。",
+      "root": {"name": "www", "sub": "codepi.app"},
+      "modules": [
+        {"name": "全站外框", "tags": ["Web-Blog", {"name": "Web-Menu-Phone", "alt": true}],
+         "leaves": ["切换导航", "打开手机菜单", "进入工作台", "跳转页脚链接"]},
+        {"name": "首页", "code": "/", "tags": ["Main", {"name": "Home-Phone", "alt": true}],
+         "leaves": ["阅读价值主张", "查看示意界面", "了解授权方式", "浏览现在的空间", "阅读最新文章", "进入工作台"]},
+        {"name": "博客", "code": "/blog/", "tags": ["Web-Blog", "Web-Blog-States", {"name": "Web-Blog-Phone", "alt": true}],
+         "leaves": ["筛选分类", "浏览文章列表", "订阅 RSS", "翻页（每页 12 篇）", "查看标签页", "查看系列页"]},
+        {"name": "文章", "code": "/blog/:slug", "tags": ["Web-Post", "Web-Post-Preview", {"name": "Web-Post-Phone", "alt": true}],
+         "leaves": ["阅读正文", "查看目录", "查看资料来源", "切换上下篇", "预览草稿"]},
+        {"name": "关于", "code": "/about/", "tags": ["Web-About", {"name": "Web-About-Phone", "alt": true}],
+         "leaves": ["了解理念", "查看生活脉络", "区分公开与私域"]},
+        {"name": "隐私说明", "code": "/privacy/", "tags": ["Web-Privacy", {"name": "Web-Privacy-Phone", "alt": true}],
+         "leaves": ["阅读隐私说明"]},
+        {"name": "我的工作台", "code": "/desk/",
+         "tags": ["Web-Desk-Login", "Web-Desk", "Web-Desk-Review", "Web-Desk-Review-More", "Web-Desk-States",
+                  {"name": "Web-Desk-Login-Phone", "alt": true}, {"name": "Web-Desk-Phone", "alt": true}, {"name": "Web-Desk-Review-Phone", "alt": true}],
+         "leaves": ["登录工作台", "查看应用概览", "刷新概览", "处理待办事项", "生成按需摘要", "审核博客稿件", "发布或退回稿件", "管理分类", "退出登录"]}
+      ],
+      "legend": [["tag", "电脑稿"], ["tag-alt", "手机稿"], ["text", "三级：产品 → 模块 → 功能点"]]
+    }
+  ]
+}
