@@ -12,6 +12,7 @@ export const parseSources = (value: string | null): Source[] => { try { const pa
 export const readingMinutes = (chars: number) => Math.max(1, Math.round(chars/400));
 export type Draft = Content & { status: string; client_id: string; client_name: string | null; last_request_id: string | null; review_note: string | null; submitted_at: string; is_test: number; archived_at: string | null };
 export type Post = Content & { published_at: string };
+export type LatestPost = { slug: string; title: string; summary: string; category: string | null; body_chars: number | null };
 const RESERVED = new Set(["api", "desk", "blog", "preview", "media", "sitemap-blog.xml"]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const encoder = new TextEncoder();
@@ -215,6 +216,9 @@ export async function listPublished(db: D1Database, offset=0, limit=20, filter: 
   const total = await db.prepare(`SELECT COUNT(*) AS count FROM blog_posts${where}`).bind(...values).first<number>("count") ?? 0;
   const posts = (await db.prepare(`SELECT slug,title,summary,tag,category,tags,series,cover_media_id,revision,published_at,updated_at,length(body_markdown) AS body_chars FROM blog_posts${where} ORDER BY published_at DESC,slug LIMIT ? OFFSET ?`).bind(...values,limit,offset).all<Post>()).results;
   return { posts,total,next_offset:offset+posts.length<total ? offset+posts.length : null };
+}
+export async function listLatestPublished(db: D1Database) {
+  return (await db.prepare("SELECT slug,title,summary,category,length(body_markdown) AS body_chars FROM blog_posts ORDER BY published_at DESC,slug LIMIT 2").all<LatestPost>()).results;
 }
 export async function listSubmissions(db: D1Database, offset=0, limit=20, status?: string) {
   if (status && !["pending","rejected","published","withdrawn"].includes(status)) throw invalid();

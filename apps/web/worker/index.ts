@@ -1,5 +1,5 @@
 import { handleDeskRequest, type DeskEnv } from "../server/desk";
-import { getDraft, getPost, listPublished, listCategories, parseTags, parseSources, readingMinutes, postNeighbors, type BlogEnv, type Post } from "../server/blog";
+import { getDraft, getPost, listPublished, listLatestPublished, listCategories, parseTags, parseSources, readingMinutes, postNeighbors, type BlogEnv, type Post, type LatestPost } from "../server/blog";
 import { getMedia, handleMediaRequest, mediaUrl } from "../server/media";
 import { readSsoSession } from "@kedoupi/shared/auth/client";
 import { BlogMcp, BlogMediaBackup } from "./blog";
@@ -13,15 +13,24 @@ function notFound() { return new Response("Not Found", { status: 404, headers: {
 function redirectLogin(request: Request) { const target = new URL("/api/auth/login", request.url); target.searchParams.set("return", new URL(request.url).pathname); return new Response(null, { status: 302, headers: { Location: target.href, "Cache-Control": "no-store" } }); }
 function dateMarkup(value: string, label: string) { return `<span>${label} <time datetime="${escape(value)}">${escape(value.slice(0, 10))}</time></span>`; }
 type ListFilter = { category?: string; tag?: string; series?: string };
-function tocMarkup(html: string) {
+type ListPost = Post & { body_chars?: number | null };
+function tocMarkup(html: string, mobile = false) {
   const headings = [...html.matchAll(/<h([23]) id="(h-\d+)">([\s\S]*?)<\/h\1>/g)].map(match => ({ depth: Number(match[1]), id: match[2], text: match[3].replace(/<[^>]+>/g, "") }));
   if (headings.length < 2) return "";
-  return `<nav class="blog-toc" aria-label="文章目录"><p class="blog-toc-title">目录</p><ul>${headings.map(heading => `<li class="blog-toc-h${heading.depth}"><a href="#${heading.id}">${escape(heading.text)}</a></li>`).join("")}</ul></nav>`;
+  const entries = headings.map(heading => `<li class="blog-toc-h${heading.depth}"><a href="#${heading.id}">${escape(heading.text)}</a></li>`).join("");
+  return mobile ? `<details class="blog-toc blog-toc-mobile"><summary>目录</summary><ul>${entries}</ul></details>` : `<nav class="blog-toc blog-toc-desktop" aria-label="文章目录"><p class="blog-toc-title">目录</p><ul>${entries}</ul></nav>`;
 }
 function sourcesMarkup(post: { sources: string | null }) {
-  const sources = parseSources(post.sources);
+  const sources = parseSources(post.sources).filter(source => /^https:\/\//i.test(source.url));
   if (!sources.length) return "";
   return `<section class="blog-article-sources"><h2>资料来源</h2><ul>${sources.map(source => `<li><a href="${escape(source.url)}" rel="noopener noreferrer">${escape(source.title)}</a></li>`).join("")}</ul></section>`;
+}
+function fallbackCover(className: string) {
+  return `<div class="${className} blog-cover-fallback" role="img" aria-label="汇聚图"><svg viewBox="0 0 640 272" aria-hidden="true" focusable="false"><path d="M24 32Q240 80 320 136T616 240M40 240Q230 180 320 136T600 32M120 8Q270 90 320 136T520 264M120 264Q270 180 320 136T520 8M8 136Q220 136 320 136T632 136"/><circle cx="320" cy="136" r="54"/><circle class="blog-cover-core" cx="320" cy="136" r="8"/></svg></div>`;
+}
+function coverCaption(bodyHtml: string, id: string) {
+  const match = bodyHtml.match(new RegExp(`<img[^>]+src="/blog/media/${id}"[^>]*>\\s*<figcaption>([\\s\\S]*?)</figcaption>`));
+  return match?.[1] ? `<figcaption>${match[1]}</figcaption>` : "";
 }
 async function blogPage(request: Request, env: Env, slug?: string, preview = false, pathFilter: ListFilter = {}) {
   if (preview) {
@@ -42,18 +51,22 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   if (listing && page > 1 && !listing.posts.length) return notFound();
   const categories = await listCategories(env.BLOG);
   const categoryName = (value: string | null) => value ? categories.find(item => item.slug === value)?.name ?? value : "";
-  const coverImage = async (item: { cover_media_id: string | null }, className: string, eager = false) => {
-    if (!item.cover_media_id) return "";
+  const coverImage = async (item: { cover_media_id: string | null; body_html?: string }, className: string, eager = false, article = false) => {
+    if (!item.cover_media_id) return fallbackCover(className);
     const media = await getMedia(env, item.cover_media_id);
-    if (!media) return "";
-    return `<img class="${className}" src="${escape(mediaUrl(item.cover_media_id))}" alt="${escape(media.alt ?? "")}"${media.width && media.height ? ` width="${media.width}" height="${media.height}"` : ""} loading="${eager ? "eager" : "lazy"}" decoding="async"${eager ? ' fetchpriority="high"' : ""}>`;
+    if (!media) return fallbackCover(className);
+    const image = `<img class="${className}" src="${escape(mediaUrl(item.cover_media_id))}" alt="${escape(media.alt ?? "")}"${media.width && media.height ? ` width="${media.width}" height="${media.height}"` : ""} loading="${eager ? "eager" : "lazy"}" decoding="async"${eager ? ' fetchpriority="high"' : ""}>`;
+    return article ? `<figure class="blog-article-cover-frame">${image}${coverCaption(item.body_html ?? "", item.cover_media_id)}</figure>` : image;
   };
-  const cover = post ? await coverImage(post, "blog-article-cover", true) : "";
-  const cards = listing ? await Promise.all(listing.posts.map(async item => {
-    const tags = parseTags(item.tags).slice(0, 3).map(tag => `<span class="blog-card-label">${escape(tag)}</span>`).join("");
-    const minutes = readingMinutes(Number((item as { body_chars?: number }).body_chars ?? 0));
-    return `<a href="/blog/${escape(item.slug)}/" class="blog-card">${await coverImage(item, "blog-card-cover")}<div class="blog-card-content"><div class="blog-card-meta">${item.category ? `<span class="blog-card-tag">${escape(categoryName(item.category))}</span>` : item.tag ? `<span class="blog-card-tag">${escape(item.tag)}</span>` : ""}<time datetime="${escape(item.published_at)}">${escape(item.published_at.slice(0, 10))}</time><span>约 ${minutes} 分钟</span></div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-card-summary">${escape(item.summary)}</p>${tags ? `<div class="blog-card-labels">${tags}</div>` : ""}<span class="blog-card-action">阅读全文</span></div></a>`;
-  })) : [];
+  const cover = post ? await coverImage(post, "blog-article-cover", true, true) : "";
+  const cardMarkup = async (item: ListPost, featured = false) => {
+    const minutes = readingMinutes(typeof item.body_chars === "number" ? item.body_chars : 0);
+    const meta = `${item.category ? `<span>${escape(categoryName(item.category))}</span>` : item.tag ? `<span>${escape(item.tag)}</span>` : ""}<time datetime="${escape(item.published_at)}">${escape(item.published_at.slice(0, 10))}</time><span>约 ${minutes} 分钟</span>`;
+    if (featured) return `<a href="/blog/${escape(item.slug)}/" class="blog-featured">${await coverImage(item, "blog-featured-cover")}<div class="blog-featured-content"><div class="blog-card-meta">最新 · ${meta}</div><h2 class="blog-featured-title blog-card-title">${escape(item.title)}</h2><p class="blog-featured-summary">${escape(item.summary)}</p><span class="blog-card-action">阅读全文</span></div></a>`;
+    return `<a href="/blog/${escape(item.slug)}/" class="blog-row blog-card"><div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-row-summary">${escape(item.summary)}</p></div><span class="blog-row-meta">${meta}</span></a>`;
+  };
+  const featured = listing?.posts[0] ? await cardMarkup(listing.posts[0], true) : "";
+  const rows = listing ? await Promise.all(listing.posts.slice(1).map(item => cardMarkup(item))) : [];
   const basePath = filter.tag ? `/blog/tag/${encodeURIComponent(filter.tag)}/` : filter.series ? `/blog/series/${encodeURIComponent(filter.series)}/` : "/blog/";
   const href = (target: number) => {
     const params = new URLSearchParams();
@@ -62,13 +75,13 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     const query = params.toString();
     return `${basePath}${query ? `?${query}` : ""}`;
   };
-  const pagination = listing && listing.total > PAGE_SIZE ? `<nav class="blog-pagination" aria-label="文章分页">${page > 1 ? `<a class="kdp-button kdp-button--secondary" rel="prev" href="${href(page - 1)}">上一页</a>` : "<span></span>"}<span>第 ${page} / ${Math.ceil(listing.total / PAGE_SIZE)} 页</span>${listing.next_offset !== null ? `<a class="kdp-button kdp-button--secondary" rel="next" href="${href(page + 1)}">下一页</a>` : "<span></span>"}</nav>` : "";
-  const filterNav = listing ? `<nav class="blog-filter" aria-label="按分类筛选"><a href="/blog/"${!filter.category && !filter.tag && !filter.series ? ' aria-current="true"' : ""}>全部</a>${categories.map(item => `<a href="/blog/?category=${encodeURIComponent(item.slug)}"${filter.category === item.slug ? ' aria-current="true"' : ""}>${escape(item.name)}<span class="blog-filter-count">${item.published}</span></a>`).join("")}</nav>` : "";
+  const pagination = listing && listing.total > PAGE_SIZE ? `<nav class="blog-pagination" aria-label="文章分页">${page > 1 ? `<a class="blog-pagination-link" rel="prev" href="${href(page - 1)}">上一页</a>` : "<span></span>"}<span>第 ${page} / ${Math.ceil(listing.total / PAGE_SIZE)} 页</span>${listing.next_offset !== null ? `<a class="blog-pagination-link" rel="next" href="${href(page + 1)}">下一页</a>` : "<span></span>"}</nav>` : "";
+  const filterNav = listing ? `<nav class="blog-filter" aria-label="按分类筛选"><a href="/blog/"${!filter.category && !filter.tag && !filter.series ? ' aria-current="true"' : ""}>全部<span class="blog-filter-count">${categories.reduce((sum, item) => sum + item.published, 0)}</span></a>${categories.map(item => `<a href="/blog/?category=${encodeURIComponent(item.slug)}"${filter.category === item.slug ? ' aria-current="true"' : ""}>${escape(item.name)}<span class="blog-filter-count">${item.published}</span></a>`).join("")}</nav>` : "";
   const filterTitle = filter.tag ? `标签：${filter.tag}` : filter.series ? `系列：${filter.series}` : filter.category ? `分类：${categoryName(filter.category) || filter.category}` : "";
   const neighbors = post && !preview ? await postNeighbors(env.BLOG, post as Post) : null;
   const shell = await env.ASSETS.fetch(new Request(new URL("/blog/", request.url), { method: "GET", headers: request.headers }));
   if (!shell.ok) return shell;
-  const title = post ? `${post.title} · 博客` : filterTitle ? `${filterTitle} · 博客` : page > 1 ? `博客 · 第 ${page} 页` : "博客";
+  const title = post ? `${post.title} · 博客` : filterTitle ? `${filterTitle} · 写下来的` : page > 1 ? `写下来的 · 第 ${page} 页` : "写下来的。";
   const description = post?.summary ?? "整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。";
   const canonical = new URL(preview ? `/blog/preview/${slug}/` : slug ? `/blog/${slug}/` : href(page), request.url).href;
   const imageUrl = post?.cover_media_id && cover ? new URL(mediaUrl(post.cover_media_id), request.url).href : null;
@@ -88,18 +101,19 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
       if (post && !preview) el.append(`<meta property="article:published_time" content="${escape(post.published_at!)}"><meta property="article:modified_time" content="${escape(post.updated_at)}">${imageUrl ? `<meta property="og:image" content="${escape(imageUrl)}"><meta name="twitter:image" content="${escape(imageUrl)}">` : ""}`, { html: true });
     } })
     .on(".blog-header", { element: el => { if (post) el.remove(); } })
-    .on(".blog-empty-pavilion", { element: el => { if (post || listing?.posts.length) el.remove(); } })
+    .on(".blog-empty-pavilion", { element: el => { if (post || listing?.posts.length) el.remove(); else if (filter.category) el.setInnerContent(`<h2>「${escape(categoryName(filter.category) || filter.category)}」还没有文章</h2><div class="blog-empty-links"><a class="kdp-link" href="/blog/">看全部文章</a><a class="kdp-link" href="/blog/rss.xml" type="application/rss+xml">通过 RSS 订阅</a></div>`, { html: true }); } })
     .on("#blog-list-mount", { element: el => {
       if (post) {
         el.setAttribute("class", "blog-article-mount");
         el.setAttribute("aria-label", preview ? "草稿预览" : "文章");
-        const articleTags = parseTags(post.tags).map(tag => `<a class="blog-card-label" href="/blog/tag/${encodeURIComponent(tag)}/">${escape(tag)}</a>`).join("");
-        const articleMeta = `${post.category ? `<a class="blog-card-tag" href="/blog/?category=${encodeURIComponent(post.category)}">${escape(categoryName(post.category) || post.category)}</a>` : post.tag ? `<span class="blog-card-tag">${escape(post.tag)}</span>` : ""}${preview ? dateMarkup(post.updated_at, "草稿更新于") : dateMarkup(post.published_at!, "发布于")}${!preview && post.updated_at.slice(0, 10) !== post.published_at!.slice(0, 10) ? dateMarkup(post.updated_at, "更新于") : ""}<span>约 ${readingMinutes(post.body_markdown?.length ?? 0)} 分钟</span>`;
-        const neighborNav = neighbors && (neighbors.previous || neighbors.next) ? `<nav class="blog-article-nav" aria-label="相邻文章">${neighbors.previous ? `<a rel="prev" href="/blog/${escape(neighbors.previous.slug)}/">上一篇：${escape(neighbors.previous.title)}</a>` : "<span></span>"}${neighbors.next ? `<a rel="next" href="/blog/${escape(neighbors.next.slug)}/">下一篇：${escape(neighbors.next.title)}</a>` : "<span></span>"}</nav>` : "";
-        el.setInnerContent(`<article class="personal-article blog-article"><a class="blog-back" href="/blog/">返回博客</a>${preview ? '<aside class="blog-preview-notice" role="note">草稿预览，仅本人可见。发布更新前，公开文章保留当前版本。</aside>' : ""}<header class="blog-article-header"><div class="blog-article-meta">${articleMeta}</div><h1>${escape(post.title)}</h1>${post.summary ? `<p class="blog-article-summary">${escape(post.summary)}</p>` : ""}</header>${cover}${tocMarkup(post.body_html)}<div class="personal-article-content">${post.body_html}</div>${sourcesMarkup(post)}<footer class="blog-article-footer">${articleTags ? `<div class="blog-article-tags">${articleTags}</div>` : ""}${post.series ? `<p class="blog-article-series">系列：<a href="/blog/series/${encodeURIComponent(post.series)}/">${escape(post.series)}</a></p>` : ""}<p class="blog-ai-note">本文由 AI 协作撰写，经本人审核后发布。</p>${neighborNav}<a class="blog-back" href="/blog/">浏览更多文章</a></footer></article>`, { html: true });
+        const articleTags = parseTags(post.tags).map(tag => `<a class="blog-article-tag" href="/blog/tag/${encodeURIComponent(tag)}/"># ${escape(tag)}</a>`).join("");
+        const articleMeta = `${post.category ? `<a class="blog-article-category" href="/blog/?category=${encodeURIComponent(post.category)}">${escape(categoryName(post.category) || post.category)}</a>` : post.tag ? `<span>${escape(post.tag)}</span>` : ""}${preview ? dateMarkup(post.updated_at, "草稿更新于") : dateMarkup(post.published_at!, "发布于")}${!preview && post.updated_at.slice(0, 10) !== post.published_at!.slice(0, 10) ? dateMarkup(post.updated_at, "更新于") : ""}<span>约 ${readingMinutes(post.body_markdown?.length ?? 0)} 分钟</span>`;
+        const neighborNav = neighbors ? `<nav class="blog-article-nav" aria-label="相邻文章">${neighbors.previous ? `<a rel="prev" href="/blog/${escape(neighbors.previous.slug)}/"><span>上一篇</span><b>上一篇：${escape(neighbors.previous.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>上一篇</span><b>这是最早一篇</b></span>`}${neighbors.next ? `<a rel="next" href="/blog/${escape(neighbors.next.slug)}/"><span>下一篇</span><b>下一篇：${escape(neighbors.next.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>下一篇</span><b>这是最新一篇</b></span>`}</nav>` : "";
+        const mobileToc = tocMarkup(post.body_html, true), desktopToc = tocMarkup(post.body_html);
+        el.setInnerContent(`<article class="personal-article blog-article"><a class="blog-back" href="/blog/">博客</a>${preview ? '<aside class="blog-preview-notice" role="note">草稿预览，仅本人可见。发布更新前，公开文章保留当前版本。</aside>' : ""}<header class="blog-article-header"><div class="blog-article-meta">${articleMeta}</div><h1>${escape(post.title)}</h1>${post.summary ? `<p class="blog-article-summary">${escape(post.summary)}</p>` : ""}${mobileToc}</header>${cover}<div class="blog-article-reading"><div class="blog-article-column"><div class="personal-article-content">${post.body_html}</div>${sourcesMarkup(post)}</div>${desktopToc}</div><footer class="blog-article-footer">${articleTags ? `<div class="blog-article-tags">${articleTags}</div>` : ""}${post.series ? `<p class="blog-article-series">系列：<a href="/blog/series/${encodeURIComponent(post.series)}/">${escape(post.series)}</a></p>` : ""}<p class="blog-ai-note">本文由 AI 协作撰写，经本人审核后发布。</p>${neighborNav}<a class="blog-back" href="/blog/">浏览更多文章</a></footer></article>`, { html: true });
       } else if (listing?.posts.length) {
         el.setAttribute("class", "blog-list-section");
-        el.setInnerContent(`${filterNav}${filterTitle ? `<p class="blog-list-count">${escape(filterTitle)} · 共 ${listing.total} 篇</p>` : `<p class="blog-list-count">共 ${listing.total} 篇文章</p>`}<div class="blog-list">${cards.join("")}</div>${pagination}`, { html: true });
+        el.setInnerContent(`${filterNav}${filterTitle ? `<p class="blog-list-count">${escape(filterTitle)} · 共 ${listing.total} 篇</p>` : `<p class="blog-list-count">共 ${listing.total} 篇，按发布时间排列；每页 12 篇，超过时底部出现「上一页 / 下一页」。</p>`}<div class="blog-featured-list">${featured}</div>${rows.length ? `<div class="blog-list">${rows.join("")}</div>` : ""}${pagination}`, { html: true });
       } else return;
       el.removeAttribute("hidden");
     } })
@@ -107,6 +121,12 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const headers = responseHeaders(html, preview || !slug ? "no-store" : PUBLIC_CACHE);
   if (preview) { headers.set("X-Robots-Tag", "noindex, nofollow"); headers.set("Referrer-Policy", "no-referrer"); }
   return new Response(html.body, { status: html.status, headers });
+}
+async function latest(env: Env) {
+  let posts: LatestPost[] = [];
+  try { posts = await listLatestPublished(env.BLOG); } catch { posts = []; }
+  const body = JSON.stringify(posts.map(post => ({ slug: post.slug, title: post.title, summary: post.summary, category: post.category, reading_minutes: readingMinutes(post.body_chars ?? 0) })));
+  return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60, s-maxage=300" } });
 }
 async function rss(request: Request, env: Env) {
   const { posts } = await listPublished(env.BLOG, 0, 50);
@@ -128,6 +148,10 @@ export default {
     const media = await handleMediaRequest(request, env);
     if (media) return media;
     if (url.pathname.startsWith("/api/")) return handleDeskRequest(request, env);
+    if (url.pathname === "/blog/latest.json" && (request.method === "GET" || request.method === "HEAD")) {
+      const response = await latest(env);
+      return request.method === "HEAD" ? new Response(null, response) : response;
+    }
     if (url.pathname === "/sitemap-blog.xml" && request.method === "GET") return sitemap(request, env);
     if (url.pathname === "/blog/rss.xml" && (request.method === "GET" || request.method === "HEAD")) {
       const response = await rss(request, env);
