@@ -148,7 +148,7 @@ function legalFiles(overrides = {}) {
     'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
     'services/mcp/wrangler.toml': mcpConfig(),
-    'apps/project/wrangler.toml': domainConfig('project'),
+    'apps/project/wrangler.toml': `${domainConfig('project')}\n[triggers]\ncrons = []\n`,
     'apps/me/wrangler.toml': domainConfig('me'),
     'apps/rhythm/wrangler.toml': `${domainConfig('rhythm')}
 [[services]]
@@ -346,6 +346,14 @@ test('GU materials has an exact managed bucket', () => {
 
 test('Project and Me only reserve their exact planned Worker, D1, host and Me import bucket', () => {
   assert.deepEqual(run(legalFiles()), []);
+  const projectWithEmptyCron = `${domainConfig('project')}\n[triggers]\ncrons = []\n`;
+  assert.deepEqual(run(legalFiles({ files: { 'apps/project/wrangler.toml': projectWithEmptyCron } })), []);
+  const projectWithoutCron = domainConfig('project');
+  assert.ok(run(legalFiles({ files: { 'apps/project/wrangler.toml': projectWithoutCron } }))
+    .some(v => v.startsWith('project:') && v.includes('must explicitly declare an empty Cron')));
+  const projectWithCron = `${domainConfig('project')}\n[triggers]\ncrons = ["*/15 * * * *"]\n`;
+  assert.ok(run(legalFiles({ files: { 'apps/project/wrangler.toml': projectWithCron } }))
+    .some(v => v.startsWith('project:') && v.includes('must explicitly declare an empty Cron')));
   for (const [file, config, needle] of [
     ['apps/project/wrangler.toml', domainConfig('project').replace('database_name = "codepi-project"', 'database_name = "codepi-me"'), 'database_name'],
     ['apps/project/wrangler.toml', domainConfig('project').replace('pattern = "project.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],

@@ -7,6 +7,9 @@ preview_urls = false
 routes = [
   { pattern = "project.codepi.app", custom_domain = true }
 ]
+# 清除线上 2026-10-20 残留的 */15 定时任务；Project 没有 scheduled 处理函数。
+[triggers]
+crons = []
 
 [assets]
 directory = "./dist"
