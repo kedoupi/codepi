@@ -180,7 +180,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
 8. `legacy-pending-retirement`、`legacy-preview` 或 `unknown` 项不得被当前运行
    配置引用；
 9. 必需声明（Auth custom-domain route、Auth/Health API 的 cron triggers、
-  Auth SSO callback registry）缺失即违规；Project Worker 不得声明 Cron。
+  Auth SSO callback registry）缺失即违规；Project Worker 必须显式声明空的 `crons` 数组，以清除线上残留定时任务。
 10. 登记的生产 Worker 必须显式开启持久化调用日志和查询串脱敏，避免 OAuth 回跳参数
     进入调用日志。应用日志仍不得自行输出凭证或私人数据。
 11. Ops 必须关闭公网入口，仅声明约定的两个 Cron、独立 R2、Workflow 与

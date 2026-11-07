@@ -75,6 +75,66 @@ test('GitHub drift reports merge parent and net compare changes for their servic
   assert.equal((await history.compare('web', base, merge)).current, true);
 });
 
+test('merge second parent equal to production source ignores first-parent-only Project files', async () => {
+  const merge = '0'.repeat(40), firstParent = '1'.repeat(40);
+  const history = githubHistory({ token: 'synthetic', request: historyRequest({
+    total: 1,
+    commits: [{ sha: merge }],
+    changes: { [merge]: ['apps/project/worker/first-parent-only.ts'] },
+    parents: { [merge]: [firstParent, base] },
+    netFiles: ['apps/rhythm/worker/net-change.ts'],
+  }) });
+  assert.equal((await history.compare('project', base, merge)).current, true);
+  assert.equal((await history.compare('mcp', base, merge)).current, true);
+  assert.equal((await history.compare('rhythm', base, merge)).current, false);
+});
+
+test('merge changes shared by both parents make Project drift', async () => {
+  const merge = '2'.repeat(40), firstParent = '3'.repeat(40), feature = '4'.repeat(40);
+  const history = githubHistory({ token: 'synthetic', request: historyRequest({
+    total: 1,
+    commits: [{ sha: merge }],
+    changes: { [merge]: ['apps/project/worker/merge-shared.ts'] },
+    parents: { [merge]: [firstParent, feature] },
+    compareFiles: { [`${feature}...${merge}`]: ['apps/project/worker/merge-shared.ts'] },
+    netFiles: ['apps/rhythm/worker/net-change.ts'],
+  }) });
+  assert.equal((await history.compare('project', base, merge)).current, false);
+  assert.equal((await history.compare('mcp', base, merge)).current, false);
+});
+
+test('ordinary commits on the second-parent branch remain in the compare history', async () => {
+  const normal = '5'.repeat(40), merge = '6'.repeat(40), firstParent = '7'.repeat(40);
+  const history = githubHistory({ token: 'synthetic', request: historyRequest({
+    total: 2,
+    commits: [{ sha: normal }, { sha: merge }],
+    changes: {
+      [normal]: ['apps/gu/worker/second-parent.ts'],
+      [merge]: ['apps/project/worker/merge-only.ts'],
+    },
+    parents: { [normal]: [base], [merge]: [firstParent, base] },
+    netFiles: ['apps/rhythm/worker/net-change.ts'],
+  }) });
+  assert.equal((await history.compare('gu', base, merge)).current, false);
+  assert.equal((await history.compare('project', base, merge)).current, true);
+  assert.equal((await history.compare('mcp', base, merge)).current, false);
+});
+
+test('net source-to-main files catch a merge tree change absent from parent diffs', async () => {
+  const merge = '8'.repeat(40), firstParent = '9'.repeat(40), feature = 'f'.repeat(40);
+  const history = githubHistory({ token: 'synthetic', request: historyRequest({
+    total: 1,
+    commits: [{ sha: merge }],
+    changes: { [merge]: [] },
+    parents: { [merge]: [firstParent, feature] },
+    compareFiles: { [`${feature}...${merge}`]: [] },
+    netFiles: ['apps/me/worker/net-only.ts'],
+  }) });
+  assert.equal((await history.compare('me', base, merge)).current, false);
+  assert.equal((await history.compare('project', base, merge)).current, true);
+  assert.equal((await history.compare('mcp', base, merge)).current, false);
+});
+
 test('GitHub parent compare file pagination fails closed at the provider cap', async () => {
   const merge = 'd'.repeat(40), feature = 'e'.repeat(40);
   const history = githubHistory({ token: 'synthetic', request: historyRequest({

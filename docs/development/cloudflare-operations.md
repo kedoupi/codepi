@@ -21,7 +21,7 @@ v4 的博客媒体备份与巡检覆盖已随 `0ce86cf987b8` 上线。生产备�
 巡检每 30 分钟运行；备份为 UTC 18:00（北京时间次日 02:00）。
 这些是平台定时任务，不保证精确到分钟。只能从实际 Workflow 实例和 R2 对象确认
 执行结果，配置存在不代表已经执行。
-Project Worker 由请求与 named RPC 触发，配置不声明 Cron；历史同步定时任务已清除。平台定时任务只属于上表列出的 `codepi-ops` 两个 Cron。
+Project Worker 由请求与 named RPC 触发，配置显式 `crons = []`；线上 2026-10-20 残留的 `*/15` 待下次发布清除。平台定时任务只属于上表列出的 `codepi-ops` 两个 Cron。
 
 ## 发布后 Ops Observer
 
@@ -71,9 +71,7 @@ Ops token 最小权限为 `D1 Write + Workers Scripts Read + Zone Analytics Read
 后者仅用于 `codepi.app` zone 的 GraphQL Analytics 查询。
 
 云端版本巡检使用 GitHub REST API，将登记 Worker 的活跃 `BUILD_SHA` 与固定 main
-快照比较。与本地 Git 实现共用发布范围表；逐提交读取文件列表，不使用 compare API
-的净差异，避免漏掉 revert、删除、重命名和 merge。最多检查 500 个提交、每提交
-最多 3,000 个文件；超过边界、历史缺失、非祖先、分流或缺少凭证均失败。
+快照比较。与本地 Git 实现共用发布范围表；单父提交按提交文件差异，合并提交取第一父差异与相对每个其余父差异的交集，再并上 `source...main` 累计净差异，覆盖 revert、删除、重命名和 merge。提交 `parents` 缺失、compare 状态或 merge base 异常、历史不完整或文件累计达到 GitHub compare 上限 300 时均 fail-closed。最多检查 500 个提交、每提交最多 3,000 个文件；超过边界、非祖先、分流或缺少凭证均失败。
 
 详细结果仅存 `reports/monitor/<instance>.json` 和 `latest.json`。失败实例保持失败；
 下次 monitor Cron 创建新实例后，检查上一份报告是否成功且不超过 75 分钟。失败或
