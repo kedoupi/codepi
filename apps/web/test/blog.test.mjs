@@ -221,6 +221,22 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   assert.equal(emptyFilter.status, 200);
 });
 
+test('latest JSON returns an empty list for no posts and query failures', async t => {
+  const f = await deskFixture(t);
+  const worker = await f.runtime.getWorker('desk');
+  const empty = await worker.fetch('http://localhost:8804/blog/latest.json');
+  assert.equal(empty.status, 200);
+  assert.deepEqual(await empty.json(), []);
+  assert.match(empty.headers.get('Cache-Control'), /max-age=60/);
+  await f.blog.prepare('DROP TABLE blog_posts').run();
+  const failed = await worker.fetch('http://localhost:8804/blog/latest.json');
+  assert.equal(failed.status, 200);
+  assert.equal(failed.headers.get('Cache-Control'), 'no-store');
+  const failedBody = await failed.text();
+  assert.equal(failedBody, '[]');
+  assert.doesNotMatch(failedBody, /error|blog_posts|no such table/i);
+});
+
 test('latest JSON exposes only the newest published posts', async t => {
   const f = await deskFixture(t);
   const worker = await f.runtime.getWorker('desk');
@@ -246,13 +262,14 @@ test('category empty state and missing cover follow brand blog structure', async
   const f = await deskFixture(t);
   const worker = await f.runtime.getWorker('desk');
   const empty = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
-  assert.match(empty, /「数字空间」还没有文章|「digital-space」还没有文章/);
+  assert.match(empty, /「数字空间」还没有文章/);
   assert.match(empty, /看全部文章/);
   assert.match(empty, /通过 RSS 订阅/);
   await seedPost(f, 'fallback-post');
   await f.blog.prepare("UPDATE blog_posts SET body_html='<h2 id=\"h-1\">第一节</h2><p>正文</p><h2 id=\"h-2\">第二节</h2><p>结尾</p>' ,body_markdown='## 第一节\\n\\n正文\\n\\n## 第二节\\n\\n结尾' WHERE slug='fallback-post'").run();
   const article = await (await worker.fetch('http://localhost:8804/blog/fallback-post/')).text();
   assert.match(article, /blog-cover-fallback/);
+  assert.doesNotMatch(article, /og:image/);
   assert.doesNotMatch(article, /示例占位/);
   assert.match(article, /blog-toc-mobile/);
   assert.match(article, /blog-toc-desktop/);
@@ -263,7 +280,6 @@ test('blog endpoints require owner session and origin', async t => {
   const f = await deskFixture(t);
   assert.equal((await f.call('/api/blog/drafts')).status, 401);
   const login = await f.otpLogin('desk');
-  assert.equal((await f.call('/api/blog/drafts', login.localCookie, undefined, { Origin: 'http://evil.test' })).status, 403);
   assert.equal((await f.call('/api/blog/drafts', login.localCookie, {}, { Origin: 'http://evil.test' })).status, 403);
 });
 

@@ -84,7 +84,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const title = post ? `${post.title} · 博客` : filterTitle ? `${filterTitle} · 写下来的` : page > 1 ? `写下来的 · 第 ${page} 页` : "写下来的。";
   const description = post?.summary ?? "整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。";
   const canonical = new URL(preview ? `/blog/preview/${slug}/` : slug ? `/blog/${slug}/` : href(page), request.url).href;
-  const imageUrl = post?.cover_media_id && cover ? new URL(mediaUrl(post.cover_media_id), request.url).href : null;
+  const imageUrl = post?.cover_media_id && cover.includes("<img ") ? new URL(mediaUrl(post.cover_media_id), request.url).href : null;
   const html = new HTMLRewriter()
     .on("title", { element: el => { el.setInnerContent(title); } })
     .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', { element: el => { el.setAttribute("content", description); } })
@@ -109,8 +109,8 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
         const articleTags = parseTags(post.tags).map(tag => `<a class="blog-article-tag" href="/blog/tag/${encodeURIComponent(tag)}/"># ${escape(tag)}</a>`).join("");
         const articleMeta = `${post.category ? `<a class="blog-article-category" href="/blog/?category=${encodeURIComponent(post.category)}">${escape(categoryName(post.category) || post.category)}</a>` : post.tag ? `<span>${escape(post.tag)}</span>` : ""}${preview ? dateMarkup(post.updated_at, "草稿更新于") : dateMarkup(post.published_at!, "发布于")}${!preview && post.updated_at.slice(0, 10) !== post.published_at!.slice(0, 10) ? dateMarkup(post.updated_at, "更新于") : ""}<span>约 ${readingMinutes(post.body_markdown?.length ?? 0)} 分钟</span>`;
         const neighborNav = neighbors ? `<nav class="blog-article-nav" aria-label="相邻文章">${neighbors.previous ? `<a rel="prev" href="/blog/${escape(neighbors.previous.slug)}/"><span>上一篇</span><b>上一篇：${escape(neighbors.previous.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>上一篇</span><b>这是最早一篇</b></span>`}${neighbors.next ? `<a rel="next" href="/blog/${escape(neighbors.next.slug)}/"><span>下一篇</span><b>下一篇：${escape(neighbors.next.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>下一篇</span><b>这是最新一篇</b></span>`}</nav>` : "";
-        const mobileToc = tocMarkup(post.body_html, true), desktopToc = tocMarkup(post.body_html), articleBody = post.body_html.replaceAll('loading="lazy"', 'loading="eager"');
-        el.setInnerContent(`<article class="personal-article blog-article"><a class="blog-back" href="/blog/">博客</a>${preview ? '<aside class="blog-preview-notice" role="note">草稿预览，仅本人可见。发布更新前，公开文章保留当前版本。</aside>' : ""}<header class="blog-article-header"><div class="blog-article-meta">${articleMeta}</div><h1>${escape(post.title)}</h1>${post.summary ? `<p class="blog-article-summary">${escape(post.summary)}</p>` : ""}${mobileToc}</header>${cover}<div class="blog-article-reading"><div class="blog-article-column"><div class="personal-article-content">${articleBody}</div>${sourcesMarkup(post)}</div>${desktopToc}</div><footer class="blog-article-footer">${articleTags ? `<div class="blog-article-tags">${articleTags}</div>` : ""}${post.series ? `<p class="blog-article-series">系列：<a href="/blog/series/${encodeURIComponent(post.series)}/">${escape(post.series)}</a></p>` : ""}<p class="blog-ai-note">本文由 AI 协作撰写，经本人审核后发布。</p>${neighborNav}<a class="blog-back" href="/blog/">浏览更多文章</a></footer></article>`, { html: true });
+        const mobileToc = tocMarkup(post.body_html, true), desktopToc = tocMarkup(post.body_html);
+        el.setInnerContent(`<article class="personal-article blog-article"><a class="blog-back" href="/blog/">博客</a>${preview ? '<aside class="blog-preview-notice" role="note">草稿预览，仅本人可见。发布更新前，公开文章保留当前版本。</aside>' : ""}<header class="blog-article-header"><div class="blog-article-meta">${articleMeta}</div><h1>${escape(post.title)}</h1>${post.summary ? `<p class="blog-article-summary">${escape(post.summary)}</p>` : ""}${mobileToc}</header>${cover}<div class="blog-article-reading"><div class="blog-article-column"><div class="personal-article-content">${post.body_html}</div>${sourcesMarkup(post)}</div>${desktopToc}</div><footer class="blog-article-footer">${articleTags ? `<div class="blog-article-tags">${articleTags}</div>` : ""}${post.series ? `<p class="blog-article-series">系列：<a href="/blog/series/${encodeURIComponent(post.series)}/">${escape(post.series)}</a></p>` : ""}<p class="blog-ai-note">本文由 AI 协作撰写，经本人审核后发布。</p>${neighborNav}<a class="blog-back" href="/blog/">浏览更多文章</a></footer></article>`, { html: true });
       } else if (listing?.posts.length) {
         el.setAttribute("class", "blog-list-section");
         el.setInnerContent(`${filterNav}${filterTitle ? `<p class="blog-list-count">${escape(filterTitle)} · 共 ${listing.total} 篇</p>` : `<p class="blog-list-count">共 ${listing.total} 篇，按发布时间排列；每页 12 篇，超过时底部出现「上一页 / 下一页」。</p>`}<div class="blog-featured-list">${featured}</div>${rows.length ? `<div class="blog-list">${rows.join("")}</div>` : ""}${pagination}`, { html: true });
@@ -123,10 +123,10 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   return new Response(html.body, { status: html.status, headers });
 }
 async function latest(env: Env) {
-  let posts: LatestPost[] = [];
-  try { posts = await listLatestPublished(env.BLOG); } catch { posts = []; }
+  let posts: LatestPost[] = [], failed = false;
+  try { posts = await listLatestPublished(env.BLOG); } catch { failed = true; }
   const body = JSON.stringify(posts.map(post => ({ slug: post.slug, title: post.title, summary: post.summary, category: post.category, reading_minutes: readingMinutes(post.body_chars ?? 0) })));
-  return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "public, max-age=60, s-maxage=300" } });
+  return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": failed ? "no-store" : "public, max-age=60, s-maxage=300" } });
 }
 async function rss(request: Request, env: Env) {
   const { posts } = await listPublished(env.BLOG, 0, 50);
