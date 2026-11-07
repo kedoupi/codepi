@@ -19,7 +19,6 @@
 | --- | --- |
 | 产品、域名、启动方式 | [根 README](../README.md) |
 | 工程结构、技术栈、服务边界、环境 | [工程架构与部署模型](architecture/workspace-and-deployment.md) |
-| 各产品功能现状与改版设计文档 | [产品文档](products/README.md)（看板先行、文档落地、最后实现；每个产品的功能盘点） |
 | 共享视觉和 UI 约束 | [CodePi Design System 规范](architecture/codepi-design-system.md)（品牌、token、组件、应用主题、待实施清单）、[个人站设计规范](architecture/personal-design-system.md)（主站布局与公开页边界） |
 | 统一 MCP、Health 数据语义和扩展边界 | [领域扩展与 CLI](architecture/mcp-domains.md)、[Health MCP 架构](architecture/unified-mcp.md)、[MCP README](../services/mcp/README.md) |
 | 开发、审查、多 Agent 分工与交接 | [开发导航](development/README.md)、[Agent 工作流](development/agent-workflow.md)（omp、Codex 和 Claude Code 共用规则；协作与审查按需） |
