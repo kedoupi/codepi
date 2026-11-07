@@ -40,7 +40,7 @@ a { text-underline-offset: 4px; }
 .kdp-wordmark-pi { color: var(--brand-orange); }
 .kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
 .kdp-nav { display: flex; align-items: center; gap: 32px; margin-inline: auto; font-size: 14px; font-weight: 500; }
-.kdp-header-action { display: flex; align-items: center; min-width: 112px; justify-content: flex-end; font-size: 14px; }
+.kdp-header-action { display: flex; align-items: center; min-width: 0; justify-content: flex-end; font-size: 14px; }
 .kdp-header-action a { color: var(--color-action-hover); text-decoration: none; }
 .kdp-header-action a:hover { text-decoration: underline; }
 .kdp-mobile-nav { display: none; position: relative; }
@@ -114,6 +114,7 @@ a { text-underline-offset: 4px; }
 .brand-page .brand-wrap { width: min(calc(100% - 64px), 1120px); margin-inline: auto; }
 .brand-hero { padding-block: 144px 192px; }
 .brand-eyebrow { margin: 0 0 24px; color: var(--kdp-muted); font-size: var(--text-small); font-weight: 600; letter-spacing: .04em; }
+.privacy-updated { margin-top: 32px; margin-bottom: 0; }
 .brand-title { margin: 0; color: var(--kdp-ink); font-size: var(--site-display); line-height: 1.08; letter-spacing: -.045em; font-weight: 600; }
 .brand-title .brand-muted { color: var(--kdp-muted); }
 .brand-lead { max-width: 680px; margin: 32px 0 0; color: var(--kdp-muted); font-size: var(--site-lead); line-height: 1.65; }

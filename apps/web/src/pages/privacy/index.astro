@@ -3,8 +3,8 @@ import BaseLayout from '@kedoupi/shared/layouts/BaseLayout.astro';
 
 const privacyRows = [
   ['公开主站', '这里展示个人介绍和明确选择公开的内容。主站不加载广告脚本，也不为广告设置 Cookie；浏览公开页面不需要登录。'],
-  ['私人应用与登录', '健康、投资理财和公众号工作台有各自的服务端数据与访问控制，并使用统一登录。登录会使用会话 Cookie；应用中的记录与公开主站内容分开处理。'],
-  ['MCP 与公开范围', '统一 MCP 已上线，首期接入健康数据。授权的 AI 客户端可以向博客提交公开文章的草稿；草稿经本人在工作台审核后才会公开发布，客户端不能直接公开内容。个人业务数据需要在 AI 客户端单独授权后访问。'],
+  ['私人应用与登录', '健康、投资理财和公众号工作台有各自的服务端数据与访问控制，并使用统一登录。登录会使用会话 Cookie；应用中的记录与公开主站内容分开处理。访问私人应用需要相应权限。应用中的连接授权、数据同步和 MCP 授权，以各应用的设置与说明为准。'],
+  ['MCP 与公开范围', '统一 MCP 已上线，首期接入健康数据。授权的 AI 客户端可以向博客提交公开文章的草稿；草稿经本人在工作台审核后才会公开发布，客户端不能直接公开内容。个人业务数据需要在 AI 客户端单独授权后访问，不因应用出现在首页而公开。'],
   ['访问与外部链接', '页面由 Cloudflare 提供服务，网络请求经过其基础设施。外部链接指向独立网站，访问后适用相应网站的数据处理规则。'],
 ];
 ---
@@ -14,7 +14,7 @@ const privacyRows = [
       <div class="brand-wrap">
         <p class="brand-eyebrow">隐私说明</p>
         <h1 class="brand-title">公开的归公开，<br /><span class="brand-muted">私人的归你。</span></h1>
-        <p class="brand-eyebrow" style="margin-top:32px;margin-bottom:0"><time datetime="2026-10-15">更新于 2026 年 10 月 15 日</time></p>
+        <p class="brand-eyebrow privacy-updated"><time datetime="2026-10-15">更新于 2026 年 10 月 15 日</time></p>
       </div>
     </section>
 

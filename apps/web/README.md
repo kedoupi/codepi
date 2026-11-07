@@ -1,6 +1,6 @@
 # 个人主站与本人工作台
 
-公开首页、应用目录、博客由 Astro 静态输出，通过 Workers Static Assets 发布。`/desk/` 只输出没有私人内容的页面壳，通过同一 Worker 的 `/api/*` 接口查询本人数据。
+公开首页、博客与其他品牌页由 Astro 静态输出，通过 Workers Static Assets 发布。`/desk/` 只输出没有私人内容的页面壳，通过同一 Worker 的 `/api/*` 接口查询本人数据。
 
 ## 本地检查
 

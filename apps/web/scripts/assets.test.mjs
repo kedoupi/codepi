@@ -92,6 +92,23 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
     assert.match(html, /\/favicon-32\.png/);
     assert.doesNotMatch(html, /1800w|\/favicon\.svg|wordmark-dark\.png/);
   }
+
+  const aboutHtml = await readFile(join(assets, '/about/', 'index.html'), 'utf8');
+  const desktopNav = aboutHtml.match(/<nav class="kdp-nav"[^>]*>(.*?)<\/nav>/s)?.[1] ?? '';
+  assert.deepEqual(
+    [...desktopNav.matchAll(/<a href="([^"]+)"/g)].map(match => match[1]),
+    ['/', '/blog/', '/about/', '/privacy/'],
+  );
+  assert.match(aboutHtml, /<div class="kdp-header-action">\s*<a href="\/desk\/">我的工作台<\/a>/);
+  assert.match(aboutHtml, /BUILD · THINK · CREATE/);
+  assert.match(aboutHtml, /© 2026 kedoupi（codepi）/);
+  assert.doesNotMatch(aboutHtml, /href="\/(?:apps|contact)\//);
+
+  const notFoundHtml = await readFile(join(assets, '404.html'), 'utf8');
+  assert.match(notFoundHtml, /这里什么也没有。/);
+  assert.match(notFoundHtml, /可能地址输错了，或者这一页已经下线。/);
+  assert.match(notFoundHtml, /回到首页/);
+  assert.match(notFoundHtml, /去博客看看/);
   for (const path of ['/desk', '/about']) {
     const response = await get(path);
     assert.equal(response.status, 307, path);

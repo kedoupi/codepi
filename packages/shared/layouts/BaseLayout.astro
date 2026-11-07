@@ -2,14 +2,6 @@
 import * as siteConfig from '@site/site.config.js';
 import { defaultLocale, getLocale } from '@kedoupi/shared/i18n/config.js';
 import {
-  CODEPI_LOGO_450W_PNG,
-  CODEPI_LOGO_450W_WEBP,
-  CODEPI_LOGO_900W_PNG,
-  CODEPI_LOGO_900W_WEBP,
-  CODEPI_LOGO_HEIGHT,
-  CODEPI_LOGO_PNG,
-  CODEPI_LOGO_WEBP,
-  CODEPI_LOGO_WIDTH,
   CODEPI_SYMBOL_HEIGHT,
   CODEPI_SYMBOL_PNG,
   CODEPI_SYMBOL_WIDTH,
@@ -40,11 +32,9 @@ const localeInfo = getLocale(locale);
 const canonicalURL = canonical || new URL(pathname, SITE).toString();
 const fullTitle = title === siteName ? title : `${title} | ${siteName}`;
 const home = personalSite && pathname === '/';
-const logoPngSrcset = `${CODEPI_LOGO_450W_PNG} 450w, ${CODEPI_LOGO_900W_PNG} 900w, ${CODEPI_LOGO_PNG} ${CODEPI_LOGO_WIDTH}w`;
-const logoWebpSrcset = `${CODEPI_LOGO_450W_WEBP} 450w, ${CODEPI_LOGO_900W_WEBP} 900w, ${CODEPI_LOGO_WEBP} ${CODEPI_LOGO_WIDTH}w`;
 const footerLinks = personalSite
   ? [...navLinks, deskLink]
-  : [...extraFooterLinks, { href: '/privacy/', label: 'Privacy' }, { href: '/terms/', label: 'Terms' }, { href: '/about/', label: 'About' }, { href: '/contact/', label: 'Contact' }];
+  : extraFooterLinks;
 
 const jsonLd = {
   '@context': 'https://schema.org',
