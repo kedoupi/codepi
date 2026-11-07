@@ -2,29 +2,29 @@
 import BaseLayout from '@kedoupi/shared/layouts/BaseLayout.astro';
 ---
 <BaseLayout
-  title="未找到页面"
+  title="404"
   description="这个页面已经不在 kedoupi（codepi）的个人数字空间里了。"
   pathname="/404/"
-  schemaType="WebSite"
+  schemaType="WebPage"
   robots="noindex, follow"
 >
-  <section class="kdp-card">
-    <h1>没有找到这个页面</h1>
-    <p>可能我已经下线了这个工具，或者地址输错了。回到 <a href="/">首页</a> 看看现在的四个产品，或者去 <a href="/about/">关于</a> 了解更多。</p>
-  </section>
+  <div class="brand-page brand-404">
+    <section class="brand-hero">
+      <div class="brand-wrap">
+        <svg class="brand-rings" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+          <circle cx="60" cy="60" r="52" />
+          <circle cx="60" cy="60" r="38" />
+          <circle cx="60" cy="60" r="24" />
+          <circle cx="60" cy="60" r="6" />
+        </svg>
+        <p class="brand-eyebrow">404</p>
+        <h1 class="brand-title">这里什么也没有。</h1>
+        <p class="brand-lead">可能地址输错了，或者这一页已经下线。</p>
+        <div class="brand-404-links">
+          <a class="brand-link" href="/">回到首页</a>
+          <a class="brand-link" href="/blog/">去博客看看</a>
+        </div>
+      </div>
+    </section>
+  </div>
 </BaseLayout>
-<style>
-  .kdp-card {
-    margin: 24px auto;
-    max-width: 640px;
-    padding: 24px 28px;
-    border: 1px solid rgb(255 255 255 / 80%);
-    border-radius: var(--kdp-radius-lg);
-    background: var(--kdp-surface);
-    box-shadow: var(--kdp-shadow);
-  }
-  .kdp-card h1 { margin: 0 0 12px; font-size: 22px; font-weight: 600; color: var(--kdp-ink); }
-  .kdp-card p { margin: 0; color: var(--kdp-muted); line-height: 1.8; }
-  .kdp-card a { color: var(--kdp-accent); text-decoration: none; }
-  .kdp-card a:hover { text-decoration: underline; }
-</style>

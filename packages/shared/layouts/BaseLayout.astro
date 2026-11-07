@@ -19,9 +19,9 @@ import '@kedoupi/shared/styles/site.css';
 
 const { siteName, tagline, footerNote, navLinks, applicationCategory } = siteConfig;
 const personalSite = siteConfig.personalSite === true;
-const primaryNavLinks = personalSite
-  ? [...navLinks, { href: '/desk/', label: '我的工作台' }]
-  : navLinks;
+const deskLink = { href: '/desk/', label: '我的工作台' };
+const primaryNavLinks = navLinks;
+const mobileNavLinks = personalSite ? [...navLinks, deskLink] : navLinks;
 const extraFooterLinks = siteConfig.extraFooterLinks ?? [];
 const defaultRobots = siteConfig.defaultRobots ?? 'index, follow';
 
@@ -43,7 +43,7 @@ const home = personalSite && pathname === '/';
 const logoPngSrcset = `${CODEPI_LOGO_450W_PNG} 450w, ${CODEPI_LOGO_900W_PNG} 900w, ${CODEPI_LOGO_PNG} ${CODEPI_LOGO_WIDTH}w`;
 const logoWebpSrcset = `${CODEPI_LOGO_450W_WEBP} 450w, ${CODEPI_LOGO_900W_WEBP} 900w, ${CODEPI_LOGO_WEBP} ${CODEPI_LOGO_WIDTH}w`;
 const footerLinks = personalSite
-  ? [{ href: '/about/', label: '关于' }, { href: '/blog/', label: '博客' }, { href: '/privacy/', label: '隐私' }, { href: '/contact/', label: '联系' }]
+  ? [...navLinks, deskLink]
   : [...extraFooterLinks, { href: '/privacy/', label: 'Privacy' }, { href: '/terms/', label: 'Terms' }, { href: '/about/', label: 'About' }, { href: '/contact/', label: 'Contact' }];
 
 const jsonLd = {
@@ -86,31 +86,21 @@ const jsonLd = {
     <div class="kdp-container kdp-header-inner">
       <a href="/" class="kdp-brand" aria-label={personalSite ? `${PRODUCT_BRAND} 首页` : siteName}>
         {personalSite
-          ? <picture class="kdp-logo-frame">
-              <source type="image/webp" srcset={logoWebpSrcset} sizes="(max-width: 720px) 104px, 124px" />
-              <img
-                class="kdp-logo"
-                src={CODEPI_LOGO_PNG}
-                srcset={logoPngSrcset}
-                alt="CodePi"
-                width={CODEPI_LOGO_WIDTH}
-                height={CODEPI_LOGO_HEIGHT}
-                sizes="(max-width: 720px) 104px, 124px"
-                decoding="async"
-                fetchpriority="high"
-              />
-            </picture>
+          ? <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" /><span class="kdp-wordmark">Code<span class="kdp-wordmark-pi">Pi</span></span></>
           : <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" /><span class="kdp-wordmark">{siteName}</span></>}
       </a>
       <nav class="kdp-nav" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
         {primaryNavLinks.map((link) => (
-          <a class:list={[{ 'kdp-nav-entry': link.href === '/desk/' }]} href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
+          <a href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
         ))}
       </nav>
+      <div class="kdp-header-action">
+        {personalSite && <a href={deskLink.href}>{deskLink.label}</a>}
+      </div>
       <details class="kdp-mobile-nav">
-        <summary class="kdp-mobile-nav-toggle" aria-label="打开导航菜单"><span class="kdp-mobile-nav-icon" aria-hidden="true"></span><span class="sr-only">菜单</span></summary>
+        <summary class="kdp-mobile-nav-toggle" aria-label="打开菜单"><span class="kdp-mobile-nav-icon" aria-hidden="true"></span><span class="sr-only">菜单</span></summary>
         <nav class="kdp-mobile-nav-panel" aria-label={personalSite ? '主导航' : 'Primary navigation'}>
-          {primaryNavLinks.map((link) => (
+          {mobileNavLinks.map((link) => (
             <a href={link.href} aria-current={link.href === pathname ? 'page' : undefined} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}>{link.label}</a>
           ))}
         </nav>
@@ -141,29 +131,18 @@ const jsonLd = {
       <div>
         <a href="/" class="kdp-brand" aria-label={personalSite ? PRODUCT_BRAND : siteName}>
           {personalSite
-            ? <picture class="kdp-logo-frame">
-                <source type="image/webp" srcset={logoWebpSrcset} sizes="(max-width: 720px) 100px, 114px" />
-                <img
-                  class="kdp-logo"
-                  src={CODEPI_LOGO_PNG}
-                  srcset={logoPngSrcset}
-                  alt="CodePi"
-                  width={CODEPI_LOGO_WIDTH}
-                  height={CODEPI_LOGO_HEIGHT}
-                  sizes="(max-width: 720px) 100px, 114px"
-                  decoding="async"
-                  loading="lazy"
-                />
-              </picture>
+            ? <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" loading="lazy" /><span class="kdp-wordmark">Code<span class="kdp-wordmark-pi">Pi</span></span></>
             : <><img class="kdp-mark" src={CODEPI_SYMBOL_PNG} alt="" width={CODEPI_SYMBOL_WIDTH} height={CODEPI_SYMBOL_HEIGHT} decoding="async" loading="lazy" /><span class="kdp-wordmark">{siteName}</span></>}
         </a>
-        <p class="kdp-footer-note">{personalSite ? footerNote : tagline}</p>
+        {personalSite
+          ? <p class="kdp-footer-note kdp-signature-note">BUILD · THINK · CREATE</p>
+          : <p class="kdp-footer-note">{tagline}</p>}
       </div>
       <div>
         <nav class="kdp-footer-links" aria-label={personalSite ? '页脚导航' : 'Footer navigation'}>
           {footerLinks.map((link) => <a href={link.href}>{link.label}</a>)}
         </nav>
-        <p class="kdp-copyright">© {new Date().getFullYear()} {siteName}{!personalSite && ` · ${footerNote}`}</p>
+        <p class="kdp-copyright">{personalSite ? '© 2026 kedoupi（codepi）' : `© ${new Date().getFullYear()} ${siteName} · ${footerNote}`}</p>
       </div>
     </div>
   </footer>

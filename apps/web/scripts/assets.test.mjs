@@ -66,7 +66,7 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
     outboundService: () => { throw Error('Asset checks must not access the network'); },
   }));
   const get = path => runtime.dispatchFetch('https://codepi.app' + path, { redirect: 'manual' });
-  for (const path of ['/', '/apps/', '/about/', '/privacy/', '/terms/', '/contact/', '/desk/']) {
+  for (const path of ['/', '/about/', '/privacy/', '/desk/']) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get('Content-Type'), /^text\/html/);
@@ -80,9 +80,15 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
       assert.ok(response.headers.get('Referrer-Policy').includes('no-referrer'));
     }
   }
+  for (const path of ['/apps/', '/contact/', '/terms/', '/prototype/three/']) {
+    const response = await get(path);
+    assert.equal(response.status, 404, path);
+    await response.body?.cancel();
+  }
   for (const path of ['/', '/about/']) {
     const html = await readFile(join(assets, path, 'index.html'), 'utf8');
-    assert.match(html, /\/brand\/codepi-logo\.png 1288w/);
+    assert.match(html, /\/brand\/codepi-symbol\.png/);
+    assert.match(html, /Code<span class="kdp-wordmark-pi">Pi<\/span>/);
     assert.match(html, /\/favicon-32\.png/);
     assert.doesNotMatch(html, /1800w|\/favicon\.svg|wordmark-dark\.png/);
   }
