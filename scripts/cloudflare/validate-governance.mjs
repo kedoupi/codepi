@@ -476,6 +476,9 @@ function checkService(spec, cfg, index, violations) {
       if (!env.routePatterns.length) at(`${envName} worker routes must be declared explicitly`);
     }
   }
+  if (spec.id === 'project' && prod.cronCount !== 0) {
+    at('project must not declare Cron schedules');
+  }
   if (spec.cronsRequired) {
     for (const [envName, env] of environments) {
       if (env.cronCount !== 1 || !env.crons.length) at(`${envName} [triggers] crons must be declared exactly once`);

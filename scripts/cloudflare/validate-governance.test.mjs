@@ -346,6 +346,9 @@ test('GU materials has an exact managed bucket', () => {
 
 test('Project and Me only reserve their exact planned Worker, D1, host and Me import bucket', () => {
   assert.deepEqual(run(legalFiles()), []);
+  const projectWithCron = `${domainConfig('project')}\n[triggers]\ncrons = ["*/15 * * * *"]\n`;
+  assert.ok(run(legalFiles({ files: { 'apps/project/wrangler.toml': projectWithCron } }))
+    .some(v => v.startsWith('project:') && v.includes('must not declare Cron')));
   for (const [file, config, needle] of [
     ['apps/project/wrangler.toml', domainConfig('project').replace('database_name = "codepi-project"', 'database_name = "codepi-me"'), 'database_name'],
     ['apps/project/wrangler.toml', domainConfig('project').replace('pattern = "project.codepi.app"', 'pattern = "me.codepi.app"'), 'custom domains'],
