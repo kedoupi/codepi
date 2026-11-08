@@ -1,6 +1,6 @@
 # Product apps monorepo migration (gzh / fagao / oura)
 
-> 2026-10-10: standalone apps moved into `kedoupi/codepi` and CF projects rebound to this repo.
+> 2026-10-10: standalone apps moved into `kedoupi/codepi` and CF projects rebound to this repo. Historical record: the gzh/fagao product was retired on 2026-11-08; its data was deleted by owner decision. The names below preserve that historical migration only.
 
 > Historical migration record. Paths, domains and Pages resources below describe
 > that migration, not the current workspace. Use the [current architecture](workspace-and-deployment.md)

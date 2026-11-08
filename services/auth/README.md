@@ -1,6 +1,6 @@
 # KDP unified login
 
-`codepi-auth` is the first-party login Worker for Health, GU, the personal desk, CodePi MCP, Project and Me. It accepts no
+`codepi-auth` is the first-party login Worker for Health, GU, the personal desk, CodePi MCP, Project and Me. The gzh client was retired on 2026-11-08; its data was deleted by owner decision. Retired entries left in the write-only `SSO_CLIENTS` registry are ignored, while other clients keep working. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `packages/shared/brand.ts`.
@@ -68,7 +68,7 @@ pnpm --dir services/auth typecheck
 pnpm --dir services/auth build
 ```
 
-The Auth test harness runs the built center plus four synthetic shared-client Workers with service
+The Auth test harness runs the built center plus three synthetic shared-client Workers with service
 bindings and independent D1 databases. Only mail delivery is replaced locally.
 The test registry contains synthetic identities and secrets, and is never
 included in the production bundle. MCP opt-in registration is tested here;

@@ -1,6 +1,6 @@
 # CodePi Design System 规范
 
-> 状态：现行规范（2026-10-20 整理；2026-11-07 按设计画布全局区统一）。适用于 kedoupi（codepi）全部产品与支撑页面。
+> 状态：现行规范（2026-10-20 整理；2026-11-07 按设计画布全局区统一；2026-11-08 gzh 公众号稿件台退役，数据按所有者决定删除）。适用于 kedoupi（codepi）全部现行产品与支撑页面。
 > 本文把用户提供的 CodePi Design System v1.5 与 v2.0.0 原件、仓库已落地的共享实现和各应用
 > 主题边界整理成一份可执行规范，供各项目 agent 优化和实现时直接引用。
 > v2.0.0 的颜色、字体、图标规则和全部标志资产与 v1.5 逐字节一致；它新增的是交互状态、
@@ -90,7 +90,7 @@
 
 ### 2.3 网站图标契约
 
-每个对外站点（首页、GU、GZH、Health、Project、Me，以及有独立页面的 Auth/MCP）**应**在 Web 根目录提供：
+每个对外站点（首页、GU、Health、Project、Me，以及有独立页面的 Auth/MCP）**应**在 Web 根目录提供：
 
 | 文件 | 来源 | `<head>` |
 | --- | --- | --- |
@@ -266,7 +266,7 @@ App 八类色（`--cat-*`）、睡眠分期色（`--stage-*`）、提示底色�
 - 外边距：手机 16–20px（`site.css` 用 `calc(100% - 40px)`），平板 24px，桌面 32px。
 - 断点起点：768 / 1024 / 1440px，现行 `site.css` 另有 720px、400px 两档窄屏规则。
 - 必须在 320、375、768、1024、1440px 宽度下无横向滚动、无内容被截断。
-- 主站提供舒展的阅读节奏；工作应用（GU、GZH、Health）保留适合的信息密度，
+- 主站提供舒展的阅读节奏；工作应用（GU、Health）保留适合的信息密度，
   但仍使用同一套间距刻度。
 - 主要可点击目标至少 44×44px（`site.css` 的导航、页脚链接已按此实现）。
 
@@ -426,7 +426,6 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 | 主站 `apps/web` | `BaseLayout.astro` + `site.css` | 完全采用 v1.5 默认色板；页头为符号 + HTML 字标 |
 | Desk（主站私有区） | `apps/web/src/styles/desk.css` | 只用 `--kdp-*`，无字面色值；保持现状 |
 | GU `apps/gu` | `apps/gu/web/src/style.css` | 导入共享 tokens，把应用变量映射到 `--kdp-*`；可保留投资业务语义色（盈亏、预警），页头和登录页用 `CODEPI_SYMBOL_PNG` |
-| GZH `apps/gzh` | `apps/gzh/web/src/styles.css` | 导入共享 tokens，移动优先的工作台密度；`-soft` 系列浅色背景可作为应用局部语义色 |
 | Health `apps/health` | `apps/health/apps/web/src/theme.css`（在共享 tokens 之后加载） | 保留暖纸主题：背景 `#fbf8f3`、表面 `#fffdf9`、陶橙 `#a3421c`/`#813719`、浅暖 `#f4e9df`；字体、间距、圆角沿用共享；图表系列色见第 10 节 |
 | Project `apps/project` | `apps/project/web/src/style.css`（导入共享 tokens，另有 `--project-*` 变量） | 可保留看板信息密度和项目状态语义色；品牌面（标志、favicon、`theme-color`、主色）必须回到 CodePi 暖白 + 橙，不另立蓝色品牌 |
 | Me `apps/me` | `apps/me/web/src/style.css`（导入共享 tokens） | 同 Project；页头已用 `PRODUCT_BRAND` 文字 |
@@ -453,11 +452,11 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 ### 已落地
 
 - `tokens.css` 已复制 v1.5 语义 token，`--kdp-*` 别名全部指向语义层（#118）。
-- 首页、GU、GZH、Health 的 favicon，以及首页、GU 的 `apple-touch-icon`，都已换成 v1.5 导出文件，
-  并于 2026-10-20 发布到生产，线上文件与仓库逐字节一致（#123）。
+- 首页、GU、Health 的 favicon，以及首页、GU 的 `apple-touch-icon`，都已换成 v1.5 导出文件，
+  并于 2026-10-20 发布到生产，线上文件与仓库逐字节一致（#123）；gzh 的历史品牌实现已随 2026-11-08 退役移除。
 - 主站页头/页脚与 Three.js 原型已使用透明 PNG 字标；GU 页头与登录页使用 `CODEPI_SYMBOL_PNG` + 文字字标。
 - Health 页头已改用透明 `CODEPI_SYMBOL_PNG`，并为网站图标补齐 16/32/180px PNG 与 ICO。
-- Project、Me、GZH 的页头与登录入口已改用 `CODEPI_SYMBOL_PNG`，并补齐 16/32/180px PNG、
+- Project、Me 的页头与登录入口已改用 `CODEPI_SYMBOL_PNG`，并补齐 16/32/180px PNG、
   ICO 与 Apple Touch Icon；不再引用候选 SVG 标志。
 - 主站共享层已接入 v2.0.0 Loading 变体；Desk 的概览、摘要状态使用共享圆环和 reduced-motion 规则。
 - Auth、MCP 页面内嵌共享 `tokens.css`。
@@ -469,7 +468,6 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 | P1 | Project、Me | `theme-color` 仍为冷灰 `#f4f7fb`；Project 的 `--project-*` 主题以海军蓝/蓝色为主（`style.css` 41 处字面色值），与“禁止蓝紫、默认暖白 + 橙”冲突；标志与网站图标已完成 PNG 迁移 | `theme-color` 与背景改为共享暖白；主色映射到 `--color-action`，仅保留必要的业务状态色 |
 | P1 | Auth 登录页、MCP 授权页 | 只有文字品牌，没有标志；没有 favicon | 加上符号 + 文字品牌，并按第 2.3 节提供图标 |
 | P2 | GU | `style.css` 有 24 处十六进制字面色值 | 改为应用主题变量或共享 token；业务语义色集中定义 |
-| P2 | GZH | `styles.css` 有 18 处字面色值（如 `--ok-soft`、`--danger-soft`） | 集中到主题变量区，并验证对比度 |
 | P2 | Health | `styles.css` 24 处、`report.css` 5 处字面色值 | 归入 `theme.css` 的局部变量 |
 | P2 | 全部私人应用 | 新代码直接用 `--kdp-*` 别名；语义层 `--color-*` 尚无应用使用 | 新增样式优先引用语义 token；不强制一次性迁移旧代码 |
 | P2 | 全部应用 | 没有统一的 Loading 与 Feedback（空、错误、离线、部分完成）实现 | 按第 9.1–9.2 节在各应用实现，并覆盖 reduced-motion 与 live region |
@@ -488,7 +486,7 @@ AI 不得用加载状态暗示未完成的工作已经完成；高风险工具�
 2. 先复用 `site.css` 参考组件、应用里已有的组件和 token，再考虑新增；不新增依赖、远程字体或图标库。
 3. 只在本应用的主题文件中加局部变量；需要改 `tokens.css`、`site.css`、`brand.ts` 时，
    单独开任务并请用户批准，PR 中列出所有消费方
-   （主站、GU、GZH、Health、Project、Me、Auth、MCP，见 `packages/shared/AGENTS.md`）。
+   （主站、GU、Health、Project、Me、Auth、MCP，见 `packages/shared/AGENTS.md`）。
 4. 完成前自查：
    - 新增代码没有十六进制或 `rgb()` 字面色（可用 `rg -n '#[0-9a-fA-F]{3,8}\b' <改动文件>` 检查）；
    - 新增的颜色配对给出对比度；

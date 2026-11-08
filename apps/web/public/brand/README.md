@@ -20,7 +20,7 @@ Canonical names:
 existing external references. Favicon exports are direct proportional symbol
 reductions, matching the approved preview without changing the artwork.
 
-Project, Me, GZH, GU and Health keep byte-identical copies of the symbol and
+Project, Me, GU and Health keep byte-identical copies of the symbol and
 favicon exports under their own `public/brand/` and `public/` directories.
 Their Worker allowlists must expose those PNG/WebP files; SVG masters are not
 part of the runtime contract.

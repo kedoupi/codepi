@@ -1,10 +1,10 @@
 # kedoupi（codepi）个人数字空间
 
-`codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财、公众号工作台承载个人生活与工作；博客与 owner 授权的 Blog MCP 已进入当前实现和日期化发布证据范围。广告收入与流量增长不再作为项目目标。
+`codepi.app` 是 kedoupi（codepi）的个人产品与内容入口。健康、投资理财等私人应用承载个人生活与工作；博客与 owner 授权的 Blog MCP 已进入当前实现和日期化发布证据范围。广告收入与流量增长不再作为项目目标。
 
 产品目录位于 `apps/`，公开入口的唯一清单是 `packages/shared/products.ts`。Auth、MCP、Ops 与 shared 是支撑层。统一 MCP 的 Health、Project、Me、GU、Blog 模块均已实现并有日期化发布证据；实际资源、客户端使用和剩余线上流程状态分别记录在[任务索引](docs/development/tasks/README.md)，本地配置不替代实时控制面核验。
 
-原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
+原先的 `calc/`、`convert/`、`text/`、`dev/`、`ai/` 五个静态工具站、主站旧计算器与指南页、`/tools/` 工具存档，以及 `kdp.cool`、`oura.kdp.cool` 域名均已退役，不保留跳转。公众号稿件台 gzh 已于 2026-11-08 退役，数据已按所有者决定删除；远程 Worker、域名、D1 与 secret 的清理由 lead 另行执行。退役范围与迁移顺序见 [codepi.app 四产品收尾](docs/development/tasks/2026-10-15-codepi-cutover.md)。
 
 新 Agent 从[工程文档入口](docs/README.md)和[开发导航](docs/development/README.md)开始；
 当前结构见[工程架构](docs/architecture/workspace-and-deployment.md)，剩余工作见
@@ -19,7 +19,6 @@
 | --- | --- | --- | --- |
 | `apps/web/` | `codepi.app` + `www.` | `codepi-www` | 首页、应用介绍、博客与 `desk` 摘要接口 |
 | `apps/gu/` | `gu.codepi.app` | `codepi-gu` | 私人投资工作台 |
-| `apps/gzh/` | `gzh.codepi.app` | `codepi-gzh` | 公众号稿件、预览与审核台 |
 | `apps/health/` | `health.codepi.app` | `codepi-health` + worker `codepi-health-api` | Health |
 | `apps/project/` | `project.codepi.app` | `codepi-project` | 个人工作台：各项目推送的待办、需要你的事、分支、变更与任务交接 |
 | `apps/me/` | `me.codepi.app` | `codepi-me` | 确认区、个人资料与经历 |
@@ -30,7 +29,7 @@
 | `packages/cli/` | — | — | 官方 MCP SDK 客户端；本地 CLI |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 
-部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 与 `apps/gzh` 自 2026-10-17 起使用 Workers Static Assets，分别由 Worker `codepi-gu`、`codepi-gzh` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布），GZH 切换证据见 [迁移记录](docs/development/tasks/2026-10-17-gzh-static-assets.md)；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。
+部署要点：`apps/web` 的部署配置已迁为 Workers Static Assets（`/api/*` 与 `/desk` 路径优先进入 Worker，公开页面静态服务），实施与域名切换状态见 [首页迁移记录](docs/development/tasks/2026-10-17-web-static-assets.md)；`apps/gu` 使用 Workers Static Assets，由 Worker `codepi-gu` 服务正式域名（`run_worker_first = true`，经 `wrangler deploy` 发布）；`apps/health` 前端发布到 `codepi-health`，API worker 名 `codepi-health-api`。所有应用共享根 pnpm workspace。发布从已合并 main 在本机执行，复用各应用脚本，步骤遵循下方 CF 治理规范。数据库与环境绑定以资源登记表及运行配置为准。
 
 
 ## 广告与历史工具
@@ -87,7 +86,6 @@ Cloudflare 基础设施的命名、环境、域名、密钥、发布与退役规
 | --- | --- | --- | --- |
 | `codepi-www` | `apps/web` | `npm run build` | `dist` |
 | `codepi-gu` | `apps/gu` | `npm run build` | `dist` |
-| `codepi-gzh` | `apps/gzh` | `npm run build` | `dist` |
 | `codepi-health` | `apps/health` | `pnpm --filter @health-kdp/web build` | `apps/web/dist` |
 
 这里只列构建命令，不是 Dashboard 自动构建设置，也不代表完整检查与发布步骤。Node、依赖安装和发布参数以当前 workflow 为准。
@@ -103,7 +101,6 @@ Health workspace 包名为 `health-kdp`、`@health-kdp/web`、`@health-kdp/api`�
 | `codepi.app` (apex) | —    | Worker custom domain `codepi-www`（2026-10-17 已切换） | yes |
 | `www`             | —     | Worker custom domain `codepi-www`（2026-10-17 已切换） | yes |
 | `gu`              | AAAA | `100::`（Worker custom domain `codepi-gu` 自动管理，2026-10-17 已切换） | yes |
-| `gzh`             | AAAA | `100::`（Worker custom domain `codepi-gzh` 自动管理，2026-10-17 已切换） | yes |
 | `health`          | —     | Worker custom domain `codepi-health`（2026-10-18 已切换） | yes |
 | `auth`            | —     | Worker custom domain `codepi-auth` | yes |
 
@@ -143,9 +140,9 @@ callback 可以先声明，缺少 opt-in secret 时客户端仍关闭，既有�
 | P1 | 个人首页、应用介绍、共享视觉基础 | 已上线 |
 | P2 | Health 视觉统一 | 已上线 |
 | P3 | GU 视觉统一 | 已上线 |
-| P4 | 公众号工作台（GZH）视觉统一 | 已上线 |
+| P4 | 公众号工作台（GZH）视觉统一 | 已于 2026-11-08 退役，数据已按所有者决定删除 |
 | P5 | 博客栏目上线（`/blog/`），公开笔记与内容发布 | 博客已上线 |
-| P6 | 本人工作台与按需摘要（`/desk/`） | 已部署；登录后的三来源摘要使用验收见任务索引，不凭早期 TODO 判断配置缺失 |
+| P6 | 本人工作台与按需摘要（`/desk/`） | 已部署；登录后的两来源摘要使用验收见任务索引，不凭早期 TODO 判断配置缺失 |
 | P9 | 五站下线、codepi.app 迁域、六产品收尾 | 已完成（Pages 全部退役，六产品均为 Workers Static Assets） |
 | P7 | 公开内容 MCP | Blog agent MCP 已实现且有日期化发布证据；其为 owner 授权接口，更广泛的公开内容 MCP 产品范围待确认 |
 | P8 | 私人应用的授权 AI 能力 | Health、Project、Me、GU 的授权 MCP 能力已实现并有发布记录；真实客户端与所有者使用验收按任务记录单独核对 |

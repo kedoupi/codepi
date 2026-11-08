@@ -31,8 +31,8 @@
 
 - 产品名称、公开用途、访问方式和当前入口集中在 `packages/shared/products.ts`；域名映射见根 README。
 - Health 应用使用本地暖色主题；MCP 授权页和统一登录页直接嵌入共享 tokens.css，其配色独立管理。旧 Oura/工具站域名不保留兼容。
-- GU 与 GZH 已使用自己的 Svelte 应用样式，分别从 `apps/gu/web/src/style.css` 和
-  `apps/gzh/web/src/styles.css` 引入共享 tokens，保留各自信息密度与业务主题。
+- 公众号稿件台 gzh 已于 2026-11-08 退役，数据按所有者决定删除。
+- GU 使用自己的 Svelte 应用样式，从 `apps/gu/web/src/style.css` 引入共享 tokens，保留各自信息密度与业务主题。
 - Health 的登录入口、导航、概览和详情页沿用共享组件风格，保留自身配色和当前布局。私人应用的 UI 变更仍须检查桌面、手机、登录、空状态、错误状态及图表。
 - 不能以“已经有 token 文件”宣称所有私人应用已完成视觉统一。
 
