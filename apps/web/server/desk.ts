@@ -104,7 +104,8 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (request.method === "POST" && request.headers.get("Origin") !== url.origin) return deskJson({ error: "origin_not_allowed" }, 403);
   if (path === "/api/auth/login" && request.method === "GET") {
     const login = new URL(request.url);
-    login.search = "?return=%2Fdesk%2F";
+    const returnPath = login.searchParams.get("return") === "/desk/blog/" ? "/desk/blog/" : "/desk/";
+    login.search = `?return=${encodeURIComponent(returnPath)}`;
     return beginLogin(new Request(login, request), env);
   }
   if (path === "/api/auth/callback" && request.method === "GET") {

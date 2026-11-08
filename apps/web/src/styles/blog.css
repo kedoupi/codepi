@@ -129,6 +129,9 @@ body.blog-embed .kdp-footer,
 body.blog-embed .blog-back,
 body.blog-embed .blog-preview-notice,
 body.blog-embed .blog-article-footer { display: none; }
+body.blog-embed .kdp-nav,
+body.blog-embed .kdp-header-action,
+body.blog-embed .kdp-mobile-nav { display: none; }
 body.blog-embed .kdp-main { padding-block: var(--space-8); }
 body.blog-embed .blog-article-header { margin-top: 0; }
 body.blog-embed .blog-article-cover-frame,

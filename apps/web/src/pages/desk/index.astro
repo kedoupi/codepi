@@ -65,18 +65,10 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
         ))}
       </section>
 
-      <section class="kdp-card desk-review" aria-labelledby="review-title">
-        <div class="desk-section-heading"><div><p class="desk-eyebrow">审核 / BLOG</p><h2 id="review-title">博客审核</h2></div></div>
-        <div id="blog-review-status" class="desk-fine" role="status"></div>
-        <div id="blog-review-workspace" class="desk-review-workspace" data-view="list">
-          <div class="desk-review-queue-column">
-            <h3 class="desk-review-subtitle">待审</h3>
-            <div id="blog-drafts-list" class="desk-queue" aria-label="待审稿件列表"></div>
-            <h3 class="desk-review-subtitle">已上架</h3>
-            <div id="blog-published-list" aria-label="已上架文章列表"></div>
-          </div>
-          <section id="blog-review-detail" class="desk-detail" aria-label="稿件预览"></section>
-        </div>
+      <section class="kdp-card desk-blog-card" aria-labelledby="blog-card-title">
+        <div class="desk-section-heading"><div><p class="desk-eyebrow">审核 / BLOG</p><h2 id="blog-card-title">博客工作台</h2></div></div>
+        <p id="blog-review-summary" class="desk-muted">正在读取博客审核状态…</p>
+        <div class="desk-card-footer"><p class="desk-fine">点开文章后，先看完真实预览，再决定是否上架。</p><a href="/desk/blog/" class="kdp-link">进入博客工作台 <span aria-hidden="true">→</span></a></div>
       </section>
 
       <div class="desk-workspace">

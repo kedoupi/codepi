@@ -64,8 +64,9 @@ try {
   assert.ok(image.ok);
   const coverId = image.data.id;
   const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`mermaid\nflowchart TD\n    U[开发者 / 企业用户] --> A[Codex 或其他 Agent]\n    A --> T[工具执行与权限控制]\n    A --> R[模型路由与调用接口]\n    R --> O[OpenAI 直接服务]\n    R --> G[Google Cloud 模型入口]\n    R --> X[其他模型供应商]\n    T --> L[日志、审计与任务结果]\n    R --> L\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    A[桌面 / Web / IM 入口] --> B[Agent 工作流与任务状态]\n    B --> C[模型路由与统一观测]\n    C --> D[OpenAI]\n    C --> E[Google Cloud]\n    C --> F[其他供应商]\n    B --> G[工具权限 / 审批 / 执行日志]\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    Broken[无效图表\n\`\`\`\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
+  const reviewBody = `${syntheticBody}\n\n### 代码与结构\n\n用于验证文章目录。`;
   for (let i = 0; i < 14; i++) {
-    const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }] } });
+    const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: reviewBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }] } });
     assert.ok(result.ok);
   }
   // Seed publication snapshots locally; browser review exercises the thirteenth draft.
@@ -88,8 +89,10 @@ try {
     const server = createServer(async (req, res) => {
       try {
         const url = new URL(req.url, origin);
+        const deskBlogPreview = /^\/desk\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname);
         if (id === 'desk' && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/blog/')) {
-          const path = resolve(root, '.' + decodeURIComponent(url.pathname), url.pathname.endsWith('/') ? 'index.html' : '');
+          const assetPath = deskBlogPreview ? '/desk/blog/' : url.pathname;
+          const path = resolve(root, '.' + decodeURIComponent(assetPath), assetPath.endsWith('/') ? 'index.html' : '');
           if (!path.startsWith(root)) { res.writeHead(404); res.end(); return; }
           const body = await readFile(path);
           const contentType = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(path)] || 'application/octet-stream';
@@ -145,8 +148,9 @@ try {
   await page.click('#submit');
   await page.waitForURL(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
-  // 「概览已读取」之后初始化还在读审核列表；此时触发会被合并进这次初始化、不发新请求。等列表读完再触发。
-  await page.waitForFunction(() => document.querySelector('#blog-drafts-list').getAttribute('aria-busy') === 'false');
+  await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
+  assert.equal(await page.evaluate(() => document.querySelector('.desk-review')), null, 'home page does not embed blog review');
+  assert.equal(await page.evaluate(() => document.querySelector('.desk-blog-card a').getAttribute('href')), '/desk/blog/');
   const initialDeskMeRequests = deskMeRequests;
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
@@ -217,68 +221,57 @@ try {
   await page.click('#desk-generate');
   await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 2);
   await page.screenshot({ path: 'desk-mobile-summary.png' });
+  await page.goto(origins.desk + '/desk/blog/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
-  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-workspace').dataset.view), 'list');
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
-  await page.waitForFunction(() => document.querySelector('#blog-review-workspace').dataset.view === 'detail');
-  await page.waitForSelector('#blog-review-detail [data-review-action="publish"]');
-  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').textContent), '通过上架');
-  const mobileReview = await page.evaluate(() => ({
-    queueColumn: getComputedStyle(document.querySelector('.desk-review-queue-column')).display,
-    status: getComputedStyle(document.querySelector('#blog-review-status')).display,
-    retry: getComputedStyle(document.querySelector('#blog-review-status + .desk-text-button')).display,
-  }));
-  assert.deepEqual(mobileReview, { queueColumn: 'none', status: 'none', retry: 'none' }, 'mobile detail hides review lists and status controls');
-  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-queue')).display), 'none', 'mobile review shows the detail layer only');
-  const mobileOverflow = await page.evaluate(() => {
-    const wide = [...document.querySelectorAll('#blog-review-detail *')].find(node => {
-      const style = getComputedStyle(node);
-      return node.scrollWidth > node.clientWidth + 1 && node.clientWidth > 0 && node.clientWidth > innerWidth - 16 && !['auto', 'scroll', 'hidden'].includes(style.overflowX);
-    });
-    return wide ? `${wide.tagName}.${wide.className} ${wide.scrollWidth}>${wide.clientWidth}` : '';
-  });
-  assert.equal(mobileOverflow, '', `mobile review stays inside the viewport (${mobileOverflow})`);
-  await page.screenshot({ path: 'desk-blog-review-mobile.png' });
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-tabs [aria-selected="true"]').textContent), '待审 1');
+  await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
+  await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
+  await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
+  await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-review-queue-column')).display), 'none', 'mobile preview hides list column');
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action]').textContent), '审核通过，上架');
+  await page.screenshot({ path: 'desk-blog-preview-mobile.png' });
   await page.click('.desk-detail-back');
-  await page.waitForFunction(() => document.querySelector('#blog-review-workspace').dataset.view === 'list');
+  await page.waitForURL(origins.desk + '/desk/blog/?tab=pending');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
-  await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.desk-review').scrollIntoView({ behavior: 'instant', block: 'start' }); });
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
-  await page.waitForSelector('#blog-review-detail iframe.desk-preview-frame');
-  await page.waitForFunction(() => {
-    const frame = document.querySelector('#blog-review-detail iframe');
-    return frame?.contentDocument?.querySelector('.blog-article') && frame.contentDocument.body.classList.contains('blog-embed') && Number.parseInt(frame.style.height, 10) > 360;
-  });
+  await page.goto(origins.desk + '/desk/blog/?tab=pending');
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
+  await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
+  await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
+  await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
   const embedded = await page.evaluate(() => {
     const frame = document.querySelector('#blog-review-detail iframe');
     const doc = frame.contentDocument;
-    return {
-      src: frame.src,
-      shell: [...doc.querySelectorAll('.kdp-header, .kdp-footer, .blog-back, .blog-preview-notice, .blog-article-footer')].some(node => getComputedStyle(node).display !== 'none'),
-      article: Boolean(doc.querySelector('.blog-article h2, .blog-article blockquote, .blog-article pre, .blog-article img')),
-      height: Number.parseInt(frame.style.height, 10),
-    };
+    const shellNodes = [...doc.querySelectorAll('.kdp-nav, .kdp-header, .kdp-footer, .blog-back, .blog-preview-notice, .blog-article-footer')].map(node => ({ className: node.className, display: getComputedStyle(node).display }));
+    return { src: frame.src, bodyClass: doc.body.className, shell: shellNodes.some(item => item.display !== 'none'), shellNodes, article: Boolean(doc.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre, figcaption')), toc: Boolean(doc.querySelector('.blog-toc-desktop, .blog-toc-mobile')), height: Number.parseInt(frame.style.height, 10), scrollHeight: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight) };
   });
   assert.match(embedded.src, /\/blog\/preview\/browser-article-12\/\?embed=1$/);
-  assert.equal(embedded.shell, false, 'embed preview hides site shell and repeated links');
-  assert.equal(embedded.article, true, 'embed preview renders the real article');
-  assert.ok(embedded.height > 360, 'iframe height follows the article document');
-  await page.screenshot({ path: 'desk-blog-review-desktop.png' });
+  assert.equal(embedded.shell, false, `embed preview hides site shell: ${JSON.stringify(embedded)}`);
+  assert.equal(embedded.article, true, 'preview renders article structure');
+  assert.equal(embedded.toc, true, 'preview keeps the article table of contents');
+  assert.ok(Math.abs(embedded.height - embedded.scrollHeight) <= 2, 'iframe height follows contentDocument scrollHeight');
+  await page.screenshot({ path: 'desk-blog-preview-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
-  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').click());
-  assert.ok(await page.evaluate(() => window.__reviewConfirmation), 'publish confirmation ran');
+  await page.click('#blog-review-detail [data-review-action="publish"]');
+  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=published'));
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已上架'));
-  assert.match(await page.evaluate(() => window.__reviewConfirmation), /修订 1/);
-  let publishedArticle = await f.blog.prepare("SELECT revision,title FROM blog_posts WHERE slug='browser-article-12'").first();
-  assert.equal(publishedArticle.revision, 1);
+  assert.equal((await f.blog.prepare("SELECT revision FROM blog_posts WHERE slug='browser-article-12'").first()).revision, 1);
+  await page.goto(origins.desk + '/blog/browser-article-12/');
+  await page.waitForSelector('.blog-article');
+  await page.screenshot({ path: 'blog-browser-article-public.png' });
   const update = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: 'browser-article-12', title: '合成文章 12：线上旧版与新版待审', summary: '用于验收已上架文章改版仍保持旧版在线。', body_markdown: '## 新版待审\n\n线上旧版仍在线。', cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }], base_revision: 1, request_id: 'browser-update' } });
   assert.ok(update.ok);
-  await page.goto(origins.desk + '/desk/');
-  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
-  assert.match(await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').textContent), /已上架 · 有新版待审/);
-  assert.ok(await page.evaluate(() => document.querySelectorAll('#blog-published-list [data-slug] [data-review-action="unpublish"]').length > 0), 'published review rows render before unpublish');
+  await page.goto(origins.desk + '/desk/blog/?tab=pending');
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]')?.textContent.includes('已上架 · 有新版待审'));
+  await page.goto(origins.desk + '/desk/blog/?tab=published');
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"]'));
+  await page.click('#blog-published-list [data-slug="browser-article-12"]');
+  await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=published');
+  await page.waitForSelector('#blog-review-detail [data-review-action="unpublish"]');
+  assert.equal(await page.evaluate(() => document.querySelector('.desk-review-notice').textContent), '线上仍是旧版，通过后替换。');
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
-  await page.evaluate(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"] [data-review-action="unpublish"]').click());
+  await page.click('#blog-review-detail [data-review-action="unpublish"]');
+  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=unpublished'));
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已下架'));
   assert.equal((await f.blog.prepare("SELECT COUNT(*) AS count FROM blog_posts WHERE slug='browser-article-12'").first()).count, 0);
   await page.goto(origins.desk + '/blog/');
@@ -352,14 +345,14 @@ try {
   await page.screenshot({ path: 'blog-list-mobile.png' });
   await page.goto(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
-  await page.waitForFunction(() => document.querySelectorAll('#blog-published-list article').length === 13);
+  await page.waitForFunction(() => document.querySelector('#blog-review-summary'));
   f.faults.health = async () => { await new Promise(resolve => setTimeout(resolve, 400)); return new Response('', { status: 503 }); };
   await page.click('#desk-generate');
   await page.click('#desk-logout');
   await page.waitForFunction(() => document.querySelector('#desk-login-note').textContent.includes('已退出'));
   assert.equal(await page.evaluate(() => document.querySelector('#desk-private').hidden), true);
   assert.equal(await page.evaluate(() => document.querySelectorAll('.desk-summary-section').length), 0);
-  assert.equal(await page.evaluate(() => document.querySelectorAll('#blog-drafts-list article, #blog-published-list article, .desk-review img, .desk-review textarea').length), 0);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('.desk-review, #blog-drafts-list, #blog-published-list, .desk-preview-frame').length), 0);
   assert.ok(!(await page.evaluate(() => document.body.textContent)).includes('测试稿件'));
   assert.deepEqual(page.diagnostics.filter(event => event.method === 'Runtime.exceptionThrown'), []);
   console.log(`Desk browser checks passed; synthetic-data screenshots: ${artifacts}`);

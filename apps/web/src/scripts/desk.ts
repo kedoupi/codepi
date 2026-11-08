@@ -39,14 +39,11 @@ function clearPrivate() {
   el("desk-actions").hidden = true;
   for (const target of document.querySelectorAll("[data-metrics], [data-note], [data-time], [data-private-metric]")) target.replaceChildren();
   el("desk-attention-list").replaceChildren();
-  el("blog-drafts-list").replaceChildren();
-  el("blog-review-detail").replaceChildren();
+  for (const id of ["blog-drafts-list", "blog-review-detail", "blog-published-list", "blog-review-status"]) document.getElementById(id)?.replaceChildren();
   queueItems = [];
   publishedItems = [];
   selectedSlug = null;
-  el("blog-published-list").replaceChildren();
-  el("blog-review-status").replaceChildren();
-  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
+  for (const id of ["blog-drafts-list", "blog-published-list"]) document.getElementById(id)?.setAttribute("aria-busy", "false");
   resetSummary();
   el<HTMLButtonElement>("desk-refresh").disabled = false;
   el<HTMLButtonElement>("desk-generate").disabled = false;
@@ -236,19 +233,35 @@ function selectPublished(slug: string) {
   renderQueue();
   renderDetail(publishedItems.find(item => item.slug === slug) ?? null, true);
 }
-el("blog-drafts-list").addEventListener("click", event => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const button = target.closest<HTMLButtonElement>("[data-slug]");
-  if (button) selectDraft(button.dataset.slug!);
-});
-el("blog-published-list").addEventListener("click", event => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement) || target.closest("[data-review-action], a")) return;
-  const row = target.closest<HTMLElement>("[data-slug]");
-  if (row?.dataset.slug) selectPublished(row.dataset.slug);
-});
+if (document.getElementById("blog-drafts-list")) {
+  el("blog-drafts-list").addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const button = target.closest<HTMLButtonElement>("[data-slug]");
+    if (button) selectDraft(button.dataset.slug!);
+  });
+  el("blog-published-list").addEventListener("click", event => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || target.closest("[data-review-action], a")) return;
+    const row = target.closest<HTMLElement>("[data-slug]");
+    if (row?.dataset.slug) selectPublished(row.dataset.slug);
+  });
+}
 async function loadReview(message = "") {
+  if (!document.getElementById("blog-review-status")) {
+    const summary = document.getElementById("blog-review-summary");
+    if (!summary) return;
+    try {
+      const [drafts, published] = await Promise.all([
+        api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
+        api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
+      ]);
+      summary.textContent = `${drafts.drafts.length} 篇待审 · ${published.total ?? published.posts.length} 篇已上架`;
+    } catch (error) {
+      if (!(error instanceof SessionExpired)) summary.textContent = "博客审核状态暂时无法读取。";
+    }
+    return;
+  }
   if (!active) return;
   const current = generation;
   const version = ++reviewVersion;
@@ -309,14 +322,16 @@ async function reviewAction(event: Event) {
     }
   }
 }
-el("blog-review-status").setAttribute("aria-live", "polite");
-const reviewRetry = node("button", "重新读取", "desk-text-button");
-reviewRetry.type = "button";
-reviewRetry.addEventListener("click", () => { void loadReview(); });
-el("blog-review-status").after(reviewRetry);
-el("blog-drafts-list").addEventListener("click", reviewAction);
-el("blog-published-list").addEventListener("click", reviewAction);
-el("blog-review-detail").addEventListener("click", reviewAction);
+if (document.getElementById("blog-review-status")) {
+  el("blog-review-status").setAttribute("aria-live", "polite");
+  const reviewRetry = node("button", "重新读取", "desk-text-button");
+  reviewRetry.type = "button";
+  reviewRetry.addEventListener("click", () => { void loadReview(); });
+  el("blog-review-status").after(reviewRetry);
+  el("blog-drafts-list").addEventListener("click", reviewAction);
+  el("blog-published-list").addEventListener("click", reviewAction);
+  el("blog-review-detail").addEventListener("click", reviewAction);
+}
 function renderOverview(payload: Payload) {
   for (const data of payload.sources) {
     const card = document.querySelector<HTMLElement>(`[data-source="${data.source}"]`)!;

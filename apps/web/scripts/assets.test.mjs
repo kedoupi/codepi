@@ -66,7 +66,7 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
     outboundService: () => { throw Error('Asset checks must not access the network'); },
   }));
   const get = path => runtime.dispatchFetch('https://codepi.app' + path, { redirect: 'manual' });
-  for (const path of ['/', '/about/', '/privacy/', '/desk/']) {
+  for (const path of ['/', '/about/', '/privacy/', '/desk/', '/desk/blog/']) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get('Content-Type'), /^text\/html/);
@@ -74,7 +74,7 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
     assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
     const expected = await readFile(join(assets, path, 'index.html'), 'utf8');
     assert.equal(await response.text(), expected);
-    if (path === '/desk/') {
+    if (path === '/desk/' || path === '/desk/blog/') {
       assert.equal(response.headers.get('Cache-Control'), 'no-store');
       assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, nofollow');
       assert.ok(response.headers.get('Referrer-Policy').includes('no-referrer'));

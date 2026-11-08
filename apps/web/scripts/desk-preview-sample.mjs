@@ -70,6 +70,7 @@ try {
     '## 审核预览的结构',
     '',
     '这篇文章用于核对真实文章页嵌入 Desk 后的排版。',
+    '### 具体核对项',
     '',
     '> 先看结构，再看细节；预览应与公开文章使用同一套渲染。',
     '',
@@ -95,14 +96,25 @@ try {
     },
   });
   assert.equal(submitted.ok, true, '本地样例稿件提交必须成功');
+  for (let i = 1; i <= 21; i++) {
+    const extra = await fixture.rpc({
+      subject: 'kdp-owner', client: 'desk-preview-sample', operation: 'submit',
+      args: { slug: `desk-preview-online-${i}`, title: `分页样例文章 ${i}`, summary: '用于演示博客工作台每页 20 篇的已上架列表。', body_markdown: '## 分页样例\n\n这是一篇列表分页用的本地合成文章。', cover_media_id: media[0], category: i % 2 ? 'tech' : 'digital-space', tags: ['分页样例'], sources: [] },
+    });
+    assert.equal(extra.ok, true, '分页样例稿件提交必须成功');
+  }
+  await fixture.blog.prepare("INSERT INTO blog_posts (slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,published_at,updated_at,category,tags,series,sources) SELECT slug,title,summary,tag,body_html,body_markdown,cover_media_id,media_ids,revision,submitted_at,updated_at,category,tags,series,sources FROM blog_drafts WHERE slug LIKE 'desk-preview-online-%'").run();
+  await fixture.blog.prepare("UPDATE blog_drafts SET status='published' WHERE slug LIKE 'desk-preview-online-%'").run();
 
   for (const [id, origin] of Object.entries(origins)) {
     const worker = await fixture.runtime.getWorker(id);
     const server = createServer(async (request, response) => {
       try {
         const url = new URL(request.url, origin);
+        const deskBlogPreview = /^\/desk\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname);
         if (id === 'desk' && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/blog/')) {
-          const path = resolve(root, `.${decodeURIComponent(url.pathname)}${url.pathname.endsWith('/') ? 'index.html' : ''}`);
+          const assetPath = deskBlogPreview ? '/desk/blog/' : url.pathname;
+          const path = resolve(root, `.${decodeURIComponent(assetPath)}${assetPath.endsWith('/') ? 'index.html' : ''}`);
           if (!path.startsWith(root)) { response.writeHead(404); response.end(); return; }
           const body = await readFile(path);
           const contentType = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(path)] || 'application/octet-stream';
@@ -160,24 +172,41 @@ try {
   await page.cdp('Input.insertText', { text: testOtp });
   await page.click('#submit');
   await page.waitForURL(`${origins.desk}/desk/`);
+  await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.goto(`${origins.desk}/desk/blog/?tab=published&page=2`);
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug]'));
+  await capturePage(page, join(artifacts, 'desk-blog-list-desktop.png'));
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await page.goto(`${origins.desk}/desk/blog/?tab=published&page=2`);
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug]'));
+  await capturePage(page, join(artifacts, 'desk-blog-list-mobile.png'));
+  await page.goto(`${origins.desk}/desk/blog/?tab=pending`);
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="desk-preview-sample"]'));
   await page.click('#blog-drafts-list [data-slug="desk-preview-sample"]');
+  await page.waitForURL(`${origins.desk}/desk/blog/desk-preview-sample/?tab=pending`);
   const waitForArticle = () => page.waitForFunction(() => {
     const frame = document.querySelector('#blog-review-detail iframe');
     const doc = frame?.contentDocument;
     const images = doc ? [...doc.images] : [];
-    return Boolean(doc?.querySelector('.blog-article h2, .blog-article blockquote, .blog-article pre, .blog-article ul'))
+    return Boolean(doc?.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre'))
       && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
       && doc.querySelectorAll('figcaption').length >= 2 && Number.parseInt(frame.style.height, 10) > 600;
   });
   await waitForArticle();
-  await capturePage(page, join(artifacts, 'desk-preview-desktop.png'));
-  await capturePage(page, join(artifacts, 'desk-preview-desktop-review.png'), '.desk-review');
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await waitForArticle();
+  await capturePage(page, join(artifacts, 'desk-blog-preview-desktop.png'));
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
   await waitForArticle();
-  await capturePage(page, join(artifacts, 'desk-preview-mobile.png'));
-  await capturePage(page, join(artifacts, 'desk-preview-mobile-review.png'), '.desk-review');
-  const screenshots = ['desk-preview-desktop.png', 'desk-preview-desktop-review.png', 'desk-preview-mobile.png', 'desk-preview-mobile-review.png'];
+  await capturePage(page, join(artifacts, 'desk-blog-preview-mobile.png'));
+  await page.evaluate(() => { window.confirm = () => true; });
+  await page.click('#blog-review-detail [data-review-action="publish"]');
+  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=published'));
+  await page.goto(`${origins.desk}/blog/desk-preview-sample/`);
+  await page.waitForSelector('.blog-article');
+  await capturePage(page, join(artifacts, 'blog-public-desktop.png'));
+  const screenshots = ['desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
   for (const name of screenshots) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
   console.log(`Desk preview sample passed; screenshots: ${screenshots.map(name => join(artifacts, name)).join(', ')}`);
 } finally {

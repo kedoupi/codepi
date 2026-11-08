@@ -186,9 +186,13 @@ export default {
       return request.method === "HEAD" ? new Response(null, response) : response;
     }
     const desk = url.pathname === "/desk" || url.pathname.startsWith("/desk/");
+    const deskBlogPreview = /^\/desk\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname);
     let response: Response;
     if (desk && url.hostname === "www.codepi.app") { url.hostname = "codepi.app"; url.protocol = "https:"; url.port = ""; if (url.pathname === "/desk") url.pathname = "/desk/"; response = new Response(null, { status: 302, headers: { Location: url.href } }); }
-    else response = await env.ASSETS.fetch(request);
+    else if (deskBlogPreview) {
+      const assetUrl = new URL("/desk/blog/", request.url);
+      response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    } else response = await env.ASSETS.fetch(request);
     if (!desk) return response;
     const secured = new Response(response.body, response); secured.headers.set("Cache-Control", "no-store"); secured.headers.set("X-Robots-Tag", "noindex, nofollow"); secured.headers.set("Referrer-Policy", "no-referrer"); return secured;
   },

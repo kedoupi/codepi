@@ -704,3 +704,50 @@
     transition: none;
   }
 }
+.desk-blog-page { width: min(100%, 1200px); margin-inline: auto; }
+.desk-blog-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--kdp-muted); text-decoration: none; }
+.desk-blog-back:hover { color: var(--kdp-text); }
+.desk-blog-heading { margin: 24px 0 32px; }
+.desk-blog-heading h1 { margin: 8px 0 0; font-size: clamp(32px, 4vw, 44px); line-height: 1.2; }
+.desk-blog-tabs { display: flex; gap: 28px; margin: 8px 0 20px; border-bottom: 1px solid var(--kdp-line); }
+.desk-blog-tab { position: relative; min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--kdp-muted); font: inherit; cursor: pointer; }
+.desk-blog-tab::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: transparent; }
+.desk-blog-tab[aria-selected="true"] { color: var(--kdp-text); font-weight: 600; }
+.desk-blog-tab[aria-selected="true"]::after { background: var(--kdp-accent); }
+.desk-blog-categories { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+.desk-blog-category { min-height: 32px; padding: 0 12px; border: 1px solid var(--kdp-line); border-radius: 999px; background: var(--kdp-surface); color: var(--kdp-text); font: inherit; font-size: 13px; cursor: pointer; }
+.desk-blog-category[aria-pressed="true"] { border-color: var(--kdp-text); background: var(--kdp-text); color: var(--kdp-surface); }
+.desk-review-workspace[data-view="list"] { display: block; }
+.desk-review-workspace[data-view="list"] .desk-detail { display: none; }
+.desk-review-list-row { display: grid; grid-template-columns: 224px minmax(0, 1fr); gap: 24px; align-items: center; padding: 16px; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-sm); background: var(--kdp-surface); color: var(--kdp-text); text-decoration: none; }
+.desk-review-list-row + .desk-review-list-row { margin-top: 12px; }
+.desk-review-list-row:hover { border-color: var(--kdp-line-strong); }
+.desk-review-thumb { position: relative; display: grid; place-items: center; width: 224px; aspect-ratio: 16 / 7; overflow: hidden; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-sm); background: var(--kdp-canvas); color: var(--kdp-muted); font-size: 12px; }
+.desk-review-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.desk-review-thumb svg { width: 100%; height: 100%; }
+.desk-review-thumb path { fill: none; stroke: var(--kdp-line-strong); stroke-width: 1.25; }
+.desk-review-thumb circle { fill: none; stroke: var(--kdp-line-strong); stroke-width: 1; }
+.desk-review-thumb .blog-cover-core { fill: var(--kdp-accent); stroke: none; }
+.desk-review-list-content { display: grid; gap: 8px; min-width: 0; }
+.desk-blog-pagination { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 24px; }
+#blog-review-page[data-view="detail"] > .desk-blog-heading,
+#blog-review-page[data-view="detail"] > .desk-blog-back { display: none; }
+#blog-review-page[data-view="detail"] .desk-review-queue-column,
+#blog-review-page[data-view="detail"] .desk-blog-tabs,
+#blog-review-page[data-view="detail"] .desk-blog-categories { display: none; }
+#blog-review-page[data-view="detail"] .desk-review-workspace { display: block; }
+#blog-review-page[data-view="detail"] .desk-review-workspace .desk-detail { display: block; }
+#blog-review-page[data-view="detail"] .desk-review[data-view="detail"] > #blog-review-status { display: none; }
+#blog-review-page[data-view="detail"] .desk-detail-body { padding-bottom: 0; }
+@media (max-width: 720px) {
+  .desk-blog-page { width: 100%; }
+  .desk-blog-heading { margin: 16px 0 24px; }
+  .desk-review-list-row { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .desk-review-thumb { width: 100%; }
+  .desk-blog-categories { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  #blog-review-page[data-view="detail"] .desk-detail-toolbar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 10; margin: 0; border-radius: 0; }
+  #blog-review-page[data-view="detail"] .desk-detail-body { padding-bottom: 80px; }
+  #blog-review-page[data-view="detail"] .desk-detail-back { display: inline-flex; min-height: 44px; margin: 12px 0; }
+}
+.desk-blog-card { margin-top: 24px; }
+.desk-blog-card .desk-card-footer { margin-top: 20px; }
