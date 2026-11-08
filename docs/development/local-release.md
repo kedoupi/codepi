@@ -80,7 +80,6 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | Auth | `services/auth` | `pnpm exec wrangler deploy --dry-run` → `pnpm exec wrangler d1 migrations apply codepi-auth --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs auth <完整sourceSHA>` |
 | Web / Desk | `apps/web` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-desk --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs web <完整sourceSHA>` |
 | GU | `apps/gu` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gu --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gu <完整sourceSHA>` |
-| GZH | `apps/gzh` | `pnpm build` → `pnpm exec wrangler d1 migrations apply codepi-gzh --remote` → `node ../../scripts/cloudflare/deploy-worker.mjs gzh <完整sourceSHA>` |
 | Health API | `apps/health` | `pnpm deploy:api --preflight-only` → `pnpm deploy:api` |
 | Project / Me | `apps/project` / `apps/me` | `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app <project或me> --sha <完整sourceSHA>`；首次初始化按末节执行 |
 | Rhythm | `apps/rhythm` | 先设置本机环境变量 `RHYTHM_STATUS_READ_SERVICE`（所有者私有上游 Worker 名，不入库、不打印）→ `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA>`；首发见末节「Rhythm 首发」 |
@@ -93,7 +92,7 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 依赖 `codepi-www#BlogMcp`，不能反向部署。
 
 GU、Me 与 Blog 原件备份首次启用或替代资源时，必须先完成所属应用 migration、私有 bucket 与应用发布，
-再发布对应只读 RPC binding 的 Ops。随后触发完整备份并核验当前 v4 清单的全部九库和三组原件、
+再发布对应只读 RPC binding 的 Ops。随后触发完整备份并核验当前 v4 清单的全部八库和三组原件、
 R2 回执及隔离恢复；新巡检不接受旧的 D1-only 回执。外部灾备副本另行授权和记录，详见[定时运维](cloudflare-operations.md#gu-原件)。
 
 普通 Worker 通过 `deploy-worker.mjs` 校验干净 HEAD 与实时远程 main，自动注入
@@ -110,7 +109,7 @@ MCP 的 Auth `SSO_CLIENT_SECRET_MCP` 与自身 `AUTH_CLIENT_SECRET` 由下方统
 既有客户端凭证不轮换。Health API 的 `HealthMcp` named RPC
 必须先就绪，MCP 验收通过后才发布展示新地址的 Health 前端。MCP D1 只保存授权状态，
 不复用 Health 数据库；从旧 Health-hosted MCP 切换时旧客户端需改连并重新授权，
-统一 MCP 的现有连接已升级为全量 scope，不再为新增 write scope 重新授权。MCP D1 现纳入九库 v4 加密日备，恢复时须避免
+统一 MCP 的现有连接已升级为全量 scope，不再为新增 write scope 重新授权。MCP D1 现纳入八库 v4 加密日备，恢复时须避免
 复活快照后已撤销或已消费的授权，见备份 runbook。2026-10-19 此项取代首发时“不备份授权状态”的决策。
 MCP deploy 现在自动执行精确 build、凭证配对、发现、匿名拒绝和连接管理入口 smoke；
 上传成功但 smoke 失败仍以非零状态退出，后续发布停止。
@@ -157,15 +156,15 @@ provider 标识和错误信息；禁止保存 credentials、Cookie、OAuth code 
 | 服务 | 验证 |
 | --- | --- |
 | Auth | `https://auth.codepi.app/api/health` 返回 200 JSON 且 `ok=true`；核对 SSO 客户端及回调元数据 |
-| Web / GU / GZH | `node scripts/cloudflare/check-pages.mjs <web或gu或gzh> production`，检查私有接口拒绝和 SSO |
+| Web / GU | `node scripts/cloudflare/check-pages.mjs <web或gu> production`，检查私有接口拒绝和 SSO |
 | Health API | `HEALTH_EXPECT_BUILD=<SHA前12位> pnpm --dir apps/health check:api`，含旧 MCP/OAuth 返回 404、SSO 和实际 build |
 | MCP | `MCP_EXPECT_BUILD=<SHA前12位> pnpm --dir services/mcp check:live`，核对凭证配对、版本、发现和匿名 401 |
 | Health 前端 | API 验收通过后，`pnpm --dir apps/health check:branding` 及本次 UI/登录流程验收 |
 
 用 `deployment-evidence.mjs resolve-worker` 核对实际 runtime secret 名称和 origin：
-Web 的 required secrets 为 `AUTH_CLIENT_SECRET,HEALTH_SUMMARY_TOKEN,GU_SUMMARY_TOKEN,WECHAT_SUMMARY_TOKEN`；
-GU/GZH 为 `AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN`。Health 前端为纯代理，明确传
-`--script codepi-health --no-required-secrets`。Web/GU/GZH 还可用 `check-pages.mjs`
+Web 的 required secrets 为 `AUTH_CLIENT_SECRET,HEALTH_SUMMARY_TOKEN,GU_SUMMARY_TOKEN`；
+GU 为 `AUTH_CLIENT_SECRET,DESK_SUMMARY_TOKEN`。Health 前端为纯代理，明确传
+`--script codepi-health --no-required-secrets`。Web/GU 还可用 `check-pages.mjs`
 的 `--origin` 探测控制面解析出的新 Worker origin。Health API 用现有发布预检和
 精确 build 契约，不把“secret 名存在”当作成功登录。
 
@@ -254,7 +253,7 @@ secret 代替；只能通过已授权配置设置。普通更新不重复初始�
 
 Project/Me 的 D1 UUID 在精确名称解析后写入忽略目录的临时部署配置；审查源码不填假 UUID。
 新桶必须无公开域名、无 r2.dev 公开访问。新增 Worker 要单独建立并验收 Issues 自动规则。
-执行新 Ops 后核对 v4 完整清单、九库、GU/Me/Blog 三组原件和所需隔离恢复；旧 v2/v3 回执不够。GitHub 副本仅是历史验收材料。
+执行新 Ops 后核对 v4 完整清单、八库、GU/Me/Blog 三组原件和所需隔离恢复；旧 v2/v3 回执不够。GitHub 副本仅是历史验收材料。
 
 旧统一 MCP Health grants 保留，无须强制全部重连；下一次 refresh 自动升级为
 当前全部已支持 scope，授权页不再逐项选择。

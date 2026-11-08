@@ -5,11 +5,10 @@ import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, t
 export interface DeskEnv extends SsoEnv, BlogEnv {
   HEALTH_SUMMARY_TOKEN?: string;
   GU_SUMMARY_TOKEN?: string;
-  WECHAT_SUMMARY_TOKEN?: string;
 }
 type Upstream = (request: Request) => Promise<Response>;
 const origins: Record<DeskSource, string> = {
-  health: "https://health.codepi.app", gu: "https://gu.codepi.app", wechat: "https://gzh.codepi.app",
+  health: "https://health.codepi.app", gu: "https://gu.codepi.app",
 };
 const text = (value: unknown): value is string => typeof value === "string" && value.length <= 600;
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -63,7 +62,7 @@ async function boundedJson(response: Response, max = 32768): Promise<unknown> {
 }
 
 async function loadSource(source: DeskSource, range: DeskRange, env: DeskEnv, upstream: Upstream): Promise<DeskSummary> {
-  const token = { health: env.HEALTH_SUMMARY_TOKEN, gu: env.GU_SUMMARY_TOKEN, wechat: env.WECHAT_SUMMARY_TOKEN }[source];
+  const token = { health: env.HEALTH_SUMMARY_TOKEN, gu: env.GU_SUMMARY_TOKEN }[source];
   const unavailable = (note: string): DeskSummary => ({ ...emptySummary(source, note), status: "unavailable" });
   if (!token || token.length < 32) return unavailable("摘要连接尚未配置，仍可进入原应用。");
   const controller = new AbortController();

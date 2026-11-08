@@ -2,7 +2,8 @@
 
 本文档记录 kedoupi（codepi）个人数字空间的工程架构和部署决策。
 2026-10-16 起生效，替代此前的多环境双分支方案；2026-10-20 起按当前源码补齐 MCP 领域扩展、
-Project/Me 与 CLI，后续 Blog 与 Ops v4 变化见任务记录。本文描述当前实现与配置；
+Project/Me 与 CLI，后续 Blog 与 Ops v4 变化见任务记录。2026-11-08 起 gzh 公众号稿件台退役，
+数据已按所有者决定删除；远程清理由 lead 另行执行。本文描述当前实现与配置；
 日期化发布证据、运行时状态和剩余验收见[任务索引](../development/tasks/README.md)，
 不由本文或本地配置推定实时线上状态。
 本文是现行架构入口，旧 `architecture-baseline.md` 是历史记录。
@@ -16,7 +17,6 @@ codepi/
 ├── apps/
 │   ├── web/      → 首页 + Desk（Astro）
 │   ├── gu/       → 投资工作台（Svelte + Vite + Hono）
-│   ├── gzh/      → 公众号工作台（Svelte + Vite + Hono）
 │   ├── project/  → 项目卡与任务交接（Svelte + Vite + Hono）
 │   ├── me/       → 记忆确认区、背景与经历（Svelte + Vite + Hono）
 │   └── health/   → Health（Svelte + Vite，前端 Worker + Hono API）
@@ -41,7 +41,7 @@ codepi/
    移动文件或增加层级就会导致难以发现的构建失败。
 3. **安装和构建入口分散**。每个应用有自己的 npm/pnpm 安装方式，新 Agent 或
    CI 需要分别理解每个应用的安装要求。
-4. **交叉测试依赖 hack**。Web 的 Desk 集成测试需要安装 Auth、GU、GZH、Health
+4. **交叉测试依赖 hack**。Web 的 Desk 集成测试需要安装 Auth、GU、Health
    的依赖，在 CI 里用 `npm --prefix ../auth ci` 等命令逐个安装，维护成本高。
 
 统一后：根目录一次 `pnpm install --frozen-lockfile` 安装所有依赖，lockfile 只有一个。
@@ -67,14 +67,14 @@ codepi/
 
 | 单元 | 拥有的数据 / 职责 | 跨服务调用 |
 | --- | --- | --- |
-| Web / Desk | 公开静态内容；独立 Desk D1 只存网站登录状态 | AUTH Service Binding；三应用摘要通过固定 HTTP 地址和独立摘要凭证读取 |
-| GU / GZH | 各自业务 D1、网站登录状态和业务逻辑 | AUTH Service Binding；受保护的 Desk 摘要；GU 另有只读 `GuMcp` 与 `GuMaterialsBackup` |
+| Web / Desk | 公开静态内容；独立 Desk D1 只存网站登录状态 | AUTH Service Binding；两应用摘要通过固定 HTTP 地址和独立摘要凭证读取 |
+| GU | 各自业务 D1、网站登录状态和业务逻辑 | AUTH Service Binding；受保护的 Desk 摘要；另有只读 `GuMcp` 与 `GuMaterialsBackup` |
 | Health 前端 Worker | 静态资产和 `/api/*` 代理，无业务 D1 / AUTH / Oura 凭证 | WORKER Service Binding → Health API |
 | Health API | Health D1、Oura 授权、同步、查询和统计 | AUTH Service Binding；`HealthMcp` named RPC 供 MCP 调用 |
 | Auth | 中央身份、OTP 和网站会话 D1 | 客户端以 shared/auth/clients.ts 为准 |
 | Project / Me | 各自业务 D1；Me 的导入原文存独立私有 R2 | AUTH Service Binding；仅向 MCP/Ops 提供明确的 named RPC |
 | MCP | 独立 D1 保存网站会话与 AI 客户端 grants/tokens，管理协议与工具目录 | AUTH Service Binding；Health/Project/Me/GU/Blog named RPC；不直接绑定业务库或原件 |
-| Ops | 无业务 D1、无公网入口；私有 R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出九库；经 GU/Me/Blog named RPC 只读原件；GitHub API 仅用于版本监控/通知，不复制备份密文 |
+| Ops | 无业务 D1、无公网入口；私有 R2 保存密文和运维元数据 | 经受限 Cloudflare API 导出八库；经 GU/Me/Blog named RPC 只读原件；GitHub API 仅用于版本监控/通知，不复制备份密文 |
 
 Health 前后端独立部署；各应用各自拥有 D1，统一 workspace 不等于合库。
 Project/Me、Blog 与 CLI 的新增边界见[领域扩展](mcp-domains.md)和任务记录；资源登记区分
@@ -144,7 +144,6 @@ GU 的业务逻辑、线上版本与私有原件仍归 GU；历史迁移和恢�
 |---|---|---|---|
 | web | Astro 6 + Tailwind v3 | TypeScript Worker（Workers Static Assets + Desk） | pnpm workspace |
 | gu | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
-| gzh | Svelte 5 + Vite | Hono Worker（Workers Static Assets） | pnpm workspace |
 | health | Svelte 5 + Vite | 前端资产/代理 Worker + Hono API Worker | pnpm workspace |
 | project / me | Svelte 5 + Vite | Hono Worker（Workers Static Assets）+ 独立 D1；Me 使用私有 R2 | pnpm workspace |
 | auth | — | Hono Worker | pnpm workspace |
@@ -161,7 +160,7 @@ GU 的业务逻辑、线上版本与私有原件仍归 GU；历史迁移和恢�
   迁移需单独确定收益、契约与验收，不能描述为已全面使用 binding
 - 不引入 Turborepo/Nx、ORM、SSR 全栈框架、完整组件库
 
-GU、GZH、首页/Desk 与 Health 前端使用 Workers Static Assets；GU、GZH 全部请求先进鉴权链，首页仅 API/Desk 优先进入 Worker，Health 前端只代理 API。
+GU、首页/Desk 与 Health 前端使用 Workers Static Assets；GU 全部请求先进鉴权链，首页仅 API/Desk 优先进入 Worker，Health 前端只代理 API。
 历史迁移证据保留在任务记录，不覆盖当前架构。
 
 统一 CodePi MCP 的传输、授权与工具注册位于 `services/mcp/`，领域查询和写入仍由各所属应用持有。

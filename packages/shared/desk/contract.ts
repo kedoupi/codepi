@@ -1,4 +1,4 @@
-export const deskSources = ["health", "gu", "wechat"] as const;
+export const deskSources = ["health", "gu"] as const;
 export type DeskSource = typeof deskSources[number];
 export type DeskRange = "current" | "week";
 export interface DeskSummary {

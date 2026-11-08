@@ -10,9 +10,6 @@ export const packageCommands = {
     { name: 'test', tier: 'quick' }, { name: 'test:scripts', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'check:deploy', after: 'build', args: ['--mode', 'config'], tier: 'full' },
   ] },
-  gzh: { name: 'publish-desk', cwd: 'apps/gzh', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
-  ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
     { name: 'test', tier: 'quick', locks: ['health-api-dist'] }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full', locks: ['health-api-dist'] },
@@ -59,7 +56,7 @@ export const specialRules = [
   { files: ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'], apps: allApps, sharedAuth: true, governance: true, workflow: true },
   { prefixes: ['services/ops/', 'scripts/cloudflare/'], files: ['.github/workflows/deploy-platform.yml', 'docs/development/cloudflare-resource-registry.md', 'docs/development/cloudflare-governance.md'], apps: ['ops'], governance: true },
   { prefixes: ['scripts/agent/', '.agents/', '.claude/skills/', '.cursor/rules/', 'docs/development/'], files: ['CLAUDE.md', 'GEMINI.md', '.gitignore', '.github/copilot-instructions.md'], workflow: true },
-  { prefixes: ['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'], apps: allApps, sharedAuth: true },
+  { prefixes: ['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/', 'apps/gzh/'], apps: allApps, sharedAuth: true },
   { prefixes: ['apps/oura/'], apps: ['health'] },
   { prefixes: ['docs/'], suffixes: ['/README.md', '/AGENTS.md'], files: ['README.md', 'AGENTS.md', 'LICENSE', 'NOTICE.md'], documentation: true },
   { prefixes: ['.github/'], apps: allApps, sharedAuth: true, workflow: true },
@@ -69,10 +66,10 @@ export const specialRules = [
   { prefixes: ['packages/shared/'], apps: allApps, sharedAuth: true },
 ];
 
-export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
+export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml',
   'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'apps/rhythm/wrangler.toml', 'services/auth/wrangler.jsonc',
   'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
-export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
+export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/',
   'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
 
 export function packageCheck(app, command) {

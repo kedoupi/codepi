@@ -1,4 +1,4 @@
-// validate-governance.mjs 的 fixture 测试：完整合法 topology（www/gu/gzh/auth/
+// validate-governance.mjs 的 fixture 测试：完整合法 topology（www/gu/auth/
 // health-api/health-pages）必须通过；每类非法配置必须非空并报出违规资源名。
 // staging 已退役：合法 fixture 一律不含 staging 段，且任何 staging 残留必须被拒绝。
 // 只用临时目录与子进程 CLI，不触仓库文件与远程。
@@ -17,7 +17,6 @@ const VALIDATOR = fileURLToPath(new URL('./validate-governance.mjs', import.meta
 const U = {
   www: 'aaaaaaaa-0000-4000-8000-000000000001',
   gu: 'bbbbbbbb-0000-4000-8000-000000000001',
-  gzh: 'cccccccc-0000-4000-8000-000000000001',
   auth: 'dddddddd-0000-4000-8000-000000000001',
   health: 'eeeeeeee-0000-4000-8000-000000000001',
 };
@@ -39,14 +38,12 @@ const REGISTRY_ROWS = [
   ['r2-blog-uploads', 'production', 'r2', 'codepi-blog-uploads', '-', 'planned'],
   ['worker-www', 'production', 'worker', 'codepi-www', 'codepi.app, www.codepi.app'],
   ['worker-gu', 'production', 'worker', 'codepi-gu', 'gu.codepi.app, codepi-gu.workers.dev'],
-  ['worker-gzh', 'production', 'worker', 'codepi-gzh', 'gzh.codepi.app'],
   ['worker-health', 'production', 'worker', 'codepi-health', 'health.codepi.app'],
   ['worker-auth', 'production', 'worker', 'codepi-auth', 'auth.codepi.app (custom domain)'],
   ['worker-health-api', 'production', 'worker', 'codepi-health-api', 'health.codepi.app/api/*'],
   ['d1-www', 'production', 'd1', `codepi-desk (${U.www})`, '-', 'managed'],
   ['d1-blog', 'production', 'd1', 'codepi-blog', '-', 'planned'],
   ['d1-gu', 'production', 'd1', `codepi-gu (${U.gu})`, '-', 'managed'],
-  ['d1-gzh', 'production', 'd1', `codepi-gzh (${U.gzh})`, '-', 'managed'],
   ['d1-auth', 'production', 'd1', `codepi-auth (${U.auth})`, '-', 'managed'],
   ['d1-health', 'production', 'd1', `codepi-health (${U.health})`, '-', 'managed'],
 ];
@@ -127,7 +124,6 @@ function authConfig() {
       SSO_EXTRA_REDIRECT_URIS: JSON.stringify({
         gu: ['https://gu.kdp.cool/api/auth/callback', 'https://gu.codepi.app/api/auth/callback'],
         oura: ['https://health.kdp.cool/api/auth/callback', 'https://health.codepi.app/api/auth/callback'],
-        gzh: ['https://gzh.codepi.app/api/auth/callback'],
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
@@ -145,7 +141,6 @@ function legalFiles(overrides = {}) {
     'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
     'apps/web/wrangler.toml': webWorkerConfig(),
     'apps/gu/wrangler.toml': privateWorkerConfig(),
-    'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }),
     'services/auth/wrangler.jsonc': authConfig(),
     'services/mcp/wrangler.toml': mcpConfig(),
     'apps/project/wrangler.toml': `${domainConfig('project')}\n[triggers]\ncrons = []\n`,
@@ -309,13 +304,13 @@ test('all non-allowlisted R2 and Workflow bindings are rejected across TOML and 
         r2_buckets: [{ binding: 'EXTRA_R2', bucket_name: 'unregistered-auth-bucket' }],
         workflows: [{ binding: 'EXTRA_WORKFLOW', name: 'unregistered-auth-workflow', class_name: 'UnexpectedWorkflow' }],
       }),
-      'apps/gzh/wrangler.toml': `${privateWorkerConfig({ app: 'gzh' })}
+      'apps/gu/wrangler.toml': `${privateWorkerConfig({ app: 'gu' })}
 [[r2_buckets]]
 binding = "EXTRA_R2"
-bucket_name = "unregistered-gzh-bucket"
+bucket_name = "unregistered-gu-bucket"
 [[workflows]]
 binding = "EXTRA_WORKFLOW"
-name = "unregistered-gzh-workflow"
+name = "unregistered-gu-workflow"
 class_name = "UnexpectedWorkflow"
 `,
     },
@@ -323,8 +318,8 @@ class_name = "UnexpectedWorkflow"
   const violations = run(files);
   assert.ok(violations.some(v => v.startsWith('auth:') && v.includes('R2')));
   assert.ok(violations.some(v => v.startsWith('auth:') && v.includes('Workflow')));
-  assert.ok(violations.some(v => v.startsWith('gzh:') && v.includes('R2')));
-  assert.ok(violations.some(v => v.startsWith('gzh:') && v.includes('Workflow')));
+  assert.ok(violations.some(v => v.startsWith('gu:') && v.includes('R2')));
+  assert.ok(violations.some(v => v.startsWith('gu:') && v.includes('Workflow')));
 });
 
 
@@ -486,7 +481,7 @@ test('www preserves API-first routing and forbids staging asset overrides', () =
 
 // ---- 合法 topology ----
 
-test('完整合法 topology（www/gu/gzh/auth/health-api/health-pages）通过', () => {
+test('完整合法 topology（www/gu/auth/health-api/health-pages）通过', () => {
   assert.deepEqual(run(legalFiles()), []);
 });
 
@@ -569,13 +564,13 @@ test('health-api 声明公网 routes 被拒绝（流量由前端 Worker 转发�
 // ---- 既有负例 ----
 
 test('引用未登记资源被拒绝', () => {
-  const files = legalFiles({ files: { 'apps/gzh/wrangler.toml': privateWorkerConfig({ app: 'gzh' }).replace(U.gzh, '99999999-9999-4999-8999-999999999999') } });
+  const files = legalFiles({ files: { 'apps/gu/wrangler.toml': privateWorkerConfig({ app: 'gu' }).replace(U.gu, '99999999-9999-4999-8999-999999999999') } });
   const violations = run(files);
   assert.ok(violations.some(v => v.includes('99999999-9999-4999-8999-999999999999') && v.includes('no registry record')),
     `expected registry violation, got ${JSON.stringify(violations)}`);
 });
 
-for (const app of ['gu', 'gzh']) {
+for (const app of ['gu']) {
   test(`${app} assets 缺少 run_worker_first=true 被拒绝（鉴权不得被资产绕过）`, () => {
     const violations = run(legalFiles({ files: { [`apps/${app}/wrangler.toml`]: privateWorkerConfig({ app, assetsBlock: '[assets]\ndirectory = "./dist"\nbinding = "ASSETS"\n' }) } }));
     assert.ok(violations.some(v => v.startsWith(app + ':') && v.includes('run_worker_first')),
@@ -611,7 +606,7 @@ for (const app of ['gu', 'gzh']) {
 }
 
 test('引用 legacy 资源被拒绝', () => {
-  const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-gzh' ? [r[0], r[1], r[2], r[3], r[4], 'legacy-pending-retirement'] : r);
+  const rows = REGISTRY_ROWS.map(r => r[0] === 'd1-project' ? [r[0], r[1], r[2], r[3], r[4], 'legacy-pending-retirement'] : r);
   const violations = run(legalFiles({ registryRows: rows }));
   assert.ok(violations.some(v => v.includes('legacy-pending-retirement')),
     `expected legacy violation, got ${JSON.stringify(violations)}`);
@@ -671,13 +666,13 @@ test('重复/冲突 service binding 被拒绝', () => {
 });
 
 test('缺 D1、额外 D1 或名称与 ID 跨登记行时被拒绝', () => {
-  const noD1 = privateWorkerConfig({ app: 'gzh' })
+  const noD1 = privateWorkerConfig({ app: 'gu' })
     .replace(/\[\[d1_databases\]\][\s\S]*?database_id = "[^"]+"\n/, '');
-  const extraD1 = privateWorkerConfig({ app: 'gzh' })
-    .replace('database_id = "' + U.gzh + '"', `database_id = "${U.gzh}"\n[[d1_databases]]\nbinding = "OTHER"\ndatabase_name = "codepi-gzh"\ndatabase_id = "${U.gzh}"`);
-  const mismatchedRow = privateWorkerConfig({ app: 'gzh' }).replace(`database_id = "${U.gzh}"`, `database_id = "${U.gu}"`);
+  const extraD1 = privateWorkerConfig({ app: 'gu' })
+    .replace('database_id = "' + U.gu + '"', `database_id = "${U.gu}"\n[[d1_databases]]\nbinding = "OTHER"\ndatabase_name = "codepi-gu"\ndatabase_id = "${U.gu}"`);
+  const mismatchedRow = privateWorkerConfig({ app: 'gu' }).replace(`database_id = "${U.gu}"`, `database_id = "${U.auth}"`);
   for (const [label, config, needle] of [['missing D1', noD1, 'exactly one D1'], ['extra D1', extraD1, 'exactly one D1'], ['mismatched registry row', mismatchedRow, 'matching both name and database_id']]) {
-    const violations = run(legalFiles({ files: { 'apps/gzh/wrangler.toml': config } }));
+    const violations = run(legalFiles({ files: { 'apps/gu/wrangler.toml': config } }));
     assert.ok(violations.some(v => v.includes(needle)), `${label}: ${JSON.stringify(violations)}`);
   }
 });

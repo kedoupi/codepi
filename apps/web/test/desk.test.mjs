@@ -21,8 +21,8 @@ test('private endpoints require a real owner session; login returns to desk; req
   const result = await f.call('/api/desk/overview', login.localCookie);
   assert.equal(result.status, 200);
   assert.equal(result.headers.get('X-Robots-Tag'), 'noindex, nofollow');
-  assert.equal((await result.json()).sources.length, 3);
-  assert.equal(f.calls.length, 3);
+  assert.equal((await result.json()).sources.length, 2);
+  assert.equal(f.calls.length, 2);
   assert.ok(f.calls.every(call => call.cookie === null && call.origin === null));
   const out = await f.call('/api/auth/logout', login.localCookie, {});
   assert.equal(out.status, 200);
@@ -47,13 +47,12 @@ test('summary validates origin, range and nonempty unique sources; selected sour
 });
 
 test('partial errors, invalid links, missing config and oversized source data fail independently', async t => {
-  const f = await deskFixture(t, { bindings: { WECHAT_SUMMARY_TOKEN: '' } });
+  const f = await deskFixture(t);
   const login = await f.otpLogin('desk');
   f.faults.gu = () => Response.json({ arbitrary: 'not-a-summary' });
   let data = await (await f.call('/api/desk/overview', login.localCookie)).json();
   assert.equal(data.partial, true);
-  assert.deepEqual(data.sources.map(source => source.status), ['empty', 'unavailable', 'unavailable']);
-  assert.ok(!f.calls.some(call => call.source === 'wechat'));
+  assert.deepEqual(data.sources.map(source => source.status), ['empty', 'unavailable']);
   f.faults.gu = () => Response.json({
     source: 'gu', status: 'ok', asOf: null, updatedAt: null, stale: false,
     metrics: [], facts: [], notes: [], attention: [{ label: 'malicious', href: 'https://evil.test/' }],
@@ -81,7 +80,7 @@ test('a slow source times out without losing the other sources', async t => {
   const data = await response.json();
   assert.equal(response.status, 200);
   assert.equal(data.partial, true);
-  assert.deepEqual(data.sources.map(source => source.status), ['unavailable', 'empty', 'empty']);
+  assert.deepEqual(data.sources.map(source => source.status), ['unavailable', 'empty']);
 });
 
 test('revocation while source requests are in flight suppresses their result', async t => {
@@ -93,9 +92,9 @@ test('revocation while source requests are in flight suppresses their result', a
 
 test('every provider rejects missing/wrong/cross-service credentials and writes', async t => {
   const f = await sourceFixture(t);
-  for (const id of ['health', 'gu', 'wechat']) {
+  for (const id of ['health', 'gu']) {
     assert.equal((await f.request(id, 'current', '')).status, 401);
-    assert.equal((await f.request(id, 'current', sourceTokens[id === 'gu' ? 'health' : 'gu'])).status, 401);
+    assert.equal((await f.request(id, 'current', sourceTokens[id === 'health' ? 'gu' : 'health'])).status, 401);
     assert.equal((await f.request(id, 'current', sourceTokens[id], 'POST')).status, 405);
     assert.equal((await f.request(id, 'year')).status, 400);
   }
@@ -148,19 +147,6 @@ test('GU retains current-batch meaning and suppresses superseded rules, demo rec
   assert.equal((await (await f.request('gu')).json()).status, 'empty');
 });
 
-test('WeChat excludes demos and distinguishes boxed from published, with valid article links', async t => {
-  const f = await sourceFixture(t);
-  const db = f.dbs.wechat;
-  for (const [id, status, demo] of [['real-post', '待审', 0], ['boxed-post', '已进箱', 0], ['demo-post', '需改', 1]]) {
-    await db.prepare('INSERT INTO posts VALUES(?,?,?,?,?)').bind(id, 'Synthetic <script> title', status, demo, new Date().toISOString()).run();
-  }
-  const result = await (await f.request('wechat', 'week')).json();
-  assert.deepEqual(result.metrics.map(metric => metric.value), ['1', '0', '0']);
-  assert.equal(result.attention[0].href, 'https://gzh.codepi.app/p/real-post');
-  assert.match(result.notes.join(' '), /已进箱不等于已发布/);
-  await db.prepare('UPDATE accounts SET active=0').run();
-  assert.equal((await f.request('wechat')).status, 503);
-});
 
 test('desk migration matches the shared SSO schema', async () => {
   assert.equal(await readFile(new URL('../migrations/0001_desk_sso.sql', import.meta.url), 'utf8'),

@@ -35,7 +35,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`gzh`、`health`、`desk`、`mcp`、`ops`、`project`、`me`、`blog`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`health`、`desk`、`mcp`、`ops`、`project`、`me`、`blog`。
 `role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`imports`、`mcp`、`backups`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
@@ -127,7 +127,7 @@ Wrangler 和 Health `deploy:api` 脚本，不引入新依赖。用户已授权�
 
 ### 发布依赖顺序
 
-Auth migration/deploy/smoke → 受影响的 Web/GU/GZH/Project/Me
+Auth migration/deploy/smoke → 受影响的 Web/GU/Project/Me
 migrations/deploy/smoke → Health API migration/deploy/contract smoke →
 MCP migration/deploy/smoke → Health frontend / Ops。Project/Me 首次上传先于各自 secret
 配对；配对与 readiness 成功之前不进入 MCP/Ops 阶段，具体顺序见本地发布操作。
@@ -158,7 +158,7 @@ MCP migration/deploy/smoke → Health frontend / Ops。Project/Me 首次上传�
 ## 8. 静态守门
 
 `scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、
-gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 declared service 强制：
+auth、mcp、ops、health-api、health-pages）与登记表，对每个 declared service 强制：
 
 1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
    纯代理除外：它不得声明 ENVIRONMENT 等业务 vars，仅发布时注入 BUILD_SHA 元数据）；
@@ -168,7 +168,7 @@ gzh、auth、mcp、ops、health-api、health-pages）与登记表，对每个 de
    `DB → codepi-desk` 与 `BLOG → codepi-blog` 两个 name-pinned D1 bindings；重复/冲突的
    D1 或 service binding 即违规；Health 前端不得声明 D1；
 4. 每个服务必需的 service binding 必须精确等于约定的 production 目标
-   （www/gu/gzh/health-api 的 `AUTH` → `codepi-auth`；mcp 的 `BLOG` →
+   （www/gu/health-api 的 `AUTH` → `codepi-auth`；mcp 的 `BLOG` →
    `codepi-www#BlogMcp`；health 前端的 `WORKER` →
    `codepi-health-api`，且不得再有 `AUTH`）；
 5. Health API 的 `AUTH_ORIGIN`、`FRONTEND_ORIGIN(S)`、`OURA_REDIRECT_URI` 必须是
@@ -254,7 +254,7 @@ Health 历史、既有 migration/旧表与 Oura 授权保留。CI 增加 MCP 检
 
 备份必需库名见 `backup-core.mjs` 的 `DATABASE_NAMES`，既有 UUID 仍用 `DATABASES`
 校验，新库按精确名称解析，缺失/歧义时失败。原件集合由 `ORIGINAL_COLLECTIONS`
-登记。新写出的完成清单是 v4，必须覆盖九库以及 GU 原件、Me 原文和博客媒体；
+登记。新写出的完成清单是 v4，必须覆盖八库以及 GU 原件、Me 原文和博客媒体；
 v3 只覆盖 GU+Me，v2 只覆盖 GU，二者仅可用于恢复旧副本，不能证明 v4 覆盖已完成。
 实际生产隔离恢复、存储私有性和实时 binding 状态须控制面单独核验。
 

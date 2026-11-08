@@ -17,7 +17,6 @@ export const MIGRATION_DIRS = {
   'apps/web/migrations': 'apps/web',
   'apps/web/migrations-blog': 'apps/web',
   'apps/gu/migrations': 'apps/gu',
-  'apps/gzh/migrations': 'apps/gzh',
   'apps/project/migrations': 'apps/project',
   'apps/me/migrations': 'apps/me',
   'services/auth/migrations': 'services/auth',

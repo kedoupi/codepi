@@ -578,7 +578,7 @@ function renderOverview(payload: Payload) {
     }
     card.querySelector("[data-note]")!.textContent = data.notes.join(" ");
     card.querySelector("[data-time]")!.textContent = data.status === "ok"
-      ? `${data.source === "wechat" ? "查询" : data.source === "gu" ? "批次" : "记录"}：${time(data.asOf)}` : "";
+      ? `${data.source === "gu" ? "批次" : "记录"}：${time(data.asOf)}` : "";
     const privateSlot = card.querySelector("[data-private-metric]")!;
     privateSlot.replaceChildren();
     if (data.privateMetric) {
@@ -690,7 +690,7 @@ el<HTMLFormElement>("desk-summary-form").addEventListener("submit", async event 
     for (const data of result.sources) {
       const section = node("section", "", "desk-summary-section");
       section.append(node("h3", product(data.source).name));
-      section.append(node("p", `${data.source === "wechat" ? "查询时间" : "数据日期"}：${time(data.asOf)}`, "desk-fine"));
+      section.append(node("p", `数据日期：${time(data.asOf)}`, "desk-fine"));
       const facts = node("ul");
       for (const fact of data.facts) facts.append(node("li", fact));
       section.append(facts);

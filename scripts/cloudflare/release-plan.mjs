@@ -7,13 +7,12 @@ import { WORKERS, affectedWorkers } from './release-scope.mjs';
 import { MIGRATION_DIRS } from '../agent/check-migrations.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const order = ['auth', 'web', 'gu', 'gzh', 'health-api', 'project', 'me', 'rhythm', 'mcp', 'health-web', 'ops'];
+const order = ['auth', 'web', 'gu', 'health-api', 'project', 'me', 'rhythm', 'mcp', 'health-web', 'ops'];
 const migrationDirs = {
-  auth: 'services/auth', web: 'apps/web', gu: 'apps/gu',
-  gzh: 'apps/gzh', project: 'apps/project', me: 'apps/me',
+  auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', project: 'apps/project', me: 'apps/me',
   mcp: 'services/mcp', 'health-api': 'apps/health', rhythm: 'apps/rhythm',
 };
-const buildDirs = { auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh', project: 'apps/project', me: 'apps/me', rhythm: 'apps/rhythm', 'health-api': 'apps/health/workers/api', mcp: 'services/mcp', 'health-web': 'apps/health/apps/web', ops: 'services/ops' };
+const buildDirs = { auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', project: 'apps/project', me: 'apps/me', rhythm: 'apps/rhythm', 'health-api': 'apps/health/workers/api', mcp: 'services/mcp', 'health-web': 'apps/health/apps/web', ops: 'services/ops' };
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();

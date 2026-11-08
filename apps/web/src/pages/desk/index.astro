@@ -13,7 +13,7 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
       <div>
         <p class="kdp-section-label">私域控制中心 · 统一工作空间</p>
         <h1>我的工作台</h1>
-        <p id="desk-date" class="desk-muted">健康、投资与内容工作，在这里回顾。</p>
+        <p id="desk-date" class="desk-muted">健康与投资工作，在这里回顾。</p>
       </div>
       <div id="desk-actions" class="desk-actions" hidden>
         <button id="desk-refresh" class="kdp-button kdp-button--secondary" type="button">刷新概览</button>
@@ -25,7 +25,7 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
     <section id="desk-login" class="kdp-card desk-login" hidden aria-labelledby="desk-login-title">
       <span class="desk-icon"><Icon name="network" size={28} /></span>
       <h2 id="desk-login-title">留给自己的工作空间</h2>
-      <p id="desk-login-note">登录后，查看三个应用的近况，整理一份此刻需要的摘要。</p>
+      <p id="desk-login-note">登录后，查看两个应用的近况，整理一份此刻需要的摘要。</p>
       <div class="desk-login-btn-row">
         <a class="kdp-button" href="/api/auth/login">本人登录 <span aria-hidden="true">→</span></a>
       </div>
@@ -33,7 +33,7 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
         <button id="desk-retry" class="desk-text-button" type="button">重新检查连接</button>
         <button id="desk-logout-retry" class="desk-text-button" type="button" hidden>重试退出登录</button>
       </div>
-      <p class="desk-fine">与 Health、GU、珂抖屁公众号共用统一登录。</p>
+      <p class="desk-fine">与 Health、GU 共用统一登录。</p>
       <div class="desk-login-trust">
         <span class="trust-item"><span class="trust-dot"></span>SSO 统一鉴权</span>
         <span class="trust-item"><span class="trust-dot"></span>私域数据隔离</span>
@@ -49,7 +49,7 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
             <div class="desk-source-heading">
               <span class="desk-icon"><Icon name={product.icon} size={24} /></span>
               <div>
-                <p class="desk-eyebrow">{product.id === 'health' ? '生活 / HEALTH' : product.id === 'gu' ? '投资 / GU' : '表达 / WECHAT'}</p>
+                <p class="desk-eyebrow">{product.id === 'health' ? '生活 / HEALTH' : '投资 / GU'}</p>
                 <h2>{product.name}</h2>
               </div>
             </div>

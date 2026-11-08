@@ -9,7 +9,7 @@
 
 ## 当前 v4 覆盖与恢复边界
 
-必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`，共九库；原件集合来自
+必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`，共八库；原件集合来自
 `ORIGINAL_COLLECTIONS`：GU `gu_materials`、Me `imports`、Blog `blog_media`，分别通过
 `GuMaterialsBackup`、`MeImportsBackup`、`BlogMediaBackup` 只读获取。Ops 不直接绑定业务桶。
 新写出的 v4 manifest 必须包含全部数据库和三组原件；缺少任何一组（包括空组记录）均不完整。
@@ -34,7 +34,7 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
 - 每份 SQL 在内存中 gzip 压缩，再用独立随机 AES-256-GCM 密钥加密；
   RSA-3072 OAEP/SHA-256 公钥封装该密钥。库名、库 UUID、时间和公钥指纹随
   envelope 一起通过 GCM 校验。SQL 明文不写磁盘或 Actions artifact。
-- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部九库和
+- 私有 R2 `codepi-ops-backups` 保存密文与完成清单，按前缀保留 14 天。全部八库和
   GU/Me/Blog 有索引原件成功后才提交 v4 manifest；R2 manifest 与 success report 是完整备份标准。
   GitHub Release 仅是历史验收材料，不是自动备份通道。
 - R2 与 D1 同账户，不能覆盖 Cloudflare 账户整体不可用。专用运维 token 仅有
@@ -49,7 +49,6 @@ D1、明文和日志已清理，生产绑定未改。尚未有非空 Me 导入�
 | `codepi-auth` | `services/auth/wrangler.jsonc` |
 | `codepi-desk` | `apps/web/wrangler.toml` |
 | `codepi-gu` | `apps/gu/wrangler.toml` |
-| `codepi-gzh` | `apps/gzh/wrangler.toml` |
 | `codepi-health` | `apps/health/workers/api/wrangler.toml` |
 | `codepi-mcp` | `services/mcp/wrangler.toml` 精确名称解析；UUID 由资源登记表核对 |
 | `codepi-project` | `apps/project/wrangler.toml`；生产 UUID `03612540-2ac6-4dd2-9bf6-ed431dda17c9` |

@@ -18,10 +18,10 @@ test('extractWorkerVersion 解析 Current/Worker Version ID', () => {
 
 test('extractPagesUrl 提取 pinned 多级标签 pages.dev URL', () => {
   assert.equal(extractPagesUrl('Uploaded https://abc123.pages.dev'), 'https://abc123.pages.dev');
-  const wranglerOutput = `✨ Deployment complete! Take a peek over at https://a1b2c3d4e5f6.codepi-gzh.pages.dev
+  const wranglerOutput = `✨ Deployment complete! Take a peek over at https://a1b2c3d4e5f6.example-worker.pages.dev
 ✨ To deploy to this URL of your production site, run the following command:
 `;
-  assert.equal(extractPagesUrl(wranglerOutput), 'https://a1b2c3d4e5f6.codepi-gzh.pages.dev');
+  assert.equal(extractPagesUrl(wranglerOutput), 'https://a1b2c3d4e5f6.example-worker.pages.dev');
   assert.equal(extractPagesUrl('✨ Deployment complete! Take a peek over at https://x.y.pages.dev.'), 'https://x.y.pages.dev');
   assert.equal(extractPagesUrl('nothing'), null);
 });

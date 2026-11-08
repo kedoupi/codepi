@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 
 export async function checkPages(app, target, request = fetch, { origin } = {}) {
-  assert.ok(['web', 'gu', 'gzh'].includes(app), 'Unknown app');
+  assert.ok(['web', 'gu'].includes(app), 'Unknown app');
   assert.equal(target, 'production', 'staging is retired; only production is smoke-tested');
   const host = app === 'web' ? '' : app;
   // --origin 用于 Pages → Workers 迁移窗口：域名仍指向旧 Pages 时，
@@ -36,22 +36,6 @@ export async function checkPages(app, target, request = fetch, { origin } = {}) 
     assert.match(desk.headers.get('content-type') || '', /^text\/html\b/);
     assert.equal(desk.headers.get('cache-control'), 'no-store', 'Desk shell must not be cached');
     assert.match(desk.headers.get('x-robots-tag') || '', /\bnoindex\b/, 'Desk must stay out of search indexes');
-  }
-  if (app === 'gzh') {
-    for (const path of ['/p/kdp-0917-zao/', '/previews/kdp-0917-zao/index.html']) {
-      const preview = await get(path);
-      await preview.body?.cancel();
-      assert.equal(preview.status, 302, 'GZH private preview must require a session');
-      const loginUrl = new URL(preview.headers.get('location') || '/', origin);
-      assert.ok(loginUrl.origin === origin && loginUrl.pathname === '/login', 'GZH preview must redirect to its own login');
-      assert.equal(preview.headers.get('cache-control'), 'no-store', 'GZH private preview must not be cached');
-    }
-    for (const path of ['/%70reviews/kdp-0917-zao/', '/previews%2fkdp-0917-zao/', '//previews/kdp-0917-zao/']) {
-      const alias = await get(path);
-      await alias.body?.cancel();
-      assert.equal(alias.status, 404, 'GZH asset aliases must not bypass authentication');
-      assert.equal(alias.headers.get('cache-control'), 'no-store', 'GZH rejected aliases must not be cached');
-    }
   }
   return `${app} ${target}: root, anonymous private API and same-environment SSO redirect passed`;
 }

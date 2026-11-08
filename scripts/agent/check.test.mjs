@@ -36,7 +36,7 @@ function fixture(t) {
   return { cwd, git, write, commit, base: git('rev-parse', 'HEAD') };
 }
 
-function runFixture(f, args, status = 0, file = 'apps/gzh/change.js', fakePnpm) {
+function runFixture(f, args, status = 0, file = 'apps/gu/change.js', fakePnpm) {
   const bin = path.join(f.cwd, '.test-bin');
   const marker = path.join(bin, 'invocations.txt');
   f.write('.test-bin/pnpm', fakePnpm || `#!/usr/bin/env node
@@ -152,8 +152,8 @@ test('changed files include commits, staging, worktree and untracked paths', t =
   f.write('apps/gu/staged.txt');
   f.git('add', 'apps/gu/staged.txt');
   f.write('README.md', 'modified\n');
-  f.write('apps/gzh/untracked file.txt');
-  assert.deepEqual(changedFiles(f.cwd, f.base).files, ['README.md', 'apps/gu/staged.txt', 'apps/gzh/untracked file.txt', 'apps/web/committed.txt']);
+  f.write('apps/gu/untracked file.txt');
+  assert.deepEqual(changedFiles(f.cwd, f.base).files, ['README.md', 'apps/gu/staged.txt', 'apps/gu/untracked file.txt', 'apps/web/committed.txt']);
   assert.ok(!changedFiles(f.cwd).files.includes('apps/web/committed.txt'));
 });
 
@@ -212,7 +212,7 @@ test('quick preview executes nothing and quick run omits full commands', t => {
   assert.equal(existsSync(preview.marker), false);
   const run = runFixture(fixture(t), ['--run']);
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(readFileSync(run.marker, 'utf8').trim().split('\n').sort(), ['--filter publish-desk test', '--filter publish-desk typecheck']);
+  assert.deepEqual(readFileSync(run.marker, 'utf8').trim().split('\n').sort(), ['--filter kdp-gu test', '--filter kdp-gu test:scripts', '--filter kdp-gu typecheck']);
 });
 
 test('all mode selects full checks for every application', t => {
@@ -284,7 +284,7 @@ setTimeout(() => {
 test('failed builds block dependent checks without stopping unrelated packages', t => {
   const f = fixture(t);
   f.write('apps/web/committed.txt');
-  f.write('apps/gzh/committed.txt');
+  f.write('apps/gu/committed.txt');
   f.commit();
   f.write('.agent/task-base', `${f.base}\n`);
   const result = runFixture(f, ['--task', '--run'], 0, undefined, `#!/usr/bin/env node
@@ -296,7 +296,7 @@ process.exit(args === '--filter web build' ? 1 : 0);
   assert.equal(result.status, 1);
   const invocations = readFileSync(result.marker, 'utf8').trim().split('\n');
   assert.ok(!invocations.includes('--filter web test:assets'));
-  assert.ok(invocations.includes('--filter publish-desk build'));
+  assert.ok(invocations.includes('--filter kdp-gu build'));
   assert.match(result.stderr, /SKIPPED \[apps\/web\].*test:assets/);
 });
 

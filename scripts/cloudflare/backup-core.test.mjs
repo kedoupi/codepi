@@ -35,8 +35,8 @@ function inventoryRequest(mutate = rows => rows) {
 }
 
 test('the required inventory keeps pinned IDs while resolving the new names', async () => {
-  assert.equal(DATABASE_NAMES.length, 9);
-  assert.equal(Object.keys(DATABASES).length, 7);
+  assert.equal(DATABASE_NAMES.length, 8);
+  assert.equal(Object.keys(DATABASES).length, 6);
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-project'));
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-me'));
   const staged = inventoryRequest(rows => rows.reverse());

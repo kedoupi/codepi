@@ -63,7 +63,7 @@ test('pairing selects exactly one new client and never rotates another Auth regi
       [`codepi-${client}`, 'AUTH_CLIENT_SECRET'],
     ]);
     assert.equal(f.writes[0].text, f.writes[1].text);
-    assert.ok(!f.writes.some(write => /MCP|GU|OURA|GZH|DESK/.test(write.name)));
+    assert.ok(!f.writes.some(write => /MCP|GU|OURA|DESK/.test(write.name)));
   }
   await assert.rejects(pairClientSecret({ client: 'other', env, request: fixture().request }), /one of: mcp, project, me, rhythm/);
 });

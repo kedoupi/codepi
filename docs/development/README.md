@@ -6,7 +6,7 @@
 | --- | --- |
 | 日常实现、验证、风险分级 | [开发与验证](agent-workflow.md) |
 | 当前待办或跨会话续做 | [当前任务](tasks/README.md)；历史证据看[档案](archive/README.md) |
-| 首页、GU、GZH、Health、Project、Me | 对应目录 `AGENTS.md` 和 README |
+| 首页、GU、Health、Project、Me | 对应目录 `AGENTS.md` 和 README |
 | shared、Auth、MCP、Ops、CLI | 对应目录 `AGENTS.md` 和 README |
 | 审查、交接、集成与发布 | `kdp-review`、`kdp-handoff`、`kdp-release`；[集成发布](integration-release.md) |
 | 生产发布、迁移、真实验收 | [本地发布](local-release.md) 与 [Cloudflare 治理](cloudflare-governance.md) |

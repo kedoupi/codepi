@@ -8,7 +8,6 @@ export const authOrigin = 'https://auth.codepi.app';
 export const clients = {
   gu: { origin: 'https://gu.codepi.app', me: '/api/me' },
   oura: { origin: 'https://health.codepi.app', me: '/api/me' },
-  gzh: { origin: 'https://gzh.codepi.app', me: '/api/me' },
   desk: { origin: 'https://codepi.app', me: '/api/desk/me' },
   mcp: { origin: 'https://mcp.codepi.app', me: '/connections' },
   project: { origin: 'https://project.codepi.app', me: '/api/me' },
@@ -131,7 +130,7 @@ export async function verifyProduction({
     assert.match(await revokedCenter.text(), /id="send"/);
     log('PASS center: revoked cookie cannot silently create a new client session');
     loggedIn = false;
-    log('PRODUCTION_SSO_VERIFIED: one real OTP, all seven current clients, global logout');
+    log('PRODUCTION_SSO_VERIFIED: one real OTP, all six current clients, global logout');
   } finally {
     if (loggedIn) {
       const cleanup = await request(clients.gu.origin + '/api/auth/logout', {});
