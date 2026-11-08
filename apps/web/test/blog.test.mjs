@@ -189,12 +189,14 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-21T00:00:00.000Z' WHERE slug='second-post'").run();
   const list = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
   assert.match(list, /class="blog-list-section brand-page"/);
+  assert.doesNotMatch(list, /最新 ·/);
   assert.match(list, /分类：digital-space|分类：数字空间/);
   assert.match(list, /约 \d+ 分钟/);
   assert.match(list, /aria-current="true"/);
   assert.match(list, /rss\.xml/);
   const article = await (await worker.fetch('http://localhost:8804/blog/first-post/')).text();
   assert.match(article, /class="blog-article-mount brand-page"/);
+  assert.doesNotMatch(article, /上一篇<\/span><b>上一篇/);
   assert.match(article, /blog-toc/);
   assert.match(article, /href="#h-1"/);
   assert.match(article, /资料来源/);
@@ -202,9 +204,9 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   assert.match(article, /AI 协作撰写/);
   assert.match(article, /约 \d+ 分钟/);
   assert.match(article, /系列：<a href="\/blog\/series\/AI%20%E5%91%A8%E6%8A%A5\//);
-  assert.match(article, /下一篇：标题 second-post/);
+  assert.match(article, /<span>下一篇<\/span><b>标题 second-post<\/b>/);
   const second = await (await worker.fetch('http://localhost:8804/blog/second-post/')).text();
-  assert.match(second, /上一篇：标题 first-post/);
+  assert.match(second, /<span>上一篇<\/span><b>标题 first-post<\/b>/);
   const tagPage = await (await worker.fetch('http://localhost:8804/blog/tag/%E7%A9%BA%E9%97%B4/')).text();
   assert.match(tagPage, /标签：空间/);
   assert.equal((tagPage.match(/blog-card-title/g) ?? []).length, 2);
