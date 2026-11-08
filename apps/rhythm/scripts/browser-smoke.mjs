@@ -142,7 +142,10 @@ function statusReadFixture(now = Date.now()) {
         }
         return rows;
       }
-      for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
+      const homeEnd = isToday
+        ? Math.min(450 + shift, activityLimit, currentMinute - 31)
+        : Math.min(450 + shift, activityLimit);
+      for (let minute = 0; minute <= homeEnd; minute += 1) {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
       const officeStart = 620 + shift + jitter;
@@ -157,8 +160,8 @@ function statusReadFixture(now = Date.now()) {
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
-      if (isToday && currentMinute - 30 < officeStart) {
-        const supplementalStart = Math.max(0, currentMinute - 30);
+      if (isToday) {
+        const supplementalStart = Math.max(0, homeEnd + 1, currentMinute - 30);
         const supplementalEnd = Math.min(activityLimit, officeStart - 1);
         for (let minute = supplementalStart; minute <= supplementalEnd; minute += 1) {
           rows.push({
@@ -901,6 +904,6 @@ async function main() {
   }
 }
 
-export { closeServer, resolveSmokePort, startProxy, statusReadFixture };
+export { closeServer, resolveSmokePort, startProxy };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

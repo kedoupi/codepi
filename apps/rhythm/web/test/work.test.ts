@@ -3,11 +3,7 @@
  * @vitest-environment-options { "url": "https://rhythm.test/work" }
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
-vi.hoisted(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date("2026-11-06T12:00:00+08:00"));
-});
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
 
 type Json = Record<string, unknown>;
@@ -47,6 +43,11 @@ function stub(payload: Json = workPayload()) {
   }));
   return calls;
 }
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-06T12:00:00+08:00"));
+});
 
 afterEach(() => {
   cleanup();
