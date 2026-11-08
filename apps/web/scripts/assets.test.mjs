@@ -66,7 +66,7 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
     outboundService: () => { throw Error('Asset checks must not access the network'); },
   }));
   const get = path => runtime.dispatchFetch('https://codepi.app' + path, { redirect: 'manual' });
-  for (const path of ['/', '/apps/', '/about/', '/privacy/', '/terms/', '/contact/', '/desk/']) {
+  for (const path of ['/', '/about/', '/privacy/', '/desk/']) {
     const response = await get(path);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get('Content-Type'), /^text\/html/);
@@ -80,12 +80,35 @@ test('real Worker assets preserve the public site and cannot shadow Desk APIs', 
       assert.ok(response.headers.get('Referrer-Policy').includes('no-referrer'));
     }
   }
+  for (const path of ['/apps/', '/contact/', '/terms/', '/prototype/three/']) {
+    const response = await get(path);
+    assert.equal(response.status, 404, path);
+    await response.body?.cancel();
+  }
   for (const path of ['/', '/about/']) {
     const html = await readFile(join(assets, path, 'index.html'), 'utf8');
-    assert.match(html, /\/brand\/codepi-logo\.png 1288w/);
+    assert.match(html, /\/brand\/codepi-symbol\.png/);
+    assert.match(html, /Code<span class="kdp-wordmark-pi">Pi<\/span>/);
     assert.match(html, /\/favicon-32\.png/);
     assert.doesNotMatch(html, /1800w|\/favicon\.svg|wordmark-dark\.png/);
   }
+
+  const aboutHtml = await readFile(join(assets, '/about/', 'index.html'), 'utf8');
+  const desktopNav = aboutHtml.match(/<nav class="kdp-nav"[^>]*>(.*?)<\/nav>/s)?.[1] ?? '';
+  assert.deepEqual(
+    [...desktopNav.matchAll(/<a href="([^"]+)"/g)].map(match => match[1]),
+    ['/', '/blog/', '/about/', '/privacy/'],
+  );
+  assert.match(aboutHtml, /<div class="kdp-header-action">\s*<a href="\/desk\/">我的工作台<\/a>/);
+  assert.match(aboutHtml, /BUILD · THINK · CREATE/);
+  assert.match(aboutHtml, /© 2026 kedoupi（codepi）/);
+  assert.doesNotMatch(aboutHtml, /href="\/(?:apps|contact)\//);
+
+  const notFoundHtml = await readFile(join(assets, '404.html'), 'utf8');
+  assert.match(notFoundHtml, /这里什么也没有。/);
+  assert.match(notFoundHtml, /可能地址输错了，或者这一页已经下线。/);
+  assert.match(notFoundHtml, /回到首页/);
+  assert.match(notFoundHtml, /去博客看看/);
   for (const path of ['/desk', '/about']) {
     const response = await get(path);
     assert.equal(response.status, 307, path);

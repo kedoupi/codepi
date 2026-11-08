@@ -48,7 +48,7 @@
 | Sitemaps (`sitemap-index.xml` + `sitemap-0.xml`) | Auto-emitted by `@astrojs/sitemap` for `apps/web/` |
 | `robots.txt` explicitly Allows AI bots (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, etc.) | `apps/web/public/robots.txt` |
 | `llms.txt` (site summary + key page links per [llmstxt.org](https://llmstxt.org/)) | `apps/web/public/llms.txt` |
-| Internal links between products | `apps/web/src/components/ProductList.astro` |
+| Public-page navigation and internal links | `packages/shared/layouts/BaseLayout.astro` |
 | Cloudflare crawler / AI bot settings | 平台设置须按需只读核实，仓库文件不证明当前开关状态 |
 
 搜索平台登记是按需操作，不是 Agent 默认下一步。
