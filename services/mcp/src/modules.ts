@@ -6,7 +6,8 @@ import { readDocument } from "./document.ts";
 import { hasScope, type Scope } from "./oauth-store.ts";
 
 export type ToolContext = { subject: string; client: string; clientName?: string; scope: string };
-type RegisteredTool = { definition: Tool; requiredScopes: Scope[]; call: (env: Env, ctx: ToolContext, args: Record<string, unknown>) => Promise<Record<string, unknown>> };
+type ToolPreparation = { args: Record<string, unknown>; optional?: string[] };
+type RegisteredTool = { definition: Tool; requiredScopes: Scope[]; prepare?: (args: Record<string, unknown>) => ToolPreparation; call: (env: Env, ctx: ToolContext, args: Record<string, unknown>) => Promise<Record<string, unknown>> };
 type ToolModule = {
   id: string;
   title: string;
@@ -41,10 +42,27 @@ const nullable = (schema: Record<string, unknown>) => ({ ...schema, type: [schem
 const pageArgs = { offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 100 } };
 const healthCursor = { cursor: text(2048, 1) };
 const healthPaging = " Responses over 12 KiB use health_data_json_v1 pagination. Repeat the original arguments with pagination.next_cursor as cursor, concatenate pagination.chunk in order, and JSON.parse only when complete=true. Verify total_bytes after UTF-8 encoding. A cursor_stale error requires restarting; use refresh=false if background updates keep changing the result.";
+function adaptLegacySubmit(args: Record<string, unknown>): ToolPreparation {
+  const optional: string[] = [];
+  const next = { ...args };
+  const rawTags = args.tags, rawCategory = args.category;
+  const clientTags = rawTags !== undefined && rawTags !== null;
+  const clientCategory = rawCategory !== undefined && rawCategory !== null && rawCategory !== "";
+  const clientTag = typeof args.tag === "string" && args.tag.trim() !== "";
+  if (rawCategory === null || rawCategory === "") { delete next.category; optional.push("/category"); }
+  if (rawTags === null) { delete next.tags; optional.push("/tags"); }
+  const legacy = !clientTags && (clientTag || !clientCategory);
+  if (!legacy) return { args: next, optional };
+  optional.push("/category");
+  if (clientTag) next.tags = [args.tag as string];
+  else optional.push("/tags");
+  return { args: next, optional };
+}
 function domainTool<Op extends string>(
   binding: (env: Env) => DomainService<Op>, operation: Op, scope: Scope, definition: Tool,
+  prepare?: (args: Record<string, unknown>) => ToolPreparation,
 ): RegisteredTool {
-  return { definition, requiredScopes: [scope], async call(env, ctx, args) {
+  return { definition, requiredScopes: [scope], ...(prepare ? { prepare } : {}), async call(env, ctx, args) {
     const reply = await binding(env).execute({ subject: ctx.subject, client: ctx.client,
       clientName: ctx.clientName, operation, args });
     if (!reply.ok) throw new HttpError(reply.error, reply.status);
@@ -281,7 +299,7 @@ MODULES.push({
         is_test: nullable({ type: "boolean" }),
         request_id: nullable(text(100, 1)),
       }, ["slug", "title", "summary", "body_markdown", "category", "tags"]),
-    }),
+    }, adaptLegacySubmit),
     domainTool(e => e.BLOG, "retract", "blog.write", {
       name: "blog_retract", title: "Retract blog draft", annotations: write,
       description: "Retract a pending blog draft. Published posts are not changed.",
@@ -466,8 +484,9 @@ export async function callTool(env: Env, ctx: ToolContext, name: string, args: R
   for (const module of allowed(ctx.scope)) {
     const tool = module.tools.find(t => t.definition.name === name && permitted(ctx.scope, t));
     if (tool) {
-      validateArguments(tool.definition.inputSchema, args);
-      return tool.call(env, ctx, stripNulls(tool.definition.inputSchema, args) as Record<string, unknown>);
+      const prepared = tool.prepare ? tool.prepare(args) : { args };
+      validateArguments(tool.definition.inputSchema, prepared.args, "", prepared.optional);
+      return tool.call(env, ctx, stripNulls(tool.definition.inputSchema, prepared.args) as Record<string, unknown>);
     }
   }
   // The tool exists but this grant does not hold its scope: name the scope

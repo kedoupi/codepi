@@ -116,7 +116,8 @@ async function prepareContent(env: BlogEnv, body: string, cover: unknown) {
 function row<T>(result: D1Result<T>): T | null { return result.results[0] ?? null; }
 const validTagList = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 5 && value.every(item => text(item,40) && item.trim().length > 0) && new Set(value).size === value.length;
 const validSources = (value: unknown): value is Source[] => Array.isArray(value) && value.length <= 10 && value.every(item => object(item) && text(item.title,200) && item.title.trim().length > 0 && typeof item.url === "string" && item.url.length <= 500 && /^https:\/\/[^\s/]+\.[^\s/]+/.test(item.url));
-async function assertCategory(db: D1Database, category: unknown): Promise<string> {
+async function assertCategory(db: D1Database, category: unknown): Promise<string | null> {
+  if (category === undefined || category === null) return null;
   if (!text(category,40) || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(category)) throw invalid();
   if (!await db.prepare("SELECT slug FROM blog_categories WHERE slug=?").bind(category).first()) throw invalid("unknown_category");
   return category;
@@ -139,6 +140,7 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
   if (existing ? baseRevision !== existing.revision : baseRevision !== undefined && baseRevision !== 0) throw invalid("revision_conflict");
   const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], cover:null as string | null, warnings:[] as string[] };
+  const warnings = [...content.warnings, ...(category ? [] : ["未提供分类，请在 Desk 审核时指定分类。"] )];
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
   const [result] = await db.batch([
@@ -148,7 +150,7 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
     .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,content.cover,JSON.stringify(content.ids),category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending"),
   ]);
   if (!result.meta.changes) throw invalid("revision_conflict");
-  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:content.warnings };
+  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings };
 }
 export async function retractDraft(db: D1Database, slug: string) {
   const result = await db.prepare("UPDATE blog_drafts SET status='withdrawn',updated_at=? WHERE slug=? AND status='pending'").bind(now(),slug).run();

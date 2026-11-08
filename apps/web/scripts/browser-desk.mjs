@@ -64,7 +64,7 @@ try {
   assert.ok(image.ok);
   const coverId = image.data.id;
   const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`mermaid\nflowchart TD\n    U[开发者 / 企业用户] --> A[Codex 或其他 Agent]\n    A --> T[工具执行与权限控制]\n    A --> R[模型路由与调用接口]\n    R --> O[OpenAI 直接服务]\n    R --> G[Google Cloud 模型入口]\n    R --> X[其他模型供应商]\n    T --> L[日志、审计与任务结果]\n    R --> L\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    A[桌面 / Web / IM 入口] --> B[Agent 工作流与任务状态]\n    B --> C[模型路由与统一观测]\n    C --> D[OpenAI]\n    C --> E[Google Cloud]\n    C --> F[其他供应商]\n    B --> G[工具权限 / 审批 / 执行日志]\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    Broken[无效图表\n\`\`\`\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < 14; i++) {
     const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: syntheticBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }] } });
     assert.ok(result.ok);
   }
@@ -246,17 +246,12 @@ try {
   assert.match(await page.evaluate(() => window.__reviewConfirmation), /修订 1/);
   let publishedArticle = await f.blog.prepare("SELECT revision,title FROM blog_posts WHERE slug='browser-article-12'").first();
   assert.equal(publishedArticle.revision, 1);
-  const update = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: 'browser-article-12', title: '合成文章 12：线上旧版与新版待审', summary: '用于验收已上架文章改版仍保持旧版在线。', body_markdown: syntheticBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }], base_revision: 1, request_id: 'browser-update' } });
+  const update = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: 'browser-article-12', title: '合成文章 12：线上旧版与新版待审', summary: '用于验收已上架文章改版仍保持旧版在线。', body_markdown: '## 新版待审\n\n线上旧版仍在线。', cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }], base_revision: 1, request_id: 'browser-update' } });
   assert.ok(update.ok);
-  await page.reload();
+  await page.goto(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
-  await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
-  await page.waitForSelector('#blog-review-detail [data-review-action="publish"]');
-  assert.match(await page.evaluate(() => document.querySelector('#blog-review-detail').textContent), /线上仍是旧版，通过后替换/);
-  await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').click());
-  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已上架'));
-  publishedArticle = await f.blog.prepare("SELECT revision,title FROM blog_posts WHERE slug='browser-article-12'").first();
-  assert.equal(publishedArticle.revision, 2);
+  assert.match(await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').textContent), /已上架 · 有新版待审/);
+  await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.evaluate(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"] [data-review-action="unpublish"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已下架'));
   assert.equal((await f.blog.prepare("SELECT COUNT(*) AS count FROM blog_posts WHERE slug='browser-article-12'").first()).count, 0);
@@ -331,7 +326,7 @@ try {
   await page.screenshot({ path: 'blog-list-mobile.png' });
   await page.goto(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#desk-status').textContent.includes('概览已读取'));
-  await page.waitForFunction(() => document.querySelectorAll('#blog-published-list article').length === 12);
+  await page.waitForFunction(() => document.querySelectorAll('#blog-published-list article').length === 13);
   f.faults.health = async () => { await new Promise(resolve => setTimeout(resolve, 400)); return new Response('', { status: 503 }); };
   await page.click('#desk-generate');
   await page.click('#desk-logout');

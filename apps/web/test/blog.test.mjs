@@ -110,7 +110,8 @@ test('optional covers use the first embedded image or the public placeholder', a
   assert.equal(textOnly.ok, true);
   assert.equal((await f.blog.prepare('SELECT cover_media_id FROM blog_drafts WHERE slug=?').bind('text-only').first()).cover_media_id, null);
   const missingCategory = await rpc(f, 'submit', draft({ slug: 'missing-category', category: undefined, cover_media_id: undefined }));
-  assert.deepEqual(missingCategory, { ok: false, error: 'invalid_arguments', status: 400 });
+  assert.equal(missingCategory.ok, true);
+  assert.ok(missingCategory.data.warnings.some(warning => /分类/.test(warning)));
 });
 
 test('an explicit empty tag list stays invalid while an omitted one is allowed', async t => {

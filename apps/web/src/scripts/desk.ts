@@ -79,6 +79,10 @@ async function api(path: string, init: RequestInit = {}) {
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
 type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; updated_at: string; published_at?: string | null; cover_media_id?: string | null; body_html?: string | null; body_markdown?: string | null; category?: string | null; tags?: string | null; series?: string | null; sources?: string | null };
+const categoryNames: Record<string, string> = {
+  "digital-space": "数字空间", health: "健康记录", investing: "投资观察", content: "内容工作", tech: "技术实践", life: "生活随笔",
+};
+const fallbackCoverSvg = `<svg viewBox="0 0 640 272" aria-hidden="true" focusable="false"><path d="M24 32Q240 80 320 136T616 240M40 240Q230 180 320 136T600 32M120 8Q270 90 320 136T520 264M120 264Q270 180 320 136T520 8M8 136Q220 136 320 136T632 136"/><circle cx="320" cy="136" r="54"/><circle class="blog-cover-core" cx="320" cy="136" r="8"/></svg>`;
 const sourceList = (value?: string | null): Array<{ title: string; url: string }> => {
   try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; }
 };
@@ -100,8 +104,10 @@ function coverNode(item: ReviewItem, className: string) {
     image.loading = "lazy";
     return image;
   }
-  const fallback = node("div", "默认占位图", `${className} blog-cover-fallback`);
+  const fallback = node("div", "", `${className} blog-cover-fallback`);
   fallback.setAttribute("role", "img");
+  fallback.setAttribute("aria-label", "默认占位图");
+  fallback.innerHTML = fallbackCoverSvg;
   return fallback;
 }
 function appendSources(container: HTMLElement, value?: string | null) {
@@ -127,8 +133,8 @@ function appendBody(container: HTMLElement, item: ReviewItem) {
   details.open = true;
   const article = node("div", "", "personal-article-content");
   details.append(node("summary", "正文含配图"), article);
-  article.innerHTML = item.body_html;
   container.append(details);
+  window.setTimeout(() => { article.innerHTML = item.body_html!; }, 0);
 }
 function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number) {
   const row = node("article", "", "desk-review-item");
@@ -141,7 +147,7 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
   content.append(node("p", `${state} · 修订 ${item.revision}`, "desk-review-meta"));
   content.append(node("p", `更新于 ${time(item.updated_at)}（北京时间）`, "desk-review-meta"), node("p", item.summary));
   if (!publishedItem && liveRevision !== undefined) content.append(node("p", "线上仍是旧版，通过后替换。", "desk-review-notice"));
-  if (item.category) content.append(node("p", `自动分类：${item.category}`, "desk-review-meta"));
+  if (item.category) content.append(node("p", `自动分类：${categoryNames[item.category] ?? item.category}`, "desk-review-meta"));
   appendSources(content, item.sources);
   const actions = node("div", "", "desk-review-actions");
   const preview = node("a", publishedItem ? "查看文章" : "预览稿件", "kdp-link");
@@ -190,7 +196,7 @@ function renderDetail(item: ReviewItem | null) {
   body.dataset.revision = String(item.revision);
   body.append(coverNode(item, "desk-review-cover"), node("h3", item.title));
   body.append(node("p", `${live ? "已上架 · 有新版待审" : "待审"} · 修订 ${item.revision}`, "desk-review-meta"), node("p", item.summary));
-  if (item.category) body.append(node("p", `自动分类：${item.category}`, "desk-review-meta"));
+  if (item.category) body.append(node("p", `自动分类：${categoryNames[item.category] ?? item.category}`, "desk-review-meta"));
   if (live) body.append(node("p", "线上仍是旧版，通过后替换。", "desk-review-notice"));
   appendBody(body, item);
   appendSources(body, item.sources);
@@ -265,13 +271,15 @@ async function reviewAction(event: Event) {
     const endpoint = action === "publish" ? `/api/blog/drafts/${slug}/publish` : `/api/blog/posts/${slug}/unpublish`;
     await api(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision }) });
     if (current !== generation || !active) return;
-    void loadReview();
     reviewMessage(action === "publish" ? "文章已上架。" : "文章已下架。");
+    await loadReview(action === "publish" ? "文章已上架。" : "文章已下架。");
   } catch (error) {
     if (current === generation && active && !(error instanceof SessionExpired)) reviewMessage(`${reviewError(error)} 可点击“重新读取”获取最新状态。`, true);
   } finally {
-    row.setAttribute("aria-busy", "false");
-    controls.forEach(control => { control.disabled = false; });
+    if (current === generation && active) {
+      row.setAttribute("aria-busy", "false");
+      controls.forEach(control => { control.disabled = false; });
+    }
   }
 }
 el("blog-review-status").setAttribute("aria-live", "polite");
