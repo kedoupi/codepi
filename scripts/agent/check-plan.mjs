@@ -56,7 +56,7 @@ export const specialRules = [
   { files: ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.npmrc'], apps: allApps, sharedAuth: true, governance: true, workflow: true },
   { prefixes: ['services/ops/', 'scripts/cloudflare/'], files: ['.github/workflows/deploy-platform.yml', 'docs/development/cloudflare-resource-registry.md', 'docs/development/cloudflare-governance.md'], apps: ['ops'], governance: true },
   { prefixes: ['scripts/agent/', '.agents/', '.claude/skills/', '.cursor/rules/', 'docs/development/'], files: ['CLAUDE.md', 'GEMINI.md', '.gitignore', '.github/copilot-instructions.md'], workflow: true },
-  { prefixes: ['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/'], apps: allApps, sharedAuth: true },
+  { prefixes: ['calc/', 'convert/', 'text/', 'dev/', 'ai/', 'fagao/', 'apps/gzh/'], apps: allApps, sharedAuth: true },
   { prefixes: ['apps/oura/'], apps: ['health'] },
   { prefixes: ['docs/'], suffixes: ['/README.md', '/AGENTS.md'], files: ['README.md', 'AGENTS.md', 'LICENSE', 'NOTICE.md'], documentation: true },
   { prefixes: ['.github/'], apps: allApps, sharedAuth: true, workflow: true },

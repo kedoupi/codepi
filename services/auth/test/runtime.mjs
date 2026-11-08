@@ -5,10 +5,14 @@ import { build } from 'esbuild';
 const require = createRequire(import.meta.url);
 const { Miniflare, Response, convertV4MiniflareOptions } = createRequire(require.resolve('wrangler'))('miniflare');
 export const authOrigin = 'http://localhost:8795';
-export const clients = Object.fromEntries(['oura', 'gu', 'desk'].map((id, i) => [id, {
-  name: id, secret: `integration-only-${id}-` + 'x'.repeat(32),
-  redirectUris: [`http://localhost:${8801 + i}/api/auth/callback`],
-}]));
+export const clients = Object.fromEntries(['oura', 'gu', 'desk'].map(id => {
+  // Keep the established ports used by browser fixtures after retiring gzh.
+  const port = { oura: 8801, gu: 8802, desk: 8804 }[id];
+  return [id, {
+    name: id, secret: `integration-only-${id}-` + 'x'.repeat(32),
+    redirectUris: [`http://localhost:${port}/api/auth/callback`],
+  }];
+}));
 export const cookie = (res, name) => res.headers.getSetCookie().find(v => v.split('=')[0].endsWith(name))?.split(';')[0] || '';
 const bundle = await build({
   stdin: {
