@@ -200,7 +200,7 @@ function renderDetail(item: ReviewItem | null, publishedItem = false) {
   }
   const back = node("button", "← 返回列表", "desk-text-button desk-detail-back");
   back.type = "button";
-  back.addEventListener("click", () => { selectedSlug = null; el("blog-review-workspace").dataset.view = "list"; renderQueue(); renderDetail(null); });
+  back.addEventListener("click", () => { selectedSlug = null; setReviewView("list"); renderQueue(); renderDetail(null); });
   detail.append(back);
   const live = publishedItems.find(entry => entry.slug === item.slug);
   const body = node("div", "", "desk-detail-body");
@@ -219,15 +219,20 @@ function renderDetail(item: ReviewItem | null, publishedItem = false) {
   body.append(previewFrame(item));
   detail.append(body);
 }
+function setReviewView(view: "list" | "detail") {
+  const workspace = el("blog-review-workspace");
+  workspace.dataset.view = view;
+  workspace.closest<HTMLElement>(".desk-review")?.setAttribute("data-view", view);
+}
 function selectDraft(slug: string) {
   selectedSlug = slug;
-  el("blog-review-workspace").dataset.view = "detail";
+  setReviewView("detail");
   renderQueue();
   renderDetail(queueItems.find(item => item.slug === slug) ?? null);
 }
 function selectPublished(slug: string) {
   selectedSlug = slug;
-  el("blog-review-workspace").dataset.view = "detail";
+  setReviewView("detail");
   renderQueue();
   renderDetail(publishedItems.find(item => item.slug === slug) ?? null, true);
 }
@@ -258,7 +263,7 @@ async function loadReview(message = "") {
     queueItems = drafts.drafts;
     publishedItems = published.posts;
     if (selectedSlug && !queueItems.some(item => item.slug === selectedSlug) && !publishedItems.some(item => item.slug === selectedSlug)) selectedSlug = null;
-    if (!selectedSlug) el("blog-review-workspace").dataset.view = "list";
+    setReviewView(selectedSlug ? "detail" : "list");
     el("blog-published-list").replaceChildren(...(publishedItems.length ? publishedItems.map(item => renderReview(item, true)) : [node("p", "暂无已上架文章。", "desk-review-empty")]));
     renderQueue();
     const selectedDraft = queueItems.find(item => item.slug === selectedSlug);

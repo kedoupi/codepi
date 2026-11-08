@@ -628,6 +628,9 @@
   .desk-detail-toolbar { position: sticky; top: auto; bottom: 0; margin: 20px -20px 12px; border-radius: 0; }
   .desk-detail-toolbar .kdp-button { min-height: 44px; }
   .desk-preview-frame { min-height: 320px; }
+  .desk-review[data-view="detail"] > #blog-review-status,
+  .desk-review[data-view="detail"] > #blog-review-status + .desk-text-button,
+  .desk-review[data-view="detail"] .desk-review-queue-column { display: none; }
 }
 
 @media (max-width: 960px) {

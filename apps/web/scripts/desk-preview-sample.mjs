@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdir, mkdtemp, readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +23,20 @@ const origins = { desk: 'http://localhost:8804', auth: 'http://localhost:8795' }
 const servers = [];
 let browser;
 let testOtp;
+async function capturePage(page, path, selector) {
+  const metrics = await page.cdp('Page.getLayoutMetrics');
+  const size = metrics.cssContentSize ?? metrics.contentSize;
+  const clip = selector
+    ? await page.evaluate(target => {
+      const element = document.querySelector(target);
+      if (!element) throw new Error(`截图区域不存在：${target}`);
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: element.scrollHeight, scale: 1 };
+    }, selector)
+    : { x: 0, y: 0, width: size.width, height: size.height, scale: 1 };
+  const screenshot = await page.cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, fromSurface: true, clip });
+  await writeFile(path, Buffer.from(screenshot.data, 'base64'));
+}
 try {
   const blogShell = await readFile(join(root, 'blog/index.html'), 'utf8');
   const media = [];
@@ -148,12 +162,24 @@ try {
   await page.waitForURL(`${origins.desk}/desk/`);
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="desk-preview-sample"]'));
   await page.click('#blog-drafts-list [data-slug="desk-preview-sample"]');
-  await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
-  await page.screenshot({ path: join(artifacts, 'desk-preview-desktop.png') });
+  const waitForArticle = () => page.waitForFunction(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const doc = frame?.contentDocument;
+    const images = doc ? [...doc.images] : [];
+    return Boolean(doc?.querySelector('.blog-article h2, .blog-article blockquote, .blog-article pre, .blog-article ul'))
+      && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
+      && doc.querySelectorAll('figcaption').length >= 2 && Number.parseInt(frame.style.height, 10) > 600;
+  });
+  await waitForArticle();
+  await capturePage(page, join(artifacts, 'desk-preview-desktop.png'));
+  await capturePage(page, join(artifacts, 'desk-preview-desktop-review.png'), '.desk-review');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await page.screenshot({ path: join(artifacts, 'desk-preview-mobile.png') });
-  for (const name of ['desk-preview-desktop.png', 'desk-preview-mobile.png']) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
-  console.log(`Desk preview sample passed; screenshots: ${join(artifacts, 'desk-preview-desktop.png')}, ${join(artifacts, 'desk-preview-mobile.png')}`);
+  await waitForArticle();
+  await capturePage(page, join(artifacts, 'desk-preview-mobile.png'));
+  await capturePage(page, join(artifacts, 'desk-preview-mobile-review.png'), '.desk-review');
+  const screenshots = ['desk-preview-desktop.png', 'desk-preview-desktop-review.png', 'desk-preview-mobile.png', 'desk-preview-mobile-review.png'];
+  for (const name of screenshots) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
+  console.log(`Desk preview sample passed; screenshots: ${screenshots.map(name => join(artifacts, name)).join(', ')}`);
 } finally {
   if (browser) await browser.close();
   for (const server of servers) await new Promise(resolveServer => server.close(resolveServer));

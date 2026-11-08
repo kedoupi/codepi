@@ -223,6 +223,12 @@ try {
   await page.waitForFunction(() => document.querySelector('#blog-review-workspace').dataset.view === 'detail');
   await page.waitForSelector('#blog-review-detail [data-review-action="publish"]');
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').textContent), '通过上架');
+  const mobileReview = await page.evaluate(() => ({
+    queueColumn: getComputedStyle(document.querySelector('.desk-review-queue-column')).display,
+    status: getComputedStyle(document.querySelector('#blog-review-status')).display,
+    retry: getComputedStyle(document.querySelector('#blog-review-status + .desk-text-button')).display,
+  }));
+  assert.deepEqual(mobileReview, { queueColumn: 'none', status: 'none', retry: 'none' }, 'mobile detail hides review lists and status controls');
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-queue')).display), 'none', 'mobile review shows the detail layer only');
   const mobileOverflow = await page.evaluate(() => {
     const wide = [...document.querySelectorAll('#blog-review-detail *')].find(node => {
