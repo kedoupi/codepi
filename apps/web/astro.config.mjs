@@ -16,7 +16,7 @@ export default defineConfig({
   redirects: privacyRedirects,
   integrations: [tailwind(), sitemap({ filter: (page) => {
     const pathname = new URL(page).pathname;
-    return ignoreDoorwayLocales(page) && !pathname.startsWith('/desk/') && !pathname.startsWith('/prototype/');
+    return ignoreDoorwayLocales(page) && !pathname.startsWith('/desk/');
   } })],
   vite: {
     resolve: {
