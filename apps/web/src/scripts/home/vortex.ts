@@ -11,6 +11,16 @@ function cssColor(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+type Colors = { background: string; graphite: string; orange: string; data: string[] };
+function readColors(): Colors {
+  return {
+    background: cssColor('--color-background'),
+    graphite: cssColor('--brand-graphite'),
+    orange: cssColor('--brand-orange'),
+    data: DATA_TOKENS.map(cssColor),
+  };
+}
+
 function initCanvas(canvas: HTMLCanvasElement) {
   const output = canvas.getContext('2d');
   if (!output) return;
@@ -18,18 +28,16 @@ function initCanvas(canvas: HTMLCanvasElement) {
   const context = trail.getContext('2d');
   if (!context) return;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const colors = {
-    background: cssColor('--color-background'),
-    graphite: cssColor('--brand-graphite'),
-    orange: cssColor('--brand-orange'),
-    data: DATA_TOKENS.map(cssColor),
-  };
+  let colors = readColors();
   let width = 0;
   let height = 0;
   let centerX = 0;
   let centerY = 0;
   let radiusMax = 0;
   let dpr = 1;
+  let lastCssWidth = 0;
+  let lastCssHeight = 0;
+  let lastDpr = 0;
   let particles: Particle[] = [];
   let flashes: Flash[] = [];
   let ripples: Ripple[] = [];
@@ -56,7 +64,12 @@ function initCanvas(canvas: HTMLCanvasElement) {
   const resize = () => {
     const cssWidth = canvas.clientWidth || 1;
     const cssHeight = canvas.clientHeight || 1;
-    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const nextDpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cssWidth === lastCssWidth && cssHeight === lastCssHeight && nextDpr === lastDpr) return;
+    lastCssWidth = cssWidth;
+    lastCssHeight = cssHeight;
+    lastDpr = nextDpr;
+    dpr = nextDpr;
     width = Math.max(1, Math.round(cssWidth * dpr));
     height = Math.max(1, Math.round(cssHeight * dpr));
     canvas.width = trail.width = width;
@@ -71,7 +84,8 @@ function initCanvas(canvas: HTMLCanvasElement) {
       return particle;
     });
     context.clearRect(0, 0, width, height);
-    draw(0.12);
+    warm();
+    draw(0);
   };
 
   const step = (delta: number) => {
@@ -192,8 +206,11 @@ function initCanvas(canvas: HTMLCanvasElement) {
   };
 
   resize();
-  warm();
-  draw(0);
+  const colorScheme = matchMedia('(prefers-color-scheme: dark)');
+  colorScheme.addEventListener('change', () => {
+    colors = readColors();
+    draw(0);
+  });
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(canvas);
   const visibilityObserver = new IntersectionObserver(([entry]) => {

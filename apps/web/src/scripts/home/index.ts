@@ -1,17 +1,6 @@
-import { parseLatestResponse } from './latest.mjs';
+import { parseLatestResponse, type LatestPost, type LatestData } from './latest';
 import { initSolar } from './solar';
 import { initVortex } from './vortex';
-
-type LatestPost = {
-  slug: string;
-  title: string;
-  summary: string;
-  category: string | null;
-  published_at: string | null;
-  reading_minutes: number | null;
-  body_chars: number | null;
-};
-type LatestData = { primary: LatestPost; secondary: LatestPost | null };
 
 function markVisible(element: Element) {
   element.classList.add('is-visible');
@@ -81,7 +70,7 @@ async function loadBlog() {
   try {
     const response = await fetch('/blog/latest.json', { headers: { Accept: 'application/json' } });
     if (!response.ok) return;
-    const latest = parseLatestResponse(await response.json());
+    const latest = parseLatestResponse(response.status, response.ok, await response.text());
     if (!latest) return;
     renderBlog(section, latest);
     section.hidden = false;

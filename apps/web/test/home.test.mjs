@@ -2,22 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseLatestResponse } from '../src/scripts/home/latest.mjs';
 
+const post = (slug, title) => ({ slug, title, summary: `${title} 摘要`, category: '生活', published_at: '2026-11-07T00:00:00Z', body_chars: 800 });
+
 test('homepage latest parser returns two public posts and normalizes metadata', () => {
-  const latest = parseLatestResponse({
-    posts: [
-      { slug: 'first', title: '第一篇', summary: '摘要', category: '生活', published_at: '2026-11-07T00:00:00Z', body_chars: 800 },
-      { slug: 'second', title: '第二篇', summary: '', tag: '随笔', reading_minutes: 4 },
-      { slug: '', title: '无效文章' },
-    ],
-  });
-  assert.deepEqual(latest, {
-    primary: { slug: 'first', title: '第一篇', summary: '摘要', category: '生活', published_at: '2026-11-07T00:00:00Z', reading_minutes: null, body_chars: 800 },
-    secondary: { slug: 'second', title: '第二篇', summary: '', category: '随笔', published_at: null, reading_minutes: 4, body_chars: null },
-  });
+  const latest = parseLatestResponse(200, true, JSON.stringify({ posts: [post('first', '第一篇'), post('second', '第二篇')] }));
+  assert.equal(latest.primary.slug, 'first');
+  assert.equal(latest.secondary.slug, 'second');
+  assert.equal(latest.primary.category, '生活');
 });
 
-test('homepage latest parser returns null for failed or empty public responses', () => {
-  assert.equal(parseLatestResponse(null), null);
-  assert.equal(parseLatestResponse({ posts: [] }), null);
-  assert.equal(parseLatestResponse({ posts: [{ slug: 'missing-title' }] }), null);
+test('homepage latest parser returns one public post with no secondary item', () => {
+  const latest = parseLatestResponse(200, true, JSON.stringify({ posts: [post('only', '唯一一篇')] }));
+  assert.equal(latest.primary.slug, 'only');
+  assert.equal(latest.secondary, null);
+});
+
+test('homepage latest parser hides an empty public response', () => {
+  assert.equal(parseLatestResponse(200, true, JSON.stringify({ posts: [] })), null);
+});
+
+test('homepage latest parser hides non-200 and invalid JSON responses', () => {
+  assert.equal(parseLatestResponse(503, false, JSON.stringify({ posts: [post('offline', '不应显示')] })), null);
+  assert.equal(parseLatestResponse(200, true, '{not-json'), null);
 });

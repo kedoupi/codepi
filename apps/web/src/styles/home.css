@@ -15,9 +15,6 @@
 }
 
 .personal-home {
-  --home-display: clamp(2.75rem, 1.983rem + 3.146vw, 4.5rem);
-  --home-h2: clamp(2rem, 1.671rem + 1.348vw, 2.75rem);
-  --home-lead: clamp(1.125rem, 1.016rem + 0.449vw, 1.375rem);
   --home-wrap: min(calc(100% - 64px), 1200px);
   overflow: clip;
   color: var(--color-text);
@@ -34,7 +31,7 @@
 .home-display {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--home-display);
+  font-size: var(--site-display);
   line-height: 1.08;
   letter-spacing: -.045em;
   font-weight: 600;
@@ -44,7 +41,7 @@
   max-width: 720px;
   margin: 32px 0 0;
   color: var(--color-text-muted);
-  font-size: var(--home-lead);
+  font-size: var(--site-lead);
   line-height: 1.55;
 }
 .home-center .home-lead { margin-inline: auto; }
@@ -94,7 +91,7 @@
 .home-two-tone {
   max-width: 960px;
   margin: 0;
-  font-size: var(--home-h2);
+  font-size: var(--site-h2);
   line-height: 1.25;
   letter-spacing: -.035em;
   font-weight: 600;
@@ -103,7 +100,7 @@
 .home-two-tone span + span {
   margin-top: 16px;
   color: var(--color-text-muted);
-  font-size: var(--home-lead);
+  font-size: var(--site-lead);
   line-height: 1.55;
   letter-spacing: -.015em;
   font-weight: 400;
@@ -117,7 +114,7 @@
 .home-data-card h3 {
   margin: 24px 0 8px;
   color: var(--color-text);
-  font-size: var(--home-h2);
+  font-size: var(--site-h2);
   line-height: 1.2;
   letter-spacing: -.035em;
   font-weight: 600;
@@ -184,9 +181,9 @@
 .home-glyph-release circle:not(:last-child) { fill: none; stroke: var(--color-border-strong); stroke-width: 1; opacity: 0; }
 .home-words-grid h3 { margin: 32px 0 16px; color: var(--color-text); font-size: var(--text-h3); line-height: 1.2; }
 .home-words-grid p { margin: 0; color: var(--color-text-muted); font-size: var(--text-body); line-height: 1.6; }
-.home-glyph-section.is-visible .home-glyph path,
-.home-glyph-section.is-visible .home-glyph line { animation: home-glyph-flow 2.8s ease-in-out infinite; }
-.home-glyph-section.is-visible .home-glyph-release circle:not(:last-child) { animation: home-release 3.2s ease-out infinite; }
+.home-words.is-visible .home-glyph path,
+.home-words.is-visible .home-glyph line { animation: home-glyph-flow 2.8s ease-in-out infinite; }
+.home-words.is-visible .home-glyph-release circle:not(:last-child) { animation: home-release 3.2s ease-out infinite; }
 @keyframes home-glyph-flow { 0%, 100% { stroke-dashoffset: 100; } 45%, 65% { stroke-dashoffset: 0; } }
 @keyframes home-release { 0% { opacity: 0; transform: scale(.4); transform-origin: center; } 35% { opacity: .8; } 100% { opacity: 0; transform: scale(1); transform-origin: center; } }
 .home-boundary { background: var(--surface-inverse); color: var(--text-inverse); }
@@ -215,21 +212,21 @@
 .home-blog-secondary a { display: flex; justify-content: space-between; gap: 24px; width: 100%; padding-top: 32px; color: var(--color-text); }
 .home-blog-secondary h3 { margin: 0; font-size: var(--text-h3); line-height: 1.3; }
 .home-closing { background: var(--color-background); }
-.home-closing-mark { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 48px; color: var(--color-action); }
+.home-closing-mark { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 48px; color: var(--color-action); }
 .home-closing-mark span { position: absolute; width: 64px; height: 64px; border: 1px solid var(--brand-orange); border-radius: 50%; opacity: .4; }
 .home-closing-mark b { position: relative; font-size: var(--text-h2); font-weight: 500; }
 .home-closing .home-actions { justify-content: center; }
 @media (max-width: 767px) {
   .personal-home { --home-wrap: min(calc(100% - 40px), 1200px); }
   .home-hero { padding: 96px 0 32px; }
-  .home-hero .home-display { font-size: var(--home-display); }
+  .home-hero .home-display { font-size: var(--site-display); }
   .home-vortex-frame { aspect-ratio: 390 / 440; margin-top: 48px; border-radius: var(--radius-dialog); }
   .home-actions { flex-direction: column; align-items: center; gap: 16px; margin-top: 32px; }
   .home-section { padding-block: 128px; }
   .home-two-tone span + span { margin-top: 12px; }
   .home-data-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px 16px; margin-top: 64px; }
   .home-data-visual { height: 96px; padding: 12px 0; }
-  .home-data-card h3 { margin-top: 16px; font-size: var(--home-h2); }
+  .home-data-card h3 { margin-top: 16px; font-size: var(--site-h2); }
   .home-solar { margin-top: 64px; }
   .home-solar text { display: none; }
   .home-words-title { width: 180px; }

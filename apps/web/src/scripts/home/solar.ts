@@ -46,10 +46,13 @@ function setupSolar(svg: SVGSVGElement) {
       orbit.setAttribute('transform', `rotate(19.3 ${cx} ${cy})`);
     });
     planets.forEach((planet) => {
-      const radius = planet.radius * scale;
-      planet.element.dataset.visualRadius = String(radius);
-      planet.element.dataset.centerX = String(cx);
-      planet.element.dataset.centerY = String(cy);
+      const circle = planet.element.querySelector<SVGCircleElement>('circle');
+      if (circle) {
+        const radius = Number(circle.dataset.baseRadius ?? circle.getAttribute('r') ?? 0) * scale;
+        circle.setAttribute('r', String(radius));
+        const label = planet.element.querySelector<SVGTextElement>('text');
+        if (label) label.setAttribute('x', String(radius + 8));
+      }
     });
     render(elapsed);
   };
@@ -63,10 +66,6 @@ function setupSolar(svg: SVGSVGElement) {
       const radius = planet.radius * scale;
       const x = cx + Math.cos(angle) * radius;
       const y = cy + Math.sin(angle) * radius * 0.34;
-      const circle = planet.element.querySelector<SVGCircleElement>('circle');
-      if (circle) circle.setAttribute('r', String(Number(circle.dataset.baseRadius ?? circle.getAttribute('r') ?? 0) * scale));
-      const label = planet.element.querySelector<SVGTextElement>('text');
-      if (label) label.setAttribute('x', String(Number(circle?.getAttribute('r') ?? 0) + 8));
       planet.element.setAttribute('transform', `translate(${x} ${y})`);
     });
   };
