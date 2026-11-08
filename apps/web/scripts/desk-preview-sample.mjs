@@ -16,7 +16,6 @@ const imageFiles = (await readdir(imageRoot, { withFileTypes: true }))
 assert.ok(imageFiles.length >= 3, '图片目录至少需要一张封面和两张正文 PNG、JPEG 或 WebP 图片');
 
 const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-preview-sample-'));
-await mkdir(artifacts, { recursive: true });
 const fixture = await deskFixture();
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const origins = { desk: 'http://localhost:8804', auth: 'http://localhost:8795' };

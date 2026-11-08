@@ -1,4 +1,4 @@
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; updated_at: string; published_at?: string | null; cover_media_id?: string | null; category?: string | null; sources?: string | null };
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; updated_at: string; published_at?: string | null; cover_media_id?: string | null; category?: string | null; sources?: string | null; has_live?: number | boolean; live_revision?: number | null };
 const page = typeof document === "undefined" ? null : document.getElementById("blog-review-page") as HTMLElement;
 const previewSlug = page?.dataset.slug ?? (typeof location === "undefined" ? null : location.pathname.match(/^\/desk\/blog\/([a-z0-9][a-z0-9-]{0,79})\/$/)?.[1] ?? null);
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -13,7 +13,7 @@ const sourceList = (value?: string | null): Array<{ title: string; url: string }
   try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; }
 };
 const time = (value: string | null) => value ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "尚无记录";
-let queueItems: ReviewItem[] = [], publishedItems: ReviewItem[] = [], selectedSlug: string | null = previewSlug, active = false, generation = 0, previewCleanup: (() => void) | null = null;
+let queueItems: ReviewItem[] = [], publishedItems: ReviewItem[] = [], pendingMeta = { total: 0, pages: 1, counts: {} as Record<string, number> }, publishedMeta = { total: 0, pages: 1, counts: {} as Record<string, number> }, selectedSlug: string | null = previewSlug, active = false, generation = 0, previewCleanup: (() => void) | null = null;
 const pageSize = 20;
 const categories = ["数字空间", "健康记录", "投资观察", "内容工作", "技术实践", "生活随笔"];
 const listQuery = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
@@ -89,50 +89,35 @@ function renderListRow(item: ReviewItem, published: boolean, live = false) {
   link.append(content, node("span", published ? "查看 ›" : "去审核 ›", "desk-review-go"));
   return link;
 }
-function pushListState() {
-  const query = stateHref();
-  history.pushState(null, "", `/desk/blog/${query ? `?${query}` : ""}`);
-  renderLists();
-}
 function renderLists() {
   const pending = queueItems;
   const published = publishedItems;
   const source = activeTab === "pending" ? pending : published;
-  const filtered = activeCategory ? source.filter(item => (item.category ? categoryNames[item.category] ?? item.category : "未分类") === activeCategory) : source;
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  activePage = Math.min(activePage, pages);
-  const rows = filtered.slice((activePage - 1) * pageSize, activePage * pageSize);
+  const meta = activeTab === "pending" ? pendingMeta : publishedMeta;
+  activePage = meta.page;
   const live = new Map(published.map(item => [item.slug, item]));
   const activeList = activeTab === "pending" ? el("blog-drafts-list") : el("blog-published-list");
   const inactiveList = activeTab === "pending" ? el("blog-published-list") : el("blog-drafts-list");
-  activeList.replaceChildren(...(rows.length ? rows.map(item => renderListRow(item, activeTab === "published", live.has(item.slug))) : [node("p", activeTab === "pending" ? "暂无待审稿件。" : "暂无已上架文章。", "desk-review-empty")]));
+  const rows = source.length ? source.map(item => renderListRow(item, activeTab === "published", live.has(item.slug) || !!item.has_live)) : [node("p", activeCategory ? "这个分类还没有文章" : activeTab === "pending" ? "没有待审的稿件，去看看已上架 ›" : "这个分类还没有文章", "desk-review-empty")];
+  activeList.replaceChildren(...rows);
   inactiveList.replaceChildren();
   for (const group of document.querySelectorAll<HTMLElement>("[data-review-tab]")) group.hidden = group.dataset.reviewTab !== activeTab;
   const tabs = el("blog-review-tabs");
-  tabs.replaceChildren(...[
-    ["pending", `待审 ${pending.length}`], ["published", `已上架 ${published.length}`],
-  ].map(([value, label]) => { const button = node("button", label, "desk-blog-tab"); button.type = "button"; button.dataset.tab = value; button.setAttribute("aria-selected", String(value === activeTab)); button.addEventListener("click", () => { activeTab = value as "pending" | "published"; activeCategory = ""; activePage = 1; pushListState(); }); return button; }));
-  const counts = new Map<string, number>();
-  for (const item of source) { const category = item.category ? categoryNames[item.category] ?? item.category : "未分类"; counts.set(category, (counts.get(category) ?? 0) + 1); }
+  tabs.replaceChildren(...[["pending", `待审 ${pendingMeta.total}`], ["published", `已上架 ${publishedMeta.total}`]].map(([value, label]) => { const button = node("button", label, "desk-blog-tab"); button.type = "button"; button.dataset.tab = value; button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(value === activeTab)); button.addEventListener("click", () => { activeTab = value as "pending" | "published"; activeCategory = ""; activePage = 1; pushListState(); void loadReview(); }); return button; }));
   const categoriesEl = el("blog-review-categories");
-  categoriesEl.replaceChildren(...["全部", ...categories].map(category => { const button = node("button", `${category} ${category === "全部" ? source.length : counts.get(category) ?? 0}`, "desk-blog-category"); button.type = "button"; button.setAttribute("aria-pressed", String((category === "全部" ? !activeCategory : activeCategory === category))); button.addEventListener("click", () => { activeCategory = category === "全部" ? "" : category; activePage = 1; pushListState(); }); return button; }));
+  categoriesEl.replaceChildren(...["全部", ...categories].map(category => { const count = category === "全部" ? meta.total : meta.counts[Object.entries(categoryNames).find(([, name]) => name === category)?.[0] ?? category] ?? 0; const button = node("button", `${category} ${count}`, "desk-blog-category"); button.type = "button"; button.setAttribute("aria-pressed", String(category === "全部" ? !activeCategory : activeCategory === category)); button.addEventListener("click", () => { activeCategory = category === "全部" ? "" : category; activePage = 1; pushListState(); void loadReview(); }); return button; }));
   const pager = el("blog-review-pagination");
   pager.replaceChildren();
-  if (pages > 1) {
-    const previous = node("button", "‹ 上一页", "desk-text-button");
-    previous.disabled = activePage <= 1;
-    previous.addEventListener("click", () => { activePage--; pushListState(); });
-    pager.append(previous);
+  if (meta.pages > 1) {
+    const previous = node("button", "‹ 上一页", "desk-text-button"); previous.disabled = activePage <= 1; previous.addEventListener("click", () => { activePage--; pushListState(); void loadReview(); }); pager.append(previous);
     const mobilePager = matchMedia("(max-width: 720px)").matches;
-    if (mobilePager) pager.append(node("span", `${activePage} / ${pages}`, "desk-fine"));
-    else for (let index = 1; index <= pages; index++) { const button = node("button", String(index), index === activePage ? "kdp-button kdp-button--secondary desk-blog-page-current" : "desk-text-button"); button.type = "button"; button.setAttribute("aria-current", String(index === activePage)); button.addEventListener("click", () => { activePage = index; pushListState(); }); pager.append(button); }
-    const next = node("button", "下一页 ›", "desk-text-button");
-    next.disabled = activePage >= pages;
-    next.addEventListener("click", () => { activePage++; pushListState(); });
-    if (mobilePager) pager.append(next);
-    else pager.append(next, node("span", "每页 20 篇", "desk-fine"));
+    if (mobilePager) pager.append(node("span", `${meta.page} / ${meta.pages}`, "desk-fine"));
+    else for (let index = 1; index <= meta.pages; index++) { const button = node("button", String(index), index === meta.page ? "kdp-button kdp-button--secondary desk-blog-page-current" : "desk-text-button"); button.type = "button"; button.setAttribute("aria-current", String(index === meta.page)); button.addEventListener("click", () => { activePage = index; pushListState(); void loadReview(); }); pager.append(button); }
+    const next = node("button", "下一页 ›", "desk-text-button"); next.disabled = activePage >= meta.pages; next.addEventListener("click", () => { activePage++; pushListState(); void loadReview(); }); pager.append(next); if (!mobilePager) pager.append(node("span", "每页 20 篇", "desk-fine"));
   }
+  if (activeCategory) document.querySelector<HTMLElement>('.desk-blog-category[aria-pressed="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
 }
+function pushListState() { const query = stateHref(); history.pushState(null, "", `/desk/blog/${query ? `?${query}` : ""}`); }
 function previewFrame(item: ReviewItem) {
   const frame = document.createElement("iframe");
   frame.className = "desk-preview-frame";
@@ -147,6 +132,7 @@ function previewFrame(item: ReviewItem) {
     });
   };
   frame.addEventListener("load", () => {
+    clearPreview();
     resize();
     const documentElement = frame.contentDocument?.documentElement;
     const body = frame.contentDocument?.body;
@@ -181,7 +167,7 @@ function renderSources(container: HTMLElement, value?: string | null) {
   section.append(list);
   container.append(section);
 }
-function renderDetail(item: ReviewItem | null, published = false) {
+function renderDetail(item: ReviewItem | null, published = false, draftHasLive = false, draftLiveRevision: number | null = null) {
   const detail = el("blog-review-detail");
   clearPreview();
   detail.replaceChildren();
@@ -190,7 +176,8 @@ function renderDetail(item: ReviewItem | null, published = false) {
   back.href = `/desk/blog/${typeof location === "undefined" ? "" : location.search}`;
   detail.append(back);
   const live = publishedItems.find(entry => entry.slug === item.slug);
-  const hasLive = !!live;
+  const hasLive = !!live || draftHasLive;
+  const liveRevision = live?.revision ?? draftLiveRevision;
   const updatingLive = !published && hasLive;
   const body = node("div", "", "desk-detail-body");
   body.dataset.slug = item.slug;
@@ -203,15 +190,15 @@ function renderDetail(item: ReviewItem | null, published = false) {
   button.type = "button";
   button.dataset.reviewAction = published ? "unpublish" : "publish";
   toolbar.append(button);
-  if (updatingLive && live) {
+  if (updatingLive) {
     const unpublish = node("button", "下架", "kdp-button kdp-button--secondary");
     unpublish.type = "button";
     unpublish.dataset.reviewAction = "unpublish";
-    unpublish.dataset.revision = String(live.revision);
+    if (liveRevision) unpublish.dataset.revision = String(liveRevision);
     toolbar.append(unpublish);
   }
   body.append(toolbar);
-  if (!published && live) body.append(node("aside", "线上仍是旧版，通过后替换。", "desk-review-notice"));
+  if (!published && hasLive) body.append(node("aside", "线上仍是旧版，通过后替换。", "desk-review-notice"));
   body.append(previewFrame(item));
   detail.append(body);
 }
@@ -219,22 +206,40 @@ async function loadReview(message = "") {
   if (!active) return;
   const current = generation;
   try {
-    const [drafts, published] = await Promise.all([api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>, api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>]);
+    if (previewSlug) {
+      const [draftResult, postResult] = await Promise.allSettled([api(`/api/blog/drafts/${encodeURIComponent(previewSlug)}`) as Promise<{ draft: ReviewItem; has_live?: boolean; live_revision?: number | null }>, api(`/api/blog/posts/${encodeURIComponent(previewSlug)}`) as Promise<{ post: ReviewItem }>]);
+      if (current !== generation || !active) return;
+      const draft = draftResult.status === "fulfilled" ? draftResult.value.draft : null;
+      const draftHasLive = draftResult.status === "fulfilled" && !!draftResult.value.has_live;
+      const draftLiveRevision = draftResult.status === "fulfilled" ? draftResult.value.live_revision ?? null : null;
+      let live = postResult.status === "fulfilled" ? postResult.value.post : null;
+      if (!live) {
+        const published = await api("/api/blog/posts?tab=published&page=1") as { posts: ReviewItem[] };
+        live = published.posts.find(item => item.slug === previewSlug) ?? null;
+      }
+      if (!draft && !live) { reviewMessage("稿件不存在或已被移除。", true); return; }
+      setView("detail");
+      renderDetail(draft ?? live ?? null, !draft && !!live, draftHasLive, draftLiveRevision);
+      reviewMessage(message || `${!draft && live ? "已上架" : "待审"} · 修订 ${(draft ?? live)!.revision}`);
+      return;
+    }
+    const query = new URLSearchParams({ tab: "pending", page: String(activePage) });
+    if (activeCategory) query.set("category", activeCategory);
+    const publishedQuery = new URLSearchParams({ tab: "published", page: String(activeTab === "published" ? activePage : 1) });
+    if (activeCategory) publishedQuery.set("category", activeCategory);
+    const [drafts, published] = await Promise.all([
+      api(`/api/blog/drafts?${query}`) as Promise<{ drafts: ReviewItem[]; total: number; page: number; pages: number; counts: Record<string, number> }>,
+      api(`/api/blog/posts?${publishedQuery}`) as Promise<{ posts: ReviewItem[]; total: number; page: number; pages: number; counts: Record<string, number> }>,
+    ]);
     if (current !== generation || !active) return;
     queueItems = drafts.drafts;
     publishedItems = published.posts;
-    if (previewSlug) {
-      const draft = queueItems.find(item => item.slug === previewSlug);
-      const live = publishedItems.find(item => item.slug === previewSlug);
-      if (!draft && !live) { reviewMessage("稿件不存在或已被移除。", true); return; }
-      setView("detail");
-      renderDetail(draft ?? live ?? null, !draft && !!live);
-      reviewMessage(message || `${!draft && live ? "已上架" : "待审"} · 修订 ${(draft ?? live)!.revision}`);
-    } else {
-      setView("list");
-      renderLists();
-      reviewMessage(message || `✓ ${queueItems.length} 篇待审，${published.total ?? publishedItems.length} 篇已上架。`);
-    }
+    pendingMeta = { total: drafts.total, pages: drafts.pages, counts: drafts.counts };
+    publishedMeta = { total: published.total, pages: published.pages, counts: published.counts };
+    if (activeTab === "pending" && pendingMeta.total === 0) { activeTab = "published"; activePage = 1; await loadReview(message); return; }
+    setView("list");
+    renderLists();
+    reviewMessage(message || `✓ ${pendingMeta.total} 篇待审，${publishedMeta.total} 篇已上架。`);
   } catch (error) { if (current === generation && !(error instanceof SessionExpired)) reviewMessage("博客审核暂时无法读取，请重试。", true); }
 }
 async function reviewAction(event: Event) {
@@ -251,12 +256,18 @@ async function reviewAction(event: Event) {
   try {
     const slug = encodeURIComponent(row.dataset.slug!);
     await api(action === "publish" ? `/api/blog/drafts/${slug}/publish` : `/api/blog/posts/${slug}/unpublish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision }) });
-    window.location.href = `/desk/blog/?result=${action === "publish" ? "published" : "unpublished"}`;
+    const result = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
+    result.set("result", action === "publish" ? "published" : "unpublished");
+    window.location.href = `/desk/blog/?${result}`;
   } catch (error) { if (!(error instanceof SessionExpired)) { button.disabled = false; reviewMessage("操作暂时无法完成，请重试。", true); } }
 }
 function showLoginPage() { clearPrivate(); el("blog-review-login").hidden = false; }
 async function initialize() {
   const back = document.querySelector<HTMLAnchorElement>(".desk-blog-back");
+  if (previewSlug) {
+    const login = document.querySelector<HTMLAnchorElement>("#blog-review-login a");
+    if (login) login.href = `/api/auth/login?return=${encodeURIComponent(location.pathname + location.search)}`;
+  }
   if (back && previewSlug) back.href = "/desk/blog/";
   clearPrivate();
   el("blog-review-login").hidden = true;

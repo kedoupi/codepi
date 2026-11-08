@@ -95,6 +95,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', { element: el => { el.setAttribute("content", description); } })
     .on('meta[property="og:title"], meta[name="twitter:title"]', { element: el => { el.setAttribute("content", title); } })
     .on('meta[property="og:url"]', { element: el => { el.setAttribute("content", canonical); } })
+    .on('link[rel="canonical"]', { element: el => { el.setAttribute("href", canonical); } })
     .on('meta[property="og:type"]', { element: el => { el.setAttribute("content", post ? "article" : "website"); } })
     .on('meta[name="twitter:card"]', { element: el => { el.setAttribute("content", imageUrl && !preview ? "summary_large_image" : "summary"); } })
     .on('meta[name="robots"]', { element: el => { if (preview) el.remove(); } })

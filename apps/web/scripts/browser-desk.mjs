@@ -44,8 +44,8 @@ function syntheticCover() {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
-await mkdir(artifacts, { recursive: true });
+const artifacts = process.env.DESK_BROWSER_ARTIFACTS || await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
+if (process.env.DESK_BROWSER_ARTIFACTS) await mkdir(artifacts, { recursive: true });
 const f = await deskFixture();
 const servers = [];
 let browser;
@@ -136,6 +136,9 @@ try {
   browser = await launchBrowser(artifacts);
   const page = browser.page;
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.goto(origins.desk + '/desk/blog/');
+  await page.waitForSelector('#blog-review-login:not([hidden])');
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-private').hidden), true);
   await page.goto(origins.desk + '/desk/');
   await page.waitForFunction(() => !document.querySelector('#desk-login').hidden);
   assert.equal(await page.evaluate(() => document.querySelector('#desk-private').hidden), true);
@@ -234,14 +237,14 @@ try {
   await page.waitForFunction(() => {
     const frame = document.querySelector('#blog-review-detail iframe');
     const images = frame?.contentDocument ? [...frame.contentDocument.images] : [];
-    return images.every(image => image.complete && image.naturalWidth > 0);
+    return Boolean(frame && Number.parseInt(frame.style.height, 10) > 0) && images.every(image => image.complete && image.naturalWidth > 0);
   });
   const mobileHeight = await page.evaluate(() => { const frame = document.querySelector('#blog-review-detail iframe'); const doc = frame.contentDocument; return { frame: Number.parseInt(frame.style.height, 10), document: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight), article: doc.querySelector('.blog-article').getBoundingClientRect().bottom + doc.documentElement.scrollTop }; });
   assert.ok(Math.abs(mobileHeight.frame - mobileHeight.document) <= 4, `mobile iframe height follows content (${JSON.stringify(mobileHeight)})`);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-review-queue-column')).display), 'none', 'mobile preview hides list column');
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action]').textContent), '审核通过，上架');
   await page.screenshot({ path: 'desk-blog-preview-mobile.png' });
-  await page.click('.desk-detail-back');
+  await page.evaluate(() => document.querySelector('.desk-detail-back').click());
   await page.waitForURL(origins.desk + '/desk/blog/?tab=pending');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.goto(origins.desk + '/desk/blog/?tab=pending');
@@ -278,7 +281,7 @@ try {
   await page.screenshot({ path: 'desk-blog-preview-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.click('#blog-review-detail [data-review-action="publish"]');
-  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=published'));
+  await page.waitForFunction(() => location.href.includes('result=published'));
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已上架'));
   assert.equal((await f.blog.prepare("SELECT revision FROM blog_posts WHERE slug='browser-article-12'").first()).revision, 1);
   await page.goto(origins.desk + '/blog/browser-article-12/');
@@ -296,7 +299,7 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('.desk-review-notice').textContent), '线上仍是旧版，通过后替换。');
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.click('#blog-review-detail [data-review-action="unpublish"]');
-  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=unpublished'));
+  await page.waitForFunction(() => location.href.includes('result=unpublished'));
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已下架'));
   assert.equal((await f.blog.prepare("SELECT COUNT(*) AS count FROM blog_posts WHERE slug='browser-article-12'").first()).count, 0);
   await page.goto(origins.desk + '/blog/');

@@ -136,12 +136,6 @@ body.blog-embed .kdp-main { padding-block: var(--space-8); }
 body.blog-embed,
 body.blog-embed .kdp-main,
 body.blog-embed .blog-article { min-height: 0; }
-@media (min-width: 721px) {
-  body.blog-embed .blog-article-reading { display: grid; grid-template-columns: minmax(0, 1fr) 720px minmax(0, 1fr); justify-content: center; gap: var(--space-12); }
-  body.blog-embed .blog-article-column { grid-column: 2; max-width: none; margin-inline: 0; }
-  body.blog-embed .blog-toc-desktop { display: block; }
-  body.blog-embed .blog-toc-mobile { display: none; }
-}
 body.blog-embed .blog-article-header { margin-top: 0; }
 body.blog-embed .blog-article-cover-frame,
 body.blog-embed .blog-article-cover { margin-top: var(--space-12); }

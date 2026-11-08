@@ -32,18 +32,12 @@ function clearPrivate() {
   generation++;
   summaryVersion++;
   active = false;
-  clearPreview();
   for (const controller of controllers) controller.abort();
   controllers.clear();
   el("desk-private").hidden = true;
   el("desk-actions").hidden = true;
   for (const target of document.querySelectorAll("[data-metrics], [data-note], [data-time], [data-private-metric]")) target.replaceChildren();
   el("desk-attention-list").replaceChildren();
-  for (const id of ["blog-drafts-list", "blog-review-detail", "blog-published-list", "blog-review-status"]) document.getElementById(id)?.replaceChildren();
-  queueItems = [];
-  publishedItems = [];
-  selectedSlug = null;
-  for (const id of ["blog-drafts-list", "blog-published-list"]) document.getElementById(id)?.setAttribute("aria-busy", "false");
   resetSummary();
   el<HTMLButtonElement>("desk-refresh").disabled = false;
   el<HTMLButtonElement>("desk-generate").disabled = false;
@@ -76,261 +70,18 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; updated_at: string; published_at?: string | null; category?: string | null; tags?: string | null; series?: string | null; sources?: string | null };
-const categoryNames: Record<string, string> = {
-  "digital-space": "数字空间", health: "健康记录", investing: "投资观察", content: "内容工作", tech: "技术实践", life: "生活随笔",
-};
-const sourceList = (value?: string | null): Array<{ title: string; url: string }> => {
-  try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; }
-};
-let queueItems: ReviewItem[] = [];
-let publishedItems: ReviewItem[] = [];
-let selectedSlug: string | null = null;
-let reviewVersion = 0;
-function reviewMessage(message: string, failed = false) {
-  const status = el("blog-review-status");
-  status.dataset.tone = failed ? "error" : "";
-  status.textContent = message;
-}
-function reviewError(error: unknown) { return error instanceof Error && error.name !== "AbortError" ? error.message : "请求超时或连接中断，请重试。"; }
-let previewCleanup: (() => void) | null = null;
-function clearPreview() {
-  previewCleanup?.();
-  previewCleanup = null;
-}
-function previewFrame(item: ReviewItem) {
-  const frame = document.createElement("iframe");
-  frame.className = "desk-preview-frame";
-  frame.title = `预览：${item.title}`;
-  frame.loading = "eager";
-  frame.src = `/blog/preview/${encodeURIComponent(item.slug)}/?embed=1`;
-  const updateHeight = () => {
-    const documentElement = frame.contentDocument?.documentElement;
-    const body = frame.contentDocument?.body;
-    if (!documentElement) return;
-    frame.style.height = `${Math.max(documentElement.scrollHeight, body?.scrollHeight ?? 0, 360)}px`;
-  };
-  const onLoad = () => {
-    updateHeight();
-    const documentElement = frame.contentDocument?.documentElement;
-    const body = frame.contentDocument?.body;
-    if (!documentElement) return;
-    const resize = new ResizeObserver(updateHeight);
-    resize.observe(documentElement);
-    if (body) resize.observe(body);
-    for (const image of frame.contentDocument?.images ?? []) image.addEventListener("load", updateHeight);
-    previewCleanup = () => {
-      resize.disconnect();
-      for (const image of frame.contentDocument?.images ?? []) image.removeEventListener("load", updateHeight);
-    };
-  };
-  frame.addEventListener("load", onLoad);
-  return frame;
-}
-function appendSources(container: HTMLElement, value?: string | null) {
-  const sources = sourceList(value);
-  if (!sources.length) return;
-  const section = node("section", "", "desk-review-sources");
-  section.append(node("h4", "资料来源"));
-  const list = node("ul");
-  for (const source of sources) {
-    const item = node("li");
-    const link = node("a", source.title, "kdp-link");
-    link.href = source.url;
-    link.rel = "noopener noreferrer";
-    item.append(link);
-    list.append(item);
-  }
-  section.append(list);
-  container.append(section);
-}
-function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number) {
-  const row = node("article", "", "desk-review-item");
-  row.dataset.slug = item.slug;
-  row.dataset.revision = String(item.revision);
-  const content = node("div", "", "desk-review-content");
-  content.append(node("h3", item.title));
-  const state = publishedItem ? "已上架" : liveRevision !== undefined ? "已上架 · 有新版待审" : "待审";
-  content.append(node("p", `${state} · 修订 ${item.revision}`, "desk-review-meta"));
-  content.append(node("p", `更新于 ${time(item.updated_at)}（北京时间）`, "desk-review-meta"), node("p", item.summary));
-  if (!publishedItem && liveRevision !== undefined) content.append(node("p", "线上仍是旧版，通过后替换。", "desk-review-notice"));
-  if (item.category) content.append(node("p", `自动分类：${categoryNames[item.category] ?? item.category}`, "desk-review-meta"));
-  appendSources(content, item.sources);
-  const actions = node("div", "", "desk-review-actions");
-  const preview = node("a", publishedItem ? "查看文章" : "预览稿件", "kdp-link");
-  preview.href = publishedItem ? `/blog/${encodeURIComponent(item.slug)}/` : `/blog/preview/${encodeURIComponent(item.slug)}/?embed=1`;
-  actions.append(preview);
-  const button = node("button", publishedItem ? "下架" : "通过上架", publishedItem ? "kdp-button kdp-button--secondary" : "kdp-button");
-  button.type = "button";
-  button.dataset.reviewAction = publishedItem ? "unpublish" : "publish";
-  actions.append(button);
-  content.append(actions);
-  row.append(content);
-  if (publishedItem && item.slug === selectedSlug) row.setAttribute("aria-current", "true");
-  return row;
-}
-function renderQueue() {
-  const list = el("blog-drafts-list");
-  if (!queueItems.length) {
-    list.replaceChildren(node("p", "暂无待审稿件。通过 MCP 提交的稿件会出现在这里。", "desk-review-empty"));
-    return;
-  }
-  const live = new Map(publishedItems.map(item => [item.slug, item]));
-  list.replaceChildren(...queueItems.map(item => {
-    const button = node("button", "", "desk-queue-item");
-    button.type = "button";
-    button.dataset.slug = item.slug;
-    button.dataset.revision = String(item.revision);
-    if (item.slug === selectedSlug) button.setAttribute("aria-current", "true");
-    const liveItem = live.get(item.slug);
-    button.append(node("span", item.title, "desk-queue-title"), node("span", `${liveItem ? "已上架 · 有新版待审" : "待审"} · 修订 ${item.revision} · ${time(item.updated_at)}`, "desk-queue-meta"));
-    return button;
-  }));
-}
-function renderDetail(item: ReviewItem | null, publishedItem = false) {
-  const detail = el("blog-review-detail");
-  clearPreview();
-  detail.replaceChildren();
-  if (!item) {
-    detail.append(node("p", "选择稿件，在这里预览标题、分类和完整文章。", "desk-review-empty"));
-    return;
-  }
-  const back = node("button", "← 返回列表", "desk-text-button desk-detail-back");
-  back.type = "button";
-  back.addEventListener("click", () => { selectedSlug = null; setReviewView("list"); renderQueue(); renderDetail(null); });
-  detail.append(back);
-  const live = publishedItems.find(entry => entry.slug === item.slug);
-  const body = node("div", "", "desk-detail-body");
-  body.dataset.slug = item.slug;
-  body.dataset.revision = String(item.revision);
-  const toolbar = node("div", "", "desk-detail-toolbar");
-  const heading = node("div", "", "desk-detail-heading");
-  heading.append(node("p", publishedItem ? "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-review-meta"), node("h3", item.title));
-  toolbar.append(heading);
-  const button = node("button", publishedItem ? "下架" : "通过上架", publishedItem ? "kdp-button kdp-button--secondary" : "kdp-button");
-  button.type = "button";
-  button.dataset.reviewAction = publishedItem ? "unpublish" : "publish";
-  toolbar.append(button);
-  body.append(toolbar);
-  if (!publishedItem && live) body.append(node("aside", "线上仍是旧版，通过后替换。", "desk-review-notice"));
-  body.append(previewFrame(item));
-  detail.append(body);
-}
-function setReviewView(view: "list" | "detail") {
-  const workspace = el("blog-review-workspace");
-  workspace.dataset.view = view;
-  workspace.closest<HTMLElement>(".desk-review")?.setAttribute("data-view", view);
-}
-function selectDraft(slug: string) {
-  selectedSlug = slug;
-  setReviewView("detail");
-  renderQueue();
-  renderDetail(queueItems.find(item => item.slug === slug) ?? null);
-}
-function selectPublished(slug: string) {
-  selectedSlug = slug;
-  setReviewView("detail");
-  renderQueue();
-  renderDetail(publishedItems.find(item => item.slug === slug) ?? null, true);
-}
-if (document.getElementById("blog-drafts-list")) {
-  el("blog-drafts-list").addEventListener("click", event => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const button = target.closest<HTMLButtonElement>("[data-slug]");
-    if (button) selectDraft(button.dataset.slug!);
-  });
-  el("blog-published-list").addEventListener("click", event => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement) || target.closest("[data-review-action], a")) return;
-    const row = target.closest<HTMLElement>("[data-slug]");
-    if (row?.dataset.slug) selectPublished(row.dataset.slug);
-  });
-}
-async function loadReview(message = "") {
-  if (!document.getElementById("blog-review-status")) {
-    const summary = document.getElementById("blog-review-summary");
-    if (!summary) return;
-    try {
-      const [drafts, published] = await Promise.all([
-        api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
-        api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
-      ]);
-      summary.textContent = `${drafts.drafts.length} 篇待审 · ${published.total ?? published.posts.length} 篇已上架`;
-    } catch (error) {
-      if (!(error instanceof SessionExpired)) summary.textContent = "博客审核状态暂时无法读取。";
-    }
-    return;
-  }
-  if (!active) return;
-  const current = generation;
-  const version = ++reviewVersion;
-  reviewMessage("正在读取博客审核列表…");
-  for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "true");
+async function loadBlogSummary() {
+  const summary = document.getElementById("blog-review-summary");
+  if (!summary || !active) return;
   try {
     const [drafts, published] = await Promise.all([
-      api("/api/blog/drafts") as Promise<{ drafts: ReviewItem[] }>,
-      api("/api/blog/posts") as Promise<{ posts: ReviewItem[]; total: number }>,
+      api("/api/blog/drafts?tab=pending&page=1") as Promise<{ total: number }>,
+      api("/api/blog/posts?tab=published&page=1") as Promise<{ total: number }>,
     ]);
-    if (current !== generation || version !== reviewVersion || !active) return;
-    queueItems = drafts.drafts;
-    publishedItems = published.posts;
-    if (selectedSlug && !queueItems.some(item => item.slug === selectedSlug) && !publishedItems.some(item => item.slug === selectedSlug)) selectedSlug = null;
-    setReviewView(selectedSlug ? "detail" : "list");
-    el("blog-published-list").replaceChildren(...(publishedItems.length ? publishedItems.map(item => renderReview(item, true)) : [node("p", "暂无已上架文章。", "desk-review-empty")]));
-    renderQueue();
-    const selectedDraft = queueItems.find(item => item.slug === selectedSlug);
-    const selectedPublished = publishedItems.find(item => item.slug === selectedSlug);
-    renderDetail(selectedDraft ?? selectedPublished ?? null, !selectedDraft && !!selectedPublished);
-    reviewMessage(message || `${queueItems.length} 篇待审，${published.total ?? publishedItems.length} 篇已上架。`);
+    summary.textContent = `${drafts.total} 篇待审 · ${published.total} 篇已上架`;
   } catch (error) {
-    if (current === generation && version === reviewVersion && !(error instanceof SessionExpired)) reviewMessage(`博客审核暂时无法读取。${reviewError(error)} 可点击“重新读取”重试。`, true);
-  } finally {
-    if (current === generation && version === reviewVersion) for (const id of ["blog-drafts-list", "blog-published-list"]) el(id).setAttribute("aria-busy", "false");
+    if (!(error instanceof SessionExpired)) summary.textContent = "博客审核状态暂时无法读取。";
   }
-}
-async function reviewAction(event: Event) {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const button = target.closest<HTMLButtonElement>("[data-review-action]");
-  const row = button?.closest<HTMLElement>("[data-slug]");
-  if (!active || !button || !row || button.disabled) return;
-  const action = button.dataset.reviewAction;
-  if (!action || !["publish", "unpublish"].includes(action)) return;
-  const title = row.querySelector("h3")?.textContent ?? "这篇文章";
-  const revision = Number(row.dataset.revision);
-  const confirmation = action === "publish" ? `通过上架《${title}》的修订 ${revision}？文章及图片将公开可见。` : `下架《${title}》？公开页面将无法访问。`;
-  if (!window.confirm(confirmation)) return;
-  const current = generation;
-  const controls = row.querySelectorAll<HTMLButtonElement>("button");
-  controls.forEach(control => { control.disabled = true; });
-  row.setAttribute("aria-busy", "true");
-  reviewMessage(action === "publish" ? "正在通过上架…" : "正在下架…");
-  try {
-    const slug = encodeURIComponent(row.dataset.slug!);
-    const endpoint = action === "publish" ? `/api/blog/drafts/${slug}/publish` : `/api/blog/posts/${slug}/unpublish`;
-    await api(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revision }) });
-    if (current !== generation || !active) return;
-    reviewMessage(action === "publish" ? "文章已上架。" : "文章已下架。");
-    await loadReview(action === "publish" ? "文章已上架。" : "文章已下架。");
-  } catch (error) {
-    if (current === generation && active && !(error instanceof SessionExpired)) reviewMessage(`${reviewError(error)} 可点击“重新读取”获取最新状态。`, true);
-  } finally {
-    if (current === generation && active) {
-      row.setAttribute("aria-busy", "false");
-      controls.forEach(control => { control.disabled = false; });
-    }
-  }
-}
-if (document.getElementById("blog-review-status")) {
-  el("blog-review-status").setAttribute("aria-live", "polite");
-  const reviewRetry = node("button", "重新读取", "desk-text-button");
-  reviewRetry.type = "button";
-  reviewRetry.addEventListener("click", () => { void loadReview(); });
-  el("blog-review-status").after(reviewRetry);
-  el("blog-drafts-list").addEventListener("click", reviewAction);
-  el("blog-published-list").addEventListener("click", reviewAction);
-  el("blog-review-detail").addEventListener("click", reviewAction);
 }
 function renderOverview(payload: Payload) {
   for (const data of payload.sources) {
@@ -421,7 +172,7 @@ function initialize() {
       el("desk-private").hidden = false;
       el("desk-actions").hidden = false;
       await refresh();
-      await loadReview();
+      await loadBlogSummary();
     } catch (error) {
       if (current === generation && !(error instanceof SessionExpired)) {
         showLogin("工作台连接暂不可用。若首次部署尚未完成，请稍后重新检查连接。");
