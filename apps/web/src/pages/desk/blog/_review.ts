@@ -13,7 +13,7 @@ const sourceList = (value?: string | null): Array<{ title: string; url: string }
   try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; }
 };
 const time = (value: string | null) => value ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "尚无记录";
-let queueItems: ReviewItem[] = [], publishedItems: ReviewItem[] = [], pendingMeta = { total: 0, pages: 1, counts: {} as Record<string, number> }, publishedMeta = { total: 0, pages: 1, counts: {} as Record<string, number> }, selectedSlug: string | null = previewSlug, active = false, generation = 0, previewCleanup: (() => void) | null = null;
+let queueItems: ReviewItem[] = [], publishedItems: ReviewItem[] = [], pendingMeta = { total: 0, page: 1, pages: 1, counts: {} as Record<string, number> }, publishedMeta = { total: 0, page: 1, pages: 1, counts: {} as Record<string, number> }, selectedSlug: string | null = previewSlug, active = false, generation = 0, previewCleanup: (() => void) | null = null;
 const pageSize = 20;
 const categories = ["数字空间", "健康记录", "投资观察", "内容工作", "技术实践", "生活随笔"];
 const listQuery = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
@@ -112,7 +112,7 @@ function renderLists() {
     const previous = node("button", "‹ 上一页", "desk-blog-page-button"); previous.disabled = activePage <= 1; previous.addEventListener("click", () => { activePage--; pushListState(); void loadReview(); }); pager.append(previous);
     const mobilePager = matchMedia("(max-width: 720px)").matches;
     if (mobilePager) pager.append(node("span", `${meta.page} / ${meta.pages}`, "desk-fine"));
-    else for (let index = 1; index <= meta.pages; index++) { const button = node("button", String(index), index === meta.page ? "desk-blog-page-button desk-blog-page-current" : "desk-blog-page-button"); button.type = "button"; button.setAttribute("aria-current", String(index === meta.page)); button.addEventListener("click", () => { activePage = index; pushListState(); void loadReview(); }); pager.append(button); }
+    else for (let index = 1; index <= meta.pages; index++) { const button = node("button", String(index), index === meta.page ? "desk-blog-page-button desk-blog-page-current" : "desk-blog-page-button"); button.type = "button"; button.setAttribute("aria-current", index === meta.page ? "page" : "false"); button.addEventListener("click", () => { activePage = index; pushListState(); void loadReview(); }); pager.append(button); }
     const next = node("button", "下一页 ›", "desk-blog-page-button"); next.disabled = activePage >= meta.pages; next.addEventListener("click", () => { activePage++; pushListState(); void loadReview(); }); pager.append(next); if (!mobilePager) pager.append(node("span", "每页 20 篇", "desk-fine"));
   }
   if (activeCategory) document.querySelector<HTMLElement>('.desk-blog-category[aria-pressed="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
@@ -234,8 +234,8 @@ async function loadReview(message = "") {
     if (current !== generation || !active) return;
     queueItems = drafts.drafts;
     publishedItems = published.posts;
-    pendingMeta = { total: drafts.total, pages: drafts.pages, counts: drafts.counts };
-    publishedMeta = { total: published.total, pages: published.pages, counts: published.counts };
+    pendingMeta = { total: drafts.total, page: drafts.page, pages: drafts.pages, counts: drafts.counts };
+    publishedMeta = { total: published.total, page: published.page, pages: published.pages, counts: published.counts };
     if (activeTab === "pending" && pendingMeta.total === 0) { activeTab = "published"; activePage = 1; await loadReview(message); return; }
     setView("list");
     renderLists();

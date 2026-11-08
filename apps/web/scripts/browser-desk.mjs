@@ -65,7 +65,7 @@ try {
   const coverId = image.data.id;
   const syntheticBody = `## 阅读与排版\n\n这是一篇用于本地验收的合成文章。\n\n![合成测试图片](/blog/media/${coverId} "图片说明：本地合成数据")\n\n\`\`\`mermaid\nflowchart TD\n    U[开发者 / 企业用户] --> A[Codex 或其他 Agent]\n    A --> T[工具执行与权限控制]\n    A --> R[模型路由与调用接口]\n    R --> O[OpenAI 直接服务]\n    R --> G[Google Cloud 模型入口]\n    R --> X[其他模型供应商]\n    T --> L[日志、审计与任务结果]\n    R --> L\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    A[桌面 / Web / IM 入口] --> B[Agent 工作流与任务状态]\n    B --> C[模型路由与统一观测]\n    C --> D[OpenAI]\n    C --> E[Google Cloud]\n    C --> F[其他供应商]\n    B --> G[工具权限 / 审批 / 执行日志]\n\`\`\`\n\n\`\`\`mermaid\nflowchart TD\n    Broken[无效图表\n\`\`\`\n\n\`\`\`js\n${'const readable = "overflow stays inside code"; '.repeat(14)}\n\`\`\`\n\n| 项目 | 说明 | 备注 |\n| --- | --- | --- |\n| 表格滚动 | ${'较长的表格内容'.repeat(12)} | 完整保留 |`;
   const reviewBody = `${syntheticBody}\n\n### 代码与结构\n\n用于验证文章目录。`;
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 22; i++) {
     const result = await f.rpc({ subject: 'kdp-owner', client: 'browser-fixture', clientName: '本地浏览器验收', operation: 'submit', args: { slug: `browser-article-${i}`, title: `合成文章 ${i}：个人数字空间的观察与记录`, summary: '用于验收封面、日期、分页及阅读排版的本地合成内容。', body_markdown: reviewBody, cover_media_id: coverId, category: 'digital-space', tags: ['合成', '验收'], series: '合成系列', sources: [{ title: '本地合成来源', url: 'https://example.test/synthetic' }] } });
     assert.ok(result.ok);
   }
@@ -255,6 +255,11 @@ try {
   await page.evaluate(() => document.querySelector('.desk-detail-back').click());
   await page.waitForURL(origins.desk + '/desk/blog/?tab=pending');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.goto(origins.desk + '/desk/blog/?tab=published&page=2');
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug]'));
+  const pageVisual = await page.evaluate(() => { const buttons = [...document.querySelectorAll('.desk-blog-page-button')].map(button => ({ text: button.textContent, current: button.getAttribute('aria-current'), background: getComputedStyle(button).backgroundColor })); const categories = getComputedStyle(document.querySelector('.desk-blog-categories')); return { buttons, background: buttons.find(button => button.current === 'page')?.background ?? '', accent: getComputedStyle(document.documentElement).getPropertyValue('--kdp-accent').trim(), gap: categories.columnGap }; });
+  assert.ok(pageVisual.background && pageVisual.background !== 'rgb(255, 255, 255)', `current page button is highlighted: ${JSON.stringify(pageVisual)}`);
+  assert.equal(pageVisual.gap, '8px', `category chips keep 8px gap: ${JSON.stringify(pageVisual)}`);
   await page.goto(origins.desk + '/desk/blog/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
   await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
@@ -327,10 +332,10 @@ try {
   assert.ok(nextPage.visible, 'The next-page link is visible');
   assert.ok(nextPage.href && nextPage.href !== await page.url(), 'The next-page link points to a different URL');
   await page.goto(nextPage.href);
-  await page.waitForFunction(() => document.querySelectorAll('.blog-card').length === 1);
+  await page.waitForFunction(() => document.querySelectorAll('.blog-card').length === 9);
   assert.equal(await page.evaluate(() => location.href), nextPage.href);
   await page.screenshot({ path: 'blog-list-page-two.png' });
-  await page.click('.blog-card');
+  await page.click('.blog-card:first-child');
   await page.waitForSelector('.blog-article-cover');
   await page.waitForFunction(() => [...document.images].every(image => image.complete));
   assert.deepEqual(await page.evaluate(() => { const image = document.querySelector('.blog-article-cover'); return [image.naturalWidth, image.naturalHeight]; }), [1200, 675]);
