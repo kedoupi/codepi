@@ -150,6 +150,22 @@ test('blog_submit accepts an optional cover and ignores is_test', async () => {
     slug: 'missing-tags', title: 'T', summary: 'S', body_markdown: 'body', category: 'tech',
   }), error => error.code === 'invalid_arguments' && error.field === '/tags' && error.reason === 'required');
 });
+test('adaptLegacySubmit preserves first-schema submissions', async () => {
+  const calls = [];
+  const env = { BLOG: { async execute(request) { calls.push(request); return { ok: true, data: { status: "pending" } }; } } };
+  const writer = ctx("blog.write");
+  const base = { title: "T", summary: "S", body_markdown: "body", tag: "旧标签" };
+  await callTool(env, writer, "blog_submit", { ...base, slug: "legacy-tag-only" });
+  await callTool(env, writer, "blog_submit", { ...base, slug: "legacy-null-tags", tags: null });
+  await callTool(env, writer, "blog_submit", { ...base, slug: "legacy-empty-category", category: "" });
+  assert.deepEqual(calls.map(call => call.args.tags), [["旧标签"], ["旧标签"], ["旧标签"]]);
+  assert.equal(calls[0].args.category, undefined);
+  assert.equal(calls[1].args.category, undefined);
+  assert.equal(calls[2].args.category, undefined);
+  await assert.rejects(callTool(env, writer, "blog_submit", {
+    slug: "current-missing-category", title: "T", summary: "S", body_markdown: "body", tags: ["新客户端"],
+  }), error => error.code === "invalid_arguments" && error.field === "/category" && error.reason === "required");
+});
 
 test('argument failures identify schema paths and rules without exposing input', async () => {
   const submit = { slug: 'synthetic', title: 'T', summary: 'S', body_markdown: 'body',

@@ -140,7 +140,7 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
   if (existing ? baseRevision !== existing.revision : baseRevision !== undefined && baseRevision !== 0) throw invalid("revision_conflict");
   const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], cover:null as string | null, warnings:[] as string[] };
-  const warnings = [...content.warnings, ...(category ? [] : ["未提供分类，请在 Desk 审核时指定分类。"] )];
+  const warnings = [...content.warnings, ...(category ? [] : ["未提供分类，文章将显示为未分类；请让模型按 blog_guide 的分类表重新提交。"] )];
   const timestamp = now(), revision = (existing?.revision ?? 0)+1;
   const clientId = text(input.client_id,200) ? input.client_id : "mcp", clientName = text(input.client_name,200) ? input.client_name : null;
   const [result] = await db.batch([
