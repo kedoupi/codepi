@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLatestResponse } from '../src/scripts/home/latest.mjs';
+import { parseLatestResponse } from '../src/scripts/home/latest.ts';
 
 const post = (slug, title) => ({ slug, title, summary: `${title} 摘要`, category: '生活', published_at: '2026-11-07T00:00:00Z', body_chars: 800 });
 
