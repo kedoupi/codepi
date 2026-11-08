@@ -100,6 +100,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     .on('meta[name="robots"]', { element: el => { if (preview) el.remove(); } })
     .on('script[type="application/ld+json"]', { element: el => { el.remove(); } })
     .on("body", { element: el => { if (embed) el.setAttribute("class", "blog-embed"); } })
+    .on(".personal-article-content img", { element: el => { if (embed) el.setAttribute("loading", "eager"); } })
     .on("head", { element: el => {
       if (preview) el.append('<meta name="robots" content="noindex, nofollow">', { html: true });
       else el.append(`<link rel="alternate" type="application/rss+xml" title="kedoupi 博客 RSS" href="${new URL("/blog/rss.xml", request.url).href}">`, { html: true });

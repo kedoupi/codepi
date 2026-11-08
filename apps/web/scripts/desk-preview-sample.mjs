@@ -190,14 +190,22 @@ try {
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="desk-preview-sample"]'));
   await page.click('#blog-drafts-list [data-slug="desk-preview-sample"]');
   await page.waitForURL(`${origins.desk}/desk/blog/desk-preview-sample/?tab=pending`);
-  const waitForArticle = () => page.waitForFunction(() => {
-    const frame = document.querySelector('#blog-review-detail iframe');
-    const doc = frame?.contentDocument;
-    const images = doc ? [...doc.images] : [];
-    return Boolean(doc?.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre'))
-      && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
-      && doc.querySelectorAll('figcaption').length >= 2;
-  });
+  const waitForArticle = async () => {
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('#blog-review-detail iframe');
+      const doc = frame?.contentDocument;
+      const images = doc ? [...doc.images] : [];
+      return Boolean(doc?.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre'))
+        && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
+        && doc.querySelectorAll('figcaption').length >= 2;
+    });
+    await page.evaluate(async () => {
+      const frame = document.querySelector('#blog-review-detail iframe');
+      const images = frame?.contentDocument ? [...frame.contentDocument.images] : [];
+      await Promise.all(images.map(image => image.decode().catch(() => undefined)));
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+  };
   await waitForArticle();
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await waitForArticle();

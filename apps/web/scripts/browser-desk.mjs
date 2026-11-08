@@ -248,6 +248,11 @@ try {
     if (!frame || !doc) return false;
     return Math.abs(Number.parseInt(frame.style.height, 10) - Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight)) <= 2;
   });
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const images = frame?.contentDocument ? [...frame.contentDocument.images] : [];
+    return images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0);
+  });
   const embedded = await page.evaluate(() => {
     const frame = document.querySelector('#blog-review-detail iframe');
     const doc = frame.contentDocument;
@@ -259,6 +264,9 @@ try {
   assert.equal(embedded.article, true, 'preview renders article structure');
   assert.ok(embedded.toc.some(item => item.className.includes('blog-toc-desktop') && item.display !== 'none'), `desktop article table of contents is visible: ${JSON.stringify(embedded.toc)}`);
   assert.ok(Math.abs(embedded.height - embedded.scrollHeight) <= 2, 'iframe height follows contentDocument scrollHeight');
+  await page.evaluate(() => scrollTo(0, 500));
+  assert.ok(await page.evaluate(() => document.querySelector('#blog-review-detail .desk-detail-toolbar').getBoundingClientRect().top <= 8), 'review toolbar stays sticky at the top');
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: 'desk-blog-preview-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.click('#blog-review-detail [data-review-action="publish"]');

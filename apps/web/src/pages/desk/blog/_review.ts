@@ -123,12 +123,14 @@ function renderLists() {
     previous.disabled = activePage <= 1;
     previous.addEventListener("click", () => { activePage--; pushListState(); });
     pager.append(previous);
-    if (matchMedia("(max-width: 720px)").matches) pager.append(node("span", `${activePage} / ${pages}`, "desk-fine"));
+    const mobilePager = matchMedia("(max-width: 720px)").matches;
+    if (mobilePager) pager.append(node("span", `${activePage} / ${pages}`, "desk-fine"));
     else for (let index = 1; index <= pages; index++) { const button = node("button", String(index), index === activePage ? "kdp-button kdp-button--secondary desk-blog-page-current" : "desk-text-button"); button.type = "button"; button.setAttribute("aria-current", String(index === activePage)); button.addEventListener("click", () => { activePage = index; pushListState(); }); pager.append(button); }
     const next = node("button", "下一页 ›", "desk-text-button");
     next.disabled = activePage >= pages;
     next.addEventListener("click", () => { activePage++; pushListState(); });
-    pager.append(next, node("span", "每页 20 篇", "desk-fine"));
+    if (mobilePager) pager.append(next);
+    else pager.append(next, node("span", "每页 20 篇", "desk-fine"));
   }
 }
 function previewFrame(item: ReviewItem) {
