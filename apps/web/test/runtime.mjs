@@ -15,7 +15,6 @@ const deskScript = await bundle(`export {default, BlogMcp, BlogMediaBackup} from
 const providers = {
   health: 'health/workers/api/src/index.ts',
   gu: 'gu/worker/index.ts',
-  wechat: 'gzh/worker/index.ts',
 };
 export const sourceTokens = Object.fromEntries(Object.keys(providers).map(id => [id, `synthetic-${id}-` + 'x'.repeat(32)]));
 export async function sourceFixture(t) {
@@ -40,11 +39,6 @@ export async function sourceFixture(t) {
       'INSERT INTO gu_workspace_head VALUES(1,0)',
       'CREATE TABLE gu_workspace_versions(revision INTEGER PRIMARY KEY,request_id TEXT NOT NULL UNIQUE,digest TEXT NOT NULL,created_at TEXT NOT NULL,payload TEXT NOT NULL)',
     ],
-    wechat: [
-      'CREATE TABLE accounts(id TEXT PRIMARY KEY,role TEXT,active INTEGER)',
-      'CREATE TABLE posts(id TEXT PRIMARY KEY,title TEXT,status TEXT,is_demo INTEGER,updated_at TEXT)',
-      "INSERT INTO accounts VALUES('acc_owner_kdp','owner',1)",
-    ],
   };
   for (const [id, statements] of Object.entries(schemas)) await dbs[id].batch(statements.map(sql => dbs[id].prepare(sql)));
   const request = async (id, range = 'current', token = sourceTokens[id], method = 'GET') => {
@@ -57,7 +51,7 @@ export async function deskFixture(t, options = {}) {
   const sources = await sourceFixture(t);
   const calls = [];
   const faults = {};
-  const hostSources = { 'health.codepi.app': 'health', 'gu.codepi.app': 'gu', 'gzh.codepi.app': 'wechat' };
+  const hostSources = { 'health.codepi.app': 'health', 'gu.codepi.app': 'gu' };
   let beforeReply;
   const f = await authFixture(t, {}, {
     scripts: { desk: deskScript },
@@ -74,7 +68,7 @@ export async function deskFixture(t, options = {}) {
       script: `export default { async fetch(req, env) { const reply = await env.BLOG_RPC.execute(await req.json()); return Response.json(reply); } };`,
     }],
     bindings: { desk: {
-      HEALTH_SUMMARY_TOKEN: sourceTokens.health, GU_SUMMARY_TOKEN: sourceTokens.gu, WECHAT_SUMMARY_TOKEN: sourceTokens.wechat,
+      HEALTH_SUMMARY_TOKEN: sourceTokens.health, GU_SUMMARY_TOKEN: sourceTokens.gu,
       ...options.bindings,
     } },
     outbound: { desk: async request => {

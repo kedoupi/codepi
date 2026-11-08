@@ -83,8 +83,6 @@ try {
   await gu.prepare('INSERT INTO dashboard_batches VALUES(?,?,?,?)').bind('synthetic-batch', new Date().toISOString(), new Date().toISOString(),
     JSON.stringify({ account: [{ total_usd: 12345 }], risk: [{ rule_id: 'fixture', item: '测试规则', triggered: false, proximity: 'near' }] })).run();
   await gu.prepare("INSERT INTO dashboard_current VALUES(1,'synthetic-batch')").run();
-  const wechat = f.sources.dbs.wechat;
-  await wechat.prepare('INSERT INTO posts VALUES(?,?,?,?,?)').bind('synthetic-post', '测试稿件：一次整理的记录', '待审', 0, new Date().toISOString()).run();
   for (const [id, origin] of Object.entries(origins)) {
     const worker = await f.runtime.getWorker(id);
     const server = createServer(async (req, res) => {
@@ -174,7 +172,7 @@ try {
   assert.equal(appearance.overflow, false);
   assert.equal(await page.evaluate(() => document.querySelector('details').open), false);
   await page.click('#desk-generate');
-  await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 2);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: 'desk-desktop.png' });
   await page.click('input[value="week"]');
@@ -192,7 +190,7 @@ try {
   delete f.faults.gu;
   await page.click('#desk-refresh');
   await page.waitForFunction(() => !document.querySelector('#desk-refresh').disabled);
-  for (const source of ['health', 'gu', 'wechat']) f.faults[source] = () => Response.json({
+  for (const source of ['health', 'gu']) f.faults[source] = () => Response.json({
     source, status: 'empty', asOf: null, updatedAt: null, stale: false,
     metrics: [], facts: [], notes: ['测试空状态：尚无已保存记录。'], attention: [],
   });
@@ -200,7 +198,7 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('[data-state]')].every(node => node.textContent === '暂无数据'));
   assert.equal(await page.evaluate(() => document.querySelectorAll('.desk-metrics dd').length), 0);
   await page.screenshot({ path: 'desk-empty.png' });
-  for (const source of ['health', 'gu', 'wechat']) delete f.faults[source];
+  for (const source of ['health', 'gu']) delete f.faults[source];
   await page.click('#desk-refresh');
   await page.waitForFunction(() => !document.querySelector('#desk-refresh').disabled);
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 320, height: 720, deviceScaleFactor: 1, mobile: true });
@@ -215,7 +213,7 @@ try {
   }), 'The mobile navigation toggle remains visible and tappable on mobile');
   await page.screenshot({ path: 'desk-mobile.png' });
   await page.click('#desk-generate');
-  await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 2);
   await page.screenshot({ path: 'desk-mobile-summary.png' });
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-workspace').dataset.view), 'list');
@@ -346,7 +344,7 @@ try {
   await page.waitForSelector('.blog-card-cover');
   const cardPresentation = await page.evaluate(() => { const image = document.querySelector('.blog-card-cover'); return { fit: getComputedStyle(image).objectFit, ratio: image.getBoundingClientRect().width / image.getBoundingClientRect().height }; });
   assert.equal(cardPresentation.fit, 'cover');
-  assert.ok(Math.abs(cardPresentation.ratio - 2.35) < 0.02, 'list covers share the 2.35:1 WeChat-style frame');
+  assert.ok(Math.abs(cardPresentation.ratio - 2.35) < 0.02, 'list covers retain the editorial frame');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await page.screenshot({ path: 'blog-list-mobile.png' });
   await page.goto(origins.desk + '/desk/');

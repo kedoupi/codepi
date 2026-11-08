@@ -59,16 +59,4 @@ export const products = [
     access: "本人使用",
     note: "私人投资工作台，进入后需要登录。",
   },
-  {
-    id: "wechat",
-    name: "珂抖屁公众号",
-    shortName: "公众号",
-    description: "稿件、预览与审核，收在同一个工作台。",
-    detail: "围绕珂抖屁公众号整理稿件、预览和审核进度。审核完成后，再到微信后台人工发布。",
-    href: "https://gzh.codepi.app/",
-    hostname: "gzh.codepi.app",
-    icon: "writing",
-    access: "授权使用",
-    note: "公众号工作台 GZH，进入后需要登录。",
-  },
 ] as const;
