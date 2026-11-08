@@ -29,6 +29,19 @@ test('retired gzh registry entry is ignored while current clients still log in',
     state: 'x'.repeat(43), code_challenge: 'y'.repeat(43), code_challenge_method: 'S256',
   });
   assert.equal((await f.auth.fetch(authOrigin + '/authorize?' + params, { redirect: 'manual' })).status, 400);
+
+  const unknown = await fixture(t, { SSO_CLIENTS: JSON.stringify({ ...registry, bogus: registry.gzh }) });
+  assert.equal((await unknown.begin('gu')).response.status, 503,
+    'unknown clients must remain fail-closed instead of being ignored with retired ids');
+  assert.equal((await f.internal('gzh', 'session', { session_ref: 'z'.repeat(43) }, registry.gzh.secret)).status, 401,
+    'a retired registry secret must not authenticate internal requests');
+
+  const extra = await fixture(t, {
+    SSO_CLIENTS: JSON.stringify(registry),
+    SSO_EXTRA_REDIRECT_URIS: JSON.stringify({ gzh: registry.gzh.redirectUris }),
+  });
+  assert.equal((await extra.begin('gu')).response.status, 200,
+    'retired extra callback entries must not break current clients');
 });
 
 test('real service bindings: one OTP signs into three sites; one logout revokes all, but not another browser', async t => {
