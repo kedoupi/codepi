@@ -120,8 +120,10 @@ function statusReadFixture() {
   const today = shanghaiDate(now);
   const currentMinute = Math.max(0, Math.min(1439, shanghaiMinute(now)));
   const weekday = date => new Date(`${date}T00:00:00Z`).getUTCDay();
-  const isWorkday = date => weekday(date) >= 1 && weekday(date) <= 5;
   const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400_000).toISOString().slice(0, 10);
+  const yesterday = addDays(today, -1);
+  // Keep today and yesterday synthetic workdays so live day reads remain available on weekends.
+  const isWorkday = date => date === today || date === yesterday || (weekday(date) >= 1 && weekday(date) <= 5);
   const lateDay = [3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
   // /api/day 只实时计算今天和昨天；用最近工作日制造可直接读取的 outside 长空档。
   const outsideDay = [1, 2, 3, 4, 5, 6, 7].map(days => addDays(today, -days)).find(isWorkday);
@@ -155,7 +157,7 @@ function statusReadFixture() {
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
-      if (isToday && currentMinute < 520) {
+      if (isToday && currentMinute < 620) {
         for (let minute = Math.max(0, currentMinute - 30); minute <= activityLimit; minute += 1) {
           rows.push({
             sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: 0,
@@ -636,6 +638,10 @@ async function main() {
     await waitText(page, "数据暂不可用");
     await assertLayout(page, "desktop sources upstream failure", 1440);
     upstream.state.fail = false;
+    await page.goto(`${origin}/`);
+    await waitText(page, "工作时段");
+    await page.waitForFunction(() => Boolean(document.querySelector(".work-block")));
+    assert.ok(!(await page.evaluate(() => document.body.innerText)).includes("数据暂不可用"), "today recovers after upstream failure");
 
     // 趋势：先按合成历史补算 28 天（异常判断需要之前至少 5 个同类日），再在真实 Worker/D1 上读趋势
     const historyFrom = new Date(Date.parse(`${shanghaiDate()}T00:00:00Z`) - 28 * 86400_000).toISOString().slice(0, 10);
@@ -769,6 +775,8 @@ async function main() {
     upstream.state.empty = false;
     await page.goto(`${origin}/work`);
     await waitText(page, "工作时间花在哪");
+    await page.waitForFunction(() => Boolean(document.querySelector(".work-total")));
+    assert.ok(await page.evaluate(() => Boolean(document.querySelector(".work-total"))), "work page recovers after empty upstream data");
     await clickText(page, "本周");
     await page.waitForFunction(() => document.querySelector('.work-heading [aria-pressed="true"]')?.textContent?.includes("本周"));
     await fullScreenshot(page, "mobile-work-week.png");

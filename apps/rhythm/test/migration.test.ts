@@ -7,6 +7,14 @@ import { readSettings } from "../worker/settings";
 
 const replaySql = migration.replace(/^ALTER TABLE[^\n]+;\n/gm, "");
 const replayStatements = replaySql.split(/;\s*(?=\n|$)/).map((statement: string) => statement.trim()).filter(Boolean);
+const TEST_NOW = Date.parse("2026-11-06T04:00:00.000Z");
+function testDate(daysAgo: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(TEST_NOW - daysAgo * 86400_000));
+}
+
+const FIRST_DATE = testDate(5);
+const SECOND_DATE = testDate(4);
+const THIRD_DATE = testDate(3);
 
 async function applyReplay() {
   for (const statement of replayStatements) await env.DB.exec(`${statement.replace(/\s+/g, " ")};`);
@@ -27,15 +35,15 @@ async function insertDailyMetric(date: string) {
 
 describe("0003 work page migration", () => {
   it("inserts defaults and queues every existing daily date; replay is stable", async () => {
-    await insertDailyMetric("2026-11-01");
-    await insertDailyMetric("2026-11-02");
+    await insertDailyMetric(FIRST_DATE);
+    await insertDailyMetric(SECOND_DATE);
     await applyReplay();
     const settings = await env.DB.prepare("SELECT app_categories FROM settings WHERE id='default'").first<{ app_categories: string }>();
     const queue = await env.DB.prepare("SELECT date, reason FROM settings_recompute_queue ORDER BY date").all<{ date: string; reason: string }>();
     expect(JSON.parse(settings!.app_categories)).toEqual(initialCategories);
     expect(queue.results).toEqual([
-      { date: "2026-11-01", reason: "0003 work page" },
-      { date: "2026-11-02", reason: "0003 work page" },
+      { date: FIRST_DATE, reason: "0003 work page" },
+      { date: SECOND_DATE, reason: "0003 work page" },
     ]);
     const beforeSettings = await env.DB.prepare("SELECT * FROM settings").all();
     const beforeQueue = await env.DB.prepare("SELECT * FROM settings_recompute_queue").all();
@@ -64,25 +72,25 @@ describe("0003 work page migration", () => {
     await env.DB.prepare("INSERT INTO settings (id, subject_device_ids, app_categories, updated_at) VALUES ('default', '[]', ?, 'now')").bind(JSON.stringify({ editor: "开发", chat: "沟通" })).run();
     const settings = await readSettings(env);
     expect(settings.appCategories).toEqual({ editor: "AI 编程", chat: "工作沟通" });
-    await insertDailyMetric("2026-11-03");
-    await env.DB.prepare("UPDATE daily_metrics SET app_category_minutes_json=? WHERE date=?").bind(JSON.stringify({ 开发: 4, 沟通: 3 }), "2026-11-03").run();
-    const row = await readDailyMetrics(env, "2026-11-03");
+    await insertDailyMetric(THIRD_DATE);
+    await env.DB.prepare("UPDATE daily_metrics SET app_category_minutes_json=? WHERE date=?").bind(JSON.stringify({ 开发: 4, 沟通: 3 }), THIRD_DATE).run();
+    const row = await readDailyMetrics(env, THIRD_DATE);
     expect(row?.metrics.appCategoryMinutes).toMatchObject({ "AI 编程": 4, "工作沟通": 3 });
   });
   it("会议 App JSON 写入后可读回，旧平面格式仍归入 active", async () => {
     await env.DB.prepare("INSERT INTO daily_metrics (date, status_minutes_json, after_work_room_minutes_json, weekend_room_minutes_json, app_category_minutes_json, hourly_app_category_minutes_json, app_minutes_json, other_network_minutes_json, gap_reason_minutes_json, day_type, computed_at, version) VALUES (?, '{}', '{}', '{}', '{}', '{}', ?, '{}', '{}', 'workday', ?, 'p10-2026-11-06')")
-      .bind("2026-11-03", JSON.stringify({ 示例编辑器: { minutes: 4, category: "AI 编程" } }), "2026-11-05T00:00:00.000Z").run();
-    const legacy = await readDailyMetrics(env, "2026-11-03");
+      .bind(THIRD_DATE, JSON.stringify({ 示例编辑器: { minutes: 4, category: "AI 编程" } }), "2026-11-05T00:00:00.000Z").run();
+    const legacy = await readDailyMetrics(env, THIRD_DATE);
     expect(legacy?.metrics.appMinutes?.["示例编辑器"]).toMatchObject({ minutes: 4, category: "AI 编程" });
     expect(legacy?.metrics.meetingAppMinutes).toEqual({});
 
     const rows = dailyRows({
-      date: "2026-11-03", devices: [], snapshots: [], events: [], heartbeats: [], subjectDeviceIds: [],
+      date: THIRD_DATE, devices: [], snapshots: [], events: [], heartbeats: [], subjectDeviceIds: [],
       appCategories: { "示例会议": "会议" },
-      activity: [{ sampled_at: "2026-11-03T09:00:00+08:00", net: "office", power: "电池", locked: false, key_idle_sec: 10, pointer_idle_sec: 10, app_name: "示例会议" }],
-    }, undefined, "2026-11-03T20:30:00.000Z");
+      activity: [{ sampled_at: `${THIRD_DATE}T09:00:00+08:00`, net: "office", power: "电池", locked: false, key_idle_sec: 10, pointer_idle_sec: 10, app_name: "示例会议" }],
+    }, undefined, `${THIRD_DATE}T20:30:00+08:00`);
     await upsertDailyRows(env, rows);
-    const stored = await readDailyMetrics(env, "2026-11-03");
+    const stored = await readDailyMetrics(env, THIRD_DATE);
     expect(stored?.metrics.appMinutes).toEqual({});
     expect(stored?.metrics.meetingAppMinutes?.["示例会议"]).toMatchObject({ minutes: 1, category: "会议" });
   });

@@ -3,7 +3,13 @@
  * @vitest-environment-options { "url": "https://rhythm.test/work" }
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const TEST_NOW = vi.hoisted(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const now = new Date("2026-11-06T12:00:00+08:00");
+  vi.setSystemTime(now);
+  return now;
+});
 import App from "../src/App.svelte";
 
 type Json = Record<string, unknown>;
@@ -44,10 +50,17 @@ function stub(payload: Json = workPayload()) {
   return calls;
 }
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(TEST_NOW);
+});
+
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   history.replaceState(null, "", "/work");
+  vi.useRealTimers();
 });
 
 describe("Rhythm 工作页", () => {
