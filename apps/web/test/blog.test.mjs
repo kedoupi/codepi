@@ -387,9 +387,14 @@ test('public routes render published only, preview shows drafts to the owner', a
   assert.equal(preview.status, 200);
   assert.equal(preview.headers.get('Cache-Control'), 'no-store');
   assert.equal(preview.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+  assert.equal(preview.headers.get('X-Frame-Options'), 'SAMEORIGIN');
   const previewHtml = await preview.text();
   assert.match(previewHtml, /Draft body/);
   assert.doesNotMatch(previewHtml, /Public body/);
+  const embedded = await worker.fetch('http://localhost:8804/blog/preview/public-post/?embed=1', { headers: { Cookie: cookie } });
+  assert.equal(embedded.headers.get('X-Frame-Options'), 'SAMEORIGIN');
+  const embeddedHtml = await embedded.text();
+  assert.match(embeddedHtml, /<body class="blog-embed">/);
 });
 test('HEAD blog routes match GET metadata and never return a body', async t => {
   const f = await deskFixture(t);

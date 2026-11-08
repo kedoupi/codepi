@@ -32,6 +32,7 @@ function clearPrivate() {
   generation++;
   summaryVersion++;
   active = false;
+  clearPreview();
   for (const controller of controllers) controller.abort();
   controllers.clear();
   el("desk-private").hidden = true;
@@ -78,11 +79,10 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; updated_at: string; published_at?: string | null; cover_media_id?: string | null; body_html?: string | null; body_markdown?: string | null; category?: string | null; tags?: string | null; series?: string | null; sources?: string | null };
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; status?: string; updated_at: string; published_at?: string | null; category?: string | null; tags?: string | null; series?: string | null; sources?: string | null };
 const categoryNames: Record<string, string> = {
   "digital-space": "数字空间", health: "健康记录", investing: "投资观察", content: "内容工作", tech: "技术实践", life: "生活随笔",
 };
-const fallbackCoverSvg = `<svg viewBox="0 0 640 272" aria-hidden="true" focusable="false"><path d="M24 32Q240 80 320 136T616 240M40 240Q230 180 320 136T600 32M120 8Q270 90 320 136T520 264M120 264Q270 180 320 136T520 8M8 136Q220 136 320 136T632 136"/><circle cx="320" cy="136" r="54"/><circle class="blog-cover-core" cx="320" cy="136" r="8"/></svg>`;
 const sourceList = (value?: string | null): Array<{ title: string; url: string }> => {
   try { const parsed = JSON.parse(value ?? "[]"); return Array.isArray(parsed) ? parsed.filter(item => item && typeof item.title === "string" && typeof item.url === "string") : []; } catch { return []; }
 };
@@ -96,19 +96,39 @@ function reviewMessage(message: string, failed = false) {
   status.textContent = message;
 }
 function reviewError(error: unknown) { return error instanceof Error && error.name !== "AbortError" ? error.message : "请求超时或连接中断，请重试。"; }
-function coverNode(item: ReviewItem, className: string) {
-  if (item.cover_media_id) {
-    const image = node("img", "", className);
-    image.src = `/blog/media/${encodeURIComponent(item.cover_media_id)}`;
-    image.alt = "";
-    image.loading = "lazy";
-    return image;
-  }
-  const fallback = node("div", "", `${className} blog-cover-fallback`);
-  fallback.setAttribute("role", "img");
-  fallback.setAttribute("aria-label", "默认占位图");
-  fallback.innerHTML = fallbackCoverSvg;
-  return fallback;
+let previewCleanup: (() => void) | null = null;
+function clearPreview() {
+  previewCleanup?.();
+  previewCleanup = null;
+}
+function previewFrame(item: ReviewItem) {
+  const frame = document.createElement("iframe");
+  frame.className = "desk-preview-frame";
+  frame.title = `预览：${item.title}`;
+  frame.loading = "eager";
+  frame.src = `/blog/preview/${encodeURIComponent(item.slug)}/?embed=1`;
+  const updateHeight = () => {
+    const documentElement = frame.contentDocument?.documentElement;
+    const body = frame.contentDocument?.body;
+    if (!documentElement) return;
+    frame.style.height = `${Math.max(documentElement.scrollHeight, body?.scrollHeight ?? 0, 360)}px`;
+  };
+  const onLoad = () => {
+    updateHeight();
+    const documentElement = frame.contentDocument?.documentElement;
+    const body = frame.contentDocument?.body;
+    if (!documentElement) return;
+    const resize = new ResizeObserver(updateHeight);
+    resize.observe(documentElement);
+    if (body) resize.observe(body);
+    for (const image of frame.contentDocument?.images ?? []) image.addEventListener("load", updateHeight);
+    previewCleanup = () => {
+      resize.disconnect();
+      for (const image of frame.contentDocument?.images ?? []) image.removeEventListener("load", updateHeight);
+    };
+  };
+  frame.addEventListener("load", onLoad);
+  return frame;
 }
 function appendSources(container: HTMLElement, value?: string | null) {
   const sources = sourceList(value);
@@ -127,20 +147,10 @@ function appendSources(container: HTMLElement, value?: string | null) {
   section.append(list);
   container.append(section);
 }
-function appendBody(container: HTMLElement, item: ReviewItem) {
-  if (!item.body_html) return;
-  const details = node("details", "", "desk-review-full");
-  details.open = true;
-  const article = node("div", "", "personal-article-content");
-  details.append(node("summary", "正文含配图"), article);
-  container.append(details);
-  window.setTimeout(() => { article.innerHTML = item.body_html!; }, 0);
-}
 function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: number) {
   const row = node("article", "", "desk-review-item");
   row.dataset.slug = item.slug;
   row.dataset.revision = String(item.revision);
-  row.append(coverNode(item, "desk-review-cover"));
   const content = node("div", "", "desk-review-content");
   content.append(node("h3", item.title));
   const state = publishedItem ? "已上架" : liveRevision !== undefined ? "已上架 · 有新版待审" : "待审";
@@ -151,7 +161,7 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
   appendSources(content, item.sources);
   const actions = node("div", "", "desk-review-actions");
   const preview = node("a", publishedItem ? "查看文章" : "预览稿件", "kdp-link");
-  preview.href = publishedItem ? `/blog/${encodeURIComponent(item.slug)}/` : `/blog/preview/${encodeURIComponent(item.slug)}/`;
+  preview.href = publishedItem ? `/blog/${encodeURIComponent(item.slug)}/` : `/blog/preview/${encodeURIComponent(item.slug)}/?embed=1`;
   actions.append(preview);
   const button = node("button", publishedItem ? "下架" : "通过上架", publishedItem ? "kdp-button kdp-button--secondary" : "kdp-button");
   button.type = "button";
@@ -159,6 +169,7 @@ function renderReview(item: ReviewItem, publishedItem = false, liveRevision?: nu
   actions.append(button);
   content.append(actions);
   row.append(content);
+  if (publishedItem && item.slug === selectedSlug) row.setAttribute("aria-current", "true");
   return row;
 }
 function renderQueue() {
@@ -179,11 +190,12 @@ function renderQueue() {
     return button;
   }));
 }
-function renderDetail(item: ReviewItem | null) {
+function renderDetail(item: ReviewItem | null, publishedItem = false) {
   const detail = el("blog-review-detail");
+  clearPreview();
   detail.replaceChildren();
   if (!item) {
-    detail.append(node("p", "选择稿件，在这里预览标题、分类、封面、正文和资料来源。", "desk-review-empty"));
+    detail.append(node("p", "选择稿件，在这里预览标题、分类和完整文章。", "desk-review-empty"));
     return;
   }
   const back = node("button", "← 返回列表", "desk-text-button desk-detail-back");
@@ -194,21 +206,17 @@ function renderDetail(item: ReviewItem | null) {
   const body = node("div", "", "desk-detail-body");
   body.dataset.slug = item.slug;
   body.dataset.revision = String(item.revision);
-  body.append(coverNode(item, "desk-review-cover"), node("h3", item.title));
-  body.append(node("p", `${live ? "已上架 · 有新版待审" : "待审"} · 修订 ${item.revision}`, "desk-review-meta"), node("p", item.summary));
-  if (item.category) body.append(node("p", `自动分类：${categoryNames[item.category] ?? item.category}`, "desk-review-meta"));
-  if (live) body.append(node("p", "线上仍是旧版，通过后替换。", "desk-review-notice"));
-  appendBody(body, item);
-  appendSources(body, item.sources);
-  const actions = node("div", "", "desk-review-actions desk-detail-actions");
-  const preview = node("a", "预览稿件", "kdp-link");
-  preview.href = `/blog/preview/${encodeURIComponent(item.slug)}/`;
-  actions.append(preview);
-  const button = node("button", "通过上架", "kdp-button");
+  const toolbar = node("div", "", "desk-detail-toolbar");
+  const heading = node("div", "", "desk-detail-heading");
+  heading.append(node("p", publishedItem ? "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-review-meta"), node("h3", item.title));
+  toolbar.append(heading);
+  const button = node("button", publishedItem ? "下架" : "通过上架", publishedItem ? "kdp-button kdp-button--secondary" : "kdp-button");
   button.type = "button";
-  button.dataset.reviewAction = "publish";
-  actions.append(button);
-  body.append(actions);
+  button.dataset.reviewAction = publishedItem ? "unpublish" : "publish";
+  toolbar.append(button);
+  body.append(toolbar);
+  if (!publishedItem && live) body.append(node("aside", "线上仍是旧版，通过后替换。", "desk-review-notice"));
+  body.append(previewFrame(item));
   detail.append(body);
 }
 function selectDraft(slug: string) {
@@ -217,11 +225,23 @@ function selectDraft(slug: string) {
   renderQueue();
   renderDetail(queueItems.find(item => item.slug === slug) ?? null);
 }
+function selectPublished(slug: string) {
+  selectedSlug = slug;
+  el("blog-review-workspace").dataset.view = "detail";
+  renderQueue();
+  renderDetail(publishedItems.find(item => item.slug === slug) ?? null, true);
+}
 el("blog-drafts-list").addEventListener("click", event => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
   const button = target.closest<HTMLButtonElement>("[data-slug]");
   if (button) selectDraft(button.dataset.slug!);
+});
+el("blog-published-list").addEventListener("click", event => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.closest("[data-review-action], a")) return;
+  const row = target.closest<HTMLElement>("[data-slug]");
+  if (row?.dataset.slug) selectPublished(row.dataset.slug);
 });
 async function loadReview(message = "") {
   if (!active) return;
@@ -237,11 +257,13 @@ async function loadReview(message = "") {
     if (current !== generation || version !== reviewVersion || !active) return;
     queueItems = drafts.drafts;
     publishedItems = published.posts;
-    if (selectedSlug && !queueItems.some(item => item.slug === selectedSlug)) selectedSlug = null;
+    if (selectedSlug && !queueItems.some(item => item.slug === selectedSlug) && !publishedItems.some(item => item.slug === selectedSlug)) selectedSlug = null;
     if (!selectedSlug) el("blog-review-workspace").dataset.view = "list";
-    renderQueue();
-    renderDetail(queueItems.find(item => item.slug === selectedSlug) ?? null);
     el("blog-published-list").replaceChildren(...(publishedItems.length ? publishedItems.map(item => renderReview(item, true)) : [node("p", "暂无已上架文章。", "desk-review-empty")]));
+    renderQueue();
+    const selectedDraft = queueItems.find(item => item.slug === selectedSlug);
+    const selectedPublished = publishedItems.find(item => item.slug === selectedSlug);
+    renderDetail(selectedDraft ?? selectedPublished ?? null, !selectedDraft && !!selectedPublished);
     reviewMessage(message || `${queueItems.length} 篇待审，${published.total ?? publishedItems.length} 篇已上架。`);
   } catch (error) {
     if (current === generation && version === reviewVersion && !(error instanceof SessionExpired)) reviewMessage(`博客审核暂时无法读取。${reviewError(error)} 可点击“重新读取”重试。`, true);

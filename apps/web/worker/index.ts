@@ -40,6 +40,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const post = slug ? (preview ? await getDraft(env.BLOG, slug) : await getPost(env.BLOG, slug)) : null;
   if (slug && !post) return notFound();
   const url = new URL(request.url);
+  const embed = preview && url.searchParams.get("embed") === "1";
   const filter: ListFilter = slug ? {} : { ...pathFilter };
   if (!slug && !pathFilter.tag && !pathFilter.series) {
     const category = url.searchParams.get("category");
@@ -93,8 +94,8 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     .on('meta[property="og:type"]', { element: el => { el.setAttribute("content", post ? "article" : "website"); } })
     .on('meta[name="twitter:card"]', { element: el => { el.setAttribute("content", imageUrl && !preview ? "summary_large_image" : "summary"); } })
     .on('meta[name="robots"]', { element: el => { if (preview) el.remove(); } })
-    .on('link[rel="canonical"]', { element: el => { el.setAttribute("href", canonical); } })
     .on('script[type="application/ld+json"]', { element: el => { el.remove(); } })
+    .on("body", { element: el => { if (embed) el.setAttribute("class", "blog-embed"); } })
     .on("head", { element: el => {
       if (preview) el.append('<meta name="robots" content="noindex, nofollow">', { html: true });
       else el.append(`<link rel="alternate" type="application/rss+xml" title="kedoupi 博客 RSS" href="${new URL("/blog/rss.xml", request.url).href}">`, { html: true });
@@ -119,7 +120,11 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     } })
     .transform(shell);
   const headers = responseHeaders(html, preview || !slug ? "no-store" : PUBLIC_CACHE);
-  if (preview) { headers.set("X-Robots-Tag", "noindex, nofollow"); headers.set("Referrer-Policy", "no-referrer"); }
+  if (preview) {
+    headers.set("X-Robots-Tag", "noindex, nofollow");
+    headers.set("Referrer-Policy", "no-referrer");
+    headers.set("X-Frame-Options", "SAMEORIGIN");
+  }
   return new Response(html.body, { status: html.status, headers });
 }
 async function latest(env: Env) {

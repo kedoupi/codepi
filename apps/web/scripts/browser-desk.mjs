@@ -44,7 +44,7 @@ function syntheticCover() {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
 
-const artifacts = process.env.DESK_BROWSER_ARTIFACTS || await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
+const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-browser-'));
 await mkdir(artifacts, { recursive: true });
 const f = await deskFixture();
 const servers = [];
@@ -114,6 +114,8 @@ try {
           assert.ok(mount, 'Worker renders the article or listing mount');
           let html = blogShell.replace(/<section id="blog-list-mount"[\s\S]*?<\/section>/, mount)
             .replace(/<section class="blog-empty-pavilion"[\s\S]*?<\/section>/, '');
+          const bodyClass = rendered.match(/<body\s+class="([^"]+)"/)?.[1];
+          if (bodyClass) html = html.replace('<body>', `<body class="${bodyClass}">`);
           if (url.pathname !== '/blog/') html = html.replace(/<header class="blog-header"[\s\S]*?<\/header>/, '');
           html = html.replace(/<title>[\s\S]*?<\/title>/, rendered.match(/<title>[\s\S]*?<\/title>/)[0]);
           res.end(html);
@@ -236,9 +238,26 @@ try {
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.evaluate(() => { document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.desk-review').scrollIntoView({ behavior: 'instant', block: 'start' }); });
   await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').click());
-  await page.waitForSelector('#blog-review-detail .desk-review-full[open] .personal-article-content img');
+  await page.waitForSelector('#blog-review-detail iframe.desk-preview-frame');
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    return frame?.contentDocument?.querySelector('.blog-article') && frame.contentDocument.body.classList.contains('blog-embed') && Number.parseInt(frame.style.height, 10) > 360;
+  });
+  const embedded = await page.evaluate(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const doc = frame.contentDocument;
+    return {
+      src: frame.src,
+      shell: [...doc.querySelectorAll('.kdp-header, .kdp-footer, .blog-back, .blog-preview-notice, .blog-article-footer')].some(node => getComputedStyle(node).display !== 'none'),
+      article: Boolean(doc.querySelector('.blog-article h2, .blog-article blockquote, .blog-article pre, .blog-article img')),
+      height: Number.parseInt(frame.style.height, 10),
+    };
+  });
+  assert.match(embedded.src, /\/blog\/preview\/browser-article-12\/\?embed=1$/);
+  assert.equal(embedded.shell, false, 'embed preview hides site shell and repeated links');
+  assert.equal(embedded.article, true, 'embed preview renders the real article');
+  assert.ok(embedded.height > 360, 'iframe height follows the article document');
   await page.screenshot({ path: 'desk-blog-review-desktop.png' });
-  await page.screenshot({ path: 'desk-blog-fulltext-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action="publish"]').click());
   assert.ok(await page.evaluate(() => window.__reviewConfirmation), 'publish confirmation ran');
@@ -251,6 +270,7 @@ try {
   await page.goto(origins.desk + '/desk/');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
   assert.match(await page.evaluate(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]').textContent), /已上架 · 有新版待审/);
+  assert.ok(await page.evaluate(() => document.querySelectorAll('#blog-published-list [data-slug] [data-review-action="unpublish"]').length > 0), 'published review rows render before unpublish');
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });
   await page.evaluate(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"] [data-review-action="unpublish"]').click());
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('文章已下架'));
