@@ -114,9 +114,8 @@ function centralFixture() {
  * Synthetic upstream, generated per requested day: ordinary workdays, home-only rest days and one
  * workday that starts 100 minutes late (so the trends page has an anomaly). No real host, device or network name.
  */
-function statusReadFixture() {
+function statusReadFixture(now = Date.now()) {
   const state = { fail: false, empty: false, calls: [] };
-  const now = Date.now();
   const today = shanghaiDate(now);
   const currentMinute = Math.max(0, Math.min(1439, shanghaiMinute(now)));
   const weekday = date => new Date(`${date}T00:00:00Z`).getUTCDay();
@@ -146,7 +145,8 @@ function statusReadFixture() {
       for (let minute = 0; minute <= Math.min(450 + shift, activityLimit); minute += 1) {
         rows.push({ sampled_at: stamp(day, minute), net: "home", idle_sec: 900, locked: 0 });
       }
-      for (let minute = 620 + shift + jitter; minute <= Math.min(1085, activityLimit); minute += 1) {
+      const officeStart = 620 + shift + jitter;
+      for (let minute = officeStart; minute <= Math.min(1085, activityLimit); minute += 1) {
         if (minute === 720) {
           rows.push({ sampled_at: stamp(day, minute), net: "other", ssid: "示例网络", idle_sec: 30, locked: 0, key_idle_sec: 20, pointer_idle_sec: 40 });
           continue;
@@ -157,8 +157,10 @@ function statusReadFixture() {
           app_name: minute % 3 === 0 ? "示例沟通" : "示例编辑器",
         });
       }
-      if (isToday && currentMinute < 620) {
-        for (let minute = Math.max(0, currentMinute - 30); minute <= activityLimit; minute += 1) {
+      if (isToday && currentMinute - 30 < officeStart) {
+        const supplementalStart = Math.max(0, currentMinute - 30);
+        const supplementalEnd = Math.min(activityLimit, officeStart - 1);
+        for (let minute = supplementalStart; minute <= supplementalEnd; minute += 1) {
           rows.push({
             sampled_at: stamp(day, minute), net: "office", idle_sec: 30, locked: 0,
             key_idle_sec: 20, pointer_idle_sec: 40, app_name: "示例编辑器",
@@ -899,6 +901,6 @@ async function main() {
   }
 }
 
-export { closeServer, resolveSmokePort, startProxy };
+export { closeServer, resolveSmokePort, startProxy, statusReadFixture };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

@@ -88,7 +88,7 @@ describe("0003 work page migration", () => {
       date: THIRD_DATE, devices: [], snapshots: [], events: [], heartbeats: [], subjectDeviceIds: [],
       appCategories: { "示例会议": "会议" },
       activity: [{ sampled_at: `${THIRD_DATE}T09:00:00+08:00`, net: "office", power: "电池", locked: false, key_idle_sec: 10, pointer_idle_sec: 10, app_name: "示例会议" }],
-    }, undefined, `${THIRD_DATE}T20:30:00+08:00`);
+    }, undefined, `${THIRD_DATE}T20:30:00.000Z`);
     await upsertDailyRows(env, rows);
     const stored = await readDailyMetrics(env, THIRD_DATE);
     expect(stored?.metrics.appMinutes).toEqual({});
