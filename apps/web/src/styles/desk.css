@@ -749,5 +749,26 @@
   #blog-review-page[data-view="detail"] .desk-detail-body { padding-bottom: 80px; }
   #blog-review-page[data-view="detail"] .desk-detail-back { display: inline-flex; min-height: 44px; margin: 12px 0; }
 }
+.desk-review-page { margin-top: 24px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.desk-blog-status-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; padding: 16px 20px; border: 1px solid var(--kdp-line); border-radius: var(--kdp-radius-sm); background: var(--kdp-surface); }
+.desk-blog-status-row #blog-review-status { margin: 0; color: var(--kdp-text); }
+.desk-blog-status-row .desk-blog-retry { flex: 0 0 auto; }
+.desk-review-list-row { grid-template-columns: 224px minmax(0, 1fr) auto; }
+.desk-review-list-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.desk-blog-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border: 1px solid var(--kdp-line); border-radius: 999px; background: var(--kdp-surface); color: var(--kdp-text); font-size: 12px; line-height: 1; white-space: nowrap; }
+.desk-blog-chip-status { border-color: var(--kdp-line-strong); background: var(--kdp-canvas); }
+.desk-review-go { color: var(--kdp-accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.desk-blog-page-current { min-width: 36px; }
+.desk-review-page[data-view="detail"] .desk-blog-status-row,
+.desk-review-page[data-view="detail"] > #blog-review-status-row + .desk-text-button { display: none; }
+.desk-review-page[data-view="detail"] .desk-detail-back { display: inline-flex; align-items: center; min-height: 44px; margin: 12px 0; }
+.desk-detail-label { display: block; margin-bottom: 4px; color: var(--kdp-text); font-size: 14px; font-weight: 600; }
+@media (max-width: 720px) {
+  .desk-review-list-row { grid-template-columns: minmax(0, 1fr); }
+  .desk-review-go { justify-self: end; }
+  .desk-blog-status-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .desk-blog-category { white-space: nowrap; flex: 0 0 auto; }
+  .desk-blog-pagination { justify-content: space-between; gap: 8px; }
+}
 .desk-blog-card { margin-top: 24px; }
 .desk-blog-card .desk-card-footer { margin-top: 20px; }

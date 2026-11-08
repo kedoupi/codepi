@@ -113,7 +113,9 @@ try {
         if (response.headers.getSetCookie().length) res.setHeader('Set-Cookie', response.headers.getSetCookie());
         if (id === 'desk' && url.pathname.startsWith('/blog/') && !url.pathname.startsWith('/blog/media/') && response.ok) {
           const rendered = await response.text();
-          const mount = rendered.match(/<section id="blog-list-mount"[\s\S]*?<\/section>/)?.[0];
+          const mountStart = rendered.indexOf('<section id="blog-list-mount"');
+          const mountEnd = rendered.lastIndexOf('</section>') + '</section>'.length;
+          const mount = mountStart >= 0 && mountEnd > mountStart ? rendered.slice(mountStart, mountEnd) : null;
           assert.ok(mount, 'Worker renders the article or listing mount');
           let html = blogShell.replace(/<section id="blog-list-mount"[\s\S]*?<\/section>/, mount)
             .replace(/<section class="blog-empty-pavilion"[\s\S]*?<\/section>/, '');
@@ -224,6 +226,7 @@ try {
   await page.goto(origins.desk + '/desk/blog/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-tabs [aria-selected="true"]').textContent), '待审 1');
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.desk-blog-category')].every(button => button.getBoundingClientRect().height <= 48)), 'mobile category chips stay single-line');
   await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
   await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
@@ -239,16 +242,22 @@ try {
   await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
   await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const doc = frame?.contentDocument;
+    if (!frame || !doc) return false;
+    return Math.abs(Number.parseInt(frame.style.height, 10) - Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight)) <= 2;
+  });
   const embedded = await page.evaluate(() => {
     const frame = document.querySelector('#blog-review-detail iframe');
     const doc = frame.contentDocument;
     const shellNodes = [...doc.querySelectorAll('.kdp-nav, .kdp-header, .kdp-footer, .blog-back, .blog-preview-notice, .blog-article-footer')].map(node => ({ className: node.className, display: getComputedStyle(node).display }));
-    return { src: frame.src, bodyClass: doc.body.className, shell: shellNodes.some(item => item.display !== 'none'), shellNodes, article: Boolean(doc.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre, figcaption')), toc: Boolean(doc.querySelector('.blog-toc-desktop, .blog-toc-mobile')), height: Number.parseInt(frame.style.height, 10), scrollHeight: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight) };
+    return { src: frame.src, bodyClass: doc.body.className, shell: shellNodes.some(item => item.display !== 'none'), shellNodes, article: Boolean(doc.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre, figcaption')), toc: [...doc.querySelectorAll('.blog-toc-desktop, .blog-toc-mobile')].map(node => ({ className: node.className, display: getComputedStyle(node).display, text: node.textContent })), height: Number.parseInt(frame.style.height, 10), scrollHeight: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight) };
   });
   assert.match(embedded.src, /\/blog\/preview\/browser-article-12\/\?embed=1$/);
   assert.equal(embedded.shell, false, `embed preview hides site shell: ${JSON.stringify(embedded)}`);
   assert.equal(embedded.article, true, 'preview renders article structure');
-  assert.equal(embedded.toc, true, 'preview keeps the article table of contents');
+  assert.ok(embedded.toc.some(item => item.className.includes('blog-toc-desktop') && item.display !== 'none'), `desktop article table of contents is visible: ${JSON.stringify(embedded.toc)}`);
   assert.ok(Math.abs(embedded.height - embedded.scrollHeight) <= 2, 'iframe height follows contentDocument scrollHeight');
   await page.screenshot({ path: 'desk-blog-preview-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });

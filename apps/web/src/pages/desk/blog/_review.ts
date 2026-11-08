@@ -81,8 +81,12 @@ function renderListRow(item: ReviewItem, published: boolean, live = false) {
   link.append(reviewCover(item));
   const content = node("span", "", "desk-review-list-content");
   content.append(node("strong", item.title, "desk-queue-title"));
-  content.append(node("span", `${published ? "已上架" : live ? "已上架 · 有新版待审" : "待审"} · ${item.category ? categoryNames[item.category] ?? item.category : "未分类"} · ${time(item.updated_at)}`, "desk-queue-meta"));
-  link.append(content);
+  const meta = node("span", "", "desk-review-list-meta");
+  meta.append(node("span", item.category ? categoryNames[item.category] ?? item.category : "未分类", "desk-blog-chip"));
+  meta.append(node("span", published ? "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-blog-chip desk-blog-chip-status"));
+  meta.append(node("span", time(item.updated_at), "desk-queue-meta"));
+  content.append(meta);
+  link.append(content, node("span", published ? "查看 ›" : "去审核 ›", "desk-review-go"));
   return link;
 }
 function pushListState() {
@@ -114,7 +118,18 @@ function renderLists() {
   categoriesEl.replaceChildren(...["全部", ...categories].map(category => { const button = node("button", `${category} ${category === "全部" ? source.length : counts.get(category) ?? 0}`, "desk-blog-category"); button.type = "button"; button.setAttribute("aria-pressed", String((category === "全部" ? !activeCategory : activeCategory === category))); button.addEventListener("click", () => { activeCategory = category === "全部" ? "" : category; activePage = 1; pushListState(); }); return button; }));
   const pager = el("blog-review-pagination");
   pager.replaceChildren();
-  if (pages > 1) { const previous = node("button", "‹ 上一页", "desk-text-button"); previous.disabled = activePage <= 1; previous.addEventListener("click", () => { activePage--; pushListState(); }); const current = node("span", `${activePage} / ${pages} · 每页 20 篇`, "desk-fine"); const next = node("button", "下一页 ›", "desk-text-button"); next.disabled = activePage >= pages; next.addEventListener("click", () => { activePage++; pushListState(); }); pager.append(previous, current, next); }
+  if (pages > 1) {
+    const previous = node("button", "‹ 上一页", "desk-text-button");
+    previous.disabled = activePage <= 1;
+    previous.addEventListener("click", () => { activePage--; pushListState(); });
+    pager.append(previous);
+    if (matchMedia("(max-width: 720px)").matches) pager.append(node("span", `${activePage} / ${pages}`, "desk-fine"));
+    else for (let index = 1; index <= pages; index++) { const button = node("button", String(index), index === activePage ? "kdp-button kdp-button--secondary desk-blog-page-current" : "desk-text-button"); button.type = "button"; button.setAttribute("aria-current", String(index === activePage)); button.addEventListener("click", () => { activePage = index; pushListState(); }); pager.append(button); }
+    const next = node("button", "下一页 ›", "desk-text-button");
+    next.disabled = activePage >= pages;
+    next.addEventListener("click", () => { activePage++; pushListState(); });
+    pager.append(next, node("span", "每页 20 篇", "desk-fine"));
+  }
 }
 function previewFrame(item: ReviewItem) {
   const frame = document.createElement("iframe");
@@ -174,7 +189,7 @@ function renderDetail(item: ReviewItem | null, published = false) {
   body.dataset.revision = String(item.revision);
   const toolbar = node("div", "", "desk-detail-toolbar");
   const heading = node("div", "", "desk-detail-heading");
-  heading.append(node("p", published ? "已上架" : hasLive ? "已上架 · 有新版待审" : "待审", "desk-review-meta"), node("h1", item.title));
+  heading.append(node("b", "审核", "desk-detail-label"), node("p", published ? "已上架" : hasLive ? "已上架 · 有新版待审" : "待审", "desk-review-meta"), node("h1", item.title));
   toolbar.append(heading);
   const button = node("button", published ? "下架" : updatingLive ? "审核通过，替换线上" : "审核通过，上架", published ? "kdp-button kdp-button--secondary" : "kdp-button");
   button.type = "button";
@@ -210,7 +225,7 @@ async function loadReview(message = "") {
     } else {
       setView("list");
       renderLists();
-      reviewMessage(message || `${queueItems.length} 篇待审，${published.total ?? publishedItems.length} 篇已上架。`);
+      reviewMessage(message || `✓ ${queueItems.length} 篇待审，${published.total ?? publishedItems.length} 篇已上架。`);
     }
   } catch (error) { if (current === generation && !(error instanceof SessionExpired)) reviewMessage("博客审核暂时无法读取，请重试。", true); }
 }
@@ -243,10 +258,10 @@ async function initialize() {
 if (typeof document !== "undefined") {
   el("blog-review-detail").addEventListener("click", reviewAction);
   el("blog-review-status").setAttribute("aria-live", "polite");
-  const retry = node("button", "重新读取", "desk-text-button");
+  const retry = node("button", "↻ 重新读取", "desk-text-button desk-blog-retry");
   retry.type = "button";
   retry.addEventListener("click", () => { void loadReview(); });
-  el("blog-review-status").after(retry);
+  el("blog-review-status-row").append(retry);
   window.addEventListener("pagehide", clearPrivate);
   window.addEventListener("popstate", () => {
     if (previewSlug) return;

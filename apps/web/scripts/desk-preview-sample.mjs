@@ -13,7 +13,7 @@ const imageRoot = resolve(imageDir);
 const imageFiles = (await readdir(imageRoot, { withFileTypes: true }))
   .filter(entry => entry.isFile() && ['.png', '.jpg', '.jpeg', '.webp'].includes(extname(entry.name).toLowerCase()))
   .sort((a, b) => a.name.localeCompare(b.name));
-assert.ok(imageFiles.length >= 2, '图片目录至少需要两张 PNG、JPEG 或 WebP 图片');
+assert.ok(imageFiles.length >= 3, '图片目录至少需要一张封面和两张正文 PNG、JPEG 或 WebP 图片');
 
 const artifacts = await mkdtemp(join(tmpdir(), 'kdp-desk-preview-sample-'));
 await mkdir(artifacts, { recursive: true });
@@ -40,7 +40,7 @@ async function capturePage(page, path, selector) {
 try {
   const blogShell = await readFile(join(root, 'blog/index.html'), 'utf8');
   const media = [];
-  for (const entry of imageFiles.slice(0, 2)) {
+  for (const entry of imageFiles.slice(0, 3)) {
     const bytes = await readFile(join(imageRoot, entry.name));
     const contentType = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[extname(entry.name).toLowerCase()];
     let result;
@@ -83,9 +83,9 @@ try {
     'console.log(preview);',
     '```',
     '',
-    `![本地配图一](/blog/media/${media[0]} "图注一：本地合成图片")`,
+    `![本地配图一](/blog/media/${media[1]} "图注一：本地合成图片")`,
     '',
-    `![本地配图二](/blog/media/${media[1]} "图注二：另一张本地合成图片")`,
+    `![本地配图二](/blog/media/${media[2]} "图注二：另一张本地合成图片")`,
   ].join('\n');
   const submitted = await fixture.rpc({
     subject: 'kdp-owner', client: 'desk-preview-sample', operation: 'submit',
@@ -136,7 +136,9 @@ try {
         if (result.headers.getSetCookie().length) response.setHeader('Set-Cookie', result.headers.getSetCookie());
         if (id === 'desk' && url.pathname.startsWith('/blog/') && !url.pathname.startsWith('/blog/media/') && result.ok) {
           const rendered = await result.text();
-          const mount = rendered.match(/<section id="blog-list-mount"[\s\S]*?<\/section>/)?.[0];
+          const mountStart = rendered.indexOf('<section id="blog-list-mount"');
+          const mountEnd = rendered.lastIndexOf('</section>') + '</section>'.length;
+          const mount = mountStart >= 0 && mountEnd > mountStart ? rendered.slice(mountStart, mountEnd) : null;
           assert.ok(mount, 'Worker 必须渲染文章挂载点');
           let html = blogShell.replace(/<section id="blog-list-mount"[\s\S]*?<\/section>/, mount)
             .replace(/<section class="blog-empty-pavilion"[\s\S]*?<\/section>/, '');
@@ -174,6 +176,9 @@ try {
   await page.waitForURL(`${origins.desk}/desk/`);
   await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.goto(`${origins.desk}/desk/blog/?tab=pending`);
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="desk-preview-sample"]'));
+  await capturePage(page, join(artifacts, 'desk-blog-list-pending-desktop.png'));
   await page.goto(`${origins.desk}/desk/blog/?tab=published&page=2`);
   await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug]'));
   await capturePage(page, join(artifacts, 'desk-blog-list-desktop.png'));
@@ -191,7 +196,7 @@ try {
     const images = doc ? [...doc.images] : [];
     return Boolean(doc?.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre'))
       && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
-      && doc.querySelectorAll('figcaption').length >= 2 && Number.parseInt(frame.style.height, 10) > 600;
+      && doc.querySelectorAll('figcaption').length >= 2;
   });
   await waitForArticle();
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
@@ -206,7 +211,7 @@ try {
   await page.goto(`${origins.desk}/blog/desk-preview-sample/`);
   await page.waitForSelector('.blog-article');
   await capturePage(page, join(artifacts, 'blog-public-desktop.png'));
-  const screenshots = ['desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
+  const screenshots = ['desk-blog-list-pending-desktop.png', 'desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
   for (const name of screenshots) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
   console.log(`Desk preview sample passed; screenshots: ${screenshots.map(name => join(artifacts, name)).join(', ')}`);
 } finally {

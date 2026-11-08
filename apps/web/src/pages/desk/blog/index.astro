@@ -18,18 +18,18 @@ import '../../../styles/desk.css';
       <div class="desk-login-btn-row"><a class="kdp-button" href="/api/auth/login?return=%2Fdesk%2Fblog%2F">本人登录 <span aria-hidden="true">→</span></a></div>
     </section>
     <div id="blog-review-private" hidden>
-      <section class="kdp-card desk-review" data-view="list" aria-label="博客审核">
-        <div id="blog-review-status" class="desk-fine" role="status"></div>
+      <section class="desk-review desk-review-page" data-view="list" aria-label="博客审核">
+        <div id="blog-review-status-row" class="desk-blog-status-row">
+          <div id="blog-review-status" class="desk-fine" role="status"></div>
+        </div>
         <div id="blog-review-tabs" class="desk-blog-tabs" role="tablist" aria-label="文章状态"></div>
         <div id="blog-review-categories" class="desk-blog-categories" role="group" aria-label="文章分类"></div>
         <div id="blog-review-workspace" class="desk-review-workspace" data-view="list">
           <div class="desk-review-queue-column">
             <div data-review-tab="pending">
-              <h2 class="desk-review-subtitle">待审</h2>
               <div id="blog-drafts-list" class="desk-queue" aria-label="待审稿件列表"></div>
             </div>
             <div data-review-tab="published">
-              <h2 class="desk-review-subtitle">已上架</h2>
               <div id="blog-published-list" class="desk-queue" aria-label="已上架文章列表"></div>
             </div>
             <div id="blog-review-pagination" class="desk-blog-pagination"></div>
