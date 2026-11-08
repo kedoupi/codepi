@@ -188,11 +188,15 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-20T00:00:00.000Z' WHERE slug='first-post'").run();
   await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-21T00:00:00.000Z' WHERE slug='second-post'").run();
   const list = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
+  assert.match(list, /class="blog-list-section brand-page"/);
+  assert.doesNotMatch(list, /最新 ·/);
   assert.match(list, /分类：digital-space|分类：数字空间/);
   assert.match(list, /约 \d+ 分钟/);
   assert.match(list, /aria-current="true"/);
   assert.match(list, /rss\.xml/);
   const article = await (await worker.fetch('http://localhost:8804/blog/first-post/')).text();
+  assert.match(article, /class="blog-article-mount brand-page"/);
+  assert.doesNotMatch(article, /上一篇<\/span><b>上一篇/);
   assert.match(article, /blog-toc/);
   assert.match(article, /href="#h-1"/);
   assert.match(article, /资料来源/);
@@ -200,9 +204,9 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   assert.match(article, /AI 协作撰写/);
   assert.match(article, /约 \d+ 分钟/);
   assert.match(article, /系列：<a href="\/blog\/series\/AI%20%E5%91%A8%E6%8A%A5\//);
-  assert.match(article, /下一篇：标题 second-post/);
+  assert.match(article, /<span>下一篇<\/span><b>标题 second-post<\/b>/);
   const second = await (await worker.fetch('http://localhost:8804/blog/second-post/')).text();
-  assert.match(second, /上一篇：标题 first-post/);
+  assert.match(second, /<span>上一篇<\/span><b>标题 first-post<\/b>/);
   const tagPage = await (await worker.fetch('http://localhost:8804/blog/tag/%E7%A9%BA%E9%97%B4/')).text();
   assert.match(tagPage, /标签：空间/);
   assert.equal((tagPage.match(/blog-card-title/g) ?? []).length, 2);
@@ -219,6 +223,62 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   assert.doesNotMatch(feed, /正在整理/);
   const emptyFilter = await worker.fetch('http://localhost:8804/blog/tag/%E4%B8%8D%E5%AD%98%E5%9C%A8/');
   assert.equal(emptyFilter.status, 200);
+});
+
+test('latest JSON returns an empty list for no posts and query failures', async t => {
+  const f = await deskFixture(t);
+  const worker = await f.runtime.getWorker('desk');
+  const empty = await worker.fetch('http://localhost:8804/blog/latest.json');
+  assert.equal(empty.status, 200);
+  assert.deepEqual(await empty.json(), []);
+  assert.match(empty.headers.get('Cache-Control'), /max-age=60/);
+  await f.blog.prepare('DROP TABLE blog_posts').run();
+  const failed = await worker.fetch('http://localhost:8804/blog/latest.json');
+  assert.equal(failed.status, 200);
+  assert.equal(failed.headers.get('Cache-Control'), 'no-store');
+  const failedBody = await failed.text();
+  assert.equal(failedBody, '[]');
+  assert.doesNotMatch(failedBody, /error|blog_posts|no such table/i);
+});
+
+test('latest JSON exposes only the newest published posts', async t => {
+  const f = await deskFixture(t);
+  const worker = await f.runtime.getWorker('desk');
+  for (const [slug, publishedAt, category] of [['latest-old', '2026-10-20T00:00:00.000Z', 'old'], ['latest-new', '2026-10-22T00:00:00.000Z', 'new'], ['latest-mid', '2026-10-21T00:00:00.000Z', 'mid']]) {
+    await seedPost(f, slug, publishedAt);
+    await f.blog.prepare('UPDATE blog_posts SET title=?,summary=?,category=?,body_markdown=?,published_at=? WHERE slug=?').bind(`标题 ${slug}`, `摘要 ${slug}`, category, '正文。'.repeat(category === 'new' ? 800 : 1), publishedAt, slug).run();
+  }
+  await seedDraft(f, 'latest-draft');
+  const response = await worker.fetch('http://localhost:8804/blog/latest.json');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('Cache-Control'), /max-age=60/);
+  const posts = await response.json();
+  assert.deepEqual(posts.map(post => post.slug), ['latest-new', 'latest-mid']);
+  assert.equal(posts[0].reading_minutes, 6);
+  assert.equal(posts[0].category, 'new');
+  assert.equal('body_markdown' in posts[0], false);
+  const head = await worker.fetch('http://localhost:8804/blog/latest.json', { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+});
+
+test('category empty state and missing cover follow brand blog structure', async t => {
+  const f = await deskFixture(t);
+  const worker = await f.runtime.getWorker('desk');
+  const empty = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
+  assert.match(empty, /「数字空间」还没有文章/);
+  assert.match(empty, /看全部文章/);
+  assert.match(empty, /通过 RSS 订阅/);
+  await seedPost(f, 'fallback-post');
+  await f.blog.prepare("UPDATE blog_posts SET body_html='<h2 id=\"h-1\">第一节</h2><p>正文</p><h2 id=\"h-2\">第二节</h2><p>结尾</p>' ,body_markdown='## 第一节\\n\\n正文\\n\\n## 第二节\\n\\n结尾' WHERE slug='fallback-post'").run();
+  const article = await (await worker.fetch('http://localhost:8804/blog/fallback-post/')).text();
+  assert.match(article, /blog-cover-fallback/);
+  assert.match(article, /class="blog-more" href="\/blog\/">浏览更多文章/);
+  assert.doesNotMatch(article, /og:image/);
+  assert.doesNotMatch(article, /示例占位/);
+  assert.match(article, /blog-toc-mobile/);
+  assert.match(article, /blog-toc-desktop/);
+  assert.match(article, /这是最新一篇/);
 });
 
 test('blog endpoints require owner session and origin', async t => {
