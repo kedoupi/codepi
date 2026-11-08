@@ -27,8 +27,14 @@ export class BlogMcp extends WorkerEntrypoint<Env> implements BlogService {
         const post = args.view === "published" ? await getPost(this.env.BLOG,args.slug) : await getDraft(this.env.BLOG,args.slug);
         if (!post) throw Error("not_found");
         if (args.expected_revision !== undefined && args.expected_revision !== post.revision) throw Error("revision_conflict");
-        const {body_html: _,body_markdown:body,...metadata} = post;
-        if (body === null || body === undefined) throw Error("markdown_unavailable");
+        const metadata = { ...post } as Record<string, unknown>;
+        const body = metadata.body_markdown;
+        delete metadata.body_html;
+        delete metadata.body_markdown;
+        delete metadata.review_note;
+        delete metadata.is_test;
+        delete metadata.archived_at;
+        if (typeof body !== "string") throw Error("markdown_unavailable");
         const points = Array.from(body);
         return {ok:true,data:{...metadata,body_markdown:points.slice(Number(offset),Number(offset)+Number(limit)).join(""),body_total:points.length,next_offset:Number(offset)+Number(limit)<points.length ? Number(offset)+Number(limit) : null,
           public_url:`https://codepi.app/blog/${post.slug}/`,preview_url:`https://codepi.app/blog/preview/${post.slug}/`}};
@@ -38,7 +44,7 @@ export class BlogMcp extends WorkerEntrypoint<Env> implements BlogService {
       return {ok:true,data:await retractDraft(this.env.BLOG,args.slug)};
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      const errors: Record<string,number> = {not_found:404,markdown_unavailable:409,revision_conflict:409,payload_too_large:413,unsafe_content:400,unknown_media:400,too_many_images:400,invalid_image:400,alt_required:400,cover_required:400,test_draft:400,archived:400,unknown_category:400,category_limit:400,category_in_use:400,invalid_arguments:400};
+      const errors: Record<string,number> = {not_found:404,markdown_unavailable:409,revision_conflict:409,payload_too_large:413,unsafe_content:400,unknown_media:400,too_many_images:400,invalid_image:400,alt_required:400,unknown_category:400,invalid_arguments:400};
       return {ok:false,error:message in errors ? message : "blog_unavailable",status:errors[message] ?? 503};
     }
   }

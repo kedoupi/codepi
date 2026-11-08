@@ -68,23 +68,15 @@ const deskProducts = products.filter(product => (deskSources as readonly string[
       <section class="kdp-card desk-review" aria-labelledby="review-title">
         <div class="desk-section-heading"><div><p class="desk-eyebrow">审核 / BLOG</p><h2 id="review-title">博客审核</h2></div></div>
         <div id="blog-review-status" class="desk-fine" role="status"></div>
-        <details class="desk-categories">
-          <summary>管理分类（AI 只能从这里选择）</summary>
-          <div id="blog-categories-list"></div>
-          <form id="blog-category-form" class="desk-category-form">
-            <label>分类 slug<input name="slug" required pattern="[a-z0-9][a-z0-9-]{0,39}" maxlength="40" placeholder="ai-weekly" /></label>
-            <label>分类名称<input name="name" required maxlength="20" placeholder="AI 周报" /></label>
-            <button type="submit" class="kdp-button kdp-button--secondary">添加分类</button>
-          </form>
-        </details>
         <div id="blog-review-workspace" class="desk-review-workspace" data-view="list">
-          <div id="blog-drafts-list" class="desk-queue" aria-label="待审核稿件列表"></div>
-          <section id="blog-review-detail" class="desk-detail" aria-label="稿件审核详情"></section>
+          <div>
+            <h3 class="desk-review-subtitle">待审</h3>
+            <div id="blog-drafts-list" class="desk-queue" aria-label="待审稿件列表"></div>
+          </div>
+          <section id="blog-review-detail" class="desk-detail" aria-label="稿件预览"></section>
         </div>
-        <h3 class="desk-review-subtitle">已发布文章</h3>
-        <div id="blog-published-list"></div>
-        <h3 class="desk-review-subtitle">测试与归档</h3>
-        <div id="blog-archived-list"></div>
+        <h3 class="desk-review-subtitle">已上架</h3>
+        <div id="blog-published-list" aria-label="已上架文章列表"></div>
       </section>
 
       <div class="desk-workspace">

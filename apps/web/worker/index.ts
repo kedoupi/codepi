@@ -63,7 +63,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     const minutes = readingMinutes(typeof item.body_chars === "number" ? item.body_chars : 0);
     const meta = `${item.category ? `<span>${escape(categoryName(item.category))}</span>` : item.tag ? `<span>${escape(item.tag)}</span>` : ""}<time datetime="${escape(item.published_at)}">${escape(item.published_at.slice(0, 10))}</time><span>约 ${minutes} 分钟</span>`;
     if (featured) return `<a href="/blog/${escape(item.slug)}/" class="blog-featured blog-card">${await coverImage(item, "blog-featured-cover blog-card-cover")}<div class="blog-featured-content"><div class="blog-card-meta">最新 · ${meta}</div><h2 class="blog-featured-title blog-card-title">${escape(item.title)}</h2><p class="blog-featured-summary">${escape(item.summary)}</p><span class="blog-card-action">阅读全文</span></div></a>`;
-    return `<a href="/blog/${escape(item.slug)}/" class="blog-row blog-card"><div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-row-summary">${escape(item.summary)}</p></div><span class="blog-row-meta">${meta}</span></a>`;
+    return `<a href="/blog/${escape(item.slug)}/" class="blog-row blog-card"><div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-row-summary">${escape(item.summary)}</p></div>${await coverImage(item, "blog-row-cover blog-card-cover")}<span class="blog-row-meta">${meta}</span></a>`;
   };
   const featured = listing?.posts[0] && page === 1 && !Object.keys(filter).length ? await cardMarkup(listing.posts[0], true) : "";
   const rows = listing ? await Promise.all(listing.posts.slice(featured ? 1 : 0).map(item => cardMarkup(item))) : [];

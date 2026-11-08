@@ -31,10 +31,11 @@
 .blog-page .blog-card-action { color: var(--color-action-hover); font-size: var(--text-small); font-weight: 500; }
 .blog-page .blog-card-action::after, .blog-page .blog-empty-links .kdp-link::after { content: " ›"; }
 .blog-page .blog-list { display: grid; gap: 0; margin-top: var(--space-12); }
-.blog-page .blog-row { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: var(--space-12); align-items: baseline; padding: var(--space-8) 0; border-top: 1px solid var(--color-border); color: var(--color-text); text-decoration: none; }
+.blog-page .blog-row { display: grid; grid-template-columns: minmax(0, 1fr) 200px 200px; gap: var(--space-12); align-items: center; padding: var(--space-8) 0; border-top: 1px solid var(--color-border); color: var(--color-text); text-decoration: none; }
 .blog-page .blog-row:hover .blog-card-title { color: var(--color-action-hover); }
 .blog-page .blog-card-title { margin: 0; color: inherit; font-size: var(--text-h3); font-weight: 600; line-height: 1.35; letter-spacing: -.01em; text-wrap: pretty; }
 .blog-page .blog-row-summary { max-width: 720px; margin: var(--space-3) 0 0; color: var(--color-text-muted); font-size: var(--text-body); line-height: 1.65; text-wrap: pretty; }
+.blog-page .blog-row-cover, .blog-page .blog-latest-cover, .blog-page .blog-rss-cover { display: block; width: 200px; aspect-ratio: 2.35 / 1; height: auto; object-fit: cover; border-radius: var(--radius-control); background: var(--color-surface); overflow: hidden; }
 .blog-page .blog-row-meta { color: var(--color-text-muted); font-size: var(--text-small); line-height: 1.6; text-align: right; }
 .blog-page .blog-row-meta span, .blog-page .blog-row-meta time { display: block; }
 .blog-page .blog-pagination { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--space-4); align-items: center; margin-top: var(--space-12); padding-top: var(--space-8); border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: var(--text-small); }
@@ -132,6 +133,7 @@
   .blog-page .blog-filter { gap: var(--space-6); }
   .blog-page .blog-featured-title { font-size: var(--site-h2); }
   .blog-page .blog-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .blog-page .blog-row-cover { width: min(100%, 320px); }
   .blog-page .blog-row-meta { text-align: left; }
   .blog-page .blog-row-meta span, .blog-page .blog-row-meta time { display: inline; margin-right: var(--space-3); }
   .blog-page .blog-empty-pavilion { padding: var(--space-6); }
