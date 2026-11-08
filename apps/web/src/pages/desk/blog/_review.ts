@@ -109,11 +109,11 @@ function renderLists() {
   const pager = el("blog-review-pagination");
   pager.replaceChildren();
   if (meta.pages > 1) {
-    const previous = node("button", "‹ 上一页", "desk-text-button"); previous.disabled = activePage <= 1; previous.addEventListener("click", () => { activePage--; pushListState(); void loadReview(); }); pager.append(previous);
+    const previous = node("button", "‹ 上一页", "desk-blog-page-button"); previous.disabled = activePage <= 1; previous.addEventListener("click", () => { activePage--; pushListState(); void loadReview(); }); pager.append(previous);
     const mobilePager = matchMedia("(max-width: 720px)").matches;
     if (mobilePager) pager.append(node("span", `${meta.page} / ${meta.pages}`, "desk-fine"));
-    else for (let index = 1; index <= meta.pages; index++) { const button = node("button", String(index), index === meta.page ? "kdp-button kdp-button--secondary desk-blog-page-current" : "desk-text-button"); button.type = "button"; button.setAttribute("aria-current", String(index === meta.page)); button.addEventListener("click", () => { activePage = index; pushListState(); void loadReview(); }); pager.append(button); }
-    const next = node("button", "下一页 ›", "desk-text-button"); next.disabled = activePage >= meta.pages; next.addEventListener("click", () => { activePage++; pushListState(); void loadReview(); }); pager.append(next); if (!mobilePager) pager.append(node("span", "每页 20 篇", "desk-fine"));
+    else for (let index = 1; index <= meta.pages; index++) { const button = node("button", String(index), index === meta.page ? "desk-blog-page-button desk-blog-page-current" : "desk-blog-page-button"); button.type = "button"; button.setAttribute("aria-current", String(index === meta.page)); button.addEventListener("click", () => { activePage = index; pushListState(); void loadReview(); }); pager.append(button); }
+    const next = node("button", "下一页 ›", "desk-blog-page-button"); next.disabled = activePage >= meta.pages; next.addEventListener("click", () => { activePage++; pushListState(); void loadReview(); }); pager.append(next); if (!mobilePager) pager.append(node("span", "每页 20 篇", "desk-fine"));
   }
   if (activeCategory) document.querySelector<HTMLElement>('.desk-blog-category[aria-pressed="true"]')?.scrollIntoView({ inline: "center", block: "nearest" });
 }
