@@ -217,7 +217,7 @@
 .home-closing { background: var(--color-background); }
 .home-closing-mark { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; margin-bottom: 48px; color: var(--color-action); }
 .home-closing-mark span { position: absolute; width: 64px; height: 64px; border: 1px solid var(--brand-orange); border-radius: 50%; opacity: .4; }
-.home-closing-mark b { position: relative; font-size: 32px; font-weight: 500; }
+.home-closing-mark b { position: relative; font-size: var(--text-h2); font-weight: 500; }
 .home-closing .home-actions { justify-content: center; }
 @media (max-width: 767px) {
   .personal-home { --home-wrap: min(calc(100% - 40px), 1200px); }
@@ -243,7 +243,7 @@
   .home-blog-secondary a { align-items: flex-start; flex-direction: column; gap: 8px; }
   .home-closing-mark { width: 48px; height: 48px; margin-bottom: 32px; }
   .home-closing-mark span { width: 48px; height: 48px; }
-  .home-closing-mark b { font-size: 24px; }
+  .home-closing-mark b { font-size: var(--text-h3); }
 }
 @media (prefers-reduced-motion: reduce) {
   .personal-home *, .personal-home *::before, .personal-home *::after { animation: none !important; transition: none !important; }
