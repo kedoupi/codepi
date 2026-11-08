@@ -36,9 +36,9 @@ a { text-underline-offset: 4px; }
 /* Raster symbol from the official PNG export; pair it with readable text. */
 .kdp-mark { display: block; width: 28px; height: 26px; flex-shrink: 0; object-fit: contain; transition: transform var(--motion-normal) cubic-bezier(.22, 1, .36, 1); }
 .kdp-brand:hover .kdp-mark { transform: rotate(-3deg) scale(1.04); }
-.kdp-wordmark { color: var(--brand-graphite); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.kdp-wordmark { color: var(--brand-graphite); font-size: var(--text-body); font-weight: 700; letter-spacing: -.02em; }
 .kdp-wordmark-pi { color: var(--brand-orange); }
-.kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: 14px; font-weight: 400; letter-spacing: 0; }
+.kdp-wordmark small { margin-left: 6px; color: var(--kdp-muted); font-size: var(--text-small); font-weight: 400; letter-spacing: 0; }
 .kdp-nav { display: flex; align-items: center; gap: 32px; margin-inline: auto; font-size: 14px; font-weight: 500; }
 .kdp-header-action { display: flex; align-items: center; min-width: 0; justify-content: flex-end; font-size: 14px; }
 .kdp-header-action a { color: var(--color-action-hover); text-decoration: none; }
@@ -65,8 +65,8 @@ a { text-underline-offset: 4px; }
 .kdp-footer { border-top: 1px solid var(--kdp-line); background: var(--kdp-surface); }
 .kdp-footer-inner { display: flex; justify-content: space-between; gap: 24px; padding-block: 48px; }
 .kdp-footer .kdp-mark { width: 24px; height: 22px; }
-.kdp-footer .kdp-wordmark { font-size: 16px; }
-.kdp-footer .kdp-wordmark small { font-size: 12px; }
+.kdp-footer .kdp-wordmark { font-size: var(--text-body); }
+.kdp-footer .kdp-wordmark small { font-size: var(--text-caption); }
 .kdp-footer-note { margin: var(--space-2) 0 0 34px; font-size: var(--text-small); color: var(--kdp-muted); }
 .kdp-signature-note { letter-spacing: .3em; }
 .kdp-footer-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 28px; font-size: var(--text-small); }
@@ -166,8 +166,8 @@ a { text-underline-offset: 4px; }
 @media (max-width: 1023px) {
   .kdp-header-inner { min-height: 72px; gap: 16px; }
   .kdp-mark { width: 26px; height: 24px; }
-  .kdp-wordmark { font-size: 19px; }
-  .kdp-wordmark small { font-size: 12px; }
+  .kdp-wordmark { font-size: var(--text-body); }
+  .kdp-wordmark small { font-size: var(--text-caption); }
   .kdp-header-action { display: none; }
   .kdp-nav { display: none; }
   .kdp-mobile-nav { display: block; margin-left: auto; }
