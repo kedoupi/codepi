@@ -188,11 +188,13 @@ test('taxonomy pages, reading time, sources, neighbors and RSS render from publi
   await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-20T00:00:00.000Z' WHERE slug='first-post'").run();
   await f.blog.prepare("UPDATE blog_posts SET published_at='2026-10-21T00:00:00.000Z' WHERE slug='second-post'").run();
   const list = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
+  assert.match(list, /class="blog-list-section brand-page"/);
   assert.match(list, /分类：digital-space|分类：数字空间/);
   assert.match(list, /约 \d+ 分钟/);
   assert.match(list, /aria-current="true"/);
   assert.match(list, /rss\.xml/);
   const article = await (await worker.fetch('http://localhost:8804/blog/first-post/')).text();
+  assert.match(article, /class="blog-article-mount brand-page"/);
   assert.match(article, /blog-toc/);
   assert.match(article, /href="#h-1"/);
   assert.match(article, /资料来源/);
@@ -269,6 +271,7 @@ test('category empty state and missing cover follow brand blog structure', async
   await f.blog.prepare("UPDATE blog_posts SET body_html='<h2 id=\"h-1\">第一节</h2><p>正文</p><h2 id=\"h-2\">第二节</h2><p>结尾</p>' ,body_markdown='## 第一节\\n\\n正文\\n\\n## 第二节\\n\\n结尾' WHERE slug='fallback-post'").run();
   const article = await (await worker.fetch('http://localhost:8804/blog/fallback-post/')).text();
   assert.match(article, /blog-cover-fallback/);
+  assert.match(article, /class="blog-more" href="\/blog\/">浏览更多文章/);
   assert.doesNotMatch(article, /og:image/);
   assert.doesNotMatch(article, /示例占位/);
   assert.match(article, /blog-toc-mobile/);
