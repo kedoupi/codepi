@@ -241,6 +241,14 @@ try {
   });
   const mobileHeight = await page.evaluate(() => { const frame = document.querySelector('#blog-review-detail iframe'); const doc = frame.contentDocument; return { frame: Number.parseInt(frame.style.height, 10), document: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight), article: doc.querySelector('.blog-article').getBoundingClientRect().bottom + doc.documentElement.scrollTop }; });
   assert.ok(Math.abs(mobileHeight.frame - mobileHeight.document) <= 4, `mobile iframe height follows content (${JSON.stringify(mobileHeight)})`);
+  const mobileLayout = await page.evaluate(() => {
+    const toolbar = document.querySelector('#blog-review-detail .desk-detail-toolbar').getBoundingClientRect();
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const title = frame.contentDocument.querySelector('.blog-article h1').getBoundingClientRect();
+    return { toolbarHeight: toolbar.height, toolbarBottom: toolbar.bottom, viewportHeight: innerHeight, titleTop: title.top, titleBottom: title.bottom };
+  });
+  assert.ok(mobileLayout.toolbarHeight <= 80 && Math.abs(mobileLayout.toolbarBottom - mobileLayout.viewportHeight) <= 1, `mobile toolbar stays at viewport bottom: ${JSON.stringify(mobileLayout)}`);
+  assert.ok(mobileLayout.titleBottom > 0 && mobileLayout.titleTop < mobileLayout.viewportHeight, `mobile article title is visible: ${JSON.stringify(mobileLayout)}`);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-review-queue-column')).display), 'none', 'mobile preview hides list column');
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action]').textContent), '审核通过，上架');
   await page.screenshot({ path: 'desk-blog-preview-mobile.png' });
