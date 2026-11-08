@@ -59,18 +59,11 @@ are tracked in [the task](../../docs/development/tasks/2026-10-25-mcp-agent-comp
 
 ## Blog writing
 
-Blog tools support article/status reads, review feedback, inline image uploads (1 MiB),
-one-file raw PUT uploads (8 MiB), covers and revision-checked resubmission. Images are private until
-referenced by an owner-approved published snapshot. Updates leave the previous public revision live
-until review. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.
-A client that still sends the first `blog_submit` schema (one `tag`, no `cover_media_id`,
-`category` or `tags`) is served: `tags` comes from `tag`, the cover is the first image the article
-embeds and the category is left for the owner during review. A request without `tags` is served
-when it still names the old single `tag`, even if it also names a category. A request that names
-the new `tags` list is held to the published required list.
-The owning www Worker handles media validation/storage and serves images; MCP does not fetch arbitrary
-image URLs or bind the bucket. Full workflow and copyable Agent prompts: [Web README](../../apps/web/README.md#agent-写作与图片).
-Implementation/release evidence: [Blog task](../../docs/development/tasks/2026-10-26-blog-agent-images.md).
+Blog tools support article/status reads, reviewable submissions, inline image uploads (1 MiB), one-file raw PUT uploads (8 MiB), optional covers and revision-checked resubmission. Images are private until referenced by an owner-approved published snapshot. Updates leave the previous public revision live until the new submission is approved. Reuse existing `blog.read`/`blog.write` grants; writes never imply read access.
+
+`blog_submit` requires a category chosen from the fixed categories returned by `blog_guide`; a cover is optional. If omitted, the first embedded image becomes the cover when available, otherwise public consumers use the default placeholder. `blog_retract` withdraws only an unpublished pending draft.
+
+The owning www Worker handles media validation/storage and serves images; MCP does not fetch arbitrary image URLs or bind the bucket. Full workflow and copyable Agent prompts: [Web README](../../apps/web/README.md#agent-写作与图片).
 
 ## Local checks
 

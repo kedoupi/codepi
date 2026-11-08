@@ -120,7 +120,7 @@ test('blog_list is callable with blog.read alone; writes require blog.write', as
 
 test('blog_submit schema requires fields enforced by the Blog worker', () => {
   const submit = tools('blog.write').find(tool => tool.name === 'blog_submit');
-  assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'cover_media_id', 'category', 'tags']);
+  assert.deepEqual(submit.inputSchema.required, ['slug', 'title', 'summary', 'body_markdown', 'category', 'tags']);
 });
 
 test('blog inline image schema matches the shared one-MiB domain limit', async () => {
@@ -134,52 +134,21 @@ test('blog inline image schema matches the shared one-MiB domain limit', async (
   }), error => error.field === '/data_base64' && error.reason === 'maxLength');
 });
 
-test('a client on the first blog_submit schema still reaches the Blog worker', async () => {
+test('blog_submit accepts an optional cover and ignores is_test', async () => {
   const calls = [];
   const env = { BLOG: { async execute(request) { calls.push(request); return { ok: true, data: { slug: request.args.slug, revision: 1 } }; } } };
   const writer = ctx('blog.write');
-  // The first schema: one free-text tag, no cover, no category, no tags.
   await callTool(env, writer, 'blog_submit', {
-    slug: 'legacy-post', title: 'T', summary: 'S', tag: '生活感悟', body_markdown: 'body', request_id: 'r1',
+    slug: 'optional-cover', title: 'T', summary: 'S', body_markdown: 'body', category: 'tech', tags: ['合成'], is_test: true,
   });
-  assert.deepEqual(calls[0].args.tags, ['生活感悟']);
   assert.equal(calls[0].args.cover_media_id, undefined);
-  assert.equal(calls[0].args.category, undefined);
-  // Without a legacy tag the request still reaches the worker and leaves the
-  // tags empty instead of failing on a field the client never knew.
-  await callTool(env, writer, 'blog_submit', {
-    slug: 'legacy-post-2', title: 'T', summary: 'S', body_markdown: 'body', request_id: 'r2',
-  });
-  assert.equal(calls[1].args.tags, undefined);
-  // A current client keeps the published required list: one taxonomy field
-  // present is enough to hold it to the schema.
-  for (const missing of ['tags', 'category']) {
-    const args = { slug: 'current-post', title: 'T', summary: 'S', body_markdown: 'body',
-      cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech', tags: ['synthetic'] };
-    delete args[missing];
-    await assert.rejects(callTool(env, writer, 'blog_submit', args), error =>
-      error.code === 'invalid_arguments' && error.field === `/${missing}` && error.reason === 'required');
-  }
-  // An explicit null is a field the client could not name: it is dropped and
-  // left to the owner instead of failing the whole submission.
-  await callTool(env, writer, 'blog_submit', {
-    slug: 'null-category', title: 'T', summary: 'S', body_markdown: 'body',
-    cover_media_id: '12345678-1234-4234-8234-123456789012', category: null, tags: ['synthetic'],
-  });
-  assert.equal(calls[2].args.category, undefined);
-  assert.deepEqual(calls[2].args.tags, ['synthetic']);
-  await callTool(env, writer, 'blog_submit', {
-    slug: 'null-tags', title: 'T', summary: 'S', body_markdown: 'body', tag: '生活感悟', request_id: 'r3',
-  });
-  assert.deepEqual(calls[3].args.tags, ['生活感悟']);
-  assert.equal(calls[3].args.category, undefined);
-  // A client that names the category but still the old single tag is served.
-  await callTool(env, writer, 'blog_submit', {
-    slug: 'hybrid-post', title: 'T', summary: 'S', body_markdown: 'body', tag: '生活感悟',
-    cover_media_id: '12345678-1234-4234-8234-123456789012', category: 'tech',
-  });
-  assert.deepEqual(calls[4].args.tags, ['生活感悟']);
-  assert.equal(calls[4].args.category, 'tech');
+  assert.equal(calls[0].args.is_test, true);
+  await assert.rejects(callTool(env, writer, 'blog_submit', {
+    slug: 'missing-category', title: 'T', summary: 'S', body_markdown: 'body', tags: ['合成'],
+  }), error => error.code === 'invalid_arguments' && error.field === '/category' && error.reason === 'required');
+  await assert.rejects(callTool(env, writer, 'blog_submit', {
+    slug: 'missing-tags', title: 'T', summary: 'S', body_markdown: 'body', category: 'tech',
+  }), error => error.code === 'invalid_arguments' && error.field === '/tags' && error.reason === 'required');
 });
 
 test('argument failures identify schema paths and rules without exposing input', async () => {
@@ -190,7 +159,7 @@ test('argument failures identify schema paths and rules without exposing input',
     [{ ...submit, slug: 'Bad_Slug' }, '/slug', 'pattern'],
     [{ ...submit, title: '' }, '/title', 'minLength'],
     [{ ...submit, summary: 'x'.repeat(501) }, '/summary', 'maxLength'],
-    [{ ...submit, cover_media_id: null }, '/cover_media_id', 'type'],
+    [{ ...submit, cover_media_id: 1 }, '/cover_media_id', 'type'],
     [{ ...submit, base_revision: -1 }, '/base_revision', 'minimum'],
     [{ ...submit, is_test: 'false' }, '/is_test', 'type'],
     [{ ...submit, tags: [] }, '/tags', 'minItems'],

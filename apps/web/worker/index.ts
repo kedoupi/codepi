@@ -28,6 +28,12 @@ function sourcesMarkup(post: { sources: string | null }) {
 function fallbackCover(className: string) {
   return `<div class="${className} blog-cover-fallback" role="img" aria-label="汇聚图"><svg viewBox="0 0 640 272" aria-hidden="true" focusable="false"><path d="M24 32Q240 80 320 136T616 240M40 240Q230 180 320 136T600 32M120 8Q270 90 320 136T520 264M120 264Q270 180 320 136T520 8M8 136Q220 136 320 136T632 136"/><circle cx="320" cy="136" r="54"/><circle class="blog-cover-core" cx="320" cy="136" r="8"/></svg></div>`;
 }
+async function latestCover(env: Env, item: { cover_media_id: string | null }, className: string) {
+  if (!item.cover_media_id) return fallbackCover(className);
+  const media = await getMedia(env, item.cover_media_id);
+  if (!media) return fallbackCover(className);
+  return `<img class="${className}" src="${escape(mediaUrl(item.cover_media_id))}" alt="${escape(media.alt ?? "")}"${media.width && media.height ? ` width="${media.width}" height="${media.height}"` : ""} loading="lazy" decoding="async">`;
+}
 function coverCaption(bodyHtml: string, id: string) {
   const match = bodyHtml.match(new RegExp(`<img[^>]+src="/blog/media/${id}"[^>]*>\\s*<figcaption>([\\s\\S]*?)</figcaption>`));
   return match?.[1] ? `<figcaption>${match[1]}</figcaption>` : "";
@@ -63,7 +69,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     const minutes = readingMinutes(typeof item.body_chars === "number" ? item.body_chars : 0);
     const meta = `${item.category ? `<span>${escape(categoryName(item.category))}</span>` : item.tag ? `<span>${escape(item.tag)}</span>` : ""}<time datetime="${escape(item.published_at)}">${escape(item.published_at.slice(0, 10))}</time><span>约 ${minutes} 分钟</span>`;
     if (featured) return `<a href="/blog/${escape(item.slug)}/" class="blog-featured blog-card">${await coverImage(item, "blog-featured-cover blog-card-cover")}<div class="blog-featured-content"><div class="blog-card-meta">最新 · ${meta}</div><h2 class="blog-featured-title blog-card-title">${escape(item.title)}</h2><p class="blog-featured-summary">${escape(item.summary)}</p><span class="blog-card-action">阅读全文</span></div></a>`;
-    return `<a href="/blog/${escape(item.slug)}/" class="blog-row blog-card"><div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-row-summary">${escape(item.summary)}</p></div><span class="blog-row-meta">${meta}</span></a>`;
+    return `<a href="/blog/${escape(item.slug)}/" class="blog-row blog-card"><div><h2 class="blog-card-title">${escape(item.title)}</h2><p class="blog-row-summary">${escape(item.summary)}</p></div>${await coverImage(item, "blog-row-cover blog-card-cover")}<span class="blog-row-meta">${meta}</span></a>`;
   };
   const featured = listing?.posts[0] && page === 1 && !Object.keys(filter).length ? await cardMarkup(listing.posts[0], true) : "";
   const rows = listing ? await Promise.all(listing.posts.slice(featured ? 1 : 0).map(item => cardMarkup(item))) : [];
@@ -125,13 +131,17 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
 async function latest(env: Env) {
   let posts: LatestPost[] = [], failed = false;
   try { posts = await listLatestPublished(env.BLOG); } catch { failed = true; }
-  const body = JSON.stringify(posts.map(post => ({ slug: post.slug, title: post.title, summary: post.summary, category: post.category, reading_minutes: readingMinutes(post.body_chars ?? 0) })));
+  const entries = await Promise.all(posts.map(async post => ({ slug: post.slug, title: post.title, summary: post.summary, category: post.category, reading_minutes: readingMinutes(post.body_chars ?? 0), cover: await latestCover(env, post, "blog-latest-cover") })));
+  const body = JSON.stringify(entries);
   return new Response(body, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": failed ? "no-store" : "public, max-age=60, s-maxage=300" } });
 }
 async function rss(request: Request, env: Env) {
   const { posts } = await listPublished(env.BLOG, 0, 50);
   const origin = new URL(request.url).origin;
-  const items = posts.map(post => `<item><title>${escape(post.title)}</title><link>${origin}/blog/${escape(post.slug)}/</link><guid isPermaLink="true">${origin}/blog/${escape(post.slug)}/</guid><pubDate>${new Date(post.published_at).toUTCString()}</pubDate>${post.category ? `<category>${escape(post.category)}</category>` : ""}<description>${escape(post.summary)}</description></item>`).join("");
+  const items = (await Promise.all(posts.map(async post => {
+    const cover = await latestCover(env, post, "blog-rss-cover");
+    return `<item><title>${escape(post.title)}</title><link>${origin}/blog/${escape(post.slug)}/</link><guid isPermaLink="true">${origin}/blog/${escape(post.slug)}/</guid><pubDate>${new Date(post.published_at).toUTCString()}</pubDate>${post.category ? `<category>${escape(post.category)}</category>` : ""}<description><![CDATA[${escape(post.summary)}${cover}]]></description></item>`;
+  }))).join("");
   const body = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>kedoupi 博客</title><link>${origin}/blog/</link><description>整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。</description><language>zh-CN</language>${items}</channel></rss>`;
   return new Response(body, { headers: { "Content-Type": "application/rss+xml; charset=utf-8", "Cache-Control": "no-store" } });
 }

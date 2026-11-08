@@ -42,54 +42,36 @@ const seedDraft = (f, slug = 'public-post', status = 'pending', now = new Date()
   f.blog.prepare("INSERT INTO blog_drafts (slug,title,summary,body_markdown,body_html,status,client_id,revision,last_request_id,submitted_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
     .bind(slug, 'Draft Title', 'Draft summary', '# Draft body', '<h1>Draft body</h1>', status, 'test-client', 1, 'req-seed', now, now).run();
 
-test('submissions require a cover and report ratio or size warnings', async t => {
+test('submissions accept optional covers and report image warnings', async t => {
   const f = await deskFixture(t);
-  assert.deepEqual(await submit(f, draft({ cover_media_id: null })), { ok: false, error: 'cover_required', status: 400 });
-  const submitted = await submit(f, draft());
+  const submitted = await submit(f, draft({ cover_media_id: null }));
   assert.equal(submitted.ok, true);
-  // The 1x1 test PNG violates both the 2.35:1 ratio and the 1800px recommendation.
-  assert.equal(submitted.data.warnings.length, 2);
-  assert.match(submitted.data.warnings[0], /2\.35:1/);
-  assert.match(submitted.data.warnings[1], /1800/);
+  assert.deepEqual(submitted.data.warnings, []);
   const guide = await rpc(f, 'guide');
   assert.equal(guide.ok, true);
-  assert.equal(guide.data.guide.images.cover.required, true);
+  assert.equal(guide.data.guide.images.cover.required, false);
   assert.equal(guide.data.guide.images.cover.aspect_ratio, 2.35);
   assert.equal((await rpc(f, 'guide', {}, 'intruder')).status, 403);
 });
 
-test('test drafts skip the review queue and cannot be published until restored', async t => {
+test('is_test is accepted and ignored while Desk keeps the draft in the queue', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
-  const submitted = await submit(f, draft({ slug: 'test-only', is_test: true }));
+  const submitted = await submit(f, draft({ slug: 'compat-test', is_test: true, cover_media_id: null }));
   assert.equal(submitted.ok, true);
   const queue = await (await f.call('/api/blog/drafts', cookie)).json();
-  assert.deepEqual(queue.drafts, []);
-  const inactive = await (await f.call('/api/blog/drafts?view=archived', cookie)).json();
-  assert.deepEqual(inactive.drafts.map(item => item.slug), ['test-only']);
-  assert.equal(inactive.drafts[0].is_test, 1);
-  assert.deepEqual(await (await f.call('/api/blog/drafts/test-only/publish', cookie, { revision: 1 })).json(), { error: 'test_draft' });
-  assert.equal(await f.blog.prepare("SELECT COUNT(*) AS n FROM blog_drafts WHERE status='pending' AND is_test=0 AND archived_at IS NULL").first('n'), 0);
-  assert.equal((await f.call('/api/blog/drafts/test-only/restore', cookie, { revision: 1 })).status, 200);
-  const restored = await (await f.call('/api/blog/drafts', cookie)).json();
-  assert.deepEqual(restored.drafts.map(item => item.slug), ['test-only']);
-  assert.equal((await f.call('/api/blog/drafts/test-only/publish', cookie, { revision: 1 })).status, 200);
+  assert.deepEqual(queue.drafts.map(item => item.slug), ['compat-test']);
+  assert.equal(queue.drafts[0].is_test, 0);
+  assert.equal((await f.call('/api/blog/drafts/compat-test/publish', cookie, { revision: 1 })).status, 200);
 });
 
-test('archive and restore are revision-checked and keep drafts out of the queue', async t => {
+test('Desk exposes only the two review groups and publish/unpublish actions', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
-  await submit(f, draft({ slug: 'archivable' }));
-  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, {})).status, 400);
-  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 2 })).status, 409);
-  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 200);
-  assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts, []);
-  assert.deepEqual((await (await f.call('/api/blog/drafts/archivable/publish', cookie, { revision: 1 })).json()), { error: 'archived' });
-  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 404);
-  const inactive = await (await f.call('/api/blog/drafts?view=archived', cookie)).json();
-  assert.deepEqual(inactive.drafts.map(item => item.slug), ['archivable']);
-  assert.equal((await f.call('/api/blog/drafts/archivable/restore', cookie, { revision: 1 })).status, 200);
-  assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts.map(item => item.slug), ['archivable']);
-  assert.equal((await f.call('/api/blog/drafts/archivable/publish', cookie, { revision: 1 })).status, 200);
-  assert.equal((await f.call('/api/blog/drafts/archivable/archive', cookie, { revision: 1 })).status, 404);
+  await submit(f, draft({ slug: 'minimal-desk' }));
+  assert.equal((await f.call('/api/blog/categories', cookie)).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/minimal-desk/reject', cookie, { revision: 1 })).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/minimal-desk/archive', cookie, { revision: 1 })).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/minimal-desk/publish', cookie, { revision: 1 })).status, 200);
+  assert.equal((await f.call('/api/blog/posts/minimal-desk/unpublish', cookie, { revision: 1 })).status, 200);
 });
 
 test('submissions validate category, tags, series and sources', async t => {
@@ -116,31 +98,19 @@ test('submissions validate category, tags, series and sources', async t => {
   assert.ok(guide.data.guide.categories.some(category => category.slug === 'digital-space'));
 });
 
-test('a submission that cannot name a cover uses the first embedded image', async t => {
+test('optional covers use the first embedded image or the public placeholder', async t => {
   const f = await deskFixture(t);
   const image = await upload(f, '正文首图');
-  assert.equal(image.ok, true);
-  const body = `# 旧版客户端\n\n![正文首图](/blog/media/${image.data.id})\n\n正文内容。`;
-  // A client authorized before the cover and taxonomy fields existed sends
-  // neither: the cover falls back to the article's first image and the
-  // taxonomy is left to the owner during review.
-  const legacy = await rpc(f, 'submit', draft({ slug: 'legacy-cover', body_markdown: body,
-    cover_media_id: undefined, category: undefined, tags: undefined }));
-  assert.equal(legacy.ok, true);
-  const saved = await f.blog.prepare('SELECT cover_media_id,category,tags FROM blog_drafts WHERE slug=?').bind('legacy-cover').first();
+  const body = `# 文章\n\n![正文首图](/blog/media/${image.data.id})\n\n正文内容。`;
+  const embedded = await rpc(f, 'submit', draft({ slug: 'embedded-cover', body_markdown: body, cover_media_id: undefined }));
+  assert.equal(embedded.ok, true);
+  const saved = await f.blog.prepare('SELECT cover_media_id FROM blog_drafts WHERE slug=?').bind('embedded-cover').first();
   assert.equal(saved.cover_media_id, image.data.id);
-  assert.equal(saved.category, null);
-  assert.deepEqual(JSON.parse(saved.tags), []);
-  assert.ok(legacy.data.warnings.some(warning => /分类/.test(warning)), JSON.stringify(legacy.data.warnings));
-  // An article without any image has no cover either.
-  const withoutImage = await rpc(f, 'submit', draft({ slug: 'legacy-no-image', body_markdown: '# 只有文字',
-    cover_media_id: undefined, category: undefined, tags: undefined }));
-  assert.deepEqual(withoutImage, { ok: false, error: 'cover_required', status: 400 });
-  // The legacy single tag still becomes the tag list.
-  const tagged = await rpc(f, 'submit', draft({ slug: 'legacy-tagged', body_markdown: body, tag: '旧标签',
-    cover_media_id: undefined, category: undefined, tags: undefined }));
-  assert.equal(tagged.ok, true);
-  assert.deepEqual(JSON.parse(await f.blog.prepare('SELECT tags FROM blog_drafts WHERE slug=?').bind('legacy-tagged').first('tags')), ['旧标签']);
+  const textOnly = await rpc(f, 'submit', draft({ slug: 'text-only', body_markdown: '# 只有文字', cover_media_id: undefined }));
+  assert.equal(textOnly.ok, true);
+  assert.equal((await f.blog.prepare('SELECT cover_media_id FROM blog_drafts WHERE slug=?').bind('text-only').first()).cover_media_id, null);
+  const missingCategory = await rpc(f, 'submit', draft({ slug: 'missing-category', category: undefined, cover_media_id: undefined }));
+  assert.deepEqual(missingCategory, { ok: false, error: 'invalid_arguments', status: 400 });
 });
 
 test('an explicit empty tag list stays invalid while an omitted one is allowed', async t => {
@@ -154,26 +124,13 @@ test('an explicit empty tag list stays invalid while an omitted one is allowed',
   assert.deepEqual(JSON.parse(await f.blog.prepare('SELECT tags FROM blog_drafts WHERE slug=?').bind('omitted-tags').first('tags')), []);
 });
 
-test('desk manages categories and edits review metadata with revision checks', async t => {
+test('Desk does not expose category or metadata management', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
-  const initial = await (await f.call('/api/blog/categories', cookie)).json();
-  assert.equal(initial.categories.length, 6);
-  assert.equal((await f.call('/api/blog/categories', cookie, { slug: 'ai-weekly', name: 'AI 周报' })).status, 200);
-  await submit(f, draft({ slug: 'meta', category: 'ai-weekly', tags: ['初稿'] }));
-  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 400);
-  assert.equal((await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 2, category: 'tech', tags: ['改'] })).status, 409);
-  assert.deepEqual(await (await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 1, category: 'unknown', tags: ['改'] })).json(), { error: 'unknown_category' });
-  const updated = await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 1, category: 'tech', tags: ['改后', '审校'], series: '周报' });
-  assert.equal(updated.status, 200);
-  const saved = await f.blog.prepare('SELECT category,tags,series,revision FROM blog_drafts WHERE slug=?').bind('meta').first();
-  assert.equal(saved.category, 'tech'); assert.deepEqual(JSON.parse(saved.tags), ['改后', '审校']); assert.equal(saved.series, '周报'); assert.equal(saved.revision, 1);
-  assert.equal((await f.call('/api/blog/drafts/meta/publish', cookie, { revision: 1 })).status, 200);
-  const post = await f.blog.prepare('SELECT category,tags,series FROM blog_posts WHERE slug=?').bind('meta').first();
-  assert.equal(post.category, 'tech'); assert.deepEqual(JSON.parse(post.tags), ['改后', '审校']); assert.equal(post.series, '周报');
-  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 200);
-  assert.equal((await f.call('/api/blog/categories/ai-weekly/delete', cookie, {})).status, 404);
-  for (const slug of ['extra-one', 'extra-two']) assert.equal((await f.call('/api/blog/categories', cookie, { slug, name: slug })).status, 200);
-  assert.deepEqual(await (await f.call('/api/blog/categories', cookie, { slug: 'overflow', name: '超出' })).json(), { error: 'category_limit' });
+  await submit(f, draft({ slug: 'meta', category: 'tech', tags: ['初稿'] }));
+  assert.equal((await f.call('/api/blog/categories', cookie)).status, 404);
+  assert.equal((await f.call('/api/blog/categories', cookie, { slug: 'ai-weekly', name: 'AI 周报' })).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/meta/metadata', cookie, { revision: 1, category: 'tech', tags: ['改'] })).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/meta/revise', cookie, { revision: 1, title: '改' })).status, 404);
 });
 
 test('taxonomy pages, reading time, sources, neighbors and RSS render from published snapshots', async t => {
@@ -361,21 +318,17 @@ test('retract only withdraws pending drafts', async t => {
   assert.deepEqual(missing, { ok: false, error: 'not_found', status: 404 });
 });
 
-test('desk review publish reject and unpublish flow', async t => {
+test('Desk review keeps only publish and unpublish', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   await seedDraft(f, 'review');
   assert.equal((await f.call('/api/blog/drafts/review/publish', cookie, {})).status, 400);
   assert.equal((await f.call('/api/blog/drafts/review/publish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('review').all()).results[0].c, 1);
-  assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, {})).status, 400);
   assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, { revision: 2 })).status, 409);
   assert.equal((await f.call('/api/blog/posts/review/unpublish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('review').all()).results[0].c, 0);
   assert.equal((await f.blog.prepare('SELECT status FROM blog_drafts WHERE slug=?').bind('review').all()).results[0].status, 'pending');
-  const rejected = await f.call('/api/blog/drafts/review/reject', cookie, { revision: 1, note: 'Needs revision' });
-  assert.equal(rejected.status, 200);
-  assert.equal((await f.blog.prepare('SELECT review_note FROM blog_drafts WHERE slug=?').bind('review').all()).results[0].review_note, 'Needs revision');
-  assert.equal((await f.call('/api/blog/drafts/absent/publish', cookie, { revision: 1 })).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/review/reject', cookie, { revision: 1 })).status, 404);
 });
 
 test('publish and submit are compare-and-swap operations', async t => {
@@ -403,12 +356,11 @@ test('publish and submit are compare-and-swap operations', async t => {
   }
 });
 
-test('a rejected draft cannot be published', async t => {
+test('legacy rejected rows are no longer reviewable', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
-  await seedDraft(f, 'rejected-publish');
-  assert.equal((await f.call('/api/blog/drafts/rejected-publish/reject', cookie, { revision: 1, note: 'No' })).status, 200);
+  await seedDraft(f, 'rejected-publish', 'rejected');
+  assert.deepEqual((await (await f.call('/api/blog/drafts', cookie)).json()).drafts, []);
   assert.equal((await f.call('/api/blog/drafts/rejected-publish/publish', cookie, { revision: 1 })).status, 404);
-  assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_posts WHERE slug=?').bind('rejected-publish').all()).results[0].c, 0);
 });
 
 test('public routes render published only, preview shows drafts to the owner', async t => {
@@ -774,7 +726,7 @@ test('published edits keep the live snapshot and its images until revision-check
   assert.equal((await f.call(mediaPath(newImage))).status, 404);
   const stale = await f.call('/api/blog/drafts/hello-world/publish', cookie, { revision: 1 });
   assert.equal(stale.status, 409); assert.deepEqual(await stale.json(), { error: 'revision_conflict' });
-  assert.equal((await f.call('/api/blog/drafts/hello-world/reject', cookie, { revision: 1, note: 'stale' })).status, 409);
+  assert.equal((await f.call('/api/blog/drafts/hello-world/reject', cookie, { revision: 1, note: 'stale' })).status, 404);
   const cached = await (await worker.fetch('http://localhost:8804/blog/hello-world/')).text();
   assert.match(cached, /Original body/); assert.doesNotMatch(cached, /Edited body/);
   assert.equal((await f.call('/api/blog/drafts/hello-world/publish', cookie, { revision: 2 })).status, 200);
@@ -786,74 +738,37 @@ test('published edits keep the live snapshot and its images until revision-check
   assert.match(current, /Edited body/); assert.doesNotMatch(current, /Original body/);
 });
 
-test('list defaults to published and submissions expose filterable review statuses', async t => {
+test('list defaults to published and submissions omit rejected semantics', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
-  for (const slug of ['pending-post', 'rejected-post', 'withdrawn-post', 'published-post']) await submit(f, draft({ slug }));
-  assert.equal((await f.call('/api/blog/drafts/rejected-post/reject', cookie, { revision: 1, note: 'Needs work' })).status, 200);
+  for (const slug of ['pending-post', 'withdrawn-post', 'published-post']) await submit(f, draft({ slug }));
   assert.equal((await rpc(f, 'retract', { slug: 'withdrawn-post' })).ok, true);
   assert.equal((await f.call('/api/blog/drafts/published-post/publish', cookie, { revision: 1 })).status, 200);
   const published = await rpc(f, 'list');
   assert.deepEqual(published.data.posts.map(p => p.slug), ['published-post']);
   assert.equal(published.data.total, 1);
-  assert.deepEqual(await rpc(f, 'list', { view: 'published' }), published);
-  const all = await rpc(f, 'list', { view: 'submissions', limit: 2 });
-  assert.equal(all.data.total, 4); assert.equal(all.data.drafts.length, 2); assert.equal(all.data.next_offset, 2);
-  const next = await rpc(f, 'list', { view: 'submissions', offset: 2, limit: 2 });
-  assert.equal(next.data.next_offset, null);
-  assert.equal(new Set([...all.data.drafts, ...next.data.drafts].map(d => d.slug)).size, 4);
-  for (const status of ['pending', 'rejected', 'withdrawn', 'published']) {
+  const all = await rpc(f, 'list', { view: 'submissions' });
+  assert.equal(all.data.total, 3);
+  for (const status of ['pending', 'withdrawn', 'published']) {
     const filtered = await rpc(f, 'list', { view: 'submissions', status });
-    assert.equal(filtered.data.total, 1); assert.equal(filtered.data.drafts[0].status, status);
-    assert.equal(filtered.data.drafts[0].slug, `${status}-post`);
-    const read = await rpc(f, 'get', { slug: `${status}-post` });
-    assert.equal(read.data.status, status);
-    if (status === 'rejected') assert.equal(read.data.review_note, 'Needs work');
+    assert.equal(filtered.data.total, 1);
+    assert.equal(filtered.data.drafts[0].status, status);
   }
-  for (const args of [{ view: 'draft' }, { view: 'submissions', status: 'draft' }, { limit: 101 }, { offset: -1 }]) {
-    assert.deepEqual(await rpc(f, 'list', args), { ok: false, error: 'invalid_arguments', status: 400 });
-  }
+  assert.deepEqual(await rpc(f, 'list', { view: 'submissions', status: 'rejected' }), { ok: false, error: 'invalid_arguments', status: 400 });
+  const read = await rpc(f, 'get', { slug: 'pending-post' });
+  assert.equal("review_note" in read.data, false);
 });
 
-test('small edits create a revision snapshot and diff returns the previous text', async t => {
+test('submissions advance drafts without writing revision snapshots', async t => {
   const f = await deskFixture(t); const cookie = (await f.otpLogin('desk')).localCookie;
   assert.equal((await submit(f, draft({ slug: 'revise-me', title: '初稿', summary: '摘要', body_markdown: '# 第一段\n\n原文。' }))).ok, true);
-  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 1);
-  const firstDiff = await (await f.call('/api/blog/drafts/revise-me/diff', cookie)).json();
-  assert.equal(firstDiff.previous, null);
-  assert.equal(firstDiff.current.revision, 1);
-  assert.equal(firstDiff.current.title, '初稿');
-  assert.equal((await f.call('/api/blog/drafts/revise-me/diff')).status, 401);
-  assert.equal((await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 9, title: '过期' })).status, 409);
-  assert.equal((await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 1, title: '  ' })).status, 400);
-  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 1);
-  const revised = await f.call('/api/blog/drafts/revise-me/revise', cookie, {
-    revision: 1, title: '修订标题', summary: '新摘要', body_markdown: '# 第一段\n\n改后。<script>alert(1)</script>',
-  });
-  assert.equal(revised.status, 200);
-  assert.equal((await revised.json()).revision, 2);
-  const saved = await f.blog.prepare('SELECT title,summary,revision,body_html FROM blog_drafts WHERE slug=?').bind('revise-me').first();
-  assert.equal(saved.title, '修订标题');
-  assert.equal(saved.summary, '新摘要');
-  assert.equal(saved.revision, 2);
-  assert.match(saved.body_html, /id="h-1"/);
-  assert.match(saved.body_html, /改后/);
-  assert.doesNotMatch(saved.body_html, /<script/);
-  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 2);
-  const diff = await (await f.call('/api/blog/drafts/revise-me/diff', cookie)).json();
-  assert.equal(diff.current.revision, 2);
-  assert.equal(diff.current.title, '修订标题');
-  assert.equal(diff.previous.revision, 1);
-  assert.equal(diff.previous.title, '初稿');
-  assert.match(diff.previous.body_markdown, /原文/);
-  assert.equal((await f.call('/api/blog/drafts/revise-me/archive', cookie, { revision: 2 })).status, 200);
-  assert.deepEqual(await (await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 2, title: '不行' })).json(), { error: 'archived' });
-  assert.equal((await f.call('/api/blog/drafts/revise-me/restore', cookie, { revision: 2 })).status, 200);
-  const again = await submit(f, draft({ slug: 'revise-me', title: '再提交', request_id: 'again', base_revision: 2, body_markdown: '# 再来' }));
-  assert.equal(again.ok, true);
-  assert.equal(again.data.revision, 3);
-  assert.equal(await f.blog.prepare("SELECT title FROM blog_revisions WHERE slug='revise-me' AND revision=3").first('title'), '再提交');
-  assert.equal((await f.call('/api/blog/drafts/revise-me/publish', cookie, { revision: 3 })).status, 200);
-  assert.deepEqual(await (await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 3, title: '已发布' })).json(), { error: 'not_found' });
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 0);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/diff', cookie)).status, 404);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/revise', cookie, { revision: 1, title: '修订' })).status, 404);
+  const revised = await submit(f, draft({ slug: 'revise-me', title: '再提交', request_id: 'again', base_revision: 1, body_markdown: '# 再来' }));
+  assert.equal(revised.ok, true);
+  assert.equal(revised.data.revision, 2);
+  assert.equal(await f.blog.prepare('SELECT COUNT(*) AS n FROM blog_revisions WHERE slug=?').bind('revise-me').first('n'), 0);
+  assert.equal((await f.call('/api/blog/drafts/revise-me/publish', cookie, { revision: 2 })).status, 200);
 });
 
 test('blog summary reports publication and review counts', async t => {

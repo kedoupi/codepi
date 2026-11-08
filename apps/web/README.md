@@ -65,23 +65,18 @@ Health 统计 Asia/Shanghai 最近 7 个日历日（含今天），每指标独�
 
 可直接向 Agent 说：
 
-> 帮我写一篇关于……的博客。先查看我已有文章，避免重复；把我提供的图片上传，选择一张作封面，正文按内容放图并写图注。完成后提交审核，给我预览和审核入口。不要编造我的经历。
-
 改稿时说：
 
-> 查看文章 `<slug>` 的审核意见，读取当前修订，按意见修改后重新提交。保留已经公开的版本，等待我审核。
+> 查看文章当前修订，按文章内容重新提交。保留已经公开的版本，等待我在 Desk 通过上架新版。
 
 工具顺序：`blog_guide`（写作与配图规范）→ `blog_list(view=submissions)` → `blog_get` → 上传配图 → `blog_submit` → 主人在 `/desk/` 审核。`blog_get` 默认读取草稿，`view=published` 读取公开快照。长正文按 `next_offset` 读取，并沿用首屏 `revision` 作为 `expected_revision`，避免混合版本。`blog_list` 只返回摘要。
 
 - `blog_upload_image({data_base64,alt})`：PNG、JPEG、WebP，原文件不超过 1 MiB。传普通 base64，不带 `data:` 前缀；无法访问外部 PUT URL 的 Agent 也使用此方式。
 - `blog_create_image_upload({alt,bytes,content_type})`：原文件最多 8 MiB，返回十分钟有效的单次 PUT 地址及专用 headers；Agent 发送原文件字节（不是 multipart），HTTP 返回图片结果。不发送 MCP Bearer。没有 HTTP PUT 能力的 Agent 使用前一种方式。
-- 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 使用图片 id。每稿最多 30 张不同图片（含封面）。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
-- `blog_submit` 包含 `slug`、`title`、`summary`、`body_markdown`、`cover_media_id`、`category`、`tags`，可选 `tag`（旧单标签，映射进 tags）、`series`、`sources`。每篇必须有头图，建议 2.35:1、1800×766 或更大；比例或尺寸不达标不阻断提交，在返回的 `warnings` 中提示。`category` 只能取 `blog_guide` 返回的分类 slug（Desk「管理分类」维护，最多 8 个）；`tags` 1–5 个由 AI 提议；`sources` 为 `{title,url}`（仅 https），在文末「资料来源」展示。新文章可省略 `base_revision` 或传 `0`；更新已有稿件必须传 `blog_get` 返回的 `revision`，版本不一致会被拒绝。重试同一次提交沿用 `request_id`。`is_test=true` 仅用于联调：测试稿件不进入 Desk 审核队列、不能发布，恢复后才可审核。
-- 仍使用第一版 `blog_submit` schema 的旧 Agent（只有 `tag`，没有 `cover_media_id`/`category`/`tags`）仍可提交：`tags` 由 `tag` 派生，头图取正文第一张内联图片，分类留空并在 warnings 中提示审核时补齐；正文没有任何图片时仍报 `cover_required`。刷新 schema 后恢复为完整必填。
-- 前台：列表卡片为 2.35:1 头图、分类、标签与阅读时长；`/blog/?category=<slug>` 分类筛选，`/blog/tag/<标签>/`、`/blog/series/<系列>/` 标签与系列页；文章页含目录、阅读时长、上一篇/下一篇、文末资料来源与 AI 协作说明；`/blog/rss.xml` 提供最近 50 篇 RSS。
-- Desk 待审卡片可直接修改分类、标签与系列（`POST /api/blog/drafts/:slug/metadata`，需 `{revision}`，不改变修订号）；分类通过 `/api/blog/categories` 维护，只有无稿件引用的分类可删除。
-- Desk 审核卡片可展开阅读全文与配图（含 Mermaid），无需跳转预览；待审或已拒绝稿件可归档，`/api/blog/drafts?view=archived` 列出测试与已归档稿件，`POST /api/blog/drafts/:slug/archive|restore` 均需 `{revision}`。归档稿件不能发布；重新提交会清掉归档与测试标记并回到审核队列。
-- 图表使用 ` ```mermaid ` 代码块。文章页和草稿预览按需渲染 SVG，并保留可展开的 Mermaid 源码；渲染失败时显示提示和原始代码。已有稿件无需为图表支持重新提交。
+- 两种方式都返回 `id`、`url`、`markdown`、宽高。正文使用返回的 Markdown，图片 title 可写图注，如 `![描述](/blog/media/<id> "图注")`；`cover_media_id` 可选。每稿最多 30 张不同图片。外部图片先由 Agent 下载再上传；不支持 SVG 或外部热链。
+- `blog_submit` 的分类必填，模型按文章内容从 `blog_guide` 返回的固定分类表中选择；封面可选，无封面时优先取正文第一张图，没有配图则使用默认占位图。比例或尺寸不达标仅在 `warnings` 中提示。
+- 前台：列表卡片为 2.35:1 头图或默认占位图、分类、标签与阅读时长；`/blog/?category=<slug>` 分类筛选，`/blog/tag/<标签>/`、`/blog/series/<系列>/` 标签与系列页；文章页含目录、阅读时长、上一篇/下一篇、文末资料来源与 AI 协作说明；`/blog/rss.xml` 提供最近 50 篇 RSS。
+- Desk 待审与已上架分两组，预览只读显示标题、自动分类、封面、正文配图和资料来源；待审稿件仅可「通过上架」，已上架文章仅可「下架」。已上架文章有新版待审时，待审组提示「已上架 · 有新版待审」和「线上仍是旧版，通过后替换」。
 - 提交返回 `pending`、`preview_url`、`review_url`。预览及未发布图片要求本人登录。公开文章采用已审核快照，后续改稿不直接改公开内容。`blog_retract` 仅撤回待审核版本。
 
 图片存储使用私有 `BLOG_MEDIA` R2，每次读取核对是否被正式文章引用。未发布图片本人可读；下架或替换后失去公开引用的图片不再公开，响应均 `no-store`。已经被下载的公开图片无法收回。数据库索引和原件纳入 Ops v4 备份；没有自动删除原件。
