@@ -1,6 +1,6 @@
 # Shared SSO client
 
-Raw TypeScript source imported by GU, Health, GZH, the personal desk, Project, Me and CodePi MCP. This
+Raw TypeScript source imported by GU, Health, the personal desk, Project, Me and CodePi MCP. This
 directory is not a package and introduces no runtime dependency. Keep application
 roles, data access and provider OAuth in the individual applications.
 

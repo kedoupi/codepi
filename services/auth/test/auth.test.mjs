@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, cookie, authOrigin, clients } from './runtime.mjs';
 
-test('opt-in MCP registration preserves four existing clients and validates its exact callback', async t => {
+test('opt-in MCP registration preserves three existing clients and validates its exact callback', async t => {
   const f = await fixture(t, { SSO_CLIENT_SECRET_MCP: 'synthetic-mcp-' + 'x'.repeat(32) });
   const params = new URLSearchParams({
     client_id: 'mcp', redirect_uri: 'https://mcp.codepi.app/api/auth/callback',
@@ -16,13 +16,28 @@ test('opt-in MCP registration preserves four existing clients and validates its 
   assert.equal((await f.begin('gu')).response.status, 200);
 });
 
-test('real service bindings: one OTP signs into four sites; one logout revokes all, but not another browser', async t => {
+test('retired gzh registry entry is ignored while current clients still log in', async t => {
+  const registry = {
+    ...clients,
+    gzh: { name: 'retired-gzh', secret: 'retired-gzh-' + 'x'.repeat(32),
+      redirectUris: ['http://localhost:8899/api/auth/callback'] },
+  };
+  const f = await fixture(t, { SSO_CLIENTS: JSON.stringify(registry) });
+  assert.equal((await f.begin('gu')).response.status, 200);
+  const params = new URLSearchParams({
+    client_id: 'gzh', redirect_uri: registry.gzh.redirectUris[0],
+    state: 'x'.repeat(43), code_challenge: 'y'.repeat(43), code_challenge_method: 'S256',
+  });
+  assert.equal((await f.auth.fetch(authOrigin + '/authorize?' + params, { redirect: 'manual' })).status, 400);
+});
+
+test('real service bindings: one OTP signs into three sites; one logout revokes all, but not another browser', async t => {
   const f = await fixture(t);
   const oura = await f.otpLogin();
   assert.equal(oura.finished.status, 303);
   assert.equal(oura.finished.headers.get('Location'), '/private');
   const logged = [oura];
-  for (const id of ['gu', 'gzh', 'desk']) {
+  for (const id of ['gu', 'desk']) {
     const tx = await f.begin(id, oura.centralCookie);
     assert.equal(tx.response.status, 302, 'existing center session bypasses OTP');
     const done = await tx.app.fetch(tx.response.headers.get('Location'), { headers: { Cookie: tx.appCookie }, redirect: 'manual' });
@@ -80,7 +95,7 @@ test('browser binding, same-origin POST and strict redirect registration are req
 
 test('login page shows product names instead of internal client ids', async t => {
   const f = await fixture(t);
-  for (const [id, label] of [['oura', '健康 Health'], ['gzh', '公众号 GZH']]) {
+  for (const [id, label] of [['oura', '健康 Health']]) {
     const { response } = await f.begin(id);
     assert.equal(response.status, 200, id);
     assert.ok((await response.text()).includes(label), id);
@@ -218,7 +233,7 @@ test('PKCE/client/code binding, expired codes, replay and cross-client reference
   assert.deepEqual(await (await f.internal('oura', 'session', { session_ref })).json(), { active: false });
   assert.equal((await f.internal('oura', 'logout', { session_ref })).status, 200);
   assert.equal((await (await f.internal('gu', 'session', { session_ref })).json()).active, true);
-  const expiring = await f.begin('gzh', original.centralCookie);
+  const expiring = await f.begin('gu', original.centralCookie);
   await f.db.prepare('UPDATE auth_codes SET expires_at=0').run();
   assert.equal((await expiring.app.fetch(expiring.response.headers.get('Location'), {
     headers: { Cookie: expiring.appCookie }, redirect: 'manual',
@@ -251,7 +266,7 @@ test('per-client secret rotation preserves the registry, callbacks and unaffecte
   }, { bindings: Object.fromEntries(Object.entries(rotated).map(([id, secret]) => [id, { AUTH_CLIENT_SECRET: secret }])) });
   const owner = await f.otpLogin('oura');
   assert.equal(owner.finished.status, 303);
-  for (const id of ['gu', 'desk', 'gzh']) {
+  for (const id of ['gu', 'desk']) {
     const tx = await f.begin(id, owner.centralCookie);
     assert.equal(tx.response.status, 302, id);
     const done = await tx.app.fetch(tx.response.headers.get('Location'), {

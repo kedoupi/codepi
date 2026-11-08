@@ -1,11 +1,11 @@
 # KDP unified login
 
-`codepi-auth` is the first-party login Worker for Health, GU, GZH, the personal desk, CodePi MCP, Project and Me. It accepts no
+`codepi-auth` is the first-party login Worker for Health, GU, the personal desk, CodePi MCP, Project and Me. It accepts no
 registration or arbitrary email address. The owner email remains server-side.
 
 The product brand is **kedoupi（codepi）**, defined in `packages/shared/brand.ts`.
 `packages/shared/email/otp.ts` supplies the shared HTML/text OTP template for the center
-and GU/gzh legacy mail paths. It retains the configured verified sender address
+and GU legacy mail paths. It retains the configured verified sender address
 and sets the common brand as its display name. Never duplicate OTP templates per app.
 
 ## Configuration
@@ -28,7 +28,7 @@ both sources. Keep synthetic local callbacks separate from production; staging i
 and dated verification evidence are in the [CF resource registry](../../docs/development/cloudflare-resource-registry.md).
 
 Optional per-client secrets `SSO_CLIENT_SECRET_GU`, `SSO_CLIENT_SECRET_OURA`,
-`SSO_CLIENT_SECRET_GZH`, `SSO_CLIENT_SECRET_DESK`, `SSO_CLIENT_SECRET_MCP`,
+`SSO_CLIENT_SECRET_DESK`, `SSO_CLIENT_SECRET_MCP`,
 `SSO_CLIENT_SECRET_PROJECT` and `SSO_CLIENT_SECRET_ME` override only the matching
 registered client's secret. An absent override retains `SSO_CLIENTS.secret` for
 existing clients; an empty or short override fails closed. Callback registration
@@ -76,7 +76,7 @@ the MCP service's own checks cover its protocol, RPC and browser authorization f
 
 `scripts/verify-production.mjs` is an explicit live acceptance script, not the
 current release entry. It sends one owner OTP, reads mail through Resend, and
-checks all seven current SSO clients plus global logout. It covers the canonical
+checks all six current SSO clients plus global logout. It covers the canonical
 Workers origins only, including Desk's `/api/desk/me` and MCP's `/connections`;
 it does not use retired Pages origins or read private business payloads.
 `AUTH_ACCEPTANCE_OWNER_EMAIL` and `RESEND_API_KEY` must be supplied at runtime.
@@ -136,7 +136,7 @@ is historical context, not the current resource inventory or release procedure.
 
 ## Project / Me opt-in clients
 
-Public metadata and allowed client IDs live in `packages/shared/auth/clients.ts`, the single list of all seven clients.
+Public metadata and allowed client IDs live in `packages/shared/auth/clients.ts`, the single list of all six clients.
 `SSO_CLIENT_SECRET_PROJECT` / `SSO_CLIENT_SECRET_ME` enable their exact production callbacks;
 missing optional secrets leave existing clients unchanged, explicitly empty/short secrets fail closed.
 Pair each with its own Worker `AUTH_CLIENT_SECRET` only during an authorized initialization/rotation.

@@ -14,7 +14,6 @@ export interface Env {
   SSO_CLIENTS: string;
   SSO_CLIENT_SECRET_GU?: string;
   SSO_CLIENT_SECRET_OURA?: string;
-  SSO_CLIENT_SECRET_GZH?: string;
   SSO_CLIENT_SECRET_DESK?: string;
   SSO_CLIENT_SECRET_MCP?: string;
   SSO_CLIENT_SECRET_PROJECT?: string;
@@ -25,6 +24,7 @@ export interface Env {
   ENVIRONMENT: string;
 }
 type Client = { secret: string; name: string; redirectUris: string[] };
+const RETIRED_CLIENT_IDS: Record<string, true> = { gzh: true };
 /**
  * Login-page product names. The registry `name` is a write-only secret value that
  * cannot be edited in place, so product display names are applied here instead.
@@ -68,6 +68,7 @@ function configuration(env: Env): Config {
       || !env.SESSION_SECRET || !env.OTP_PEPPER) throw new Error();
     const clients = JSON.parse(env.SSO_CLIENTS) as Record<string, Client>;
     if (!clients || Array.isArray(clients) || typeof clients !== "object" || !Object.keys(clients).length) throw new Error();
+    for (const id of Object.keys(RETIRED_CLIENT_IDS)) delete clients[id];
     // New clients are opt-in; existing registries and per-client overrides retain their behavior.
     for (const [id, entry] of Object.entries(SSO_CLIENTS)) {
       const secret = env[entry.secret];
@@ -79,6 +80,7 @@ function configuration(env: Env): Config {
     const extra: unknown = JSON.parse(env.SSO_EXTRA_REDIRECT_URIS || "{}");
     if (!extra || typeof extra !== "object" || Array.isArray(extra)) throw new Error();
     for (const [id, uris] of Object.entries(extra)) {
+      if (Object.hasOwn(RETIRED_CLIENT_IDS, id)) continue;
       if (!Object.hasOwn(clients, id) && isSsoClientId(id)) {
         const entry = SSO_CLIENTS[id];
         // Planned clients may declare their one public callback before their

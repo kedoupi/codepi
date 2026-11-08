@@ -82,12 +82,12 @@ test('production SSO acceptance covers all current clients and global logout wit
   await verifyProduction({
     owner: 'owner@example.invalid', fetchImpl, sleep: async () => {}, log: line => output.push(line),
   });
-  assert.deepEqual(Object.keys(clients), ['gu', 'oura', 'gzh', 'desk', 'mcp', 'project', 'me']);
+  assert.deepEqual(Object.keys(clients), ['gu', 'oura', 'desk', 'mcp', 'project', 'me']);
   assert.equal(requests.filter(request => new URL(request.url).pathname === '/api/auth/request-otp').length, 1);
   assert.equal(requests.filter(request => new URL(request.url).pathname === '/api/auth/verify-otp').length, 1);
   for (const id of Object.keys(clients)) {
     assert.ok(requests.some(request => new URL(request.url).href === clients[id].origin + '/api/auth/callback?code=synthetic-' + id));
     assert.ok(output.includes(`PASS ${id}: global logout observed`));
   }
-  assert.equal(output.at(-1), 'PRODUCTION_SSO_VERIFIED: one real OTP, all seven current clients, global logout');
+  assert.equal(output.at(-1), 'PRODUCTION_SSO_VERIFIED: one real OTP, all six current clients, global logout');
 });
