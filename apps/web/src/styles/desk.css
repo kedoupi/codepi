@@ -697,6 +697,7 @@
 .desk-blog-tab[aria-selected="true"]::after { background: var(--kdp-accent); }
 .desk-blog-categories { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 24px; }
 .desk-blog-category { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--kdp-line); border-radius: 999px; background: var(--kdp-surface); color: var(--kdp-text); font: inherit; font-size: var(--text-small); cursor: pointer; white-space: nowrap; }
+.desk-blog-category-zero { border-color: var(--kdp-line); background: var(--kdp-canvas); color: var(--kdp-muted); }
 .desk-blog-category[aria-pressed="true"] { border-color: var(--kdp-text); background: var(--kdp-text); color: var(--kdp-surface); }
 .desk-review-workspace[data-view="list"] { display: block; }
 .desk-review-workspace[data-view="list"] .desk-detail { display: none; }

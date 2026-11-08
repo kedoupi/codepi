@@ -15,7 +15,7 @@ const sourceList = (value?: string | null): Array<{ title: string; url: string }
 const time = (value: string | null) => value ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "尚无记录";
 let queueItems: ReviewItem[] = [], publishedItems: ReviewItem[] = [], pendingMeta = { total: 0, page: 1, pages: 1, counts: {} as Record<string, number> }, publishedMeta = { total: 0, page: 1, pages: 1, counts: {} as Record<string, number> }, selectedSlug: string | null = previewSlug, active = false, generation = 0, previewCleanup: (() => void) | null = null;
 const pageSize = 20;
-const categories = ["数字空间", "健康记录", "投资观察", "内容工作", "技术实践", "生活随笔"];
+const categories = ["digital-space", "health", "investing", "content", "tech", "life"] as const;
 const listQuery = new URLSearchParams(typeof location === "undefined" ? "" : location.search);
 let activeTab: "pending" | "published" = listQuery.get("tab") === "published" ? "published" : "pending";
 let activeCategory = listQuery.get("category") ?? "";
@@ -83,7 +83,7 @@ function renderListRow(item: ReviewItem, published: boolean, live = false) {
   content.append(node("strong", item.title, "desk-queue-title"));
   const meta = node("span", "", "desk-review-list-meta");
   meta.append(node("span", item.category ? categoryNames[item.category] ?? item.category : "未分类", "desk-blog-chip"));
-  meta.append(node("span", published ? "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-blog-chip desk-blog-chip-status"));
+  meta.append(node("span", published ? live ? "有新版待审" : "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-blog-chip desk-blog-chip-status"));
   meta.append(node("span", time(item.updated_at), "desk-queue-meta"));
   content.append(meta);
   link.append(content, node("span", published ? "查看 ›" : "去审核 ›", "desk-review-go"));
@@ -105,7 +105,7 @@ function renderLists() {
   const tabs = el("blog-review-tabs");
   tabs.replaceChildren(...[["pending", `待审 ${pendingMeta.total}`], ["published", `已上架 ${publishedMeta.total}`]].map(([value, label]) => { const button = node("button", label, "desk-blog-tab"); button.type = "button"; button.dataset.tab = value; button.setAttribute("role", "tab"); button.setAttribute("aria-selected", String(value === activeTab)); button.addEventListener("click", () => { activeTab = value as "pending" | "published"; activeCategory = ""; activePage = 1; pushListState(); void loadReview(); }); return button; }));
   const categoriesEl = el("blog-review-categories");
-  categoriesEl.replaceChildren(...["全部", ...categories].map(category => { const count = category === "全部" ? meta.total : meta.counts[Object.entries(categoryNames).find(([, name]) => name === category)?.[0] ?? category] ?? 0; const button = node("button", `${category} ${count}`, "desk-blog-category"); button.type = "button"; button.setAttribute("aria-pressed", String(category === "全部" ? !activeCategory : activeCategory === category)); button.addEventListener("click", () => { activeCategory = category === "全部" ? "" : category; activePage = 1; pushListState(); void loadReview(); }); return button; }));
+  categoriesEl.replaceChildren(...["", ...categories].map(category => { const name = category ? categoryNames[category] : "全部"; const count = category ? meta.counts[category] ?? 0 : meta.total; const button = node("button", `${name} ${count}`, "desk-blog-category"); button.type = "button"; button.dataset.category = category; button.setAttribute("aria-pressed", String(category ? activeCategory === category : !activeCategory)); if (category && count === 0) button.classList.add("desk-blog-category-zero"); button.addEventListener("click", () => { activeCategory = category; activePage = 1; pushListState(); void loadReview(); }); return button; }));
   const pager = el("blog-review-pagination");
   pager.replaceChildren();
   if (meta.pages > 1) {
@@ -275,6 +275,8 @@ async function initialize() {
   catch (error) { if (!(error instanceof SessionExpired)) showLoginPage(); }
 }
 if (typeof document !== "undefined") {
+  el("blog-drafts-list").addEventListener("click", event => { const target = event.target; if (target instanceof HTMLElement) { const row = target.closest<HTMLAnchorElement>("[data-slug]"); if (row) { event.preventDefault(); window.location.href = row.href; } } });
+  el("blog-published-list").addEventListener("click", event => { const target = event.target; if (target instanceof HTMLElement) { const row = target.closest<HTMLAnchorElement>("[data-slug]"); if (row) { event.preventDefault(); window.location.href = row.href; } } });
   el("blog-review-detail").addEventListener("click", reviewAction);
   el("blog-review-status").setAttribute("aria-live", "polite");
   const retry = node("button", "↻ 重新读取", "desk-text-button desk-blog-retry");

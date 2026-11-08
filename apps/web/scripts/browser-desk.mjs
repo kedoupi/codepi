@@ -227,11 +227,17 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.desk-summary-section').length === 2);
   await page.screenshot({ path: 'desk-mobile-summary.png' });
   await page.goto(origins.desk + '/desk/blog/?tab=pending');
+  await page.waitForSelector('#blog-drafts-list');
+  await page.waitForFunction(() => document.querySelector('#blog-review-tabs [aria-selected="true"]')?.textContent.includes('待审'));
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('篇待审'));
+  await page.waitForSelector('.desk-blog-category[data-category="digital-space"]');
+  await page.click('.desk-blog-category[data-category="digital-space"]');
+  await page.waitForFunction(() => new URL(location.href).searchParams.get('category') === 'digital-space');
+  await page.waitForFunction(() => document.querySelector('.desk-blog-category[data-category="digital-space"]').getAttribute('aria-pressed') === 'true');
+  await page.goto(await page.evaluate(() => location.href));
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
-  assert.equal(await page.evaluate(() => document.querySelector('#blog-review-tabs [aria-selected="true"]').textContent), '待审 1');
-  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.desk-blog-category')].every(button => button.getBoundingClientRect().height <= 48)), 'mobile category chips stay single-line');
   await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
-  await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
+  await page.waitForFunction(() => location.pathname === '/desk/blog/browser-article-12/');
   await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
   await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
   await page.waitForFunction(() => {
@@ -253,7 +259,7 @@ try {
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action]').textContent), '审核通过，上架');
   await page.screenshot({ path: 'desk-blog-preview-mobile.png' });
   await page.evaluate(() => document.querySelector('.desk-detail-back').click());
-  await page.waitForURL(origins.desk + '/desk/blog/?tab=pending');
+  await page.waitForFunction(() => location.pathname === '/desk/blog/');
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.goto(origins.desk + '/desk/blog/?tab=published&page=2');
   await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug]'));

@@ -87,6 +87,7 @@ test('Desk review APIs validate pagination and return tab counts', async t => {
   assert.equal(pending.total, 1);
   assert.equal(pending.page, 1);
   assert.equal(pending.counts.tech, 1);
+  assert.equal(pending.counts.life, 1);
   await seedPost(f, 'review-page-a');
   const pendingAll = await (await f.call('/api/blog/drafts?tab=pending&page=1', cookie)).json();
   assert.equal(pendingAll.drafts.find(item => item.slug === 'review-page-a').has_live, 1);

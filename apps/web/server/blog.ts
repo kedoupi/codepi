@@ -182,8 +182,9 @@ export async function listDrafts(db: D1Database) { return (await db.prepare("SEL
 export const BLOG_REVIEW_CATEGORIES = ["digital-space", "health", "investing", "content", "tech", "life"] as const;
 type ReviewCategory = typeof BLOG_REVIEW_CATEGORIES[number];
 const reviewPage = (value: number, total: number) => Math.min(value, Math.max(1, Math.ceil(total / 20)));
-async function reviewCounts(db: D1Database, table: "blog_drafts" | "blog_posts", where: string, values: string[]) {
-  const rows = (await db.prepare(`SELECT category,COUNT(*) AS count FROM ${table}${where} GROUP BY category`).bind(...values).all<{ category: string | null; count: number }>()).results;
+async function reviewCounts(db: D1Database, table: "blog_drafts" | "blog_posts") {
+  const where = table === "blog_drafts" ? " WHERE status='pending'" : "";
+  const rows = (await db.prepare(`SELECT category,COUNT(*) AS count FROM ${table}${where} GROUP BY category`).all<{ category: string | null; count: number }>()).results;
   return Object.fromEntries(BLOG_REVIEW_CATEGORIES.map(category => [category, rows.find(row => row.category === category)?.count ?? 0]));
 }
 export async function listReviewDrafts(db: D1Database, page = 1, category?: ReviewCategory) {
@@ -192,7 +193,7 @@ export async function listReviewDrafts(db: D1Database, page = 1, category?: Revi
   const total = await db.prepare(`SELECT COUNT(*) AS count FROM blog_drafts${where}`).bind(...values).first<number>("count") ?? 0;
   const currentPage = reviewPage(page, total);
   const drafts = (await db.prepare(`SELECT slug,title,summary,cover_media_id,category,revision,updated_at,sources,is_test,EXISTS(SELECT 1 FROM blog_posts WHERE blog_posts.slug=blog_drafts.slug) AS has_live FROM blog_drafts${where} ORDER BY updated_at DESC,slug LIMIT 20 OFFSET ?`).bind(...values, (currentPage - 1) * 20).all()).results;
-  return { drafts, total, page: currentPage, pages: Math.max(1, Math.ceil(total / 20)), counts: await reviewCounts(db, "blog_drafts", where, values) };
+  return { drafts, total, page: currentPage, pages: Math.max(1, Math.ceil(total / 20)), counts: await reviewCounts(db, "blog_drafts") };
 }
 export async function listReviewPosts(db: D1Database, page = 1, category?: ReviewCategory) {
   const where = category ? " WHERE category=?" : "";
@@ -200,7 +201,7 @@ export async function listReviewPosts(db: D1Database, page = 1, category?: Revie
   const total = await db.prepare(`SELECT COUNT(*) AS count FROM blog_posts${where}`).bind(...values).first<number>("count") ?? 0;
   const currentPage = reviewPage(page, total);
   const posts = (await db.prepare(`SELECT slug,title,summary,cover_media_id,category,revision,updated_at,sources FROM blog_posts${where} ORDER BY published_at DESC,slug LIMIT 20 OFFSET ?`).bind(...values, (currentPage - 1) * 20).all()).results;
-  return { posts, total, page: currentPage, pages: Math.max(1, Math.ceil(total / 20)), counts: await reviewCounts(db, "blog_posts", where, values) };
+  return { posts, total, page: currentPage, pages: Math.max(1, Math.ceil(total / 20)), counts: await reviewCounts(db, "blog_posts") };
 }
 export async function getPost(db: D1Database, slug: string) { return row(await db.prepare("SELECT * FROM blog_posts WHERE slug=?").bind(slug).all<Post>()); }
 export async function publishDraft(db: D1Database, slug: string, origin?: string, expectedRevision?: number) {
