@@ -120,6 +120,12 @@
 .blog-article .blog-article-nav b { font-size: var(--text-h3); font-weight: 600; line-height: 1.35; letter-spacing: -.01em; }
 .blog-article .blog-article-footer > .blog-more { display: inline-flex; align-items: center; min-height: 44px; margin-top: var(--space-6); color: var(--color-action-hover); font-size: var(--text-small); text-decoration: none; }
 .blog-article .blog-article-footer > .blog-more::after { content: " ›"; }
+@media (max-width: 1183px) {
+  .blog-article-reading { display: block; }
+  .blog-article-column { max-width: 720px; margin-inline: auto; }
+  .blog-article .blog-toc-desktop { display: none; }
+  .blog-article .blog-toc-mobile { display: block; }
+}
 @media (max-width: 720px) {
   .blog-page { gap: var(--space-8); }
   .blog-page .blog-heading { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
