@@ -5,7 +5,7 @@
 ## 当前边界
 
 - 仅通过 `GU -> GuMaterialsBackup`、`ME -> MeImportsBackup`、`BLOG -> BlogMediaBackup` 三个只读 named RPC 获取已索引原件；不绑定业务 D1、业务 R2、Auth 或恢复私钥。
-- 私有 R2 仅保存公钥加密的备份和非敏感运维报告。v4 完整备份的九库与 GU/Me/Blog 三组原件契约由 [`scripts/cloudflare/backup-core.mjs`](../../scripts/cloudflare/backup-core.mjs) 唯一维护。
+- 私有 R2 仅保存公钥加密的备份和非敏感运维报告。v4 完整备份的八库与 GU/Me/Blog 三组原件契约由 [`scripts/cloudflare/backup-core.mjs`](../../scripts/cloudflare/backup-core.mjs) 唯一维护。
 - 本地 Wrangler 配置、源码和日期化任务记录不证明当前生产资源、备份实例或外部灾备副本存在；这些状态须按控制面和回执单独核验。
 
 ## 开发

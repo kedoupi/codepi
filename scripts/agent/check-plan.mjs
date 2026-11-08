@@ -10,9 +10,6 @@ export const packageCommands = {
     { name: 'test', tier: 'quick' }, { name: 'test:scripts', tier: 'quick' }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'check:deploy', after: 'build', args: ['--mode', 'config'], tier: 'full' },
   ] },
-  gzh: { name: 'publish-desk', cwd: 'apps/gzh', commands: [
-    { name: 'test', tier: 'quick' }, { name: 'typecheck', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
-  ] },
   health: { name: 'health-kdp', cwd: 'apps/health', commands: [
     { name: 'test', tier: 'quick', locks: ['health-api-dist'] }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'test:assets', after: 'build', tier: 'full', locks: ['health-api-dist'] },
@@ -69,10 +66,10 @@ export const specialRules = [
   { prefixes: ['packages/shared/'], apps: allApps, sharedAuth: true },
 ];
 
-export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml', 'apps/gzh/wrangler.toml',
+export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml',
   'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'apps/rhythm/wrangler.toml', 'services/auth/wrangler.jsonc',
   'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
-export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/', 'apps/gzh/migrations/',
+export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/',
   'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
 
 export function packageCheck(app, command) {

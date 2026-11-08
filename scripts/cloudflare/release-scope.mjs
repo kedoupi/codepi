@@ -1,5 +1,5 @@
 export const WORKERS = {
-  auth: 'codepi-auth', web: 'codepi-www', gu: 'codepi-gu', gzh: 'codepi-gzh',
+  auth: 'codepi-auth', web: 'codepi-www', gu: 'codepi-gu',
   project: 'codepi-project', me: 'codepi-me', rhythm: 'codepi-rhythm',
   'health-api': 'codepi-health-api', 'health-web': 'codepi-health', mcp: 'codepi-mcp', ops: 'codepi-ops',
 };
@@ -19,7 +19,7 @@ export function affectedWorkers(files) {
     if (/^(docs\/|\.github\/|\.agents\/|\.claude\/|\.cursor\/|scripts\/(?:agent|cloudflare)\/)/.test(file)
       || /(^|\/)(?:README|AGENTS|CLAUDE|GEMINI)\.md$/.test(file)
       || /(^|\/)(?:test|tests|__tests__)\//.test(file)
-      || /^(?:apps\/(?:web|gu|gzh|health)|services\/(?:auth|mcp))\/docs\//.test(file)
+      || /^(?:apps\/(?:web|gu|health)|services\/(?:auth|mcp))\/docs\//.test(file)
       || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file)
       || /\/scripts\/(?:check[^/]*|verify[^/]*|deploy[^/]*|browser[^/]*|test[^/]*)\.mjs$/.test(file)
       || file === '.gitignore') continue;
@@ -35,7 +35,6 @@ export function affectedWorkers(files) {
     else if (file.startsWith('apps/me/')) add(['me', 'mcp']);
     else if (file.startsWith('apps/web/')) add(['web', 'mcp']);
     else if (file.startsWith('apps/gu/')) add(['gu', 'mcp']);
-    else if (file.startsWith('apps/gzh/')) add(['gzh']);
     else if (file.startsWith('apps/rhythm/')) add(['rhythm']);   // no MCP module; reads data via STATUS_READ
     else add(all); // Unknown build inputs must not silently bypass monitoring.
   }

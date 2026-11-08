@@ -8,7 +8,6 @@ export const DATABASES = {
   'codepi-auth': 'ecc90eed-e9ff-459d-99aa-4e7f4c6d6ef1',
   'codepi-desk': 'adfb0f6e-b776-471b-9f25-71982b53cbc4',
   'codepi-gu': '4d3b6713-85dd-4f61-ac55-9925db72394b',
-  'codepi-gzh': 'acedb64c-d374-4e40-b61e-7df7f0766694',
   'codepi-health': '2e35deaa-8066-49c1-b19a-afcd8706d58c',
   'codepi-mcp': '73c6ef4e-e2a0-41c2-9bce-ab41c7391caa',
   'codepi-blog': '22e27bb5-230a-4b89-b969-3dc29c8a1d22',

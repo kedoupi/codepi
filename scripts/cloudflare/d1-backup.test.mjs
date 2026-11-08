@@ -127,12 +127,12 @@ test('manual backup defaults to the full dynamic D1 inventory instead of silentl
   });
   assert.equal(resolutions, 1);
   assert.deepEqual(manifest.databases.map(entry => entry.database), [...DATABASE_NAMES]);
-  assert.equal(manifest.databases.length, 9);
+  assert.equal(manifest.databases.length, 8);
 });
 
 test('every production D1 is covered, including planned Project, Me and MCP bindings', async () => {
   const configs = { 'codepi-auth': 'services/auth/wrangler.jsonc', 'codepi-desk': 'apps/web/wrangler.toml',
-    'codepi-blog': 'apps/web/wrangler.toml', 'codepi-gu': 'apps/gu/wrangler.toml', 'codepi-gzh': 'apps/gzh/wrangler.toml',
+    'codepi-blog': 'apps/web/wrangler.toml', 'codepi-gu': 'apps/gu/wrangler.toml',
     'codepi-health': 'apps/health/workers/api/wrangler.toml', 'codepi-mcp': 'services/mcp/wrangler.toml',
     'codepi-project': 'apps/project/wrangler.toml', 'codepi-me': 'apps/me/wrangler.toml' };
   assert.deepEqual([...DATABASE_NAMES].sort(), Object.keys(configs).sort());

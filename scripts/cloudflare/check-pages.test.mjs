@@ -32,11 +32,11 @@ function fixture(app, target, override = {}) {
   return { request, requests };
 }
 
-test('all clients validate root, anonymous private API and same-environment login', async () => {
-  for (const app of ['web', 'gu', 'gzh']) {
+test('all current clients validate root, anonymous private API and same-environment login', async () => {
+  for (const app of ['web', 'gu']) {
     const f = fixture(app, 'production');
     await checkPages(app, 'production', f.request);
-    assert.equal(f.requests.length, app === 'gzh' ? 8 : app === 'web' ? 4 : 3);
+    assert.equal(f.requests.length, app === 'web' ? 4 : 3);
     assert.ok(f.requests.every(r => r.redirect === 'manual'));
   }
 });
@@ -51,21 +51,6 @@ test('Desk smoke rejects loss of static privacy headers', async () => {
   await assert.rejects(checkPages('web', 'production', f.request), /must not be cached/);
 });
 
-test('GZH rejects exposed preview assets and cached private redirects on the new Worker', async () => {
-  for (const preview of [
-    () => new Response('<html>private draft</html>'),
-    () => new Response(null, { status: 302, headers: { location: '/login' } }),
-    () => new Response(null, { status: 302, headers: { location: 'https://other.example/login', 'cache-control': 'no-store' } }),
-  ]) {
-    const f = fixture('gzh', 'production', { preview });
-    await assert.rejects(checkPages('gzh', 'production', f.request, { origin: 'https://codepi-gzh.example.workers.dev' }));
-  }
-});
-
-test('GZH probes encoded and duplicate-slash asset aliases', async () => {
-  const f = fixture('gzh', 'production', { alias: () => new Response('<html>private draft</html>') });
-  await assert.rejects(checkPages('gzh', 'production', f.request), /aliases must not bypass/);
-});
 
 test('origin override hits the given Worker origin while keeping SSO assertions', async () => {
   const f = fixture('gu', 'production');
@@ -90,8 +75,8 @@ test('rejects wrong Auth environment, callback, client and missing PKCE without 
   for (const location of [
     url => { url.hostname = 'auth-staging.codepi.app'; },
     url => { url.pathname = '/login'; },
-    url => url.searchParams.set('client_id', 'gzh'),
-    url => url.searchParams.set('redirect_uri', 'https://gzh.codepi.app/api/auth/callback'),
+    url => url.searchParams.set('client_id', 'unknown'),
+    url => url.searchParams.set('redirect_uri', 'https://wrong.example/api/auth/callback'),
     url => url.searchParams.delete('state'),
     url => url.searchParams.delete('code_challenge'),
   ]) {

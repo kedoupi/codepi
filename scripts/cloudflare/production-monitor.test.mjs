@@ -64,7 +64,7 @@ function happyHandler({ syncAgeHours = 1 } = {}) {
       });
     }
     const app = Object.entries({
-      'codepi.app': 'desk', 'gu.codepi.app': 'gu', 'gzh.codepi.app': 'gzh', 'health.codepi.app': 'oura',
+      'codepi.app': 'desk', 'gu.codepi.app': 'gu', 'health.codepi.app': 'oura',
       'project.codepi.app': 'project', 'me.codepi.app': 'me',
     }).find(([host]) => target.hostname === host)?.[1];
     if (!app) return undefined;

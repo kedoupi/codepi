@@ -10,10 +10,10 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
-  'gu.codepi.app', 'gzh.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
+  'gu.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
   'project.codepi.app', 'me.codepi.app', 'jw.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
-  'gu-staging.codepi.app', 'gzh-staging.codepi.app', 'health-staging.codepi.app']);
+  'gu-staging.codepi.app', 'health-staging.codepi.app']);
 // staging 已退役：任何配置引用 staging 主机名或 -staging 资源名都违规。
 const STAGING_NAME = /-(staging|pr-\d+)$/;
 const ASSETS_HEADER = '[assets]';
@@ -625,7 +625,6 @@ function checkService(spec, cfg, index, violations) {
       production: {
         gu: ['https://gu.kdp.cool/api/auth/callback', 'https://gu.codepi.app/api/auth/callback'],
         oura: ['https://health.kdp.cool/api/auth/callback', 'https://health.codepi.app/api/auth/callback'],
-        gzh: ['https://gzh.codepi.app/api/auth/callback'],
         desk: ['https://kdp.cool/api/auth/callback', 'https://codepi.app/api/auth/callback'],
         project: ['https://project.codepi.app/api/auth/callback'],
         me: ['https://me.codepi.app/api/auth/callback'],
@@ -714,8 +713,6 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       d1Bindings: { DB: 'codepi-desk', BLOG: 'codepi-blog' },
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',
-      serviceBindings: { AUTH: { production: 'codepi-auth' } } },
-    { id: 'gzh', file: 'apps/gzh/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gzh', d1Name: 'codepi-gzh', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     // Health 前端只做静态资产与 API 代理：无 AUTH 绑定、无 D1、无 vars。
     { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', envKey: 'staging', spa: true,

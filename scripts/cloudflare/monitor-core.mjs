@@ -5,7 +5,6 @@ const ORIGINS = {
   auth: 'https://auth.codepi.app',
   web: 'https://codepi.app',
   gu: 'https://gu.codepi.app',
-  gzh: 'https://gzh.codepi.app',
   health: 'https://health.codepi.app',
   project: 'https://project.codepi.app',
   me: 'https://me.codepi.app',
@@ -18,7 +17,6 @@ const ORIGINS = {
 const PRIVATE_APPS = {
   web: { me: '/api/desk/me', client: 'desk', meStatus: 401 },
   gu: { me: '/api/me', client: 'gu', meStatus: 401 },
-  gzh: { me: '/api/me', client: 'gzh', meStatus: 401 },
   health: { me: '/api/me', client: 'oura', meStatus: 200 },
   project: { me: '/api/me', client: 'project', meStatus: 401 },
   me: { me: '/api/me', client: 'me', meStatus: 401 },

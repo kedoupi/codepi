@@ -7,7 +7,7 @@ import { remoteMain } from './release-drift.mjs';
 import { WORKERS } from './release-scope.mjs';
 
 export const DEPLOY_DIRS = {
-  auth: 'services/auth', web: 'apps/web', gu: 'apps/gu', gzh: 'apps/gzh',
+  auth: 'services/auth', web: 'apps/web', gu: 'apps/gu',
   'health-web': 'apps/health/apps/web', ops: 'services/ops',
 };
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -47,7 +47,7 @@ export function deployWorker(service, sha, {
     if (value !== undefined) assert.equal(typeof value, 'boolean', `${name} must be a boolean when provided`);
   }
   if (previousVersion !== undefined) assert.match(previousVersion, versionUuid, 'previousVersion must be a Worker version ID');
-  assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|gzh|health-web|ops');
+  assert.ok(Object.hasOwn(DEPLOY_DIRS, service), 'expected auth|web|gu|health-web|ops');
   assert.match(sha ?? '', /^[a-f0-9]{40}$/, 'pass the full merged source SHA');
   const git = args => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   assert.equal(git(['rev-parse', 'HEAD']), sha, 'source does not match HEAD');
@@ -75,7 +75,7 @@ export function deployWorker(service, sha, {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try {
-    assert.ok(process.argv.length >= 4, 'Usage: deploy-worker.mjs <auth|web|gu|gzh|health-web|ops> <full-source-SHA> [evidence flags]');
+    assert.ok(process.argv.length >= 4, 'Usage: deploy-worker.mjs <auth|web|gu|health-web|ops> <full-source-SHA> [evidence flags]');
     console.log(JSON.stringify(deployWorker(process.argv[2], process.argv[3], parseOptions(process.argv.slice(4)))));
   } catch (error) {
     console.error(error.message);
