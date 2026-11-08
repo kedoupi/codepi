@@ -215,11 +215,18 @@ try {
   await capturePage(page, join(artifacts, 'desk-blog-preview-mobile.png'));
   await page.evaluate(() => { window.confirm = () => true; });
   await page.click('#blog-review-detail [data-review-action="publish"]');
-  await page.waitForFunction(() => location.href.includes('/desk/blog/?result=published'));
+  await page.waitForFunction(() => new URL(location.href).searchParams.get('result') === 'published');
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
+  await page.goto(`${origins.desk}/desk/blog/?tab=pending`);
+  await page.waitForFunction(() => document.querySelector('#blog-review-tabs [aria-selected="true"]')?.textContent.includes('已上架'));
+  await capturePage(page, join(artifacts, 'desk-blog-list-default-published.png'));
+  await page.goto(`${origins.desk}/desk/blog/?tab=published&category=health`);
+  await page.waitForFunction(() => document.querySelector('.desk-review-empty')?.textContent.includes('这个分类还没有文章'));
+  await capturePage(page, join(artifacts, 'desk-blog-list-empty.png'));
   await page.goto(`${origins.desk}/blog/desk-preview-sample/`);
   await page.waitForSelector('.blog-article');
   await capturePage(page, join(artifacts, 'blog-public-desktop.png'));
-  const screenshots = ['desk-blog-list-pending-desktop.png', 'desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
+  const screenshots = ['desk-blog-list-pending-desktop.png', 'desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-list-default-published.png', 'desk-blog-list-empty.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
   for (const name of screenshots) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
   console.log(`Desk preview sample passed; screenshots: ${screenshots.map(name => join(artifacts, name)).join(', ')}`);
 } finally {
