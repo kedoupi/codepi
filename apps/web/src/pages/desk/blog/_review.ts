@@ -140,21 +140,26 @@ function previewFrame(item: ReviewItem) {
   frame.loading = "eager";
   frame.src = `/blog/preview/${encodeURIComponent(item.slug)}/?embed=1`;
   const resize = () => {
-    const documentElement = frame.contentDocument?.documentElement;
-    const body = frame.contentDocument?.body;
-    if (documentElement) frame.style.height = `${Math.max(documentElement.scrollHeight, body?.scrollHeight ?? 0, 360)}px`;
+    window.requestAnimationFrame(() => {
+      const documentElement = frame.contentDocument?.documentElement;
+      const body = frame.contentDocument?.body;
+      if (documentElement) frame.style.height = `${Math.max(documentElement.scrollHeight, body?.scrollHeight ?? 0, 360)}px`;
+    });
   };
   frame.addEventListener("load", () => {
     resize();
     const documentElement = frame.contentDocument?.documentElement;
     const body = frame.contentDocument?.body;
+    const frameWindow = frame.contentWindow;
     if (!documentElement) return;
     const observer = new ResizeObserver(resize);
     observer.observe(documentElement);
     if (body) observer.observe(body);
+    frameWindow?.addEventListener("resize", resize);
     for (const image of frame.contentDocument?.images ?? []) image.addEventListener("load", resize);
     previewCleanup = () => {
       observer.disconnect();
+      frameWindow?.removeEventListener("resize", resize);
       for (const image of frame.contentDocument?.images ?? []) image.removeEventListener("load", resize);
     };
   });
@@ -162,6 +167,7 @@ function previewFrame(item: ReviewItem) {
 }
 function setView(view: "list" | "detail") {
   page?.setAttribute("data-view", view);
+  document.body.dataset.blogReviewView = view;
   el("blog-review-workspace").dataset.view = view;
   el("blog-review-workspace").closest<HTMLElement>(".desk-review")?.setAttribute("data-view", view);
 }

@@ -764,6 +764,12 @@
 .desk-review-page[data-view="detail"] .desk-detail-back { display: inline-flex; align-items: center; min-height: 44px; margin: 12px 0; }
 .desk-detail-label { display: block; margin-bottom: 4px; color: var(--kdp-text); font-size: 14px; font-weight: 600; }
 .desk-detail-label { display: inline-flex; flex: 0 0 auto; margin: 0; }
+body[data-blog-review-view="detail"] .kdp-header,
+body[data-blog-review-view="detail"] .kdp-footer { display: none; }
+@media (min-width: 721px) {
+  .desk-review-page[data-view="detail"] .desk-detail-toolbar { position: fixed; top: 0; right: 0; left: 0; z-index: 10; margin: 0; border-radius: 0; }
+  .desk-review-page[data-view="detail"] .desk-detail-body { padding-top: 72px; }
+}
 @media (max-width: 720px) {
   .desk-review-list-row { grid-template-columns: minmax(0, 1fr); }
   .desk-review-go { justify-self: end; }

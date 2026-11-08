@@ -231,6 +231,13 @@ try {
   await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
   await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#blog-review-detail iframe');
+    const images = frame?.contentDocument ? [...frame.contentDocument.images] : [];
+    return images.every(image => image.complete && image.naturalWidth > 0);
+  });
+  const mobileHeight = await page.evaluate(() => { const frame = document.querySelector('#blog-review-detail iframe'); const doc = frame.contentDocument; return { frame: Number.parseInt(frame.style.height, 10), document: Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight), article: doc.querySelector('.blog-article').getBoundingClientRect().bottom + doc.documentElement.scrollTop }; });
+  assert.ok(Math.abs(mobileHeight.frame - mobileHeight.document) <= 4, `mobile iframe height follows content (${JSON.stringify(mobileHeight)})`);
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.desk-review-queue-column')).display), 'none', 'mobile preview hides list column');
   assert.equal(await page.evaluate(() => document.querySelector('#blog-review-detail [data-review-action]').textContent), '审核通过，上架');
   await page.screenshot({ path: 'desk-blog-preview-mobile.png' });
@@ -265,7 +272,8 @@ try {
   assert.ok(embedded.toc.some(item => item.className.includes('blog-toc-desktop') && item.display !== 'none'), `desktop article table of contents is visible: ${JSON.stringify(embedded.toc)}`);
   assert.ok(Math.abs(embedded.height - embedded.scrollHeight) <= 2, 'iframe height follows contentDocument scrollHeight');
   await page.evaluate(() => scrollTo(0, 500));
-  assert.ok(await page.evaluate(() => document.querySelector('#blog-review-detail .desk-detail-toolbar').getBoundingClientRect().top <= 8), 'review toolbar stays sticky at the top');
+  const toolbarTop = await page.evaluate(() => document.querySelector('#blog-review-detail .desk-detail-toolbar').getBoundingClientRect().top);
+  assert.ok(toolbarTop <= 8, `review toolbar stays sticky at the top (${toolbarTop})`);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: 'desk-blog-preview-desktop.png' });
   await page.evaluate(() => { window.confirm = message => { window.__reviewConfirmation = message; return true; }; });

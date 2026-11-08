@@ -197,7 +197,8 @@ try {
       const images = doc ? [...doc.images] : [];
       return Boolean(doc?.querySelector('.personal-article-content h2, .personal-article-content blockquote, .personal-article-content pre'))
         && images.length >= 3 && images.every(image => image.complete && image.naturalWidth > 0)
-        && doc.querySelectorAll('figcaption').length >= 2;
+        && doc.querySelectorAll('figcaption').length >= 2
+        && Math.abs(Number.parseInt(frame.style.height, 10) - Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight)) <= 4;
     });
     await page.evaluate(async () => {
       const frame = document.querySelector('#blog-review-detail iframe');
