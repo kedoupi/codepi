@@ -1,15 +1,14 @@
 ---
 import BaseLayout from '@kedoupi/shared/layouts/BaseLayout.astro';
 import '../../styles/blog.css';
-const title = '博客';
+const title = '写下来的。';
 const description = '整理完成的公开表达：围绕个人数字空间、健康、投资与内容工作的观察与记录。';
 ---
 <BaseLayout title={title} description={description} pathname="/blog/" schemaType="WebPage">
-  <div class="blog-page">
+  <div class="blog-page brand-page">
     <header class="blog-header">
-      <h1 class="blog-title">博客</h1>
+      <div class="blog-heading"><h1 class="blog-title">写下来的。</h1><a class="blog-rss kdp-link" href="/blog/rss.xml" type="application/rss+xml">通过 RSS 订阅</a></div>
       <p class="blog-lead">关于个人数字空间、健康、投资与内容工作的观察与记录。把值得回看的想法，慢慢整理成文。</p>
-      <p class="blog-rss"><a class="kdp-link" href="/blog/rss.xml" type="application/rss+xml">通过 RSS 订阅</a></p>
     </header>
     <section id="blog-list-mount" class="blog-list-section" hidden aria-label="文章列表"></section>
     <section class="blog-empty-pavilion" aria-labelledby="blog-empty-title">
