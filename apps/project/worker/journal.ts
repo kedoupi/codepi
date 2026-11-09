@@ -47,6 +47,12 @@ function utcStart(day: string) {
   return new Date(`${day}T00:00:00+08:00`).toISOString();
 }
 
+function validDate(day: string) {
+  const date = new Date(`${day}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.getUTCFullYear() === Number(day.slice(0, 4))
+    && date.getUTCMonth() + 1 === Number(day.slice(5, 7)) && date.getUTCDate() === Number(day.slice(8, 10));
+}
+
 function normalize(value: string, project?: { id: string; name: string }) {
   let title = value.trim();
   if (project) {
@@ -96,7 +102,7 @@ function dedupeChanges(rows: ChangeRow[], projects: Map<string, { id: string; na
 
 export async function journal(env: Env, week?: string, projectRef?: string, now = new Date()): Promise<JournalResult> {
   const requested = week ?? today(now);
-  if (!DATE.test(requested)) throw new AppError("invalid_arguments", 400);
+  if (!DATE.test(requested) || !validDate(requested)) throw new AppError("invalid_arguments", 400);
   const start = monday(requested);
   const end = addDays(start, 6);
   const after = addDays(end, 1);

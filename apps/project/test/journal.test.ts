@@ -75,4 +75,9 @@ describe("journal", () => {
     expect(result.days).toHaveLength(7);
     expect(result.days.every(item => item.count === 0)).toBe(true);
   });
+  it("rejects dates that match the format but do not exist", async () => {
+    await expect(journal(env, "2026-13-01", undefined, day)).rejects.toMatchObject({ code: "invalid_arguments", status: 400 });
+    await expect(journal(env, "2026-02-30", undefined, day)).rejects.toMatchObject({ code: "invalid_arguments", status: 400 });
+    await expect(journal(env, "2028-02-29", undefined, day)).resolves.toMatchObject({ week: { start: "2028-02-28", end: "2028-03-05" } });
+  });
 });

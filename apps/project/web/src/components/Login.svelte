@@ -12,7 +12,7 @@
   <section class="login-copy">
     <div class="brand-lockup">
       <img class="brand-mark" src={CODEPI_SYMBOL_PNG} alt="" aria-hidden="true" width="348" height="316" decoding="async" />
-      <span>kedoupi<small>codepi · 项目工作台</small></span>
+      <span>Code<b>Pi</b> 工作台</span>
     </div>
     <div class="login-statement">
       <span class="eyebrow">个人工作台</span>

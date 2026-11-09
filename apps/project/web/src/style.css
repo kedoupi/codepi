@@ -22,11 +22,16 @@
   --slot-4: #eda100;
   --heat-1: color-mix(in srgb, var(--color-action) 16%, var(--color-surface));
   --heat-2: color-mix(in srgb, var(--color-action) 34%, var(--color-surface));
-  --heat-3: color-mix(in srgb, var(--color-action) 62%, var(--color-surface));
+  --heat-3: color-mix(in srgb, var(--color-action) 72%, var(--color-surface));
   --heat-4: var(--color-action);
+  --heat-3-text: var(--color-text);
   color: var(--color-text);
   background: var(--color-background);
   font-family: var(--font-sans);
+}
+
+[data-theme="dark"] {
+  --heat-3-text: var(--color-action-text);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -187,7 +192,7 @@ button { font: inherit; color: inherit; }
 .journal-day-cell b { font-size: 16px; }
 .journal-day-cell.heat-1 { background: var(--heat-1); }
 .journal-day-cell.heat-2 { background: var(--heat-2); }
-.journal-day-cell.heat-3 { background: var(--heat-3); color: var(--color-action-text); }
+.journal-day-cell.heat-3 { background: var(--heat-3); color: var(--heat-3-text); }
 .journal-day-cell.heat-4 { background: var(--heat-4); color: var(--color-action-text); }
 .journal-day-cell.is-today { outline: 2px solid var(--color-text); outline-offset: -2px; }
 .journal-day-cell.is-future { border-style: dashed; cursor: default; opacity: .7; }
@@ -254,7 +259,7 @@ button { font: inherit; color: inherit; }
 .login-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
 .login-copy { padding: var(--space-12) var(--space-8); display: flex; flex-direction: column; gap: var(--space-8); justify-content: space-between; }
 .brand-lockup { display: flex; align-items: center; gap: var(--space-3); font-weight: 700; font-size: 18px; }
-.brand-lockup small { display: block; font-weight: 400; font-size: 12.5px; color: var(--color-text-muted); }
+.brand b, .brand-lockup b { color: var(--brand-orange, var(--color-action)); }
 .brand-mark { width: 40px; height: auto; }
 .eyebrow { font-size: 12px; letter-spacing: 0.08em; color: var(--color-text-muted); font-weight: 600; }
 .login-statement { display: flex; flex-direction: column; gap: var(--space-3); max-width: 30em; }
@@ -370,4 +375,8 @@ button { font: inherit; color: inherit; }
   .desktop-only { display: none; }
   .mobile-only { display: inline; }
   .pick-button { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .journal-day-cell time { white-space: nowrap; }
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../lib/api";
+  import { longDate, weekday } from "../lib/format";
   import type { TaskBrief } from "../lib/types";
   import Icon from "./Icon.svelte";
 
@@ -83,18 +84,6 @@
 
   const total = $derived((data?.today.length ?? 0) + (data?.done.length ?? 0));
   const progress = $derived(total ? Math.round(((data?.done.length ?? 0) / total) * 100) : 0);
-
-  function dateValue(date: string) {
-    return new Date(`${date}T00:00:00+08:00`);
-  }
-
-  function weekday(date: string) {
-    return new Intl.DateTimeFormat("zh-CN", { weekday: "short", timeZone: "Asia/Shanghai" }).format(dateValue(date));
-  }
-
-  function longDate(date: string) {
-    return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: "Asia/Shanghai" }).format(dateValue(date));
-  }
 
   function addDays(date: string, amount: number) {
     return new Date(Date.parse(`${date}T00:00:00Z`) + amount * 86400_000).toISOString().slice(0, 10);
