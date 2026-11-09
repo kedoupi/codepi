@@ -175,6 +175,9 @@ try {
   await page.waitForURL(`${origins.desk}/desk/`);
   await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
   const waitForImages = async () => {
+    await page.evaluate(() => {
+      for (const image of document.images) image.loading = 'eager';
+    });
     await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0));
   };
   await waitForImages();
