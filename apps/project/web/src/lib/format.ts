@@ -44,6 +44,18 @@ export function longDay(day: string): string {
   return `${Number(day.slice(5, 7))} 月 ${Number(day.slice(8, 10))} 日 周${WEEK[date.getUTCDay()]}`;
 }
 
+function beijingDate(day: string) {
+  return new Date(`${day}T00:00:00+08:00`);
+}
+
+export function weekday(day: string): string {
+  return new Intl.DateTimeFormat("zh-CN", { weekday: "short", timeZone: "Asia/Shanghai" }).format(beijingDate(day));
+}
+
+export function longDate(day: string): string {
+  return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", timeZone: "Asia/Shanghai" }).format(beijingDate(day));
+}
+
 export function shortTime(value: string | null): string {
   if (!value) return "—";
   const parsed = new Date(value);

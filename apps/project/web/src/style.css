@@ -22,7 +22,7 @@
   --slot-4: #eda100;
   --heat-1: color-mix(in srgb, var(--color-action) 16%, var(--color-surface));
   --heat-2: color-mix(in srgb, var(--color-action) 34%, var(--color-surface));
-  --heat-3: color-mix(in srgb, var(--color-action) 62%, var(--color-surface));
+  --heat-3: var(--color-action-hover);
   --heat-4: var(--color-action);
   color: var(--color-text);
   background: var(--color-background);
@@ -370,4 +370,8 @@ button { font: inherit; color: inherit; }
   .desktop-only { display: none; }
   .mobile-only { display: inline; }
   .pick-button { width: 100%; }
+}
+
+@media (max-width: 720px) {
+  .journal-day-cell time { white-space: nowrap; }
 }
