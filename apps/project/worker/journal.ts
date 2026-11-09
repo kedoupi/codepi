@@ -53,7 +53,6 @@ function validDate(day: string) {
     && date.getUTCMonth() + 1 === Number(day.slice(5, 7)) && date.getUTCDate() === Number(day.slice(8, 10));
 }
 
-
 function normalize(value: string, project?: { id: string; name: string }) {
   let title = value.trim();
   if (project) {

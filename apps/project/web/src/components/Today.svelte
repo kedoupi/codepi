@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api } from "../lib/api";
   import { longDate, weekday } from "../lib/format";
   import type { TaskBrief } from "../lib/types";
   import Icon from "./Icon.svelte";
