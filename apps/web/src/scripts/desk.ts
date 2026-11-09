@@ -37,6 +37,12 @@ function clearPrivate() {
   el("desk-private").hidden = true;
   el("desk-actions").hidden = true;
   for (const target of document.querySelectorAll("[data-metrics], [data-note], [data-time], [data-private-metric]")) target.replaceChildren();
+  for (const target of document.querySelectorAll<HTMLElement>("[data-blog-count]")) target.textContent = "—";
+  const blogSummary = document.getElementById("blog-review-summary");
+  if (blogSummary) {
+    blogSummary.hidden = false;
+    blogSummary.textContent = "正在读取博客审核状态…";
+  }
   el("desk-attention-list").replaceChildren();
   resetSummary();
   el<HTMLButtonElement>("desk-refresh").disabled = false;
@@ -70,17 +76,33 @@ async function api(path: string, init: RequestInit = {}) {
     return await response.json();
   } finally { clearTimeout(timer); controllers.delete(controller); }
 }
+function blogTotal(value: unknown) {
+  const total = (value as { total?: unknown } | null)?.total;
+  if (!Number.isSafeInteger(total) || (total as number) < 0) throw Error("博客摘要响应无效。");
+  return total as number;
+}
 async function loadBlogSummary() {
   const summary = document.getElementById("blog-review-summary");
   if (!summary || !active) return;
+  summary.hidden = false;
+  summary.textContent = "正在读取博客审核状态…";
   try {
     const [drafts, published] = await Promise.all([
-      api("/api/blog/drafts?tab=pending&page=1") as Promise<{ total: number }>,
-      api("/api/blog/posts?tab=published&page=1") as Promise<{ total: number }>,
+      api("/api/blog/drafts?tab=pending&page=1"),
+      api("/api/blog/posts?tab=published&page=1"),
     ]);
-    summary.textContent = `${drafts.total} 篇待审 · ${published.total} 篇已上架`;
+    const pendingTotal = blogTotal(drafts);
+    const publishedTotal = blogTotal(published);
+    document.querySelector<HTMLElement>('[data-blog-count="pending"]')!.textContent = String(pendingTotal);
+    document.querySelector<HTMLElement>('[data-blog-count="published"]')!.textContent = String(publishedTotal);
+    summary.textContent = `${pendingTotal} 篇待审 · ${publishedTotal} 篇已上架`;
+    summary.hidden = true;
   } catch (error) {
-    if (!(error instanceof SessionExpired)) summary.textContent = "博客审核状态暂时无法读取。";
+    if (!(error instanceof SessionExpired)) {
+      for (const target of document.querySelectorAll<HTMLElement>("[data-blog-count]")) target.textContent = "—";
+      summary.hidden = false;
+      summary.textContent = "暂时无法读取";
+    }
   }
 }
 function renderOverview(payload: Payload) {

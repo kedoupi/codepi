@@ -52,6 +52,7 @@ let browser;
 let failure;
 let testOtp;
 let deskMeRequests = 0;
+let blogSummaryFailure = false;
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const origins = { desk: 'http://localhost:8804', auth: 'http://localhost:8795' };
 try {
@@ -97,6 +98,11 @@ try {
           const body = await readFile(path);
           const contentType = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' }[extname(path)] || 'application/octet-stream';
           res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store' }); res.end(body); return;
+        }
+        if (id === 'desk' && blogSummaryFailure && ['/api/blog/drafts', '/api/blog/posts'].includes(url.pathname)) {
+          res.writeHead(503);
+          res.end();
+          return;
         }
         const chunks = [];
         for await (const chunk of req) chunks.push(chunk);
@@ -156,6 +162,28 @@ try {
   await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
   assert.equal(await page.evaluate(() => document.querySelector('.desk-review')), null, 'home page does not embed blog review');
   assert.equal(await page.evaluate(() => document.querySelector('.desk-blog-card a').getAttribute('href')), '/desk/blog/');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('[data-blog-count]')].map(node => node.textContent)), ['1', '21']);
+  const blogAppearance = await page.evaluate(() => {
+    const card = document.querySelector('.desk-blog-card');
+    const button = card?.querySelector('a');
+    return {
+      columns: getComputedStyle(document.querySelector('.desk-overview')).gridTemplateColumns.split(' ').length,
+      cardColumns: card ? getComputedStyle(card).gridTemplateColumns.split(' ').length : 0,
+      buttonHref: button?.getAttribute('href'),
+      buttonText: button?.textContent,
+    };
+  });
+  assert.equal(blogAppearance.columns, 2);
+  assert.equal(blogAppearance.cardColumns, 2);
+  assert.equal(blogAppearance.buttonHref, '/desk/blog/');
+  assert.match(blogAppearance.buttonText, /进入博客工作台/);
+  blogSummaryFailure = true;
+  await page.goto(origins.desk + '/desk/');
+  await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent === '暂时无法读取');
+  assert.equal(await page.evaluate(() => document.querySelector('.desk-blog-card a')?.getAttribute('href')), '/desk/blog/');
+  blogSummaryFailure = false;
+  await page.goto(origins.desk + '/desk/');
+  await page.waitForFunction(() => document.querySelector('[data-blog-count="pending"]')?.textContent === '1');
   const initialDeskMeRequests = deskMeRequests;
   await page.evaluate(() => {
     window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
@@ -179,7 +207,7 @@ try {
   }));
   assert.equal(appearance.canvas.toLowerCase(), '#faf8f4');
   assert.match(appearance.font, /MiSans|Inter/);
-  assert.equal(appearance.columns, 3);
+  assert.equal(appearance.columns, 2);
   assert.equal(appearance.overflow, false);
   assert.equal(await page.evaluate(() => document.querySelector('details').open), false);
   await page.click('#desk-generate');

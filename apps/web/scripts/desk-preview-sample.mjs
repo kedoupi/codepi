@@ -174,6 +174,19 @@ try {
   await page.click('#submit');
   await page.waitForURL(`${origins.desk}/desk/`);
   await page.waitForFunction(() => document.querySelector('#blog-review-summary')?.textContent.includes('1 篇待审'));
+  const waitForImages = async () => {
+    await page.evaluate(() => {
+      for (const image of document.images) image.loading = 'eager';
+    });
+    await page.waitForFunction(() => [...document.images].every(image => image.complete && image.naturalWidth > 0));
+  };
+  await waitForImages();
+  await capturePage(page, join(artifacts, 'desk-home-desktop.png'));
+  await page.cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  await page.goto(`${origins.desk}/desk/`);
+  await page.waitForFunction(() => document.querySelector('[data-blog-count="pending"]')?.textContent === '1');
+  await waitForImages();
+  await capturePage(page, join(artifacts, 'desk-home-mobile.png'));
   await page.cdp('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1120, deviceScaleFactor: 1, mobile: false });
   await page.goto(`${origins.desk}/desk/blog/?tab=pending`);
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="desk-preview-sample"]'));
@@ -226,7 +239,7 @@ try {
   await page.goto(`${origins.desk}/blog/desk-preview-sample/`);
   await page.waitForSelector('.blog-article');
   await capturePage(page, join(artifacts, 'blog-public-desktop.png'));
-  const screenshots = ['desk-blog-list-pending-desktop.png', 'desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-list-default-published.png', 'desk-blog-list-empty.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
+  const screenshots = ['desk-home-desktop.png', 'desk-home-mobile.png', 'desk-blog-list-pending-desktop.png', 'desk-blog-list-desktop.png', 'desk-blog-list-mobile.png', 'desk-blog-list-default-published.png', 'desk-blog-list-empty.png', 'desk-blog-preview-desktop.png', 'desk-blog-preview-mobile.png', 'blog-public-desktop.png'];
   for (const name of screenshots) assert.ok((await stat(join(artifacts, name))).size > 0, `${name} 必须写入非空截图`);
   console.log(`Desk preview sample passed; screenshots: ${screenshots.map(name => join(artifacts, name)).join(', ')}`);
 } finally {
