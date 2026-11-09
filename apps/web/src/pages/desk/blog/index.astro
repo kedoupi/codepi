@@ -1,0 +1,45 @@
+---
+import BaseLayout from '@kedoupi/shared/layouts/BaseLayout.astro';
+import Icon from '../../../components/Icon.astro';
+import '../../../styles/desk.css';
+---
+<BaseLayout title="博客工作台" description="审核博客稿件与已上架文章。" pathname="/desk/blog/" schemaType="WebPage" robots="noindex, nofollow">
+  <div id="blog-review-page" class="desk-blog-page">
+    <a class="desk-blog-back" href="/desk/">← 返回工作台</a>
+    <header class="desk-blog-heading">
+      <p class="desk-eyebrow">审核 / BLOG</p>
+      <h1>博客工作台</h1>
+      <p class="desk-muted">模型通过 MCP 写稿；点开一篇，看完再决定上架。</p>
+    </header>
+    <section id="blog-review-login" class="kdp-card desk-login" hidden aria-labelledby="blog-review-login-title">
+      <span class="desk-icon"><Icon name="network" size={28} /></span>
+      <h2 id="blog-review-login-title">进入博客工作台</h2>
+      <p id="blog-review-login-note">登录后查看本人博客稿件。</p>
+      <div class="desk-login-btn-row"><a class="kdp-button" href="/api/auth/login?return=%2Fdesk%2Fblog%2F">本人登录 <span aria-hidden="true">→</span></a></div>
+    </section>
+    <div id="blog-review-private" hidden>
+      <section class="desk-review desk-review-page" data-view="list" aria-label="博客审核">
+        <div id="blog-review-status-row" class="desk-blog-status-row">
+          <div id="blog-review-status" class="desk-fine" role="status"></div>
+        </div>
+        <div id="blog-review-tabs" class="desk-blog-tabs" role="tablist" aria-label="文章状态"></div>
+        <div id="blog-review-categories" class="desk-blog-categories" role="group" aria-label="文章分类"></div>
+        <div id="blog-review-workspace" class="desk-review-workspace" data-view="list">
+          <div class="desk-review-queue-column">
+            <div data-review-tab="pending">
+              <div id="blog-drafts-list" class="desk-queue" aria-label="待审稿件列表"></div>
+            </div>
+            <div data-review-tab="published">
+              <div id="blog-published-list" class="desk-queue" aria-label="已上架文章列表"></div>
+            </div>
+            <div id="blog-review-pagination" class="desk-blog-pagination"></div>
+          </div>
+          <section id="blog-review-detail" class="desk-detail" aria-label="稿件预览"></section>
+        </div>
+      </section>
+    </div>
+  </div>
+</BaseLayout>
+<script>
+  import './_review';
+</script>

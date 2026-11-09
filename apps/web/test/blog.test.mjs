@@ -73,6 +73,34 @@ test('Desk exposes only the two review groups and publish/unpublish actions', as
   assert.equal((await f.call('/api/blog/drafts/minimal-desk/publish', cookie, { revision: 1 })).status, 200);
   assert.equal((await f.call('/api/blog/posts/minimal-desk/unpublish', cookie, { revision: 1 })).status, 200);
 });
+test('Desk review APIs validate pagination and return tab counts', async t => {
+  const f = await deskFixture(t);
+  const cookie = (await f.otpLogin('desk')).localCookie;
+  await seedDraft(f, 'review-page-a');
+  await seedDraft(f, 'review-page-b');
+  await f.blog.prepare("UPDATE blog_drafts SET category='tech' WHERE slug='review-page-a'").run();
+  await f.blog.prepare("UPDATE blog_drafts SET category='life' WHERE slug='review-page-b'").run();
+  for (const [path, body] of [['/api/blog/drafts?tab=bad&page=1', undefined], ['/api/blog/drafts?tab=pending&page=0', undefined], ['/api/blog/drafts?tab=pending&category=bad&page=1', undefined], ['/api/blog/posts?tab=pending&page=1', undefined]]) {
+    assert.equal((await f.call(path, cookie, body)).status, 400, path);
+  }
+  const pending = await (await f.call('/api/blog/drafts?tab=pending&category=tech&page=99', cookie)).json();
+  assert.equal(pending.total, 1);
+  assert.equal(pending.page, 1);
+  assert.equal(pending.counts.tech, 1);
+  assert.equal(pending.counts.life, 1);
+  await seedPost(f, 'review-page-a');
+  const pendingAll = await (await f.call('/api/blog/drafts?tab=pending&page=1', cookie)).json();
+  assert.equal(pendingAll.drafts.find(item => item.slug === 'review-page-a').has_live, 1);
+  const published = await (await f.call('/api/blog/posts?tab=published&page=99', cookie)).json();
+  assert.equal(published.total, 1);
+  assert.equal(published.page, 1);
+  const publishedPage = await (await f.call('/api/blog/posts?tab=published&page=1', cookie)).json();
+  assert.equal(publishedPage.posts.find(item => item.slug === 'review-page-a').has_pending, 1);
+  await f.blog.prepare("UPDATE blog_drafts SET status='published' WHERE slug='review-page-a'").run();
+  const withoutPending = await (await f.call('/api/blog/posts?tab=published&page=1', cookie)).json();
+  assert.equal(withoutPending.posts.find(item => item.slug === 'review-page-a').has_pending, 0);
+  assert.equal(published.counts.tech, 0);
+});
 
 test('submissions validate category, tags, series and sources', async t => {
   const f = await deskFixture(t);
@@ -377,6 +405,7 @@ test('public routes render published only, preview shows drafts to the owner', a
   assert.equal(article.status, 200);
   const articleHtml = await article.text();
   assert.match(articleHtml, /<title>Public · 博客<\/title>/);
+  assert.match(articleHtml, /<link rel="canonical" href="http:\/\/localhost:8804\/blog\/public-post\/">/);
   assert.match(articleHtml, /Public body/);
   assert.doesNotMatch(articleHtml, /blog-header/);
   assert.equal((await worker.fetch('http://localhost:8804/blog/missing/')).status, 404);
@@ -387,9 +416,14 @@ test('public routes render published only, preview shows drafts to the owner', a
   assert.equal(preview.status, 200);
   assert.equal(preview.headers.get('Cache-Control'), 'no-store');
   assert.equal(preview.headers.get('X-Robots-Tag'), 'noindex, nofollow');
+  assert.equal(preview.headers.get('X-Frame-Options'), 'SAMEORIGIN');
   const previewHtml = await preview.text();
   assert.match(previewHtml, /Draft body/);
   assert.doesNotMatch(previewHtml, /Public body/);
+  const embedded = await worker.fetch('http://localhost:8804/blog/preview/public-post/?embed=1', { headers: { Cookie: cookie } });
+  assert.equal(embedded.headers.get('X-Frame-Options'), 'SAMEORIGIN');
+  const embeddedHtml = await embedded.text();
+  assert.match(embeddedHtml, /<body class="blog-embed">/);
 });
 test('HEAD blog routes match GET metadata and never return a body', async t => {
   const f = await deskFixture(t);

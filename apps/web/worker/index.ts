@@ -20,6 +20,10 @@ function tocMarkup(html: string, mobile = false) {
   const entries = headings.map(heading => `<li class="blog-toc-h${heading.depth}"><a href="#${heading.id}">${escape(heading.text)}</a></li>`).join("");
   return mobile ? `<details class="blog-toc blog-toc-mobile"><summary>目录</summary><ul>${entries}</ul></details>` : `<nav class="blog-toc blog-toc-desktop" aria-label="文章目录"><p class="blog-toc-title">目录</p><ul>${entries}</ul></nav>`;
 }
+function desktopTocMarkup(html: string) {
+  const mobile = tocMarkup(html, true);
+  return mobile.replace('<details class="blog-toc blog-toc-mobile"><summary>目录</summary>', '<nav class="blog-toc blog-toc-desktop" aria-label="文章目录"><p class="blog-toc-title">目录</p>').replace('</details>', '</nav>');
+}
 function sourcesMarkup(post: { sources: string | null }) {
   const sources = parseSources(post.sources).filter(source => /^https:\/\//i.test(source.url));
   if (!sources.length) return "";
@@ -40,6 +44,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const post = slug ? (preview ? await getDraft(env.BLOG, slug) : await getPost(env.BLOG, slug)) : null;
   if (slug && !post) return notFound();
   const url = new URL(request.url);
+  const embed = preview && url.searchParams.get("embed") === "1";
   const filter: ListFilter = slug ? {} : { ...pathFilter };
   if (!slug && !pathFilter.tag && !pathFilter.series) {
     const category = url.searchParams.get("category");
@@ -90,11 +95,13 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     .on('meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]', { element: el => { el.setAttribute("content", description); } })
     .on('meta[property="og:title"], meta[name="twitter:title"]', { element: el => { el.setAttribute("content", title); } })
     .on('meta[property="og:url"]', { element: el => { el.setAttribute("content", canonical); } })
+    .on('link[rel="canonical"]', { element: el => { el.setAttribute("href", canonical); } })
     .on('meta[property="og:type"]', { element: el => { el.setAttribute("content", post ? "article" : "website"); } })
     .on('meta[name="twitter:card"]', { element: el => { el.setAttribute("content", imageUrl && !preview ? "summary_large_image" : "summary"); } })
     .on('meta[name="robots"]', { element: el => { if (preview) el.remove(); } })
-    .on('link[rel="canonical"]', { element: el => { el.setAttribute("href", canonical); } })
     .on('script[type="application/ld+json"]', { element: el => { el.remove(); } })
+    .on("body", { element: el => { if (embed) el.setAttribute("class", "blog-embed"); } })
+    .on(".personal-article-content img", { element: el => { if (embed) el.setAttribute("loading", "eager"); } })
     .on("head", { element: el => {
       if (preview) el.append('<meta name="robots" content="noindex, nofollow">', { html: true });
       else el.append(`<link rel="alternate" type="application/rss+xml" title="kedoupi 博客 RSS" href="${new URL("/blog/rss.xml", request.url).href}">`, { html: true });
@@ -109,7 +116,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
         const articleTags = parseTags(post.tags).map(tag => `<a class="blog-article-tag" href="/blog/tag/${encodeURIComponent(tag)}/"># ${escape(tag)}</a>`).join("");
         const articleMeta = `${post.category ? `<a class="blog-article-category" href="/blog/?category=${encodeURIComponent(post.category)}">${escape(categoryName(post.category) || post.category)}</a>` : post.tag ? `<span>${escape(post.tag)}</span>` : ""}${preview ? dateMarkup(post.updated_at, "草稿更新于") : dateMarkup(post.published_at!, "发布于")}${!preview && post.updated_at.slice(0, 10) !== post.published_at!.slice(0, 10) ? dateMarkup(post.updated_at, "更新于") : ""}<span>约 ${readingMinutes(post.body_markdown?.length ?? 0)} 分钟</span>`;
         const neighborNav = neighbors ? `<nav class="blog-article-nav" aria-label="相邻文章">${neighbors.previous ? `<a rel="prev" href="/blog/${escape(neighbors.previous.slug)}/"><span>上一篇</span><b>${escape(neighbors.previous.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>上一篇</span><b>这是最早一篇</b></span>`}${neighbors.next ? `<a rel="next" href="/blog/${escape(neighbors.next.slug)}/"><span>下一篇</span><b>${escape(neighbors.next.title)}</b></a>` : `<span class="blog-neighbor-empty"><span>下一篇</span><b>这是最新一篇</b></span>`}</nav>` : "";
-        const mobileToc = tocMarkup(post.body_html, true), desktopToc = tocMarkup(post.body_html);
+        const mobileToc = tocMarkup(post.body_html, true), desktopToc = desktopTocMarkup(post.body_html);
         el.setInnerContent(`<article class="personal-article blog-article"><a class="blog-back" href="/blog/">博客</a>${preview ? '<aside class="blog-preview-notice" role="note">草稿预览，仅本人可见。发布更新前，公开文章保留当前版本。</aside>' : ""}<header class="blog-article-header"><div class="blog-article-meta">${articleMeta}</div><h1>${escape(post.title)}</h1>${post.summary ? `<p class="blog-article-summary">${escape(post.summary)}</p>` : ""}${mobileToc}</header>${cover}<div class="blog-article-reading"><div class="blog-article-column"><div class="personal-article-content">${post.body_html}</div>${sourcesMarkup(post)}</div>${desktopToc}</div><footer class="blog-article-footer">${articleTags ? `<div class="blog-article-tags">${articleTags}</div>` : ""}${post.series ? `<p class="blog-article-series">系列：<a href="/blog/series/${encodeURIComponent(post.series)}/">${escape(post.series)}</a></p>` : ""}<p class="blog-ai-note">本文由 AI 协作撰写，经本人审核后发布。</p>${neighborNav}<a class="blog-more" href="/blog/">浏览更多文章</a></footer></article>`, { html: true });
       } else if (listing?.posts.length) {
         el.setAttribute("class", "blog-list-section brand-page");
@@ -119,7 +126,11 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     } })
     .transform(shell);
   const headers = responseHeaders(html, preview || !slug ? "no-store" : PUBLIC_CACHE);
-  if (preview) { headers.set("X-Robots-Tag", "noindex, nofollow"); headers.set("Referrer-Policy", "no-referrer"); }
+  if (preview) {
+    headers.set("X-Robots-Tag", "noindex, nofollow");
+    headers.set("Referrer-Policy", "no-referrer");
+    headers.set("X-Frame-Options", "SAMEORIGIN");
+  }
   return new Response(html.body, { status: html.status, headers });
 }
 async function latest(env: Env) {
@@ -181,9 +192,13 @@ export default {
       return request.method === "HEAD" ? new Response(null, response) : response;
     }
     const desk = url.pathname === "/desk" || url.pathname.startsWith("/desk/");
+    const deskBlogPreview = /^\/desk\/blog\/[a-z0-9][a-z0-9-]{0,79}\/$/.test(url.pathname);
     let response: Response;
     if (desk && url.hostname === "www.codepi.app") { url.hostname = "codepi.app"; url.protocol = "https:"; url.port = ""; if (url.pathname === "/desk") url.pathname = "/desk/"; response = new Response(null, { status: 302, headers: { Location: url.href } }); }
-    else response = await env.ASSETS.fetch(request);
+    else if (deskBlogPreview) {
+      const assetUrl = new URL("/desk/blog/", request.url);
+      response = await env.ASSETS.fetch(new Request(assetUrl, request));
+    } else response = await env.ASSETS.fetch(request);
     if (!desk) return response;
     const secured = new Response(response.body, response); secured.headers.set("Cache-Control", "no-store"); secured.headers.set("X-Robots-Tag", "noindex, nofollow"); secured.headers.set("Referrer-Policy", "no-referrer"); return secured;
   },

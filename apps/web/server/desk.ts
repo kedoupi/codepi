@@ -1,5 +1,5 @@
 import { beginLogin, finishLogin, logoutSso, readSsoSession, ssoEnabled, ssoErrorResponse, type SsoEnv } from "@kedoupi/shared/auth/client";
-import { getDraft, listDrafts, listPublished, publishDraft, unpublishPost, type BlogEnv } from "./blog";
+import { BLOG_REVIEW_CATEGORIES, getDraft, getPost, listReviewDrafts, listReviewPosts, publishDraft, unpublishPost, type BlogEnv } from "./blog";
 import { deskJson, deskSources, emptySummary, type DeskRange, type DeskSource, type DeskSummary } from "@kedoupi/shared/desk/contract";
 
 export interface DeskEnv extends SsoEnv, BlogEnv {
@@ -104,7 +104,8 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (request.method === "POST" && request.headers.get("Origin") !== url.origin) return deskJson({ error: "origin_not_allowed" }, 403);
   if (path === "/api/auth/login" && request.method === "GET") {
     const login = new URL(request.url);
-    login.search = "?return=%2Fdesk%2F";
+    const returnPath = login.searchParams.get("return") === "/desk/blog/" ? "/desk/blog/" : "/desk/";
+    login.search = `?return=${encodeURIComponent(returnPath)}`;
     return beginLogin(new Request(login, request), env);
   }
   if (path === "/api/auth/callback" && request.method === "GET") {
@@ -115,11 +116,24 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
   if (!session || session.subject !== "kdp-owner" || session.userId !== "desk-owner") {
     return deskJson({ error: "unauthorized" }, 401);
   }
-  if (path === "/api/blog/drafts" && request.method === "GET") return deskJson({ drafts: await listDrafts(env.BLOG) });
+  if (path === "/api/blog/drafts" && request.method === "GET") {
+    const tab = url.searchParams.get("tab") ?? "pending";
+    const category = url.searchParams.get("category") || undefined;
+    const rawPage = url.searchParams.get("page") ?? "1";
+    if (tab !== "pending" || !/^[1-9]\d{0,6}$/.test(rawPage) || (category && !BLOG_REVIEW_CATEGORIES.includes(category as typeof BLOG_REVIEW_CATEGORIES[number]))) return deskJson({ error: "invalid_request" }, 400);
+    return deskJson(await listReviewDrafts(env.BLOG, Number(rawPage), category as typeof BLOG_REVIEW_CATEGORIES[number] | undefined));
+  }
   const draftMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)$/);
   if (draftMatch && request.method === "GET") {
     const draft = await getDraft(env.BLOG, decodeURIComponent(draftMatch[1]));
-    return draft ? deskJson({ draft }) : deskJson({ error: "not_found" }, 404);
+    if (!draft) return deskJson({ error: "not_found" }, 404);
+    const live = await getPost(env.BLOG, decodeURIComponent(draftMatch[1]));
+    return deskJson({ draft, has_live: !!live, live_revision: live?.revision ?? null });
+  }
+  const postMatch = path.match(/^\/api\/blog\/posts\/([^/]+)$/);
+  if (postMatch && request.method === "GET") {
+    const post = await getPost(env.BLOG, decodeURIComponent(postMatch[1]));
+    return post ? deskJson({ post }) : deskJson({ error: "not_found" }, 404);
   }
   const publishMatch = path.match(/^\/api\/blog\/drafts\/([^/]+)\/publish$/);
   if (publishMatch && request.method === "POST") {
@@ -137,7 +151,13 @@ async function route(request: Request, env: DeskEnv, upstream: Upstream): Promis
     try { return deskJson(await unpublishPost(env.BLOG, decodeURIComponent(unpublishMatch[1]), url.origin, payload.revision as number)); }
     catch (error) { const message = error instanceof Error ? error.message : "internal_error"; return deskJson({ error: message }, message === "not_found" ? 404 : message === "revision_conflict" ? 409 : 400); }
   }
-  if (path === "/api/blog/posts" && request.method === "GET") return deskJson(await listPublished(env.BLOG, 0, 100));
+  if (path === "/api/blog/posts" && request.method === "GET") {
+    const tab = url.searchParams.get("tab") ?? "published";
+    const category = url.searchParams.get("category") || undefined;
+    const rawPage = url.searchParams.get("page") ?? "1";
+    if (tab !== "published" || !/^[1-9]\d{0,6}$/.test(rawPage) || (category && !BLOG_REVIEW_CATEGORIES.includes(category as typeof BLOG_REVIEW_CATEGORIES[number]))) return deskJson({ error: "invalid_request" }, 400);
+    return deskJson(await listReviewPosts(env.BLOG, Number(rawPage), category as typeof BLOG_REVIEW_CATEGORIES[number] | undefined));
+  }
   if (path === "/api/desk/me" && request.method === "GET") return deskJson({ authenticated: true });
   let range: DeskRange = "current";
   let sources: DeskSource[] = [...deskSources];
