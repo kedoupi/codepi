@@ -101,9 +101,8 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .current-card[data-status="office_meeting"] { border-left-color: var(--rhythm-meeting-status); }
 .current-card[data-status="other_network"] { border-left-color: var(--rhythm-other); }
 .current-card[data-status="unknown"] { border-left-color: var(--rhythm-unknown); }
-.current-card h2 { font-size: clamp(28px, 5vw, 42px); margin-bottom: 8px; white-space: normal; overflow-wrap: normal; word-break: keep-all; }
-.current-card > div { min-width: 0; }
-.current-card p { max-width: 300px; color: var(--color-text-muted); text-align: right; }
+.current-card h2 { font-size: clamp(28px, 5vw, 42px); margin-bottom: 8px; }
+.current-card p { color: var(--color-text-muted); text-align: right; }
 .evidence,.method-list span { display: inline-flex; width: fit-content; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--color-action-hover); font-size: 12px; }
 .evidence.inferred,.method-list span.inferred { color: var(--color-warning); }
 .timeline-panel { overflow: hidden; }
@@ -143,7 +142,8 @@ h2 { font-size: 22px; line-height: 1.35; font-weight: 650; }
 .timeline-detail span.inferred { color: var(--color-warning); }
 .chart-conclusion { color: var(--color-text-muted); font-size: 13px; margin: 20px 0 0; }
 .today-overview { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
-.today-overview .current-card { margin-bottom: 0; }
+.today-overview .current-card { margin-bottom: 0; flex-direction: column; align-items: flex-start; }
+.today-overview .current-card p { max-width: none; text-align: left; }
 .today-overview .metric-grid { display: contents; }
 .mobile-timeline { display: none; }
 .time-blocks { display: grid; gap: 0; }

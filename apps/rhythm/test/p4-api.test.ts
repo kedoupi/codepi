@@ -9,8 +9,9 @@ import {
 
 const origin = "https://rhythm.test";
 const shanghai = (epoch: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date(epoch));
-const today = shanghai(Date.now());
-const daysAgo = (n: number) => shanghai(Date.now() - n * 86400_000);
+const testNow = Date.parse("2026-11-05T12:00:00+08:00");
+const today = shanghai(testNow);
+const daysAgo = (n: number) => shanghai(testNow - n * 86400_000);
 const priorWeekday = (weekday: number) => {
   const value = new Date(`${today}T00:00:00Z`);
   const daysBack = ((value.getUTCDay() - weekday + 7) % 7) + 7;
