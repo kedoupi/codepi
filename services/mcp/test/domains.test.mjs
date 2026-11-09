@@ -95,7 +95,7 @@ test('real named RPC: blog source appears only with a blog.read grant', async t 
   assert.equal(pending.structuredContent.body_markdown, image.markdown);
   assert.equal(pending.structuredContent.revision, 1);
   const focus = await f.tool(withBlog.access_token, 'get_context', { focus: 'blog' });
-  assert.equal(focus.structuredContent.sources[0].summary.attention[0].href, 'https://codepi.app/desk/');
+  assert.equal(focus.structuredContent.sources[0].summary.attention[0].href, 'https://codepi.app/desk/blog/');
   const noBlog = await f.grant({ scope: 'context.read' });
   assert.equal((await f.tool(noBlog.access_token, 'get_context')).structuredContent.sources.find(s => s.id === 'blog'), undefined);
 });
