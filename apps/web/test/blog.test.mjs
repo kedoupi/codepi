@@ -94,6 +94,11 @@ test('Desk review APIs validate pagination and return tab counts', async t => {
   const published = await (await f.call('/api/blog/posts?tab=published&page=99', cookie)).json();
   assert.equal(published.total, 1);
   assert.equal(published.page, 1);
+  const publishedPage = await (await f.call('/api/blog/posts?tab=published&page=1', cookie)).json();
+  assert.equal(publishedPage.posts.find(item => item.slug === 'review-page-a').has_pending, 1);
+  await f.blog.prepare("UPDATE blog_drafts SET status='published' WHERE slug='review-page-a'").run();
+  const withoutPending = await (await f.call('/api/blog/posts?tab=published&page=1', cookie)).json();
+  assert.equal(withoutPending.posts.find(item => item.slug === 'review-page-a').has_pending, 0);
   assert.equal(published.counts.tech, 0);
 });
 

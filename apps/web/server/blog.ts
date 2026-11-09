@@ -200,7 +200,7 @@ export async function listReviewPosts(db: D1Database, page = 1, category?: Revie
   const values = category ? [category] : [];
   const total = await db.prepare(`SELECT COUNT(*) AS count FROM blog_posts${where}`).bind(...values).first<number>("count") ?? 0;
   const currentPage = reviewPage(page, total);
-  const posts = (await db.prepare(`SELECT slug,title,summary,cover_media_id,category,revision,updated_at,sources FROM blog_posts${where} ORDER BY published_at DESC,slug LIMIT 20 OFFSET ?`).bind(...values, (currentPage - 1) * 20).all()).results;
+  const posts = (await db.prepare(`SELECT slug,title,summary,cover_media_id,category,revision,updated_at,sources,EXISTS(SELECT 1 FROM blog_drafts WHERE blog_drafts.slug=blog_posts.slug AND blog_drafts.status='pending') AS has_pending FROM blog_posts${where} ORDER BY published_at DESC,slug LIMIT 20 OFFSET ?`).bind(...values, (currentPage - 1) * 20).all()).results;
   return { posts, total, page: currentPage, pages: Math.max(1, Math.ceil(total / 20)), counts: await reviewCounts(db, "blog_posts") };
 }
 export async function getPost(db: D1Database, slug: string) { return row(await db.prepare("SELECT * FROM blog_posts WHERE slug=?").bind(slug).all<Post>()); }

@@ -230,6 +230,8 @@ try {
   await page.waitForSelector('#blog-drafts-list');
   await page.waitForFunction(() => document.querySelector('#blog-review-tabs [aria-selected="true"]')?.textContent.includes('待审'));
   await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('篇待审'));
+  await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
+  await page.waitForFunction(() => document.querySelector('#blog-review-status').textContent.includes('篇待审'));
   await page.waitForSelector('.desk-blog-category[data-category="digital-space"]');
   await page.click('.desk-blog-category[data-category="digital-space"]');
   await page.waitForFunction(() => new URL(location.href).searchParams.get('category') === 'digital-space');
@@ -238,6 +240,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]'));
   await page.click('#blog-drafts-list [data-slug="browser-article-12"]');
   await page.waitForFunction(() => location.pathname === '/desk/blog/browser-article-12/');
+  await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
+  await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
   await page.waitForFunction(() => document.querySelector('#blog-review-page')?.dataset.view === 'detail');
   await page.waitForFunction(() => document.querySelector('#blog-review-detail iframe')?.contentDocument?.querySelector('.blog-article'));
   await page.waitForFunction(() => {
@@ -311,6 +315,11 @@ try {
   await page.goto(origins.desk + '/desk/blog/?tab=pending');
   await page.waitForFunction(() => document.querySelector('#blog-drafts-list [data-slug="browser-article-12"]')?.textContent.includes('已上架 · 有新版待审'));
   await page.goto(origins.desk + '/desk/blog/?tab=published');
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"]')?.textContent.includes('已上架 · 有新版待审'));
+  assert.equal(await page.evaluate(() => document.querySelector('#blog-published-list [data-slug="browser-article-11"]')?.textContent.includes('已上架')), true);
+  await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug="browser-article-11"]')?.textContent.includes('已上架 · 有新版待审') === false);
+  const chip = await page.evaluate(() => document.querySelector('.desk-blog-category-zero')?.classList.contains('desk-blog-category-zero') ?? false);
+  assert.ok(chip, 'zero category chip is styled');
   await page.waitForFunction(() => document.querySelector('#blog-published-list [data-slug="browser-article-12"]'));
   await page.click('#blog-published-list [data-slug="browser-article-12"]');
   await page.waitForURL(origins.desk + '/desk/blog/browser-article-12/?tab=published');

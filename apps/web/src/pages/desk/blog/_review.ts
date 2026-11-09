@@ -1,4 +1,4 @@
-type ReviewItem = { slug: string; title: string; summary: string; revision: number; updated_at: string; published_at?: string | null; cover_media_id?: string | null; category?: string | null; sources?: string | null; has_live?: number | boolean; live_revision?: number | null };
+type ReviewItem = { slug: string; title: string; summary: string; revision: number; updated_at: string; published_at?: string | null; cover_media_id?: string | null; category?: string | null; sources?: string | null; has_live?: number | boolean; live_revision?: number | null; has_pending?: number | boolean };
 const page = typeof document === "undefined" ? null : document.getElementById("blog-review-page") as HTMLElement;
 const previewSlug = page?.dataset.slug ?? (typeof location === "undefined" ? null : location.pathname.match(/^\/desk\/blog\/([a-z0-9][a-z0-9-]{0,79})\/$/)?.[1] ?? null);
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -83,7 +83,7 @@ function renderListRow(item: ReviewItem, published: boolean, live = false) {
   content.append(node("strong", item.title, "desk-queue-title"));
   const meta = node("span", "", "desk-review-list-meta");
   meta.append(node("span", item.category ? categoryNames[item.category] ?? item.category : "未分类", "desk-blog-chip"));
-  meta.append(node("span", published ? live ? "有新版待审" : "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-blog-chip desk-blog-chip-status"));
+  meta.append(node("span", published ? item.has_pending ? "已上架 · 有新版待审" : "已上架" : live ? "已上架 · 有新版待审" : "待审", "desk-blog-chip desk-blog-chip-status"));
   meta.append(node("span", time(item.updated_at), "desk-queue-meta"));
   content.append(meta);
   link.append(content, node("span", published ? "查看 ›" : "去审核 ›", "desk-review-go"));
@@ -95,10 +95,9 @@ function renderLists() {
   const source = activeTab === "pending" ? pending : published;
   const meta = activeTab === "pending" ? pendingMeta : publishedMeta;
   activePage = meta.page;
-  const live = new Map(published.map(item => [item.slug, item]));
   const activeList = activeTab === "pending" ? el("blog-drafts-list") : el("blog-published-list");
   const inactiveList = activeTab === "pending" ? el("blog-published-list") : el("blog-drafts-list");
-  const rows = source.length ? source.map(item => renderListRow(item, activeTab === "published", live.has(item.slug) || !!item.has_live)) : [node("p", activeCategory ? "这个分类还没有文章" : activeTab === "pending" ? "没有待审的稿件，去看看已上架 ›" : "这个分类还没有文章", "desk-review-empty")];
+  const rows = source.length ? source.map(item => renderListRow(item, activeTab === "published", activeTab === "pending" ? !!item.has_live : !!item.has_pending)) : [node("p", activeCategory ? "这个分类还没有文章" : activeTab === "pending" ? "没有待审的稿件，去看看已上架 ›" : "这个分类还没有文章", "desk-review-empty")];
   activeList.replaceChildren(...rows);
   inactiveList.replaceChildren();
   for (const group of document.querySelectorAll<HTMLElement>("[data-review-tab]")) group.hidden = group.dataset.reviewTab !== activeTab;
