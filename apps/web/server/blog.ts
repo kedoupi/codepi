@@ -137,7 +137,7 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
   const category = await assertCategory(db,input.category);
   if (encoder.encode(body).byteLength > MCP_LIMITS.blogBody) throw invalid("payload_too_large");
   const existing = await getDraft(db,slug);
-  if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
+  if (existing?.last_request_id === requestId) return { slug, revision:existing.revision, status:existing.status, submitted_at:existing.submitted_at,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:`https://codepi.app/desk/blog/${encodeURIComponent(slug)}/`,warnings:env ? await coverWarnings(env,existing.cover_media_id) : [] };
   if (existing ? baseRevision !== existing.revision : baseRevision !== undefined && baseRevision !== 0) throw invalid("revision_conflict");
   const content = env ? await prepareContent(env,body,input.cover_media_id) : { html:await renderMarkdown(body), ids:[], cover:null as string | null, warnings:[] as string[] };
   const warnings = [...content.warnings, ...(category ? [] : ["未提供分类，文章将显示为未分类；请让模型按 blog_guide 的分类表重新提交。"] )];
@@ -150,7 +150,7 @@ export async function submitDraft(db: D1Database, input: Record<string, unknown>
     .bind(slug,title,summary,tag ?? null,body,content.html,clientId,clientName,revision,requestId,timestamp,timestamp,content.cover,JSON.stringify(content.ids),category,JSON.stringify(tags),input.series ?? null,JSON.stringify(sources),existing?.revision ?? 0,existing?.status ?? "pending"),
   ]);
   if (!result.meta.changes) throw invalid("revision_conflict");
-  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:"https://codepi.app/desk/",warnings };
+  return { slug,revision,status:"pending",submitted_at:timestamp,preview_url:`https://codepi.app/blog/preview/${slug}/`,review_url:`https://codepi.app/desk/blog/${encodeURIComponent(slug)}/`,warnings };
 }
 export async function retractDraft(db: D1Database, slug: string) {
   const result = await db.prepare("UPDATE blog_drafts SET status='withdrawn',updated_at=? WHERE slug=? AND status='pending'").bind(now(),slug).run();
@@ -240,5 +240,5 @@ export async function purgeBlogCaches(slug?: string, origin="https://codepi.app"
 export async function blogSummary(db: D1Database): Promise<SourceSummary> {
   const published=await db.prepare("SELECT COUNT(*) AS count FROM blog_posts").first<number>("count") ?? 0;
   const pending=await db.prepare("SELECT COUNT(*) AS count FROM blog_drafts WHERE status='pending'").first<number>("count") ?? 0;
-  return {source:"blog",status:"ok",stale:false,asOf:null,updatedAt:null,metrics:[{label:"已发布",value:String(published)},{label:"待审核",value:String(pending)}],facts:[],notes:[],attention:pending ? [{label:`${pending} 篇博客草稿待审核`,href:"https://codepi.app/desk/"}] : []};
+  return {source:"blog",status:"ok",stale:false,asOf:null,updatedAt:null,metrics:[{label:"已发布",value:String(published)},{label:"待审核",value:String(pending)}],facts:[],notes:[],attention:pending ? [{label:`${pending} 篇博客草稿待审核`,href:"https://codepi.app/desk/blog/"}] : []};
 }

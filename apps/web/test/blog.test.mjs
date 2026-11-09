@@ -252,6 +252,9 @@ test('category empty state and missing cover follow brand blog structure', async
   const f = await deskFixture(t);
   const worker = await f.runtime.getWorker('desk');
   const empty = await (await worker.fetch('http://localhost:8804/blog/?category=digital-space')).text();
+  assert.match(empty, /class="blog-filter"/);
+  assert.match(empty, /href="\/blog\/"[^>]*>全部/);
+  assert.match(empty, /href="\/blog\/\?category=health"/);
   assert.match(empty, /「数字空间」还没有文章/);
   assert.match(empty, /看全部文章/);
   assert.match(empty, /通过 RSS 订阅/);
@@ -297,6 +300,7 @@ test('submit is idempotent, revision-checked and never touches the live post', a
   const f = await deskFixture(t);
   const first = await submit(f, draft({ request_id: 'req-1' }));
   assert.equal(first.data.revision, 1);
+  assert.equal(first.data.review_url, 'https://codepi.app/desk/blog/hello-world/');
   const retry = await submit(f, draft({ request_id: 'req-1' }));
   assert.deepEqual(retry, first);
   assert.equal((await f.blog.prepare('SELECT COUNT(*) AS c FROM blog_drafts').all()).results[0].c, 1);
@@ -408,6 +412,10 @@ test('public routes render published only, preview shows drafts to the owner', a
   assert.match(articleHtml, /<link rel="canonical" href="http:\/\/localhost:8804\/blog\/public-post\/">/);
   assert.match(articleHtml, /Public body/);
   assert.doesNotMatch(articleHtml, /blog-header/);
+  const review = await worker.fetch('http://localhost:8804/desk/blog/public-post/');
+  assert.equal(review.status, 200);
+  assert.equal(review.headers.get('Cache-Control'), 'no-store');
+  assert.match(await review.text(), /blog-list-mount/);
   assert.equal((await worker.fetch('http://localhost:8804/blog/missing/')).status, 404);
   const anonPreview = await worker.fetch('http://localhost:8804/blog/preview/public-post/', { redirect: 'manual' });
   assert.equal(anonPreview.status, 302);
@@ -808,6 +816,9 @@ test('submissions advance drafts without writing revision snapshots', async t =>
 
 test('blog summary reports publication and review counts', async t => {
   const f = await deskFixture(t);
+  await seedDraft(f, 'summary-pending');
+  const summary = await f.summary('kdp-owner');
+  assert.deepEqual(summary.attention, [{ label: '1 篇博客草稿待审核', href: 'https://codepi.app/desk/blog/' }]);
   const empty = await f.rpc({ subject: 'kdp-owner', client: 'test-client', operation: 'list', args: {} });
   assert.deepEqual(empty.data.posts, []);
   const denied = await f.rpc({ subject: 'someone-else', client: 'test-client', operation: 'list', args: {} });

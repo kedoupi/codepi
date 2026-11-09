@@ -65,7 +65,7 @@ export async function deskFixture(t, options = {}) {
     }, {
       name: 'blog-rpc', modules: true, compatibilityDate: '2026-10-15',
       serviceBindings: { BLOG_RPC: { name: 'desk', entrypoint: 'BlogMcp' } },
-      script: `export default { async fetch(req, env) { const reply = await env.BLOG_RPC.execute(await req.json()); return Response.json(reply); } };`,
+      script: `export default { async fetch(req, env) { const body = await req.json(); if (body.operation === 'summary') return Response.json(await env.BLOG_RPC.summary(body.subject)); const reply = await env.BLOG_RPC.execute(body); return Response.json(reply); } };`,
     }],
     bindings: { desk: {
       HEALTH_SUMMARY_TOKEN: sourceTokens.health, GU_SUMMARY_TOKEN: sourceTokens.gu,
@@ -95,5 +95,5 @@ export async function deskFixture(t, options = {}) {
     headers: { Cookie: cookies, Origin: origin, 'Content-Type': 'application/json', ...custom },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), redirect: 'manual',
   });
-  return { ...f, sources, blog, calls, faults, call, rpc: async body => (await (await f.runtime.getWorker('blog-rpc')).fetch('http://localhost:8899/', { method: 'POST', body: JSON.stringify(body) })).json(), beforeReply: fn => { beforeReply = fn; } };
+  return { ...f, sources, blog, calls, faults, call, rpc: async body => (await (await f.runtime.getWorker('blog-rpc')).fetch('http://localhost:8899/', { method: 'POST', body: JSON.stringify(body) })).json(), summary: async subject => (await (await f.runtime.getWorker('blog-rpc')).fetch('http://localhost:8899/', { method: 'POST', body: JSON.stringify({ operation: 'summary', subject }) })).json(), beforeReply: fn => { beforeReply = fn; } };
 }
