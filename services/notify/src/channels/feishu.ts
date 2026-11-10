@@ -47,8 +47,11 @@ async function request(url: string, init: RequestInit, fetchImpl: FetchLike): Pr
   } catch {
     throw networkError();
   }
+  const result = await responseJson(response);
+  const code = String(result.code ?? "");
+  if (!response.ok && code && code !== "0") return result;
   if (!response.ok) throw httpError(response.status);
-  return responseJson(response);
+  return result;
 }
 
 async function getToken(env: FeishuChannelEnv, fetchImpl: FetchLike, refresh = false) {
@@ -96,11 +99,17 @@ export const __resetFeishuTokenCache = resetFeishuTokenCache;
 
 export async function sendFeishu(env: FeishuChannelEnv, card: unknown, uuid: string, fetchImpl: FetchLike = fetchOverride ?? fetch) {
   if (!env.FEISHU_APP_ID || !env.FEISHU_APP_SECRET || !env.FEISHU_RECEIVE_OPEN_ID) throw coded("E_FEISHU_NOT_CONFIGURED", false);
-  let token = await getToken(env, fetchImpl);
+  let token: string;
+  try {
+    token = await getToken(env, fetchImpl);
+  } catch (error) {
+    if (!(error && typeof error === "object" && "code" in error && String(error.code) === "E_FEISHU_99991663")) throw error;
+    token = await getToken(env, fetchImpl, true);
+  }
   try {
     return await sendMessage(env, card, uuid, fetchImpl, token);
   } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && String((error as { code: string }).code) === "E_FEISHU_99991663")) throw error;
+    if (!(error && typeof error === "object" && "code" in error && String(error.code) === "E_FEISHU_99991663")) throw error;
     const appId = env.FEISHU_APP_ID;
     tokenCache.delete(appId);
     token = await getToken(env, fetchImpl, true);

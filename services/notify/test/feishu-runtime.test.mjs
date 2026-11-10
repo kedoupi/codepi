@@ -79,7 +79,7 @@ const critical = (id, extra = {}) => event(id, 'agent.stuck', 'critical', 'firin
 const warning = (id, extra = {}) => event(id, 'approval.pending', 'warning', 'firing', id, extra);
 const selftest = (id, extra = {}) => event(id, 'notify.selftest', 'info', 'info', id, extra);
 function attempts(db, deliveryId) { return db.rows('SELECT channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ? ORDER BY channel', deliveryId); }
-function latestDelivery(db, eventId) { return db.row('SELECT id, status, channel, attempts, quota_omitted FROM deliveries WHERE event_id = ?', eventId); }
+function latestDelivery(db, eventId) { return db.row('SELECT id, status, channel, attempts, quota_omitted, error_code, message_id FROM deliveries WHERE event_id = ?', eventId); }
 
 
 test('critical agent.stuck with Feishu configured sends Feishu and email once', async t => {
@@ -127,7 +127,9 @@ test('warning Feishu 230020 retries four times then falls back to email without 
   await ingest(warning('warning-230020'), env);
   await worker.scheduled({}, env);
   const deliveryId = latestDelivery(db, 'warning-230020').id;
-  assert.equal(db.row('SELECT status FROM channel_attempts WHERE delivery_id = ? AND channel = \'feishu\'', deliveryId).status, 'pending');
+  const retryAttempt = db.row("SELECT status, next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", deliveryId);
+  assert.equal(retryAttempt.status, 'pending');
+  assert.equal(Date.parse(retryAttempt.next_attempt_at) - MORNING, 5 * MINUTE);
   for (const offset of [5, 20, 80]) {
     time.set(MORNING + offset * MINUTE);
     await worker.scheduled({}, env);
@@ -238,7 +240,7 @@ test('warning retries and fallback defer in quiet hours while critical still sen
 });
 
 test('resolved and reopen cancel pending channel attempts including retries after a sent delivery', async t => {
-  clock(t);
+  const time = clock(t);
   const firstFetch = feishuFetch();
   const first = setup({ fetchImpl: firstFetch, send: () => { throw Object.assign(new Error('mail down'), { code: 'E_DELIVERY_FAILED' }); } });
   await ingest(critical('cancel-sent'), first.env);
@@ -246,7 +248,16 @@ test('resolved and reopen cancel pending channel attempts including retries afte
   const firstDelivery = latestDelivery(first.db, 'cancel-sent');
   assert.equal(firstDelivery.status, 'sent');
   await ingest(event('cancel-resolved', 'agent.stuck', 'critical', 'resolved', 'cancel-sent'), first.env);
-  assert.equal(first.db.row("SELECT status, error_code FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", firstDelivery.id).error_code, 'E_RESOLVED_BEFORE_SEND');
+  assert.deepEqual({ ...first.db.row("SELECT status, error_code FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", firstDelivery.id) }, { status: 'cancelled', error_code: 'E_RESOLVED_BEFORE_SEND' });
+
+  const retry = setup({ fetchImpl: feishuFetch(), send: () => { throw Object.assign(new Error('mail down'), { code: 'E_DELIVERY_FAILED' }); } });
+  await ingest(critical('retry-only-time'), retry.env);
+  await worker.scheduled({}, retry.env);
+  const sentAtBeforeRetry = retry.db.row("SELECT last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:retry-only-time'").last_notification_at;
+  retry.env.EMAIL = { async send() { return { id: 'email-retry-success' }; } };
+  time.set(MORNING + 5 * MINUTE);
+  await worker.scheduled({}, retry.env);
+  assert.equal(retry.db.row("SELECT last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:retry-only-time'").last_notification_at, sentAtBeforeRetry);
 
   const reopenFetch = feishuFetch([{ code: 0, data: { message_id: 'initial' } }, { code: 230020 }]);
   const reopen = setup({ fetchImpl: reopenFetch });
@@ -257,7 +268,7 @@ test('resolved and reopen cancel pending channel attempts including retries afte
   const resolvedDelivery = latestDelivery(reopen.db, 'reopen-resolved');
   assert.equal(reopen.db.row("SELECT status FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", resolvedDelivery.id).status, 'pending');
   await ingest(event('reopen-firing', 'agent.stuck', 'warning', 'firing', 'reopen-channel'), reopen.env);
-  assert.equal(reopen.db.row("SELECT status, error_code FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", resolvedDelivery.id).error_code, 'E_REOPENED_BEFORE_SEND');
+  assert.deepEqual({ ...reopen.db.row("SELECT status, error_code FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", resolvedDelivery.id) }, { status: 'cancelled', error_code: 'E_REOPENED_BEFORE_SEND' });
 });
 
 test('legacy pending delivery without channel attempts is rebuilt and sent by Cron', async t => {
@@ -266,9 +277,12 @@ test('legacy pending delivery without channel attempts is rebuilt and sent by Cr
   await ingest(warning('legacy-pending'), env);
   const delivery = latestDelivery(db, 'legacy-pending');
   db.sqlite.prepare('DELETE FROM channel_attempts WHERE delivery_id = ?').run(delivery.id);
+  db.sqlite.prepare("UPDATE deliveries SET attempts = 2, channel = 'email', error_code = 'E_LEGACY', message_id = NULL WHERE id = ?").run(delivery.id);
   await worker.scheduled({}, env);
-  assert.equal(latestDelivery(db, 'legacy-pending').status, 'sent');
-  assert.deepEqual(attempts(db, delivery.id).map(row => [row.channel, row.status]), [['feishu', 'sent']]);
+  const sentDelivery = latestDelivery(db, 'legacy-pending');
+  assert.deepEqual({ status: sentDelivery.status, attempts: sentDelivery.attempts, channel: sentDelivery.channel, error_code: sentDelivery.error_code }, { status: 'sent', attempts: 3, channel: 'feishu', error_code: null });
+  assert.match(sentDelivery.message_id, /^feishu-message-/);
+  assert.deepEqual(attempts(db, delivery.id).map(row => [row.channel, row.status, row.attempts]), [['feishu', 'sent', 3]]);
 });
 
 test('GET event read-back includes safe channel fields and no credentials', async t => {
@@ -293,4 +307,24 @@ test('Feishu failure logs only sanitized E_FEISHU code', async t => {
   await worker.scheduled({}, env);
   assert.match(logged.join('\n'), /E_FEISHU_230013/);
   for (const value of [samples.tenantToken, samples.appSecret, samples.openId, 'response-body']) assert.equal(logged.join('\n').includes(value), false);
+});
+
+test('resolved follows only the latest first delivery in the current episode', async t => {
+  const time = clock(t);
+  const fetchImpl = feishuFetch([{ code: 230013 }, { code: 0, data: { message_id: 'episode-one-resolved' } }, { code: 0, data: { message_id: 'episode-two-first' } }, { code: 0, data: { message_id: 'episode-two-resolved' } }]);
+  const { db, sent, env } = setup({ fetchImpl });
+  await ingest(event('episode-one-first', 'agent.stuck', 'warning', 'firing', 'episode-subject'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 10 * MINUTE);
+  await ingest(event('episode-one-resolved', 'agent.stuck', 'warning', 'resolved', 'episode-subject'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 20 * MINUTE);
+  await ingest(event('episode-two-first', 'agent.stuck', 'warning', 'firing', 'episode-subject'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 30 * MINUTE);
+  await ingest(event('episode-two-resolved', 'agent.stuck', 'warning', 'resolved', 'episode-subject'), env);
+  await worker.scheduled({}, env);
+  const resolved = latestDelivery(db, 'episode-two-resolved');
+  assert.equal(resolved.channel, 'feishu');
+  assert.equal(sent.length, 2);
 });

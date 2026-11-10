@@ -38,14 +38,19 @@ test('missing Feishu configuration fails before fetch', async () => {
   assert.equal(calls, 0);
 });
 
-test('Feishu card is JSON 2.0, colored, bounded and uses only open_url', () => {
-  const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(1800) })) }));
+test('Feishu card is JSON 2.0, structurally bounded and uses open_url only', () => {
+  const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(4000) })) }));
   const json = JSON.stringify(card);
+  const markdown = card.body.elements.find(element => element.tag === 'markdown');
+  const button = card.body.elements.find(element => element.tag === 'button');
   assert.equal(card.schema, '2.0');
   assert.equal(card.header.template, 'red');
-  assert.match(json, /open_url/);
-  assert.equal(json.includes('callback'), false);
   assert.ok(new TextEncoder().encode(json).byteLength <= 30 * 1024);
+  assert.ok((markdown.content.match(/- \*\*/g) ?? []).length < 12);
+  assert.match(markdown.content, /- \*\*fact-/);
+  assert.equal(button.text.content, '查看详情');
+  assert.equal(button.behaviors[0].type, 'open_url');
+  assert.equal(card.body.elements.some(element => (element.behaviors ?? []).some(behavior => behavior.type === 'callback')), false);
 });
 
 test('Feishu classifies retryable provider and transport errors', async () => {
@@ -100,4 +105,37 @@ test('Feishu card colors cover warning, selftest/info and resolved', () => {
   assert.equal(buildFeishuCard(notificationParts({ ...event, severity: 'warning' })).header.template, 'orange');
   assert.equal(buildFeishuCard(notificationParts({ ...event, kind: 'notify.selftest', severity: 'info' })).header.template, 'blue');
   assert.equal(buildFeishuCard(notificationParts({ ...event, state: 'resolved', severity: 'warning' })).header.template, 'green');
+});
+
+test('Feishu classifies business codes in non-2xx bodies and refreshes once', async () => {
+  resetFeishuTokenCache();
+  const refreshReplies = [
+    response({ code: 0, tenant_access_token: ['tenant', '-old'].join(''), expire: 7200 }),
+    response({ code: 99991663, msg: 'expired' }, 400),
+    response({ code: 0, tenant_access_token: ['tenant', '-new'].join(''), expire: 7200 }),
+    response({ code: 0, data: { message_id: 'refreshed' } }),
+  ];
+  const fetchImpl = async url => String(url).includes('/tenant_access_token/') ? refreshReplies.shift() : refreshReplies.shift();
+  assert.equal(await sendFeishu({ FEISHU_APP_ID: ['app', '-http'].join(''), FEISHU_APP_SECRET: ['sec', 'ret-http'].join(''), FEISHU_RECEIVE_OPEN_ID: ['open', '-http'].join('') }, {}, 'notify-400', fetchImpl), 'refreshed');
+
+  resetFeishuTokenCache();
+  const retryFetch = async url => String(url).includes('/tenant_access_token/') ? response({ code: 0, tenant_access_token: ['tenant', '-retry'].join(''), expire: 7200 }) : response({ code: 230020, msg: 'rate limited' }, 400);
+  await assert.rejects(sendFeishu({ FEISHU_APP_ID: ['app', '-retry'].join(''), FEISHU_APP_SECRET: ['sec', 'ret-retry'].join(''), FEISHU_RECEIVE_OPEN_ID: ['open', '-retry'].join('') }, {}, 'notify-400', retryFetch), error => error.code === 'E_FEISHU_230020' && error.retryable === true);
+
+  resetFeishuTokenCache();
+  const permanentFetch = async url => String(url).includes('/tenant_access_token/') ? response({ code: 0, tenant_access_token: ['tenant', '-permanent'].join(''), expire: 7200 }) : response({ code: 230013, msg: 'not allowed' }, 400);
+  await assert.rejects(sendFeishu({ FEISHU_APP_ID: ['app', '-permanent'].join(''), FEISHU_APP_SECRET: ['sec', 'ret-permanent'].join(''), FEISHU_RECEIVE_OPEN_ID: ['open', '-permanent'].join('') }, {}, 'notify-400', permanentFetch), error => error.code === 'E_FEISHU_230013' && error.retryable === false);
+});
+
+test('Feishu does not retry a second 99991663 after refresh', async () => {
+  resetFeishuTokenCache();
+  const replies = [
+    response({ code: 0, tenant_access_token: ['tenant', '-first'].join(''), expire: 7200 }),
+    response({ code: 99991663 }, 400),
+    response({ code: 0, tenant_access_token: ['tenant', '-second'].join(''), expire: 7200 }),
+    response({ code: 99991663 }, 400),
+  ];
+  const fetchImpl = async () => replies.shift();
+  await assert.rejects(sendFeishu({ FEISHU_APP_ID: ['app', '-once'].join(''), FEISHU_APP_SECRET: ['sec', 'ret-once'].join(''), FEISHU_RECEIVE_OPEN_ID: ['open', '-once'].join('') }, {}, 'notify-once', fetchImpl), error => error.code === 'E_FEISHU_99991663');
+  assert.equal(replies.length, 0);
 });

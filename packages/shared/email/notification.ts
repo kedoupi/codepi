@@ -68,7 +68,8 @@ export function notificationSender(configured = DEFAULT_NOTIFICATION_SENDER) {
 }
 
 export function buildNotificationEmail(input: NotificationEmailInput) {
-  const { event, facts, subject, conclusion, firstSeen, lastSeen, duration, link, source, incidentId, reason } = notificationParts(input);
+  const { event, facts: rawFacts, subject, conclusion, firstSeen, lastSeen, duration, link, source, incidentId, reason } = notificationParts(input);
+  const facts = rawFacts ?? [];
   const rows = facts.map(fact => `${fact.label}: ${fact.value}`);
   const text = [
     PRODUCT_BRAND,
@@ -97,14 +98,18 @@ export function buildNotificationEmail(input: NotificationEmailInput) {
 const FEISHU_CARD_LIMIT = 30 * 1024;
 const cardTemplate = (parts: NotificationParts) => parts.event.state === "resolved" ? "green" : parts.event.kind === "notify.selftest" || parts.event.severity === "info" ? "blue" : parts.event.severity === "critical" ? "red" : "orange";
 
+function escapeFeishuMarkdown(value: string) {
+  return value.replace(/[\\`*_{}\[\]()#+.!|>~]/g, "\\$&");
+}
+
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
-  const factLines = facts.map(fact => `- **${fact.label}**：${fact.value}`);
-  const metadata = [`开始时间：${parts.firstSeen}`, `最近一次观察：${parts.lastSeen}`, ...(parts.duration ? [`持续时长：${parts.duration}`] : []), `来源：${parts.source}`, ...(parts.incidentId ? [`事故编号：${parts.incidentId}`] : [])];
+  const factLines = facts.map(fact => `- **${escapeFeishuMarkdown(fact.label)}**：${escapeFeishuMarkdown(fact.value)}`);
+  const metadata = [`开始时间：${parts.firstSeen}`, `最近一次观察：${parts.lastSeen}`, ...(parts.duration ? [`持续时长：${parts.duration}`] : []), `来源：${parts.source}`, ...(parts.incidentId ? [`事故编号：${parts.incidentId}`] : [])].map(escapeFeishuMarkdown);
   const elements: Record<string, unknown>[] = [
-    { tag: "markdown", content: [conclusion, ...factLines, ...metadata.map(value => `\n${value}`)].join("\n") },
+    { tag: "markdown", content: [escapeFeishuMarkdown(conclusion), ...factLines, ...metadata.map(value => `\n${value}`)].join("\n") },
   ];
   if (parts.link) elements.push({ tag: "button", text: { tag: "plain_text", content: "查看详情" }, type: "default", behaviors: [{ type: "open_url", default_url: parts.link }] });
-  return { schema: "2.0", config: { wide_screen_mode: true }, header: { template: cardTemplate(parts), title: { tag: "plain_text", content: parts.subject } }, body: { elements } };
+  return { schema: "2.0", header: { template: cardTemplate(parts), title: { tag: "plain_text", content: parts.subject } }, body: { elements } };
 }
 
 export function buildFeishuCard(input: NotificationParts | NotificationEmailInput) {
@@ -118,12 +123,13 @@ export function buildFeishuCard(input: NotificationParts | NotificationEmailInpu
     card = feishuCardValue(parts, facts, conclusion);
   }
   while (size() > FEISHU_CARD_LIMIT && conclusion.length > 128) {
-    conclusion = `${conclusion.slice(0, Math.max(128, Math.floor(conclusion.length * 0.75)))}…`;
+    const nextLength = Math.max(0, Math.min(conclusion.length - 2, Math.floor(conclusion.length * 0.75)));
+    if (nextLength >= conclusion.length - 1) break;
+    conclusion = `${conclusion.slice(0, nextLength)}…`;
     card = feishuCardValue(parts, facts, conclusion);
   }
   if (size() > FEISHU_CARD_LIMIT) {
-    const title = parts.subject.slice(0, 120);
-    const compact = { ...parts, subject: title, conclusion: conclusion.slice(0, 128) };
+    const compact = { ...parts, subject: parts.subject.slice(0, 120), conclusion: conclusion.slice(0, 64) };
     card = feishuCardValue(compact, [], compact.conclusion);
   }
   return card;
