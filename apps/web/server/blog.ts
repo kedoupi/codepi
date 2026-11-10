@@ -125,6 +125,9 @@ async function assertCategory(db: D1Database, category: unknown): Promise<string
 export async function listCategories(db: D1Database) {
   return (await db.prepare("SELECT slug,name,(SELECT COUNT(*) FROM blog_posts WHERE blog_posts.category=blog_categories.slug) AS published FROM blog_categories ORDER BY rowid").all<{slug:string;name:string;published:number}>()).results;
 }
+export async function countPublished(db: D1Database) {
+  return await db.prepare("SELECT COUNT(*) AS count FROM blog_posts").first<number>("count") ?? 0;
+}
 
 export async function submitDraft(db: D1Database, input: Record<string, unknown>, env?: BlogEnv) {
   const { slug, title, summary, tag, body_markdown: body, base_revision: baseRevision } = input;

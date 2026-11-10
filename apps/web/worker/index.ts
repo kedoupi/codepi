@@ -1,5 +1,5 @@
 import { handleDeskRequest, type DeskEnv } from "../server/desk";
-import { getDraft, getPost, listPublished, listLatestPublished, listCategories, parseTags, parseSources, readingMinutes, postNeighbors, type BlogEnv, type Post, type LatestPost } from "../server/blog";
+import { getDraft, getPost, listPublished, listLatestPublished, listCategories, countPublished, parseTags, parseSources, readingMinutes, postNeighbors, type BlogEnv, type Post, type LatestPost } from "../server/blog";
 import { getMedia, handleMediaRequest, mediaUrl } from "../server/media";
 import { readSsoSession } from "@kedoupi/shared/auth/client";
 import { BlogMcp, BlogMediaBackup } from "./blog";
@@ -54,7 +54,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
   const page = /^[1-9]\d{0,6}$/.test(rawPage) ? Number(rawPage) : 1;
   const listing = slug ? null : await listPublished(env.BLOG, (page - 1) * PAGE_SIZE, PAGE_SIZE, filter);
   if (listing && page > 1 && !listing.posts.length) return notFound();
-  const categories = await listCategories(env.BLOG);
+  const [categories, publishedCount] = await Promise.all([listCategories(env.BLOG), countPublished(env.BLOG)]);
   const categoryName = (value: string | null) => value ? categories.find(item => item.slug === value)?.name ?? value : "";
   const coverImage = async (item: { cover_media_id: string | null; body_html?: string }, className: string, eager = false, article = false) => {
     if (!item.cover_media_id) return fallbackCover(className);
@@ -81,7 +81,7 @@ async function blogPage(request: Request, env: Env, slug?: string, preview = fal
     return `${basePath}${query ? `?${query}` : ""}`;
   };
   const pagination = listing && listing.total > PAGE_SIZE ? `<nav class="blog-pagination" aria-label="文章分页">${page > 1 ? `<a class="blog-pagination-link" rel="prev" href="${href(page - 1)}">上一页</a>` : "<span></span>"}<span>第 ${page} / ${Math.ceil(listing.total / PAGE_SIZE)} 页</span>${listing.next_offset !== null ? `<a class="blog-pagination-link" rel="next" href="${href(page + 1)}">下一页</a>` : "<span></span>"}</nav>` : "";
-  const filterNav = listing ? `<nav class="blog-filter" aria-label="按分类筛选"><a href="/blog/"${!filter.category && !filter.tag && !filter.series ? ' aria-current="true"' : ""}>全部<span class="blog-filter-count">${categories.reduce((sum, item) => sum + item.published, 0)}</span></a>${categories.map(item => `<a href="/blog/?category=${encodeURIComponent(item.slug)}"${filter.category === item.slug ? ' aria-current="true"' : ""}>${escape(item.name)}<span class="blog-filter-count">${item.published}</span></a>`).join("")}</nav>` : "";
+  const filterNav = listing ? `<nav class="blog-filter" aria-label="按分类筛选"><a href="/blog/"${!filter.category && !filter.tag && !filter.series ? ' aria-current="true"' : ""}>全部<span class="blog-filter-count">${publishedCount}</span></a>${categories.map(item => `<a href="/blog/?category=${encodeURIComponent(item.slug)}"${filter.category === item.slug ? ' aria-current="true"' : ""}>${escape(item.name)}<span class="blog-filter-count">${item.published}</span></a>`).join("")}</nav>` : "";
   const filterTitle = filter.tag ? `标签：${filter.tag}` : filter.series ? `系列：${filter.series}` : filter.category ? `分类：${categoryName(filter.category) || filter.category}` : "";
   const neighbors = post && !preview ? await postNeighbors(env.BLOG, post as Post) : null;
   const shell = await env.ASSETS.fetch(new Request(new URL("/blog/", request.url), { method: "GET", headers: request.headers }));
