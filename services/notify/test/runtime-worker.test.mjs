@@ -436,7 +436,7 @@ test('a merged failure backs off each row from its own attempts and fails only e
   const { db, sent, env } = setup(() => { throw Object.assign(new Error('provider down'), { code: 'E_DELIVERY_FAILED' }); });
   for (const id of ['fresh', 'second', 'third', 'last']) await ingest(alert(id, id), env);
   db.sqlite.prepare("UPDATE deliveries SET attempts = CASE event_id WHEN 'second' THEN 1 WHEN 'third' THEN 2 WHEN 'last' THEN 3 ELSE 0 END").run();
-  await worker.scheduled({}, env);
+  await assert.rejects(worker.scheduled({}, env), error => error.code === 'E_DELIVERY_FAILED');
   assert.equal(sent.length, 1);
   const rows = Object.fromEntries(db.rows('SELECT d.event_id, d.status, d.attempts, d.next_attempt_at FROM deliveries d').map(row => [row.event_id, { ...row }]));
   assert.deepEqual(rows.fresh, { event_id: 'fresh', status: 'pending', attempts: 1, next_attempt_at: new Date(MORNING + 5 * MINUTE).toISOString() });

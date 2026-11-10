@@ -329,9 +329,11 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
     if (noticeDelivered && omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = MAX(omitted_count - ?2, 0) WHERE bucket = ?1").bind(beijingBuckets().day, omitted).run();
     return { status: "sent" as const, ...(sentMessage?.message_id ? { message_id: sentMessage.message_id } : {}) };
   }
-  if (Number(pending?.count ?? 0) > 0) return { status: "pending" as const, error_code: [...results].reverse().find(result => result.code)?.code };
+  const mixedPending = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries d WHERE d.id IN (${placeholders(rows.length)}) AND d.status = 'pending' AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'pending') AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'failed')`).bind(...rows.map(row => row.id)).first<{ count: number }>();
+  if (Number(mixedPending?.count ?? 0) > 0) return { status: "pending" as const, error_code: [...results].reverse().find(result => result.code)?.code };
   if (finalFailure) throw codedError(finalFailure.code ?? "E_DELIVERY_FAILED");
   const code = [...results].reverse().find(result => result.code)?.code ?? "E_DELIVERY_FAILED";
+  if (Number(pending?.count ?? 0) > 0) return { status: "pending" as const, error_code: code };
   throw codedError(code);
 }
 

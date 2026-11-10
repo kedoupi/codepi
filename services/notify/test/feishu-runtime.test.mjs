@@ -94,7 +94,8 @@ test('critical agent.stuck with Feishu configured sends Feishu and email once', 
   assert.deepEqual({ status: delivery.status, channel: delivery.channel }, { status: 'sent', channel: 'feishu,email' });
   assert.deepEqual(attempts(db, delivery.id).map(row => [row.channel, row.status, row.message_id]), [['email', 'sent', 'email-message-1'], ['feishu', 'sent', 'feishu-message-2']]);
   assert.equal(sent.length, 1);
-  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
+  assert.equal(db.row("SELECT day_count FROM quota WHERE bucket = 'day:2026-11-11'").day_count, 1);
+  assert.equal(db.row("SELECT hour_count FROM quota WHERE bucket = 'hour:2026-11-11T09'").hour_count, 1);
 });
 
 test('warning approval.pending sends only Feishu', async t => {
@@ -200,6 +201,8 @@ test('Cron mixed batches use the route union and warning-only batches use Feishu
   await worker.scheduled({}, mixed.env);
   assert.equal(mixed.sent.length, 1);
   assert.equal(mixed.fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
+  assert.equal(mixed.db.row("SELECT day_count FROM quota WHERE bucket = 'day:2026-11-11'").day_count, 1);
+  assert.equal(mixed.db.row("SELECT hour_count FROM quota WHERE bucket = 'hour:2026-11-11T09'").hour_count, 1);
 
   const warningOnly = setup();
   await ingest(warning('only-warning'), warningOnly.env);
