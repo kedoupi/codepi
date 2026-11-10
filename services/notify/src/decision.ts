@@ -5,6 +5,10 @@ const RETRYABLE: Record<string, true> = {
   E_RATE_LIMIT_EXCEEDED: true,
   E_DELIVERY_FAILED: true,
   E_INTERNAL_SERVER_ERROR: true,
+  E_FEISHU_99991663: true,
+  E_FEISHU_99991400: true,
+  E_FEISHU_230020: true,
+  E_FEISHU_NETWORK: true,
 };
 // At most 4 attempts in total: the first send plus retries after 5, 15 and 60 minutes.
 const RETRY_MINUTES = [5, 15, 60];
@@ -12,7 +16,8 @@ const RETRY_MINUTES = [5, 15, 60];
 // attempts = failed attempts recorded before this failure.
 export function retryAt(errorCode: string, attempts: number, now = Date.now()): string | null {
   const minutes = RETRY_MINUTES[attempts];
-  if (!RETRYABLE[errorCode] || minutes === undefined) return null;
+  const retryable = RETRYABLE[errorCode] || /^E_FEISHU_HTTP_(429|5\d\d)$/.test(errorCode);
+  if (!retryable || minutes === undefined) return null;
   return new Date(now + minutes * 60 * 1000).toISOString();
 }
 export function isQuietHours(date = new Date()): boolean {
@@ -33,7 +38,7 @@ export function quietEnd(now = new Date()) {
 
 export interface Decision { decision: string; shouldSend: boolean; reason: string; }
 export function decideNotification(event: NotifyEvent, rule: NotifyRule, incident: { status?: string; firstSeen?: string; lastNotificationAt?: string | null; pendingUntil?: string | null } | null, now = Date.now()): Decision {
-  if (rule.mode === "record") return { decision: "record", shouldSend: false, reason: "record_only" };
+  if (rule.mode === "record" || rule.infoMode === "record" && event.severity === "info") return { decision: "record", shouldSend: false, reason: "record_only" };
   // A closed incident that fires again is a new episode: no for/cooldown state carries over.
   if (event.state !== "resolved" && incident && incident.status !== "open") incident = null;
   if (event.state === "resolved") {
