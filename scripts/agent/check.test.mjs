@@ -76,6 +76,7 @@ test('shared and authentication changes preserve their full consumer coverage', 
     assert.ok(plan.checks.some(check => check.argv.includes('packages/shared/auth/client.test.mjs')));
   }
   assert.deepEqual(makePlan(['packages/shared/i18n/config.js']).apps, ['web']);
+  assert.deepEqual(makePlan(['packages/shared/mcp/contract.ts']).apps, ['web', 'gu', 'health', 'project', 'me', 'mcp', 'cli']);
   assert.deepEqual(makePlan(['packages/shared/notify/contract.ts']).apps, ['notify']);
   assert.deepEqual(makePlan(['packages/shared/email/notification.ts']).apps, allApps);
 });
