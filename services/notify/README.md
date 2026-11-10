@@ -14,7 +14,7 @@ The token file is created with mode `0600`; SQL stores only the token id, SHA-25
 
 `NOTIFY_TO` is injected as a runtime secret by the authorized release operator; it is never committed or stored in D1. After release, read back a synthetic `notify.selftest` event and confirm the delivery status and provider message id. Binding success means accepted for delivery, not mailbox receipt.
 
-Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU_RECEIVE_OPEN_ID`; they are never committed, returned by the read-back API or written to logs. Token caching is isolated to the Worker runtime and keyed by app id. The card UUID is `notify-<minimum delivery id>` and Feishu's one-hour idempotency window means a retry after that window may produce a duplicate message.
+Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU_RECEIVE_OPEN_ID`; they are never committed, returned by the read-back API or written to logs. Token caching is isolated to the Worker runtime and keyed by app id. The card UUID is `notify-<minimum delivery id>` and Feishu's one-hour idempotency window means a retry after that window may produce a duplicate message. Conversely, if Feishu accepted a send but the Worker timed out locally, a batch with the same minimum id within one hour may be deduplicated by Feishu and the new content may not be delivered.
 
 `channel_attempts` is the source for per-channel retry state. A notification reserves quota once; channel fan-out, fallback and retries do not reserve additional quota. The `0002_channel_attempts.sql` migration is additive and must be applied after `0001_notify.sql`. Rollback keeps the migration applied and requires a Worker version that understands the new table.
 

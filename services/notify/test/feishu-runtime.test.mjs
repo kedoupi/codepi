@@ -82,6 +82,7 @@ const dailyReview = (id, severity = 'warning', state = 'firing', extra = {}) => 
 function request(token, body) { return new Request('https://notify-api.codepi.app/v1/events', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); }
 function attempts(db, deliveryId) { return db.rows('SELECT channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ? ORDER BY channel', deliveryId); }
 function latestDelivery(db, eventId) { return db.row('SELECT id, status, channel, attempts, next_attempt_at, quota_omitted, error_code, message_id FROM deliveries WHERE event_id = ?', eventId); }
+function setOmitted(db, count) { db.sqlite.prepare("INSERT INTO quota (bucket, omitted_count) VALUES ('day:2026-11-11', ?) ON CONFLICT(bucket) DO UPDATE SET omitted_count = excluded.omitted_count").run(count); }
 
 
 test('critical agent.stuck with Feishu configured sends Feishu and email once', async t => {
@@ -229,7 +230,7 @@ test('Cron retry-only batches do not reserve quota and quota denial omits only n
 test('warning retries and fallback defer in quiet hours while critical still sends', async t => {
   const evening = Date.parse('2026-11-10T14:58:00Z');
   const time = clock(t, evening);
-  const fetchImpl = feishuFetch(index => index === 1 ? { code: 230020 } : undefined);
+  const fetchImpl = feishuFetch(index => index === 1 ? { code: 230020 } : { code: 0, data: { message_id: `quiet-${index}` } });
   const { db, sent, env } = setup({ fetchImpl });
   await ingest(warning('quiet-retry'), env);
   await worker.scheduled({}, env);
@@ -237,6 +238,9 @@ test('warning retries and fallback defer in quiet hours while critical still sen
   await ingest(critical('quiet-critical'), env);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
+  const criticalDelivery = latestDelivery(db, 'quiet-critical');
+  assert.equal(criticalDelivery.channel, 'feishu,email');
   const retry = latestDelivery(db, 'quiet-retry');
   assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", retry.id).next_attempt_at, '2026-11-11T00:00:00.000Z');
 });
@@ -284,7 +288,7 @@ test('legacy pending delivery without channel attempts is rebuilt and sent by Cr
   const sentDelivery = latestDelivery(db, 'legacy-pending');
   assert.deepEqual({ status: sentDelivery.status, attempts: sentDelivery.attempts, channel: sentDelivery.channel, error_code: sentDelivery.error_code }, { status: 'sent', attempts: 3, channel: 'feishu', error_code: null });
   assert.match(sentDelivery.message_id, /^feishu-message-/);
-  assert.deepEqual(attempts(db, delivery.id).map(row => [row.channel, row.status, row.attempts]), [['feishu', 'sent', 3]]);
+  assert.deepEqual(attempts(db, delivery.id).map(row => [row.channel, row.status, row.attempts]), [['feishu', 'sent', 1]]);
 });
 
 test('GET event read-back includes safe channel fields and no credentials', async t => {
@@ -371,4 +375,64 @@ test('HTTP allows daily-review only for tokens that list the kind', async t => {
   const forbidden = await worker.fetch(request(denied, dailyReview('daily-http-denied')), env);
   assert.equal(accepted.status, 200);
   assert.equal(forbidden.status, 403);
+});
+
+test('Feishu-only warning carries and clears omitted notice once', async t => {
+  clock(t);
+  const { db, env, fetchImpl } = setup();
+  setOmitted(db, 2);
+  await ingest(warning('omitted-feishu'), env);
+  await worker.scheduled({}, env);
+  const message = fetchImpl.calls.find(call => call.url.includes('/im/v1/messages'));
+  const card = JSON.parse(JSON.parse(message.init.body).content);
+  const note = card.body.elements.find(element => element.tag === 'note');
+  assert.match(note.elements[0].content, /有 2 条提醒因限额未单独发送/);
+  assert.equal(db.row("SELECT omitted_count FROM quota WHERE bucket = 'day:2026-11-11'").omitted_count, 0);
+});
+
+test('Feishu fallback email carries omitted notice and next fallback does not repeat it', async t => {
+  clock(t);
+  const fetchImpl = feishuFetch([{ code: 230013 }, { code: 230013 }]);
+  const { db, sent, env } = setup({ fetchImpl });
+  setOmitted(db, 2);
+  await ingest(warning('omitted-fallback-one'), env);
+  await worker.scheduled({}, env);
+  assert.match(sent[0].text, /有 2 条提醒因限额未单独发送/);
+  assert.equal(db.row("SELECT omitted_count FROM quota WHERE bucket = 'day:2026-11-11'").omitted_count, 0);
+  await ingest(warning('omitted-fallback-two'), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].text.includes('有 2 条提醒因限额未单独发送'), false);
+});
+
+test('partial-success batch updates last_notification only for the delivery sent in this run', async t => {
+  const time = clock(t);
+  const fetchImpl = feishuFetch([{ code: 230020 }]);
+  const { db, env } = setup({ fetchImpl });
+  await ingest(critical('partial-a'), env);
+  const deliveryA = latestDelivery(db, 'partial-a');
+  db.sqlite.prepare("INSERT INTO channel_attempts (delivery_id, channel, status, attempts, message_id, sent_at) VALUES (?, 'feishu', 'sent', 1, 'already-feishu', ?)").run(deliveryA.id, new Date(MORNING).toISOString());
+  db.sqlite.prepare("INSERT INTO channel_attempts (delivery_id, channel, status, attempts) VALUES (?, 'email', 'pending', 0)").run(deliveryA.id);
+  await ingest(warning('partial-b'), env);
+  time.set(MORNING + 5 * MINUTE);
+  await worker.scheduled({}, env);
+  const deliveryB = latestDelivery(db, 'partial-b');
+  assert.equal(latestDelivery(db, 'partial-a').status, 'sent');
+  assert.equal(deliveryB.status, 'pending');
+  assert.ok(db.row("SELECT last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:partial-a'").last_notification_at);
+  assert.equal(db.row("SELECT last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:approval.pending:partial-b'").last_notification_at, null);
+});
+
+test('follow channel episode comparison normalizes Z and +08:00 timestamps', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  await ingest(event('mixed-zone-first', 'agent.stuck', 'warning', 'firing', 'mixed-zone'), env);
+  await worker.scheduled({}, env);
+  db.sqlite.prepare("UPDATE incidents SET first_seen = '2026-11-11T09:00:00+08:00' WHERE incident_key = 'surgeconf.watchdog:agent.stuck:mixed-zone'").run();
+  time.set(MORNING + 10 * MINUTE);
+  await ingest(event('mixed-zone-resolved', 'agent.stuck', 'warning', 'resolved', 'mixed-zone'), env);
+  await worker.scheduled({}, env);
+  const resolved = latestDelivery(db, 'mixed-zone-resolved');
+  assert.equal(resolved.channel, 'feishu');
+  assert.equal(sent.length, 0);
 });

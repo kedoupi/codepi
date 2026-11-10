@@ -38,16 +38,19 @@ test('missing Feishu configuration fails before fetch', async () => {
   assert.equal(calls, 0);
 });
 
-test('Feishu card is JSON 2.0, structurally bounded and uses open_url only', () => {
+test('Feishu card is JSON 2.0, structurally bounded and uses plain_text', () => {
   const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(4000) })) }));
   const json = JSON.stringify(card);
-  const markdown = card.body.elements.find(element => element.tag === 'markdown');
+  const textElements = card.body.elements.filter(element => element.tag === 'div' && element.text?.tag === 'plain_text');
+  const facts = textElements.filter(element => element.text.content.startsWith('- fact-'));
+  const note = card.body.elements.find(element => element.tag === 'note');
   const button = card.body.elements.find(element => element.tag === 'button');
   assert.equal(card.schema, '2.0');
   assert.equal(card.header.template, 'red');
   assert.ok(new TextEncoder().encode(json).byteLength <= 30 * 1024);
-  assert.ok((markdown.content.match(/- \*\*/g) ?? []).length < 12);
-  assert.match(markdown.content, /- \*\*fact-/);
+  assert.ok(facts.length < 12);
+  assert.ok(facts.length > 0);
+  assert.equal(note.elements[0].tag, 'plain_text');
   assert.equal(button.text.content, '查看详情');
   assert.equal(button.behaviors[0].type, 'open_url');
   assert.equal(card.body.elements.some(element => (element.behaviors ?? []).some(behavior => behavior.type === 'callback')), false);
