@@ -8,6 +8,7 @@ import test from 'node:test';
 const root = path.resolve(new URL('../../..', import.meta.url).pathname);
 const migration = `${await readFile(path.join(root, 'services/notify/migrations/0001_notify.sql'), 'utf8')}\n${await readFile(path.join(root, 'services/notify/migrations/0002_channel_attempts.sql'), 'utf8')}`;
 const { default: worker, NotifyApi, ingest } = await import('../src/index.ts');
+import { RULES } from '../src/rules.ts';
 
 const MINUTE = 60 * 1000;
 // 09:00 Beijing time, outside quiet hours.
@@ -67,6 +68,22 @@ function dayBucket(now) {
 function clock(t, now = MORNING) {
   t.mock.timers.enable({ apis: ['Date'], now });
   return { set: value => t.mock.timers.setTime(value) };
+}
+function cancelBeforeClaim(env, callback) {
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  let armed = true;
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    if (!armed || sql !== "UPDATE deliveries SET status = 'pending' WHERE id = ?1 AND status = 'pending'") return statement;
+    return { bind(...values) {
+      const bound = statement.bind(...values);
+      return {
+        first: bound.first,
+        all: bound.all,
+        run: async () => { armed = false; await callback(Number(values[0])); return bound.run(); },
+      };
+    } };
+  };
 }
 
 test('HTTP entry enforces token, source, kind, payload and size boundaries', async t => {
@@ -146,6 +163,75 @@ test('alert events wait for Cron, which merges due deliveries into one email', a
   assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE status = 'sent' AND message_id = 'msg-1'"), 2);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
+});
+
+test('alert forMs waits for a later firing before Cron sends once', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  RULES.push({ kind: 'test.for', sources: ['surgeconf.watchdog'], mode: 'alert', for: 5 * MINUTE, forMs: 5 * MINUTE, cooldown: 0, cooldownMs: 0, notifyResolved: true, quiet: 'none' });
+  t.after(() => RULES.pop());
+  const first = alert('for-first', 'for-subject', { kind: 'test.for', occurred_at: new Date(MORNING).toISOString() });
+  assert.equal((await ingest(first, env)).decision, 'deferred_for');
+  assert.equal(db.row("SELECT pending_until FROM incidents WHERE incident_key = 'surgeconf.watchdog:test.for:for-subject'").pending_until, new Date(MORNING + 5 * MINUTE).toISOString());
+  assert.equal(db.count('SELECT COUNT(*) AS count FROM deliveries'), 0);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 0);
+  time.set(MORNING + 5 * MINUTE + 1);
+  assert.equal((await ingest(alert('for-second', 'for-subject', { kind: 'test.for', occurred_at: new Date(MORNING + 5 * MINUTE + 1).toISOString() }), env)).decision, 'send_alert');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE status = 'pending'"), 1);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE status = 'sent'"), 1);
+});
+
+test('duplicate resolved events keep one pending recovery delivery', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('resolved-first-firing', 'duplicate-resolved'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + MINUTE);
+  await ingest(alert('resolved-first', 'duplicate-resolved', { state: 'resolved' }), env);
+  const second = await ingest(alert('resolved-second', 'duplicate-resolved', { state: 'resolved' }), env);
+  assert.equal(second.decision, 'resolved');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE notification_type = 'resolved'"), 1);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE notification_type = 'resolved' AND status = 'pending'"), 1);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE notification_type = 'resolved' AND status = 'sent'"), 1);
+  time.set(MORNING + 2 * MINUTE);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+});
+
+test('Cron skips a delivery cancelled after it was read', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('race-firing-1', 'race-subject'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 7 * 60 * MINUTE);
+  await ingest(alert('race-firing-2', 'race-subject', { occurred_at: new Date(MORNING + 7 * 60 * MINUTE).toISOString() }), env);
+  cancelBeforeClaim(env, async () => ingest(alert('race-resolved', 'race-subject', { state: 'resolved' }), env));
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'race-firing-2'").status, 'cancelled');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM channel_attempts WHERE delivery_id = (SELECT id FROM deliveries WHERE event_id = 'race-firing-2') AND status = 'pending'"), 0);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'race-resolved'").status, 'pending');
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'race-resolved'").status, 'sent');
+});
+
+test('Cron keeps all-cancelled channels cancelled and does not rebuild them', async t => {
+  clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('cancelled-channels', 'cancelled-subject', { severity: 'warning' }), env);
+  const delivery = db.row("SELECT id FROM deliveries WHERE event_id = 'cancelled-channels'");
+  db.sqlite.prepare("INSERT INTO channel_attempts (delivery_id, channel, status, attempts, error_code) VALUES (?, 'feishu', 'cancelled', 1, 'E_REOPENED_BEFORE_SEND')").run(delivery.id);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 0);
+  assert.deepEqual({ ...db.row('SELECT status FROM deliveries WHERE id = ?', delivery.id) }, { status: 'cancelled' });
+  assert.equal(db.count('SELECT COUNT(*) AS count FROM channel_attempts WHERE delivery_id = ?', delivery.id), 1);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM channel_attempts WHERE delivery_id = ? AND status = 'pending'", delivery.id), 0);
 });
 
 test('cooldown suppresses repeats, then sends 仍未恢复 and a recovery email', async t => {

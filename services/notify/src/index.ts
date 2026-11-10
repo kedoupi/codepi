@@ -105,8 +105,9 @@ function pendingUntilFrom(event: NotifyEvent, firstSeen: string, decision: Decis
   return new Date(Date.parse(firstSeen) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString();
 }
 
-async function cancelChannelAttempts(env: Env, key: string, code: string) {
-  await env.DB.prepare("UPDATE channel_attempts SET status = 'cancelled', error_code = ?1, next_attempt_at = NULL WHERE delivery_id IN (SELECT id FROM deliveries WHERE incident_key = ?2) AND status = 'pending'").bind(code, key).run();
+async function cancelChannelAttempts(env: Env, key: string, code: string, excludeResolved = false) {
+  const resolvedClause = excludeResolved ? " AND notification_type <> 'resolved'" : "";
+  await env.DB.prepare(`UPDATE channel_attempts SET status = 'cancelled', error_code = ?1, next_attempt_at = NULL WHERE delivery_id IN (SELECT id FROM deliveries WHERE incident_key = ?2${resolvedClause}) AND status = 'pending'`).bind(code, key).run();
 }
 async function upsertIncident(env: Env, event: NotifyEvent, key: string, decision: Decision) {
   const current = await incident(env, key);
@@ -173,15 +174,19 @@ async function createDelivery(env: Env, eventId: string, key: string, notificati
 export interface DeliveryRow { id: number; attempts: number; }
 async function loadDeliveries(env: Env, ids: number[]) {
   if (!ids.length) return [];
-  const rows = await env.DB.prepare(`SELECT d.id, d.attempts, d.notification_type, d.event_id, d.incident_key, e.state, e.severity, e.source, e.kind, e.subject, e.occurred_at, e.title, e.summary, e.facts_json, e.link FROM deliveries d JOIN events e ON e.event_id = d.event_id WHERE d.id IN (${placeholders(ids.length)}) ORDER BY d.id`).bind(...ids).all<DeliveryData>();
+  const rows = await env.DB.prepare(`SELECT d.id, d.status, d.attempts, d.notification_type, d.event_id, d.incident_key, e.state, e.severity, e.source, e.kind, e.subject, e.occurred_at, e.title, e.summary, e.facts_json, e.link FROM deliveries d JOIN events e ON e.event_id = d.event_id WHERE d.id IN (${placeholders(ids.length)}) ORDER BY d.id`).bind(...ids).all<DeliveryData>();
   return rows.results;
 }
 async function getChannelAttempt(env: Env, deliveryId: number, channel: Channel) {
   return env.DB.prepare("SELECT id, delivery_id, channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ?1 AND channel = ?2").bind(deliveryId, channel).first<ChannelAttempt>();
 }
 async function ensureChannelAttempt(env: Env, deliveryId: number, channel: Channel, inheritDeliveryAttempts = false) {
-  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', CASE WHEN ?3 = 1 THEN attempts ELSE 0 END FROM deliveries WHERE id = ?1").bind(deliveryId, channel, inheritDeliveryAttempts ? 1 : 0).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', CASE WHEN ?3 = 1 THEN attempts ELSE 0 END FROM deliveries WHERE id = ?1 AND status = 'pending'").bind(deliveryId, channel, inheritDeliveryAttempts ? 1 : 0).run();
   return getChannelAttempt(env, deliveryId, channel);
+}
+async function claimDelivery(env: Env, deliveryId: number) {
+  const result = await env.DB.prepare("UPDATE deliveries SET status = 'pending' WHERE id = ?1 AND status = 'pending'").bind(deliveryId).run();
+  return Number(result.meta?.changes ?? 0) > 0;
 }
 async function hasChannelAttempts(env: Env, deliveryId: number) {
   const row = await env.DB.prepare("SELECT COUNT(*) AS count FROM channel_attempts WHERE delivery_id = ?1").bind(deliveryId).first<{ count: number }>();
@@ -226,11 +231,14 @@ function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
   };
 }
 async function sendChannel(env: Env, channel: Channel, rows: DeliveryData[], event: NotifyEvent, incidentId: string) {
-  const ready: DeliveryData[] = [];
+  const due: DeliveryData[] = [];
   for (const row of rows) {
     const attempt = await ensureChannelAttempt(env, row.id, channel);
-    if (isDue(attempt)) ready.push(row);
+    if (isDue(attempt)) due.push(row);
   }
+  if (!due.length) return { status: "idle" as const };
+  const ready: DeliveryData[] = [];
+  for (const row of due) if (await claimDelivery(env, row.id)) ready.push(row);
   if (!ready.length) return { status: "idle" as const };
   const ids = ready.map(row => row.id);
   const merged = mergeChannelEvent(event, ready);
@@ -283,12 +291,15 @@ async function addWarningFallback(env: Env, rows: DeliveryData[], routes: Map<Ch
 }
 async function refreshDeliveryStatuses(env: Env, rows: DeliveryData[]) {
   for (const row of rows) {
+    const delivery = await env.DB.prepare("SELECT status FROM deliveries WHERE id = ?1").bind(row.id).first<{ status: DeliveryStatus }>();
     const attempts = await env.DB.prepare("SELECT channel, status, next_attempt_at, error_code, message_id FROM channel_attempts WHERE delivery_id = ?1 ORDER BY id").bind(row.id).all<ChannelAttempt>();
     const values = attempts.results;
     const sent = values.find(value => value.status === "sent");
+    if (delivery?.status === "cancelled" && !sent) continue;
     const pending = values.find(value => value.status === "pending");
+    const cancelled = values.length > 0 && values.every(value => value.status === "cancelled");
     const terminal = values.length > 0 && values.every(value => ["sent", "failed", "skipped", "cancelled"].includes(value.status));
-    const status: DeliveryStatus = sent ? "sent" : pending || !terminal ? "pending" : "failed";
+    const status: DeliveryStatus = sent ? "sent" : cancelled ? "cancelled" : pending || !terminal ? "pending" : "failed";
     const latestError = [...values].reverse().find(value => value.error_code)?.error_code ?? null;
     const messageId = values.find(value => value.channel === "email" && value.status === "sent")?.message_id ?? sent?.message_id ?? null;
     const next = pending?.next_attempt_at ?? null;
@@ -304,7 +315,8 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
   const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(beijingBuckets().day).first<{ omitted_count: number }>();
   const omitted = Number(omittedRow?.omitted_count ?? 0);
   const routes = new Map<Channel, DeliveryData[]>();
-  for (const row of rows) {
+  const activeRows = rows.filter(row => row.status === "pending");
+  for (const row of activeRows) {
     const legacy = row.attempts > 0 && !(await hasChannelAttempts(env, row.id));
     for (const channel of await routeForDelivery(env, row)) {
       await ensureChannelAttempt(env, row.id, channel, legacy && channel === "email");
@@ -315,7 +327,7 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
   const feishuRows = routes.get("feishu") ?? [];
   if (feishuRows.length) {
     results.push(await sendChannel(env, "feishu", feishuRows, event, incidentId));
-    await addWarningFallback(env, rows, routes);
+    await addWarningFallback(env, activeRows, routes);
   }
   const emailRows = routes.get("email") ?? [];
   if (emailRows.length) results.push(await sendChannel(env, "email", emailRows, event, incidentId));
@@ -323,6 +335,7 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
   const sent = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries WHERE id IN (${placeholders(rows.length)}) AND status = 'sent'`).bind(...rows.map(row => row.id)).first<{ count: number }>();
   const pending = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries WHERE id IN (${placeholders(rows.length)}) AND status = 'pending'`).bind(...rows.map(row => row.id)).first<{ count: number }>();
   const sentMessage = await env.DB.prepare(`SELECT message_id FROM deliveries WHERE id IN (${placeholders(rows.length)}) AND status = 'sent' AND message_id IS NOT NULL ORDER BY id LIMIT 1`).bind(...rows.map(row => row.id)).first<{ message_id: string }>();
+  const cancelled = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries WHERE id IN (${placeholders(rows.length)}) AND status = 'cancelled'`).bind(...rows.map(row => row.id)).first<{ count: number }>();
   const finalFailure = [...results].reverse().find(result => result.final);
   const noticeDelivered = results.some(result => result.noticeCarried);
   if (Number(sent?.count ?? 0) > 0) {
@@ -331,6 +344,7 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
   }
   const mixedPending = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries d WHERE d.id IN (${placeholders(rows.length)}) AND d.status = 'pending' AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'pending') AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'failed')`).bind(...rows.map(row => row.id)).first<{ count: number }>();
   if (Number(mixedPending?.count ?? 0) > 0) return { status: "pending" as const, error_code: [...results].reverse().find(result => result.code)?.code };
+  if (Number(cancelled?.count ?? 0) === rows.length) return { status: "cancelled" as const };
   if (finalFailure) throw codedError(finalFailure.code ?? "E_DELIVERY_FAILED");
   const code = [...results].reverse().find(result => result.code)?.code ?? "E_DELIVERY_FAILED";
   if (Number(pending?.count ?? 0) > 0) return { status: "pending" as const, error_code: code };
@@ -354,8 +368,8 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   }
   await upsertIncident(env, event, key, decision);
   if (event.state === "resolved") {
-    await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending'").bind(key).run();
-    await cancelChannelAttempts(env, key, "E_RESOLVED_BEFORE_SEND");
+    await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending' AND notification_type <> 'resolved'").bind(key).run();
+    await cancelChannelAttempts(env, key, "E_RESOLVED_BEFORE_SEND", true);
   } else {
     const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' AND notification_type <> 'resolved' LIMIT 1").bind(key).first<{ id: number }>();
     if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
@@ -469,7 +483,7 @@ export class NotifyApi extends WorkerEntrypoint<Env> {
 export default {
   fetch(request: Request, env: Env) { return route(request, env); },
   async scheduled(_controller: ScheduledController, env: Env) {
-    const pending = await env.DB.prepare("SELECT DISTINCT d.id, d.status, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id LEFT JOIN channel_attempts ca ON ca.delivery_id = d.id WHERE ((d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1)) OR (ca.status = 'pending' AND (ca.next_attempt_at IS NULL OR ca.next_attempt_at <= ?1))) ORDER BY d.id LIMIT 50").bind(nowIso()).all<DeliveryData>();
+    const pending = await env.DB.prepare("SELECT DISTINCT d.id, d.status, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id LEFT JOIN channel_attempts ca ON ca.delivery_id = d.id WHERE d.status = 'pending' AND ((d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1) OR (ca.status = 'pending' AND (ca.next_attempt_at IS NULL OR ca.next_attempt_at <= ?1))) ORDER BY d.id LIMIT 50").bind(nowIso()).all<DeliveryData>();
     const quietDeferred = isQuietHours() ? pending.results.filter(row => row.severity === "warning" && findRule(String(row.source), String(row.kind))?.quiet === "defer") : [];
     if (quietDeferred.length) {
       // Warnings that come due inside 23:00–08:00 Beijing wait for the end of quiet hours; critical is unaffected.
