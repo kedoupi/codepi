@@ -124,7 +124,7 @@ function renderConfig(source, appDir, databaseId, services = {}, destinationAddr
       }
       if (destinationAddress) {
         text = text.replace(/^destination_address\s*=\s*"[^"]+"/m, `destination_address = ${JSON.stringify(destinationAddress)}`);
-        assert.equal((text.match(new RegExp(`^destination_address\\s*=\\s*"${destinationAddress.replace(/[.*+?^${}()|[\\]\\]/g, "\\\\$&")}"$`, "gm")) ?? []).length, 1, 'temporary config must contain the injected destination exactly once');
+        assert.equal(text.split(`destination_address = "${destinationAddress}"`).length - 1, 1, 'temporary config must contain the injected destination exactly once');
         if (sourceDestination) assert.ok(!text.includes(sourceDestination), 'temporary config must not retain the destination placeholder');
       }
       return text;
