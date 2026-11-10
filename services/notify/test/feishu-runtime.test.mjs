@@ -234,6 +234,8 @@ test('warning retries and fallback defer in quiet hours while critical still sen
   const { db, sent, env } = setup({ fetchImpl });
   await ingest(warning('quiet-retry'), env);
   await worker.scheduled({}, env);
+  const retry = latestDelivery(db, 'quiet-retry');
+  db.sqlite.prepare("INSERT INTO channel_attempts (delivery_id, channel, status, attempts) VALUES (?, 'email', 'pending', 0)").run(retry.id);
   time.set(Date.parse('2026-11-10T15:03:00Z'));
   await ingest(critical('quiet-critical'), env);
   await worker.scheduled({}, env);
@@ -241,8 +243,8 @@ test('warning retries and fallback defer in quiet hours while critical still sen
   assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
   const criticalDelivery = latestDelivery(db, 'quiet-critical');
   assert.equal(criticalDelivery.channel, 'feishu,email');
-  const retry = latestDelivery(db, 'quiet-retry');
   assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", retry.id).next_attempt_at, '2026-11-11T00:00:00.000Z');
+  assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", retry.id).next_attempt_at, '2026-11-11T00:00:00.000Z');
 });
 
 test('resolved and reopen cancel pending channel attempts including retries after a sent delivery', async t => {
@@ -385,8 +387,8 @@ test('Feishu-only warning carries and clears omitted notice once', async t => {
   await worker.scheduled({}, env);
   const message = fetchImpl.calls.find(call => call.url.includes('/im/v1/messages'));
   const card = JSON.parse(JSON.parse(message.init.body).content);
-  const note = card.body.elements.find(element => element.tag === 'note');
-  assert.match(note.elements[0].content, /有 2 条提醒因限额未单独发送/);
+  const note = card.body.elements.find(element => element.tag === 'div' && element.text?.text_size === 'notation');
+  assert.match(note.text.content, /有 2 条提醒因限额未单独发送/);
   assert.equal(db.row("SELECT omitted_count FROM quota WHERE bucket = 'day:2026-11-11'").omitted_count, 0);
 });
 

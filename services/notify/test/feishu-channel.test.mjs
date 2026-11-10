@@ -43,17 +43,26 @@ test('Feishu card is JSON 2.0, structurally bounded and uses plain_text', () => 
   const json = JSON.stringify(card);
   const textElements = card.body.elements.filter(element => element.tag === 'div' && element.text?.tag === 'plain_text');
   const facts = textElements.filter(element => element.text.content.startsWith('- fact-'));
-  const note = card.body.elements.find(element => element.tag === 'note');
+  const notice = textElements.find(element => element.text.text_size === 'notation');
   const button = card.body.elements.find(element => element.tag === 'button');
+  const unsupported = [];
+  const walk = value => {
+    if (Array.isArray(value)) return value.forEach(walk);
+    if (!value || typeof value !== 'object') return;
+    if (['note', 'action'].includes(value.tag)) unsupported.push(value.tag);
+    Object.values(value).forEach(walk);
+  };
+  walk(card);
   assert.equal(card.schema, '2.0');
   assert.equal(card.header.template, 'red');
   assert.ok(new TextEncoder().encode(json).byteLength <= 30 * 1024);
+  assert.ok(card.body.elements.length <= 200);
   assert.ok(facts.length < 12);
   assert.ok(facts.length > 0);
-  assert.equal(note.elements[0].tag, 'plain_text');
+  assert.equal(notice.text.tag, 'plain_text');
+  assert.deepEqual(unsupported, []);
   assert.equal(button.text.content, '查看详情');
   assert.equal(button.behaviors[0].type, 'open_url');
-  assert.equal(card.body.elements.some(element => (element.behaviors ?? []).some(behavior => behavior.type === 'callback')), false);
 });
 
 test('Feishu classifies retryable provider and transport errors', async () => {

@@ -105,7 +105,7 @@ function plainTextElement(content: string) {
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
   const factElements = facts.map(fact => plainTextElement(`- ${fact.label}：${fact.value}`));
   const metadata = [`开始时间：${parts.firstSeen}`, `最近一次观察：${parts.lastSeen}`, ...(parts.duration ? [`持续时长：${parts.duration}`] : []), `来源：${parts.source}`, ...(parts.incidentId ? [`事故编号：${parts.incidentId}`] : [])].map(plainTextElement);
-  const elements: Record<string, unknown>[] = [plainTextElement(conclusion), ...factElements, ...metadata, { tag: "note", elements: [{ tag: "plain_text", content: parts.reason }] }];
+  const elements: Record<string, unknown>[] = [plainTextElement(conclusion), ...factElements, ...metadata, { tag: "div", text: { tag: "plain_text", content: parts.reason, text_size: "notation" } }];
   if (parts.link) elements.push({ tag: "button", text: { tag: "plain_text", content: "查看详情" }, type: "default", behaviors: [{ type: "open_url", default_url: parts.link }] });
   return { schema: "2.0", header: { template: cardTemplate(parts), title: { tag: "plain_text", content: parts.subject } }, body: { elements } };
 }

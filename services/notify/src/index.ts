@@ -92,16 +92,19 @@ function rowIncident(row: Record<string, unknown> | null) {
   if (!row) return null;
   return { status: String(row.status), firstSeen: String(row.first_seen), lastNotificationAt: row.last_notification_at ? String(row.last_notification_at) : null, pendingUntil: row.pending_until ? String(row.pending_until) : null };
 }
+
 async function insertEvent(env: Env, event: NotifyEvent, key: string, decision: string) {
   const result = await env.DB.prepare("INSERT OR IGNORE INTO events (event_id, source, kind, subject, state, severity, occurred_at, title, summary, facts_json, link, incident_key, decision) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)")
     .bind(event.event_id, event.source, event.kind, event.subject, event.state, event.severity, event.occurred_at, event.title, event.summary ?? null, event.facts ? JSON.stringify(event.facts) : null, event.link ?? null, key, decision).run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
+
 // `for` is measured from the episode's first_seen; a new or reopened episode starts at this event's occurred_at.
 function pendingUntilFrom(event: NotifyEvent, firstSeen: string, decision: Decision) {
   if (decision.decision !== "deferred_for") return null;
   return new Date(Date.parse(firstSeen) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString();
 }
+
 async function cancelChannelAttempts(env: Env, key: string, code: string) {
   await env.DB.prepare("UPDATE channel_attempts SET status = 'cancelled', error_code = ?1, next_attempt_at = NULL WHERE delivery_id IN (SELECT id FROM deliveries WHERE incident_key = ?2) AND status = 'pending'").bind(code, key).run();
 }
@@ -156,6 +159,7 @@ async function markOmitted(env: Env, deliveryIds: number[]) {
   const result = await env.DB.prepare(`UPDATE deliveries SET quota_omitted = 1 WHERE quota_omitted = 0 AND id IN (${placeholders(deliveryIds.length)})`).bind(...deliveryIds).run();
   await addOmitted(env, Number(result.meta?.changes ?? 0));
 }
+
 // Allocates the incident's next notification number atomically and writes the outbox row.
 async function createDelivery(env: Env, eventId: string, key: string, notificationType: string, nextAttemptAt: string | null) {
   const counter = await env.DB.prepare("UPDATE incidents SET notification_count = notification_count + 1 WHERE incident_key = ?1 RETURNING notification_count").bind(key).first<{ notification_count: number }>();
@@ -325,10 +329,8 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
     if (noticeDelivered && omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = MAX(omitted_count - ?2, 0) WHERE bucket = ?1").bind(beijingBuckets().day, omitted).run();
     return { status: "sent" as const, ...(sentMessage?.message_id ? { message_id: sentMessage.message_id } : {}) };
   }
-  const mixedPending = await env.DB.prepare(`SELECT COUNT(*) AS count FROM deliveries d WHERE d.id IN (${placeholders(rows.length)}) AND d.status = 'pending' AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'pending') AND EXISTS (SELECT 1 FROM channel_attempts ca WHERE ca.delivery_id = d.id AND ca.status = 'failed')`).bind(...rows.map(row => row.id)).first<{ count: number }>();
-  if (Number(mixedPending?.count ?? 0) > 0) return { status: "pending" as const, error_code: [...results].reverse().find(result => result.code)?.code };
-  if (finalFailure) throw codedError(finalFailure.code ?? "E_DELIVERY_FAILED");
   if (Number(pending?.count ?? 0) > 0) return { status: "pending" as const, error_code: [...results].reverse().find(result => result.code)?.code };
+  if (finalFailure) throw codedError(finalFailure.code ?? "E_DELIVERY_FAILED");
   const code = [...results].reverse().find(result => result.code)?.code ?? "E_DELIVERY_FAILED";
   throw codedError(code);
 }
@@ -387,6 +389,7 @@ async function readToken(env: Env, request: Request) {
   const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
   return env.DB.prepare("SELECT source, kinds_json FROM producer_tokens WHERE token_hash = ?1 AND revoked_at IS NULL").bind(hash).first<{ source: string; kinds_json: string }>();
 }
+
 async function parseBody(request: Request) {
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_BODY_BYTES) throw Object.assign(new Error("request_too_large"), { status: 413 });
