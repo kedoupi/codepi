@@ -9,6 +9,9 @@
     "test": "node --experimental-strip-types --test test/*.test.mjs",
     "deploy": "node ../../scripts/cloudflare/deploy-domain.mjs --app notify"
   },
+  "dependencies": {
+    "@kedoupi/shared": "workspace:*"
+  },
   "devDependencies": {
     "wrangler": "4.156.0"
   }
