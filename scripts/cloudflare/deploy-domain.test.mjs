@@ -243,6 +243,14 @@ test('notify requires a destination secret and injects it only into the temporar
   assert.ok(calls.at(-1).includes('destination_address = "notify-test@example.invalid"'));
   assert.ok(!(await readFile(path.join(f.appDir, 'wrangler.toml'), 'utf8')).includes('notify-test@example.invalid'));
 });
+test('reviewed notify Wrangler config keeps only its domain and destination placeholder', async () => {
+  const source = await readFile(new URL('../../services/notify/wrangler.toml', import.meta.url), 'utf8');
+  assert.match(source, /^name = "codepi-notify"$/m);
+  assert.match(source, /routes = \[[\s\S]*pattern = "notify-api\.codepi\.app"[\s\S]*custom_domain = true[\s\S]*\]/);
+  assert.equal((source.match(/^destination_address\s*=/gm) ?? []).length, 1);
+  assert.match(source, /destination_address = "notify-destination-placeholder@example\.invalid"/);
+  assert.equal((source.match(/^allowed_sender_addresses\s*=/gm) ?? []).length, 1);
+});
 
 test('the reviewed apps/rhythm/wrangler.toml passes the release preflight', async () => {
   const source = await readFile(new URL('../../apps/rhythm/wrangler.toml', import.meta.url), 'utf8');

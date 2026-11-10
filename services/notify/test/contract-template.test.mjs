@@ -28,13 +28,21 @@ test('the rule table registers the four watchdog kinds with documented modes', (
 test('delivery decisions cover cooldown, recovery and retry classes', () => {
   const rule = RULES.find(candidate => candidate.kind === 'agent.stuck');
   assert.ok(rule);
-  const firing = { ...valid, title: 'stuck' };
   const now = Date.parse('2026-11-10T02:00:00Z');
-  assert.equal(decideNotification(firing, rule, { status: 'open', lastNotificationAt: '2026-11-10T00:00:00Z' }, now).decision, 'cooled_down');
-  assert.equal(decideNotification({ ...firing, state: 'resolved' }, rule, { status: 'open', lastNotificationAt: null, pendingUntil: null }, Date.parse('2026-11-10T08:00:00Z')).decision, 'send_resolved');
+  assert.equal(decideNotification(valid, rule, { status: 'open', lastNotificationAt: '2026-11-10T00:00:00Z' }, now).decision, 'cooled_down');
+  assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', lastNotificationAt: null, pendingUntil: null }, Date.parse('2026-11-10T08:00:00Z')).decision, 'send_resolved');
   assert.equal(Date.parse(retryAt('E_DELIVERY_FAILED', 0, now)) - now, 5 * 60 * 1000);
   assert.equal(Date.parse(retryAt('E_DELIVERY_FAILED', 1, now)) - now, 15 * 60 * 1000);
   assert.equal(retryAt('E_RECIPIENT_NOT_ALLOWED', 0, now), null);
+});
+
+test('for and quiet rules suppress warning before the alert is due', () => {
+  const rule = { ...RULES[0], forMs: 60 * 60 * 1000, cooldownMs: 0 };
+  const now = Date.parse('2026-11-10T18:00:00Z');
+  assert.equal(decideNotification(valid, rule, { status: 'open', firstSeen: '2026-11-10T17:30:00Z' }, now).decision, 'deferred_for');
+  assert.equal(decideNotification(valid, { ...rule, forMs: 0 }, null, now).decision, 'deferred_quiet');
+  assert.equal(decideNotification({ ...valid, severity: 'critical' }, { ...rule, forMs: 0 }, null, now).shouldSend, true);
+  assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', pendingUntil: '2026-11-10T19:00:00Z' }, now).reason, 'resolved_before_for');
 });
 
 test('the shared template escapes producer text and ships no remote assets', async () => {

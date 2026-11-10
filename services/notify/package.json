@@ -7,7 +7,7 @@
     "dev": "wrangler dev --test-scheduled",
     "build": "wrangler deploy --dry-run --outdir=dist",
     "test": "node --experimental-strip-types --test test/*.test.mjs",
-    "deploy": "node ../../scripts/cloudflare/deploy-worker.mjs notify"
+    "deploy": "node ../../scripts/cloudflare/deploy-domain.mjs --app notify"
   },
   "devDependencies": {
     "wrangler": "4.156.0"

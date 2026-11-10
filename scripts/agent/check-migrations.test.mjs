@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
-  numericPrefix, findDuplicatePrefixes, findModifiedBaseline, findUnbaselined, sha256,
+  numericPrefix, findDuplicatePrefixes, findModifiedBaseline, findUnbaselined, sha256, MIGRATION_DIRS,
 } from './check-migrations.mjs';
 
 test('numericPrefix extracts the leading sequence', () => {
@@ -76,4 +76,7 @@ test('explicit not-applied migrations are allowlisted', () => {
     findUnbaselined(entries, baseline, ['apps/web/migrations/0002_new.sql']),
     [],
   );
+});
+test('notify migration directory is part of the guarded workspace', () => {
+  assert.equal(MIGRATION_DIRS['services/notify/migrations'], 'services/notify');
 });

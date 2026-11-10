@@ -21,6 +21,10 @@ const U = {
   health: 'eeeeeeee-0000-4000-8000-000000000001',
 };
 
+const NOTIFY_ROWS = [
+  ['worker-notify', 'production', 'worker', 'codepi-notify', 'notify-api.codepi.app', 'planned'],
+  ['d1-notify', 'production', 'd1', 'codepi-notify', '-', 'planned'],
+];
 const REGISTRY_ROWS = [
   ['worker-ops', 'production', 'worker', 'codepi-ops', '-', 'managed'],
   ['workflow-ops', 'production', 'workflow', 'codepi-ops', '-', 'managed'],
@@ -135,10 +139,43 @@ function authConfig() {
   });
 }
 
+function notifyConfig() {
+  return `name = "codepi-notify"
+main = "src/index.ts"
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "notify-api.codepi.app", custom_domain = true }
+]
+[triggers]
+crons = ["*/5 * * * *"]
+[vars]
+ENVIRONMENT = "production"
+BUILD_SHA = "local"
+[observability]
+enabled = true
+redact_query_string = true
+[observability.issues]
+enabled = true
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-notify"
+[[send_email]]
+name = "EMAIL"
+destination_address = "notify-destination-placeholder@example.invalid"
+allowed_sender_addresses = ["notify\\u0040notify.codepi.app"]
+`;
+}
+
 function legalFiles(overrides = {}) {
   return {
     'services/ops/wrangler.toml': opsConfig(),
-    'docs/development/cloudflare-resource-registry.md': registryText(overrides.registryRows),
+    'services/notify/wrangler.toml': notifyConfig(),
+    'docs/development/cloudflare-resource-registry.md': registryText([...(overrides.registryRows ?? REGISTRY_ROWS), ...NOTIFY_ROWS]),
     'apps/web/wrangler.toml': webWorkerConfig(),
     'apps/gu/wrangler.toml': privateWorkerConfig(),
     'services/auth/wrangler.jsonc': authConfig(),
@@ -811,4 +848,15 @@ test('MCP reserves its own D1 and requires the named Health RPC capability', () 
   ]) {
     assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': config } })).some(v => v.startsWith('mcp:')));
   }
+});
+test('notify is accepted while another service cannot use the API hostname exception', () => {
+  assert.deepEqual(collectViolations(), []);
+  const wrongMcpRoute = mcpConfig().replace('mcp.codepi.app', 'mcp-api.codepi.app');
+  assert.ok(run(legalFiles({ files: { 'services/mcp/wrangler.toml': wrongMcpRoute } })).some(v => v.startsWith('mcp:')));
+});
+test('notify requires exactly one Email Sending binding and one sender', () => {
+  const missing = notifyConfig().replace(/\[\[send_email\]\][\s\S]*$/, '');
+  assert.ok(run(legalFiles({ files: { 'services/notify/wrangler.toml': missing } })).some(v => v.startsWith('notify:') && v.includes('send_email')));
+  const duplicate = `${notifyConfig()}\n[[send_email]]\nname = "SECOND"\ndestination_address = "notify-destination-placeholder@example.invalid"\nallowed_sender_addresses = ["notify\\u0040notify.codepi.app"]\n`;
+  assert.ok(run(legalFiles({ files: { 'services/notify/wrangler.toml': duplicate } })).some(v => v.startsWith('notify:') && v.includes('exactly one EMAIL')));
 });

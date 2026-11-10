@@ -79,6 +79,7 @@ export function resolveServices(domain, source, env = process.env) {
 }
 
 function renderConfig(source, appDir, databaseId, services = {}, destinationAddress) {
+  const sourceDestination = source.match(/^destination_address\s*=\s*"([^"]+)"/m)?.[1];
   const config = { source, databaseId };
   assert.equal((source.match(/^main\s*=\s*"[^"]+"/gm) ?? []).length, 1, 'Wrangler config must declare main once');
   assert.equal((source.match(/^database_name\s*=\s*"[^"]+"/gm) ?? []).length, 1,
@@ -123,6 +124,8 @@ function renderConfig(source, appDir, databaseId, services = {}, destinationAddr
       }
       if (destinationAddress) {
         text = text.replace(/^destination_address\s*=\s*"[^"]+"/m, `destination_address = ${JSON.stringify(destinationAddress)}`);
+        assert.equal((text.match(new RegExp(`^destination_address\\s*=\\s*"${destinationAddress.replace(/[.*+?^${}()|[\\]\\]/g, "\\\\$&")}"$`, "gm")) ?? []).length, 1, 'temporary config must contain the injected destination exactly once');
+        if (sourceDestination) assert.ok(!text.includes(sourceDestination), 'temporary config must not retain the destination placeholder');
       }
       return text;
     },

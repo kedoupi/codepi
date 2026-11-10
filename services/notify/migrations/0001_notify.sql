@@ -48,10 +48,12 @@ CREATE TABLE quota (
   bucket TEXT PRIMARY KEY,
   day_count INTEGER NOT NULL DEFAULT 0,
   hour_count INTEGER NOT NULL DEFAULT 0,
+  omitted_count INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE producer_tokens (
-  token_hash TEXT PRIMARY KEY,
+  token_id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
   source TEXT NOT NULL,
   kinds_json TEXT NOT NULL,
   created_at TEXT NOT NULL,

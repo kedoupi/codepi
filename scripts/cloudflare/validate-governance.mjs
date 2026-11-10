@@ -729,9 +729,9 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'notify', file: 'services/notify/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-notify', d1Name: 'codepi-notify', envKey: 'staging',
-      provisionOnRelease: true, noAuth: true, routesRequired: true, cronsRequired: true, optional: true,
+      provisionOnRelease: true, noAuth: true, routesRequired: true, cronsRequired: true,
       allowPlanned: { worker: true, d1: true, hosts: ['notify-api.codepi.app'] },
-      requiredRoutes: { prod: ['notify-api.codepi.app'] }, serviceBindings: {} },
+      routesRequired: true, requiredRoutes: { prod: ['notify-api.codepi.app'] }, customDomainRoutes: ['notify-api.codepi.app'], serviceBindings: {} },
     // Health 前端只做静态资产与 API 代理：无 AUTH 绑定、无 D1、无 vars。
     { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', envKey: 'staging', spa: true,
       noD1: true, noVars: true,

@@ -54,6 +54,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - PR 默认使用 Pages/Workers provider URL（`*.pages.dev` / `*.workers.dev`），
   不分配 `codepi.app` wildcard host。
 - 同一 hostname 不得同时映射到 production 与 staging。
+`notify-api.codepi.app` 是唯一允许的服务级 `-api` hostname 命名例外；其他服务使用类似 `xxx-api.codepi.app` 仍违反本节命名契约。
 
 ## 4. staging 已退役
 

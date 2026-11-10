@@ -12,18 +12,19 @@ for (const match of readFileSync(rulesFile, 'utf8').matchAll(/\{ kind: "([^"]+)"
   }
 }
 function arg(name, args) { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }
-export function issueToken({ source, kinds, out, sql, random = randomBytes(24) }) {
+export function issueToken({ source, kinds, out, sql, randomId = randomBytes(9), randomSecret = randomBytes(24) }) {
   if (!source || !out || !sql || !kinds) throw new Error('Usage: --source <source> --kinds <kinds> --out <path> --sql <path>');
+  if (source === "rpc") throw new Error('rpc source is not issuable');
   const allowed = allowedBySource.get(source);
   if (!allowed) throw new Error(`unknown source: ${source}`);
   const selected = kinds.split(',').map(value => value.trim()).filter(Boolean);
   if (!selected.length || selected.some(kind => !allowed.has(kind))) throw new Error('kind is not allowed for source');
-  const id = random.toString('base64url').slice(0, 12);
-  const token = `cpn_${id}_${random.toString('base64url')}`;
+  const id = randomId.toString('base64url').slice(0, 12);
+  const token = `cpn_${id}_${randomSecret.toString('base64url')}`;
   const hash = createHash('sha256').update(token).digest('hex');
   const created = new Date().toISOString();
   const escaped = value => value.replaceAll("'", "''");
-  const insert = `INSERT INTO producer_tokens (token_hash, source, kinds_json, created_at) VALUES ('${hash}', '${escaped(source)}', '${escaped(JSON.stringify(selected))}', '${created}');\n`;
+  const insert = `INSERT INTO producer_tokens (token_id, token_hash, source, kinds_json, created_at) VALUES ('${escaped(id)}', '${hash}', '${escaped(source)}', '${escaped(JSON.stringify(selected))}', '${created}');\n`;
   return { id, token, hash, insert, selected };
 }
 async function main(args = process.argv.slice(2)) {
