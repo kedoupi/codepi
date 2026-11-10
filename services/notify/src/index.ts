@@ -57,24 +57,33 @@ async function insertEvent(env: Env, event: NotifyEvent, key: string, decision: 
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
+// `for` is measured from the episode's first_seen; a new or reopened episode starts at this event's occurred_at.
+function pendingUntilFrom(event: NotifyEvent, firstSeen: string, decision: Decision) {
+  if (decision.decision !== "deferred_for") return null;
+  return new Date(Date.parse(firstSeen) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString();
+}
+
 async function upsertIncident(env: Env, event: NotifyEvent, key: string, decision: Decision) {
   const current = await incident(env, key);
   const now = nowIso();
   if (!current) {
     await env.DB.prepare("INSERT INTO incidents (incident_key, source, kind, subject, status, first_seen, last_seen, event_count, pending_until) VALUES (?1,?2,?3,?4,?5,?6,?6,1,?7)")
-      .bind(key, event.source, event.kind, event.subject, event.state === "resolved" ? "closed" : "open", event.occurred_at, decision.decision === "deferred_for" ? new Date(Date.parse(event.occurred_at) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString() : null).run();
+      .bind(key, event.source, event.kind, event.subject, event.state === "resolved" ? "closed" : "open", event.occurred_at, pendingUntilFrom(event, event.occurred_at, decision)).run();
     return;
   }
   const status = event.state === "resolved" ? "closed" : "open";
   if (current.status !== "open" && status === "open") {
-    // A firing after recovery reopens the incident as a new episode: fresh first_seen, no cooldown carry-over.
-    const pendingUntil = decision.decision === "deferred_for" ? new Date(Date.parse(event.occurred_at) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString() : null;
+    // A firing after recovery reopens the incident as a new episode: fresh first_seen, no cooldown carry-over,
+    // and a recovery email that has not gone out yet is no longer true.
+    await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_REOPENED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending' AND notification_type = 'resolved'").bind(key).run();
+    const pendingUntil = pendingUntilFrom(event, event.occurred_at, decision);
     await env.DB.prepare("UPDATE incidents SET status = 'open', first_seen = ?1, last_seen = ?2, event_count = 1, last_notification_at = NULL, closed_at = NULL, pending_until = ?3 WHERE incident_key = ?4")
       .bind(event.occurred_at, now, pendingUntil, key).run();
     return;
   }
-  await env.DB.prepare("UPDATE incidents SET last_seen = ?1, event_count = event_count + 1, status = ?2, closed_at = CASE WHEN ?2 = 'closed' THEN ?1 ELSE closed_at END, pending_until = CASE WHEN ?2 = 'closed' THEN NULL ELSE pending_until END WHERE incident_key = ?3")
-    .bind(now, status, key).run();
+  const pendingUntil = status === "open" ? pendingUntilFrom(event, String(current.first_seen), decision) : null;
+  await env.DB.prepare("UPDATE incidents SET last_seen = ?1, event_count = event_count + 1, status = ?2, closed_at = CASE WHEN ?2 = 'closed' THEN ?1 ELSE closed_at END, pending_until = ?3 WHERE incident_key = ?4")
+    .bind(now, status, pendingUntil, key).run();
 }
 
 function beijingBuckets(now = new Date()) {
@@ -174,7 +183,7 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   if (event.state === "resolved") {
     await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending'").bind(key).run();
   } else {
-    const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' LIMIT 1").bind(key).first<{ id: number }>();
+    const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' AND notification_type <> 'resolved' LIMIT 1").bind(key).first<{ id: number }>();
     if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
   }
   const notificationType = event.state === "resolved" ? "resolved" : decision.reason === "cooldown_elapsed" ? "repeat" : "first";
@@ -291,11 +300,14 @@ export default {
     const rows = pending.results.filter(row => !quietDeferred.includes(row));
     if (!rows.length) return;
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
-    const first = deliveryEventFromRow(rows[0]);
-    const highest = rows.reduce<NotifyEvent["severity"]>((current, row) => rank[String(row.severity)] > rank[current] ? String(row.severity) as NotifyEvent["severity"] : current, first.severity);
-    const merged: NotifyEvent = rows.length === 1 ? first : {
-      ...first,
-      severity: highest,
+    // Merged metadata comes from the firing rows when any exist (a mixed batch is never 「[恢复]」),
+    // led by the highest severity among them.
+    const firing = rows.filter(row => row.state !== "resolved");
+    const leaders = firing.length ? firing : rows;
+    const leadRow = leaders.reduce((best, row) => rank[String(row.severity)] > rank[String(best.severity)] ? row : best, leaders[0]);
+    const lead = deliveryEventFromRow(leadRow);
+    const merged: NotifyEvent = rows.length === 1 ? lead : {
+      ...lead,
       title: `${rows.length} 条提醒${rows.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
       summary: rows.map(row => String(row.title)).join("；").slice(0, 500),
       facts: rows.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
@@ -305,7 +317,7 @@ export default {
       await markOmitted(env, ids);
       return;
     }
-    const result = await deliver(env, merged, String(rows[0].incident_key), rows.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
+    const result = await deliver(env, merged, String(leadRow.incident_key), rows.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
     if (result.status !== "sent") return;
     const sentAt = nowIso();
     for (const key of new Set(rows.map(row => String(row.incident_key)))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();

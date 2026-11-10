@@ -43,7 +43,9 @@ export function decideNotification(event: NotifyEvent, rule: NotifyRule, inciden
     if (!incident.lastNotificationAt) return { decision: "resolved", shouldSend: false, reason: "resolved_never_notified" };
     return { decision: "send_resolved", shouldSend: true, reason: "resolved" };
   }
-  if (rule.forMs > 0 && incident?.firstSeen && now - Date.parse(incident.firstSeen) < rule.forMs) return { decision: "deferred_for", shouldSend: false, reason: "for_not_elapsed" };
+  // A new (or reopened) episode starts at this event, so `for` also applies to its very first firing.
+  const firstSeen = incident?.firstSeen ?? event.occurred_at;
+  if (rule.forMs > 0 && now - Date.parse(firstSeen) < rule.forMs) return { decision: "deferred_for", shouldSend: false, reason: "for_not_elapsed" };
   if (rule.quiet === "defer" && event.severity === "warning" && isQuietHours(new Date(now))) return { decision: "deferred_quiet", shouldSend: false, reason: "quiet_hours" };
   if (rule.cooldownMs && incident?.lastNotificationAt) {
     if (now - Date.parse(incident.lastNotificationAt) < rule.cooldownMs) return { decision: "cooled_down", shouldSend: false, reason: "cooldown" };

@@ -227,6 +227,72 @@ test('a firing after recovery reopens the incident and sends a fresh first email
   assert.equal(db.row("SELECT notification_type FROM deliveries WHERE event_id = 'episode-2'").notification_type, 'first');
 });
 
+test('a firing before the recovery email goes out cancels it and sends only a first email', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('reopen-1', 'reopen'), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  time.set(MORNING + 10 * MINUTE);
+  await ingest(alert('reopen-resolved', 'reopen', { state: 'resolved' }), env);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'reopen-resolved'").status, 'pending');
+  time.set(MORNING + 12 * MINUTE);
+  const reopened = await ingest(alert('reopen-2', 'reopen', { occurred_at: new Date(MORNING + 12 * MINUTE).toISOString() }), env);
+  assert.equal(reopened.decision, 'send_alert');
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].subject.startsWith('[恢复]'), false);
+  assert.match(sent[1].subject, /^\[严重\] reopen-2$/);
+  assert.deepEqual({ ...db.row("SELECT status, error_code FROM deliveries WHERE event_id = 'reopen-resolved'") }, { status: 'cancelled', error_code: 'E_REOPENED_BEFORE_SEND' });
+  assert.deepEqual({ ...db.row("SELECT status, notification_type FROM deliveries WHERE event_id = 'reopen-2'") }, { status: 'sent', notification_type: 'first' });
+});
+
+test('quiet hours: a warning recovered at 01:00 and firing again at 03:00 sends only the first email at 08:00', async t => {
+  // 22:00 Beijing on 2026-11-10: the warning is sent before quiet hours start.
+  const time = clock(t, Date.parse('2026-11-10T14:00:00Z'));
+  const { db, sent, env } = setup();
+  await ingest(alert('night-1', 'night', { severity: 'warning' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  time.set(Date.parse('2026-11-10T17:00:00Z'));
+  await ingest(alert('night-resolved', 'night', { severity: 'warning', state: 'resolved' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  assert.equal(db.row("SELECT next_attempt_at FROM deliveries WHERE event_id = 'night-resolved'").next_attempt_at, '2026-11-11T00:00:00.000Z');
+  time.set(Date.parse('2026-11-10T19:00:00Z'));
+  await ingest(alert('night-2', 'night', { severity: 'warning', occurred_at: '2026-11-10T19:00:00.000Z' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  time.set(Date.parse('2026-11-11T00:00:00Z'));
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].subject, /^\[注意\] night-2$/);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'night-resolved'").status, 'cancelled');
+  assert.equal(db.row("SELECT notification_type FROM deliveries WHERE event_id = 'night-2'").notification_type, 'first');
+});
+
+test('a merged batch takes its metadata from the firing rows, never 「[恢复]」 when firing is present', async t => {
+  const time = clock(t);
+  const { sent, env } = setup();
+  await ingest(alert('mixed-a', 'mixed-a'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 10 * MINUTE);
+  await ingest(alert('mixed-a-resolved', 'mixed-a', { state: 'resolved' }), env);
+  await ingest(alert('mixed-b', 'mixed-b', { severity: 'warning' }), env);
+  await ingest(alert('mixed-c', 'mixed-c', { severity: 'warning' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].subject.startsWith('[恢复]'), false);
+  assert.match(sent[1].subject, /^\[注意\] 3 条提醒/);
+  assert.match(sent[1].text, /事故编号：surgeconf\.watchdog:agent\.stuck:mixed-b/);
+
+  time.set(MORNING + 20 * MINUTE);
+  await ingest(alert('mixed-b-resolved', 'mixed-b', { state: 'resolved', severity: 'warning' }), env);
+  await ingest(alert('mixed-c-resolved', 'mixed-c', { state: 'resolved', severity: 'warning' }), env);
+  await worker.scheduled({}, env);
+  assert.match(sent[2].subject, /^\[恢复\] 2 条提醒/);
+});
+
 test('Cron defers warnings that come due inside quiet hours but still sends critical', async t => {
   // 22:58 Beijing on 2026-11-10.
   const evening = Date.parse('2026-11-10T14:58:00Z');

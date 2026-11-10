@@ -52,6 +52,18 @@ test('for and quiet rules suppress warning before the alert is due', () => {
   assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', pendingUntil: '2026-11-10T19:00:00Z' }, now).reason, 'resolved_before_for');
 });
 
+test('for applies to new and reopened incidents, measured from first_seen', () => {
+  const rule = { ...RULES[0], forMs: 60 * 60 * 1000, cooldownMs: 0 };
+  const now = Date.parse('2026-11-10T03:00:00Z');
+  const at = iso => ({ ...valid, severity: 'critical', occurred_at: iso });
+  assert.equal(decideNotification(at('2026-11-10T03:00:00Z'), rule, null, now).decision, 'deferred_for');
+  assert.equal(decideNotification(at('2026-11-10T01:30:00Z'), rule, null, now).decision, 'send_alert');
+  assert.equal(decideNotification(at('2026-11-10T03:00:00Z'), rule, { status: 'closed', firstSeen: '2026-11-09T00:00:00Z', lastNotificationAt: '2026-11-09T01:00:00Z' }, now).decision, 'deferred_for');
+  assert.equal(decideNotification(at('2026-11-10T03:00:00Z'), rule, { status: 'open', firstSeen: '2026-11-10T02:30:00Z' }, now).decision, 'deferred_for');
+  assert.equal(decideNotification(at('2026-11-10T03:00:00Z'), rule, { status: 'open', firstSeen: '2026-11-10T01:59:00Z' }, now).decision, 'send_alert');
+  assert.equal(decideNotification({ ...at('2026-11-10T03:00:00Z'), state: 'resolved' }, { ...rule, notifyResolved: true }, { status: 'open', firstSeen: '2026-11-10T02:30:00Z', pendingUntil: '2026-11-10T03:30:00Z', lastNotificationAt: null }, now).reason, 'resolved_before_for');
+});
+
 test('buildNotificationEmail escapes producer text and ships no remote assets', () => {
   const event = {
     ...valid, title: '<script>alert(1)</script>', summary: '<img src="https://evil.example/x.png">',
