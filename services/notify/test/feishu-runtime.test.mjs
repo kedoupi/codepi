@@ -62,6 +62,22 @@ function setup({ fetchImpl = feishuFetch(), send, configured = true } = {}) {
   if (configured) Object.assign(env, { FEISHU_APP_ID: samples.appId, FEISHU_APP_SECRET: samples.appSecret, FEISHU_RECEIVE_OPEN_ID: samples.openId });
   return { db, sent, env, fetchImpl };
 }
+function cancelAfterChannelFailure(env, callback) {
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  let armed = true;
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    if (!armed || sql !== "UPDATE channel_attempts SET status = ?1, attempts = attempts + 1, next_attempt_at = ?2, error_code = ?3 WHERE delivery_id = ?4 AND channel = ?5 AND status <> 'cancelled'") return statement;
+    return { bind(...values) {
+      const bound = statement.bind(...values);
+      return {
+        first: bound.first,
+        all: bound.all,
+        run: async () => { const result = await bound.run(); armed = false; await callback(); return result; },
+      };
+    } };
+  };
+}
 function seedToken(db, token = 'cpn_feishu_test', kinds = ['agent.stuck', 'approval.pending', 'notify.selftest']) {
   const hash = createHash('sha256').update(token).digest('hex');
   db.sqlite.prepare('INSERT INTO producer_tokens (token_id, token_hash, source, kinds_json, created_at) VALUES (?, ?, ?, ?, ?)').run(`test-${token}`, hash, 'surgeconf.watchdog', JSON.stringify(kinds), new Date().toISOString());
@@ -269,6 +285,10 @@ test('resolved and reopen cancel pending channel attempts including retries afte
   time.set(MORNING + 5 * MINUTE);
   await worker.scheduled({}, retry.env);
   assert.equal(retry.db.row("SELECT last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:retry-only-time'").last_notification_at, sentAtBeforeRetry);
+  const retried = latestDelivery(retry.db, 'retry-only-time');
+  assert.equal(retried.status, 'sent');
+  assert.equal(retried.message_id, 'email-retry-success');
+  assert.equal(retry.db.row("SELECT status, message_id FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", retried.id).status, 'sent');
 
   const reopenFetch = feishuFetch([{ code: 0, data: { message_id: 'initial' } }, { code: 230020 }]);
   const reopen = setup({ fetchImpl: reopenFetch });
@@ -280,6 +300,37 @@ test('resolved and reopen cancel pending channel attempts including retries afte
   assert.equal(reopen.db.row("SELECT status FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", resolvedDelivery.id).status, 'pending');
   await ingest(event('reopen-firing', 'agent.stuck', 'warning', 'firing', 'reopen-channel'), reopen.env);
   assert.deepEqual({ ...reopen.db.row("SELECT status, error_code FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", resolvedDelivery.id) }, { status: 'cancelled', error_code: 'E_REOPENED_BEFORE_SEND' });
+});
+
+test('cancelled delivery does not rebuild an email fallback channel', async t => {
+  clock(t);
+  const fetchImpl = feishuFetch([{ code: 230013 }]);
+  const { db, sent, env } = setup({ fetchImpl });
+  cancelAfterChannelFailure(env, async () => ingest(event('fallback-cancel-resolved', 'approval.pending', 'warning', 'resolved', 'fallback-cancel'), env));
+  await ingest(warning('fallback-cancel', { subject: 'fallback-cancel' }), env);
+  await worker.scheduled({}, env);
+  const delivery = latestDelivery(db, 'fallback-cancel');
+  assert.equal(delivery.status, 'cancelled');
+  assert.deepEqual(attempts(db, delivery.id).map(row => row.channel), ['feishu']);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", delivery.id), 0);
+  assert.equal(sent.length, 0);
+});
+
+test('channel failure does not resurrect an attempt cancelled during send', async t => {
+  clock(t);
+  let env;
+  const fetchImpl = async url => {
+    if (String(url).includes('/tenant_access_token/')) return response({ code: 0, tenant_access_token: samples.tenantToken, expire: 7200 });
+    await ingest(event('failure-cancel-resolved', 'approval.pending', 'warning', 'resolved', 'failure-cancel'), env);
+    throw new Error('network down');
+  };
+  const setupResult = setup({ fetchImpl });
+  ({ env } = setupResult);
+  await ingest(warning('failure-cancel', { subject: 'failure-cancel' }), env);
+  await worker.scheduled({}, env);
+  const delivery = latestDelivery(setupResult.db, 'failure-cancel');
+  assert.equal(delivery.status, 'cancelled');
+  assert.deepEqual(attempts(setupResult.db, delivery.id).map(row => [row.channel, row.status]), [['feishu', 'cancelled']]);
 });
 
 test('legacy pending delivery without channel attempts is rebuilt and sent by Cron', async t => {

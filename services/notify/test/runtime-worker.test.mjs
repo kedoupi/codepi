@@ -74,7 +74,7 @@ function cancelBeforeClaim(env, callback) {
   let armed = true;
   env.DB.prepare = sql => {
     const statement = originalPrepare(sql);
-    if (!armed || sql !== "UPDATE deliveries SET status = 'pending' WHERE id = ?1 AND status = 'pending'") return statement;
+    if (!armed || sql !== "UPDATE deliveries SET status = CASE WHEN status = 'sent' THEN 'sent' ELSE 'pending' END WHERE id = ?1 AND status <> 'cancelled'") return statement;
     return { bind(...values) {
       const bound = statement.bind(...values);
       return {

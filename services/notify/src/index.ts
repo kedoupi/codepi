@@ -181,11 +181,12 @@ async function getChannelAttempt(env: Env, deliveryId: number, channel: Channel)
   return env.DB.prepare("SELECT id, delivery_id, channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ?1 AND channel = ?2").bind(deliveryId, channel).first<ChannelAttempt>();
 }
 async function ensureChannelAttempt(env: Env, deliveryId: number, channel: Channel, inheritDeliveryAttempts = false) {
-  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', CASE WHEN ?3 = 1 THEN attempts ELSE 0 END FROM deliveries WHERE id = ?1 AND status = 'pending'").bind(deliveryId, channel, inheritDeliveryAttempts ? 1 : 0).run();
+  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', CASE WHEN ?3 = 1 THEN attempts ELSE 0 END FROM deliveries WHERE id = ?1 AND status <> 'cancelled'").bind(deliveryId, channel, inheritDeliveryAttempts ? 1 : 0).run();
   return getChannelAttempt(env, deliveryId, channel);
 }
+// Re-read immediately before provider send; sent deliveries may still have a pending channel retry.
 async function claimDelivery(env: Env, deliveryId: number) {
-  const result = await env.DB.prepare("UPDATE deliveries SET status = 'pending' WHERE id = ?1 AND status = 'pending'").bind(deliveryId).run();
+  const result = await env.DB.prepare("UPDATE deliveries SET status = CASE WHEN status = 'sent' THEN 'sent' ELSE 'pending' END WHERE id = ?1 AND status <> 'cancelled'").bind(deliveryId).run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 async function hasChannelAttempts(env: Env, deliveryId: number) {
@@ -264,7 +265,7 @@ async function sendChannel(env: Env, channel: Channel, rows: DeliveryData[], eve
       const next = retryAt(code, attempts);
       if (next) pending += 1;
       else final += 1;
-      await env.DB.prepare("UPDATE channel_attempts SET status = ?1, attempts = attempts + 1, next_attempt_at = ?2, error_code = ?3 WHERE delivery_id = ?4 AND channel = ?5")
+      await env.DB.prepare("UPDATE channel_attempts SET status = ?1, attempts = attempts + 1, next_attempt_at = ?2, error_code = ?3 WHERE delivery_id = ?4 AND channel = ?5 AND status <> 'cancelled'")
         .bind(next ? "pending" : "failed", next, code, row.id, channel).run();
     }
     return { status: pending ? "pending" as const : "failed" as const, code, final };
@@ -315,7 +316,7 @@ export async function deliver(env: Env, event: NotifyEvent, incidentId: string, 
   const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(beijingBuckets().day).first<{ omitted_count: number }>();
   const omitted = Number(omittedRow?.omitted_count ?? 0);
   const routes = new Map<Channel, DeliveryData[]>();
-  const activeRows = rows.filter(row => row.status === "pending");
+  const activeRows = rows.filter(row => row.status !== "cancelled");
   for (const row of activeRows) {
     const legacy = row.attempts > 0 && !(await hasChannelAttempts(env, row.id));
     for (const channel of await routeForDelivery(env, row)) {
@@ -483,7 +484,7 @@ export class NotifyApi extends WorkerEntrypoint<Env> {
 export default {
   fetch(request: Request, env: Env) { return route(request, env); },
   async scheduled(_controller: ScheduledController, env: Env) {
-    const pending = await env.DB.prepare("SELECT DISTINCT d.id, d.status, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id LEFT JOIN channel_attempts ca ON ca.delivery_id = d.id WHERE d.status = 'pending' AND ((d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1) OR (ca.status = 'pending' AND (ca.next_attempt_at IS NULL OR ca.next_attempt_at <= ?1))) ORDER BY d.id LIMIT 50").bind(nowIso()).all<DeliveryData>();
+    const pending = await env.DB.prepare("SELECT DISTINCT d.id, d.status, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id LEFT JOIN channel_attempts ca ON ca.delivery_id = d.id WHERE ((d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1)) OR (ca.status = 'pending' AND (ca.next_attempt_at IS NULL OR ca.next_attempt_at <= ?1))) ORDER BY d.id LIMIT 50").bind(nowIso()).all<DeliveryData>();
     const quietDeferred = isQuietHours() ? pending.results.filter(row => row.severity === "warning" && findRule(String(row.source), String(row.kind))?.quiet === "defer") : [];
     if (quietDeferred.length) {
       // Warnings that come due inside 23:00–08:00 Beijing wait for the end of quiet hours; critical is unaffected.
