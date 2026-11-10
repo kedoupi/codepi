@@ -2,7 +2,7 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { buildNotificationEmail, notificationSender } from "@kedoupi/shared/email/notification";
 import { validateNotifyEvent, NotifyValidationError, type NotifyEvent } from "@kedoupi/shared/notify/contract";
 import { findRule, RPC_SOURCE } from "./rules.ts";
-import { decideNotification, quietEnd, retryAt, type Decision } from "./decision.ts";
+import { decideNotification, isQuietHours, quietEnd, retryAt, type Decision } from "./decision.ts";
 export { decideNotification, isQuietHours, quietEnd, retryAt } from "./decision.ts";
 
 export interface D1Result<T = Record<string, unknown>> { results: T[]; success?: boolean; meta?: Record<string, unknown>; }
@@ -66,6 +66,13 @@ async function upsertIncident(env: Env, event: NotifyEvent, key: string, decisio
     return;
   }
   const status = event.state === "resolved" ? "closed" : "open";
+  if (current.status !== "open" && status === "open") {
+    // A firing after recovery reopens the incident as a new episode: fresh first_seen, no cooldown carry-over.
+    const pendingUntil = decision.decision === "deferred_for" ? new Date(Date.parse(event.occurred_at) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString() : null;
+    await env.DB.prepare("UPDATE incidents SET status = 'open', first_seen = ?1, last_seen = ?2, event_count = 1, last_notification_at = NULL, closed_at = NULL, pending_until = ?3 WHERE incident_key = ?4")
+      .bind(event.occurred_at, now, pendingUntil, key).run();
+    return;
+  }
   await env.DB.prepare("UPDATE incidents SET last_seen = ?1, event_count = event_count + 1, status = ?2, closed_at = CASE WHEN ?2 = 'closed' THEN ?1 ELSE closed_at END, pending_until = CASE WHEN ?2 = 'closed' THEN NULL ELSE pending_until END WHERE incident_key = ?3")
     .bind(now, status, key).run();
 }
@@ -109,31 +116,43 @@ async function createDelivery(env: Env, eventId: string, key: string, notificati
   return Number(row.id);
 }
 
-export async function deliver(env: Env, event: NotifyEvent, incidentId: string, deliveryIds: number[], attempts = 0) {
-  const ids = placeholders(deliveryIds.length, 1);
+export interface DeliveryRow { id: number; attempts: number; }
+const errorCode = (error: unknown) => typeof error === "object" && error && "code" in error ? String(error.code) : "E_DELIVERY_FAILED";
+const codedError = (code: string, status = 500) => Object.assign(new Error(code), { code, status });
+
+export async function deliver(env: Env, event: NotifyEvent, incidentId: string, deliveries: DeliveryRow[]) {
+  const deliveryIds = deliveries.map(row => row.id);
   if (!env.NOTIFY_TO) {
-    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'failed', error_code = ?1 WHERE id IN (${ids})`).bind("E_RECIPIENT_NOT_ALLOWED", ...deliveryIds).run();
-    throw Object.assign(new Error("E_RECIPIENT_NOT_ALLOWED"), { code: "E_RECIPIENT_NOT_ALLOWED", status: 500 });
+    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'failed', error_code = ?1 WHERE id IN (${placeholders(deliveryIds.length, 1)})`).bind("E_RECIPIENT_NOT_ALLOWED", ...deliveryIds).run();
+    throw codedError("E_RECIPIENT_NOT_ALLOWED");
   }
   const { day } = beijingBuckets();
   const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(day).first<{ omitted_count: number }>();
   const omitted = Number(omittedRow?.omitted_count ?? 0);
   const reason = omitted > 0 ? `有 ${omitted} 条提醒因限额未单独发送。` : "这是统一通知服务根据事件规则生成的提醒。";
   const email = buildNotificationEmail({ event, incidentId, reason });
+  let messageId: string | undefined;
   try {
     const result = await env.EMAIL.send({ to: env.NOTIFY_TO, from: notificationSender(env.NOTIFY_FROM), subject: email.subject, text: email.text, html: email.html });
-    const messageId = result?.messageId ?? result?.id;
-    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'sent', sent_at = ?1, message_id = ?2, next_attempt_at = NULL, attempts = attempts + 1 WHERE id IN (${placeholders(deliveryIds.length, 2)})`).bind(nowIso(), messageId ?? null, ...deliveryIds).run();
-    if (omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = MAX(omitted_count - ?2, 0) WHERE bucket = ?1").bind(day, omitted).run();
-    return { status: "sent", message_id: messageId };
+    messageId = result?.messageId ?? result?.id;
   } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "E_DELIVERY_FAILED";
-    const retryAtValue = retryAt(code, attempts);
-    // A merged Cron batch shares one send, so every row records the same attempt, error and next retry time.
-    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = ?1, error_code = ?2, next_attempt_at = ?3, attempts = attempts + 1 WHERE id IN (${placeholders(deliveryIds.length, 3)})`).bind(retryAtValue ? "pending" : "failed", code, retryAtValue, ...deliveryIds).run();
-    if (retryAtValue) return { status: "pending", error_code: code, next_attempt_at: retryAtValue };
-    throw Object.assign(error instanceof Error ? error : new Error(code), { code, status: 500 });
+    const code = errorCode(error);
+    // One shared send, but each row backs off (or becomes failed) from its own attempt count.
+    let failed = 0;
+    const retryTimes: string[] = [];
+    for (const attempts of new Set(deliveries.map(row => row.attempts))) {
+      const ids = deliveries.filter(row => row.attempts === attempts).map(row => row.id);
+      const retryAtValue = retryAt(code, attempts);
+      if (retryAtValue) retryTimes.push(retryAtValue);
+      else failed += ids.length;
+      await env.DB.prepare(`UPDATE deliveries SET status = ?1, error_code = ?2, next_attempt_at = ?3, attempts = attempts + 1 WHERE id IN (${placeholders(ids.length, 3)})`).bind(retryAtValue ? "pending" : "failed", code, retryAtValue, ...ids).run();
+    }
+    if (failed > 0 || !retryTimes.length) throw codedError(code);
+    return { status: "pending", error_code: code, next_attempt_at: retryTimes.sort()[0] };
   }
+  if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'sent', sent_at = ?1, message_id = ?2, next_attempt_at = NULL, attempts = attempts + 1 WHERE id IN (${placeholders(deliveryIds.length, 2)})`).bind(nowIso(), messageId ?? null, ...deliveryIds).run();
+  if (omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = MAX(omitted_count - ?2, 0) WHERE bucket = ?1").bind(day, omitted).run();
+  return { status: "sent", message_id: messageId };
 }
 
 export async function ingest(input: unknown, env: Env, fixedSource?: string) {
@@ -175,7 +194,7 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   }
   const deliveryId = await createDelivery(env, event.event_id, key, notificationType, null);
   const deliveryEvent = notificationType === "repeat" ? { ...event, title: `${event.title}，仍未恢复` } : event;
-  const result = await deliver(env, deliveryEvent, key, [deliveryId]);
+  const result = await deliver(env, deliveryEvent, key, [{ id: deliveryId, attempts: 0 }]);
   if (result.status === "sent") await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(nowIso(), key).run();
   return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: result.status, ...(result.message_id ? { message_id: result.message_id } : {}) };
 }
@@ -234,7 +253,12 @@ async function route(request: Request, env: Env) {
     let kinds: unknown;
     try { kinds = JSON.parse(token.kinds_json); } catch { return json({ error: "token_invalid" }, 401); }
     if (event.source !== token.source || !Array.isArray(kinds) || !kinds.includes(event.kind)) return json({ error: "forbidden" }, 403);
-    try { return json(await ingest(event, env)); } catch (error) { return json({ error: error instanceof Error ? error.message : "internal_error" }, (error as { status?: number }).status ?? 500); }
+    try { return json(await ingest(event, env)); } catch (error) {
+      // Only the error code leaves the Worker: provider messages may carry addresses or internals.
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "E_INTERNAL";
+      console.error(JSON.stringify({ event_id: event.event_id, kind: event.kind, error_code: code }));
+      return json({ error: code }, (error as { status?: number }).status ?? 500);
+    }
   }
   if (request.method === "GET" && /^\/v1\/events\/[^/]+$/.test(url.pathname)) {
     const token = await readToken(env, request);
@@ -258,8 +282,14 @@ export default {
   fetch(request: Request, env: Env) { return route(request, env); },
   async scheduled(_controller: ScheduledController, env: Env) {
     const pending = await env.DB.prepare("SELECT d.id, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id WHERE d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1) ORDER BY d.id LIMIT 50").bind(nowIso()).all<Record<string, unknown>>();
-    if (!pending.results.length) return;
-    const rows = pending.results;
+    const quietDeferred = isQuietHours() ? pending.results.filter(row => row.severity === "warning" && findRule(String(row.source), String(row.kind))?.quiet === "defer") : [];
+    if (quietDeferred.length) {
+      // Warnings that come due inside 23:00–08:00 Beijing wait for the end of quiet hours; critical is unaffected.
+      const ids = quietDeferred.map(row => Number(row.id));
+      await env.DB.prepare(`UPDATE deliveries SET next_attempt_at = ?1 WHERE id IN (${placeholders(ids.length, 1)})`).bind(quietEnd(), ...ids).run();
+    }
+    const rows = pending.results.filter(row => !quietDeferred.includes(row));
+    if (!rows.length) return;
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
     const first = deliveryEventFromRow(rows[0]);
     const highest = rows.reduce<NotifyEvent["severity"]>((current, row) => rank[String(row.severity)] > rank[current] ? String(row.severity) as NotifyEvent["severity"] : current, first.severity);
@@ -275,8 +305,7 @@ export default {
       await markOmitted(env, ids);
       return;
     }
-    const attempts = Math.max(...rows.map(row => Number(row.attempts ?? 0)));
-    const result = await deliver(env, merged, String(rows[0].incident_key), ids, attempts);
+    const result = await deliver(env, merged, String(rows[0].incident_key), rows.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
     if (result.status !== "sent") return;
     const sentAt = nowIso();
     for (const key of new Set(rows.map(row => String(row.incident_key)))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();

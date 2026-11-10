@@ -32,7 +32,10 @@ test('delivery decisions cover cooldown, recovery and retry classes', () => {
   assert.ok(rule);
   const now = Date.parse('2026-11-10T02:00:00Z');
   assert.equal(decideNotification(valid, rule, { status: 'open', lastNotificationAt: '2026-11-10T00:00:00Z' }, now).decision, 'cooled_down');
-  assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', lastNotificationAt: null, pendingUntil: null }, Date.parse('2026-11-10T08:00:00Z')).decision, 'send_resolved');
+  assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', lastNotificationAt: '2026-11-10T00:00:00Z', pendingUntil: null }, Date.parse('2026-11-10T08:00:00Z')).decision, 'send_resolved');
+  assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', lastNotificationAt: null, pendingUntil: null }, Date.parse('2026-11-10T08:00:00Z')).reason, 'resolved_never_notified');
+  const reopened = decideNotification(valid, rule, { status: 'closed', firstSeen: '2026-11-10T00:00:00Z', lastNotificationAt: '2026-11-10T01:30:00Z' }, now);
+  assert.deepEqual([reopened.decision, reopened.reason], ['send_alert', 'rule_matched']);
   assert.equal(Date.parse(retryAt('E_DELIVERY_FAILED', 0, now)) - now, 5 * 60 * 1000);
   assert.equal(Date.parse(retryAt('E_DELIVERY_FAILED', 2, now)) - now, 60 * 60 * 1000);
   assert.equal(retryAt('E_DELIVERY_FAILED', 4, now), null);

@@ -34,9 +34,13 @@ export function quietEnd(now = new Date()) {
 export interface Decision { decision: string; shouldSend: boolean; reason: string; }
 export function decideNotification(event: NotifyEvent, rule: NotifyRule, incident: { status?: string; firstSeen?: string; lastNotificationAt?: string | null; pendingUntil?: string | null } | null, now = Date.now()): Decision {
   if (rule.mode === "record") return { decision: "record", shouldSend: false, reason: "record_only" };
+  // A closed incident that fires again is a new episode: no for/cooldown state carries over.
+  if (event.state !== "resolved" && incident && incident.status !== "open") incident = null;
   if (event.state === "resolved") {
     if (!incident || incident.status !== "open" || !rule.notifyResolved) return { decision: "resolved", shouldSend: false, reason: "resolved_without_notification" };
     if (incident.pendingUntil && Date.parse(incident.pendingUntil) > now) return { decision: "resolved", shouldSend: false, reason: "resolved_before_for" };
+    // Nothing was ever sent for this episode (e.g. firing still pending): cancel it silently, no recovery email.
+    if (!incident.lastNotificationAt) return { decision: "resolved", shouldSend: false, reason: "resolved_never_notified" };
     return { decision: "send_resolved", shouldSend: true, reason: "resolved" };
   }
   if (rule.forMs > 0 && incident?.firstSeen && now - Date.parse(incident.firstSeen) < rule.forMs) return { decision: "deferred_for", shouldSend: false, reason: "for_not_elapsed" };

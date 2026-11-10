@@ -171,18 +171,82 @@ test('cooldown suppresses repeats, then sends 仍未恢复 and a recovery email'
   assert.equal(db.row("SELECT notification_count FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:subject-a'").notification_count, 3);
 });
 
-test('resolved cancels every pending delivery of the incident before sending recovery', async t => {
-  clock(t);
+test('resolved cancels every pending delivery of a notified incident and sends recovery', async t => {
+  const time = clock(t);
   const { db, sent, env } = setup();
-  await ingest(alert('pending-firing', 'pending-subject', { severity: 'warning' }), env);
+  await ingest(alert('notified-firing', 'pending-subject', { severity: 'warning' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
   const key = 'surgeconf.watchdog:agent.stuck:pending-subject';
-  db.sqlite.prepare("UPDATE incidents SET notification_count = notification_count + 1 WHERE incident_key = ?").run(key);
-  db.sqlite.prepare("INSERT INTO deliveries (event_id, incident_key, notification_no, notification_type, status) VALUES ('pending-firing', ?, 2, 'repeat', 'pending')").run(key);
+  for (const no of [2, 3]) {
+    db.sqlite.prepare("UPDATE incidents SET notification_count = notification_count + 1 WHERE incident_key = ?").run(key);
+    db.sqlite.prepare("INSERT INTO deliveries (event_id, incident_key, notification_no, notification_type, status) VALUES ('notified-firing', ?, ?, 'repeat', 'pending')").run(key, no);
+  }
+  time.set(MORNING + 10 * MINUTE);
   await ingest(alert('pending-resolved', 'pending-subject', { state: 'resolved', severity: 'warning' }), env);
   assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE incident_key = ? AND status = 'cancelled' AND error_code = 'E_RESOLVED_BEFORE_SEND'", key), 2);
   await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].subject, /^\[恢复\]/);
+});
+
+test('resolved before any email was sent cancels the firing and sends no recovery', async t => {
+  clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('never-firing', 'never-subject', { severity: 'warning' }), env);
+  const resolved = await ingest(alert('never-resolved', 'never-subject', { state: 'resolved', severity: 'warning' }), env);
+  assert.equal(resolved.decision, 'resolved');
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'never-firing'").status, 'cancelled');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE event_id = 'never-resolved'"), 0);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 0);
+});
+
+test('a firing after recovery reopens the incident and sends a fresh first email', async t => {
+  const time = clock(t);
+  const { db, sent, env } = setup();
+  await ingest(alert('episode-1', 'flap'), env);
+  await worker.scheduled({}, env);
+  time.set(MORNING + 10 * MINUTE);
+  await ingest(alert('episode-1-resolved', 'flap', { state: 'resolved' }), env);
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].subject, /^\[恢复\]/);
+  time.set(MORNING + 70 * MINUTE);
+  const reopened = await ingest(alert('episode-2', 'flap', { occurred_at: new Date(MORNING + 70 * MINUTE).toISOString() }), env);
+  assert.equal(reopened.decision, 'send_alert');
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 3);
+  assert.equal(sent[2].subject.includes('仍未恢复'), false);
+  assert.match(sent[2].subject, /^\[严重\] episode-2/);
+  const incident = db.row("SELECT status, first_seen, event_count, last_notification_at FROM incidents WHERE incident_key = 'surgeconf.watchdog:agent.stuck:flap'");
+  assert.equal(incident.status, 'open');
+  assert.equal(incident.first_seen, new Date(MORNING + 70 * MINUTE).toISOString());
+  assert.equal(incident.event_count, 1);
+  assert.equal(incident.last_notification_at, new Date(MORNING + 70 * MINUTE).toISOString());
+  assert.equal(db.row("SELECT notification_type FROM deliveries WHERE event_id = 'episode-2'").notification_type, 'first');
+});
+
+test('Cron defers warnings that come due inside quiet hours but still sends critical', async t => {
+  // 22:58 Beijing on 2026-11-10.
+  const evening = Date.parse('2026-11-10T14:58:00Z');
+  const time = clock(t, evening);
+  const { db, sent, env } = setup();
+  assert.equal((await ingest(alert('late-warning', 'late-warning', { severity: 'warning' }), env)).delivery, 'pending');
+  time.set(Date.parse('2026-11-10T15:00:00Z'));
+  await ingest(alert('late-critical', 'late-critical'), env);
+  await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].subject, /^\[恢复\]/);
+  assert.match(sent[0].subject, /^\[严重\] late-critical/);
+  const warning = db.row("SELECT status, next_attempt_at FROM deliveries WHERE event_id = 'late-warning'");
+  assert.deepEqual({ ...warning }, { status: 'pending', next_attempt_at: '2026-11-11T00:00:00.000Z' });
+  time.set(Date.parse('2026-11-10T20:00:00Z'));
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 1);
+  time.set(Date.parse('2026-11-11T00:00:00Z'));
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 2);
+  assert.match(sent[1].subject, /^\[注意\] late-warning/);
 });
 
 test('an ignored outbox insert fails explicitly instead of silently dropping the delivery', async t => {
@@ -270,7 +334,7 @@ test('retryable failures back off 5/15/60 minutes and the 4th failure is final',
   assert.equal(row().attempts, 3);
   assert.equal(Date.parse(row().next_attempt_at) - (MORNING + 20 * MINUTE), 60 * MINUTE);
   time.set(MORNING + 80 * MINUTE);
-  await assert.rejects(worker.scheduled({}, env), /provider down/);
+  await assert.rejects(worker.scheduled({}, env), error => error.code === 'E_DELIVERY_FAILED' && !String(error.message).includes('provider down'));
   assert.equal(sent.length, 4);
   assert.equal(row().status, 'failed');
   assert.equal(row().attempts, 4);
@@ -283,7 +347,7 @@ test('retryable failures back off 5/15/60 minutes and the 4th failure is final',
 test('validation failures are not retried and are thrown after marking failed', async t => {
   clock(t);
   const { db, sent, env } = setup(() => { throw Object.assign(new Error('sender'), { code: 'E_SENDER_NOT_VERIFIED' }); });
-  await assert.rejects(ingest(base, env), /sender/);
+  await assert.rejects(ingest(base, env), error => error.code === 'E_SENDER_NOT_VERIFIED' && error.message === 'E_SENDER_NOT_VERIFIED');
   assert.equal(sent.length, 1);
   assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'event-1'").status, 'failed');
 });
@@ -299,6 +363,37 @@ test('a failed merged send updates attempts and next_attempt_at on every row of 
   const rows = db.rows('SELECT status, attempts, next_attempt_at, error_code FROM deliveries ORDER BY id');
   assert.equal(rows.length, 3);
   for (const row of rows) assert.deepEqual({ ...row }, { status: 'pending', attempts: 1, next_attempt_at: new Date(MORNING + 5 * MINUTE).toISOString(), error_code: 'E_RATE_LIMIT_EXCEEDED' });
+});
+
+test('a merged failure backs off each row from its own attempts and fails only exhausted rows', async t => {
+  clock(t);
+  const { db, sent, env } = setup(() => { throw Object.assign(new Error('provider down'), { code: 'E_DELIVERY_FAILED' }); });
+  for (const id of ['fresh', 'second', 'third', 'last']) await ingest(alert(id, id), env);
+  db.sqlite.prepare("UPDATE deliveries SET attempts = CASE event_id WHEN 'second' THEN 1 WHEN 'third' THEN 2 WHEN 'last' THEN 3 ELSE 0 END").run();
+  await assert.rejects(worker.scheduled({}, env), error => error.code === 'E_DELIVERY_FAILED');
+  assert.equal(sent.length, 1);
+  const rows = Object.fromEntries(db.rows('SELECT d.event_id, d.status, d.attempts, d.next_attempt_at FROM deliveries d').map(row => [row.event_id, { ...row }]));
+  assert.deepEqual(rows.fresh, { event_id: 'fresh', status: 'pending', attempts: 1, next_attempt_at: new Date(MORNING + 5 * MINUTE).toISOString() });
+  assert.deepEqual(rows.second, { event_id: 'second', status: 'pending', attempts: 2, next_attempt_at: new Date(MORNING + 15 * MINUTE).toISOString() });
+  assert.deepEqual(rows.third, { event_id: 'third', status: 'pending', attempts: 3, next_attempt_at: new Date(MORNING + 60 * MINUTE).toISOString() });
+  assert.equal(rows.last.status, 'failed');
+  assert.equal(rows.last.attempts, 4);
+});
+
+test('HTTP returns only the error code when an immediate send fails', async t => {
+  clock(t);
+  const { db, env } = setup(() => { throw Object.assign(new Error('provider rejected owner@example.invalid'), { code: 'E_SENDER_NOT_VERIFIED' }); });
+  const token = seedToken(db);
+  const logged = [];
+  t.mock.method(console, 'error', (...args) => { logged.push(args.join(' ')); });
+  const response = await worker.fetch(request(token, base), env);
+  assert.equal(response.status, 500);
+  const body = await response.text();
+  assert.deepEqual(JSON.parse(body), { error: 'E_SENDER_NOT_VERIFIED' });
+  assert.equal(body.includes('provider rejected'), false);
+  assert.equal(logged.join('\n').includes('provider rejected'), false);
+  assert.equal(logged.join('\n').includes('example.invalid'), false);
+  assert.match(logged.join('\n'), /E_SENDER_NOT_VERIFIED/);
 });
 
 test('quiet hours defer warnings to 08:00 Beijing and merge them, while critical still sends', async t => {
