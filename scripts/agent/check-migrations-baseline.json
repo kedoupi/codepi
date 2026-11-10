@@ -38,7 +38,7 @@
     "services/mcp/migrations/0004_oauth_maintenance.sql": "1b26c700e87ba47c989b0d660c0cf3c121cff10579ae8d7d71d8ac0c3d78165d",
     "services/notify/migrations/0001_notify.sql": "1353838f6799fd1af7aa6ba13b286e8ba71db9f53a391cd5f8e561b971ec3f66"
   },
-  "notApplied": ["apps/project/migrations/0004_today.sql", "apps/project/migrations/0005_owner_deleted.sql", "apps/project/migrations/0006_agent_checked.sql"],
+  "notApplied": ["apps/project/migrations/0004_today.sql", "apps/project/migrations/0005_owner_deleted.sql", "apps/project/migrations/0006_agent_checked.sql", "services/notify/migrations/0002_channel_attempts.sql"],
   "generated": "2026-10-29",
   "note": "Frozen SHA-256 for every applied migration; unbaselined files fail closed."
 }

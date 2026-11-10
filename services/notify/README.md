@@ -2,7 +2,7 @@
 
 `codepi-notify` accepts the shared `notify.event/v1` contract through the `NotifyApi` named
 RPC entrypoint and the authenticated `notify-api.codepi.app/v1/events` endpoint. It stores
-validated events, incident state and email outbox rows in its own D1 database.
+validated events, incident state, channel attempts and one outbox delivery row per notification in its own D1 database. Feishu is the primary channel; critical and selftest notifications use both Feishu and email, while warning notifications fall back to email after a permanent or exhausted Feishu failure.
 
 Issue an HTTP producer token locally:
 
@@ -13,6 +13,10 @@ node scripts/issue-token.mjs --source surgeconf.watchdog --kinds agent.stuck,app
 The token file is created with mode `0600`; SQL stores only the token id, SHA-256 hash, source and allowed kinds. `rpc` is reserved for the named RPC entrypoint and cannot be issued here. To revoke, set `revoked_at` for the token id in `producer_tokens`; the old token must then return HTTP 401 before replacement use.
 
 `NOTIFY_TO` is injected as a runtime secret by the authorized release operator; it is never committed or stored in D1. After release, read back a synthetic `notify.selftest` event and confirm the delivery status and provider message id. Binding success means accepted for delivery, not mailbox receipt.
+
+Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU_RECEIVE_OPEN_ID`; they are never committed, returned by the read-back API or written to logs. Token caching is isolated to the Worker runtime and keyed by app id. The card UUID is `notify-<minimum delivery id>` and Feishu's one-hour idempotency window means a retry after that window may produce a duplicate message.
+
+`channel_attempts` is the source for per-channel retry state. A notification reserves quota once; channel fan-out, fallback and retries do not reserve additional quota. The `0002_channel_attempts.sql` migration is additive and must be applied after `0001_notify.sql`. Rollback keeps the migration applied and requires a Worker version that understands the new table.
 
 ## 发布与回滚
 

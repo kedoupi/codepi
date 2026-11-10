@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 const root = path.resolve(new URL('../../..', import.meta.url).pathname);
-const migration = await readFile(path.join(root, 'services/notify/migrations/0001_notify.sql'), 'utf8');
+const migration = `${await readFile(path.join(root, 'services/notify/migrations/0001_notify.sql'), 'utf8')}\n${await readFile(path.join(root, 'services/notify/migrations/0002_channel_attempts.sql'), 'utf8')}`;
 const { default: worker, NotifyApi, ingest } = await import('../src/index.ts');
 
 const MINUTE = 60 * 1000;
