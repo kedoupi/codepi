@@ -78,8 +78,10 @@ const event = (id, kind, severity, state = 'firing', subject = id, extra = {}) =
 const critical = (id, extra = {}) => event(id, 'agent.stuck', 'critical', 'firing', id, extra);
 const warning = (id, extra = {}) => event(id, 'approval.pending', 'warning', 'firing', id, extra);
 const selftest = (id, extra = {}) => event(id, 'notify.selftest', 'info', 'info', id, extra);
+const dailyReview = (id, severity = 'warning', state = 'firing', extra = {}) => event(id, 'daily-review', severity, state, id, extra);
+function request(token, body) { return new Request('https://notify-api.codepi.app/v1/events', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, body: JSON.stringify(body) }); }
 function attempts(db, deliveryId) { return db.rows('SELECT channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ? ORDER BY channel', deliveryId); }
-function latestDelivery(db, eventId) { return db.row('SELECT id, status, channel, attempts, quota_omitted, error_code, message_id FROM deliveries WHERE event_id = ?', eventId); }
+function latestDelivery(db, eventId) { return db.row('SELECT id, status, channel, attempts, next_attempt_at, quota_omitted, error_code, message_id FROM deliveries WHERE event_id = ?', eventId); }
 
 
 test('critical agent.stuck with Feishu configured sends Feishu and email once', async t => {
@@ -327,4 +329,46 @@ test('resolved follows only the latest first delivery in the current episode', a
   const resolved = latestDelivery(db, 'episode-two-resolved');
   assert.equal(resolved.channel, 'feishu');
   assert.equal(sent.length, 2);
+});
+
+test('daily-review info is recorded without a delivery or provider call', async t => {
+  clock(t);
+  const { db, sent, env, fetchImpl } = setup();
+  const result = await ingest(dailyReview('daily-info', 'info', 'info'), env);
+  assert.equal(result.decision, 'record');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE event_id = 'daily-info'"), 0);
+  assert.equal(sent.length, 0);
+  assert.equal(fetchImpl.calls.length, 0);
+});
+
+test('daily-review warning follows the alert Feishu route', async t => {
+  clock(t);
+  const { db, sent, env, fetchImpl } = setup();
+  await ingest(dailyReview('daily-warning'), env);
+  await worker.scheduled({}, env);
+  const delivery = latestDelivery(db, 'daily-warning');
+  assert.equal(delivery.status, 'sent');
+  assert.equal(sent.length, 0);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
+});
+
+test('daily-review warning during quiet hours defers to quietEnd', async t => {
+  clock(t, Date.parse('2026-11-10T16:00:00Z'));
+  const { db, env } = setup();
+  const result = await ingest(dailyReview('daily-quiet'), env);
+  assert.equal(result.delivery, 'pending');
+  const delivery = latestDelivery(db, 'daily-quiet');
+  assert.equal(delivery.status, 'pending');
+  assert.equal(delivery.next_attempt_at, '2026-11-11T00:00:00.000Z');
+});
+
+test('HTTP allows daily-review only for tokens that list the kind', async t => {
+  clock(t);
+  const { db, env } = setup();
+  const allowed = seedToken(db, 'daily-review-allowed', ['daily-review']);
+  const denied = seedToken(db, 'daily-review-denied', ['agent.stuck']);
+  const accepted = await worker.fetch(request(allowed, dailyReview('daily-http-allowed')), env);
+  const forbidden = await worker.fetch(request(denied, dailyReview('daily-http-denied')), env);
+  assert.equal(accepted.status, 200);
+  assert.equal(forbidden.status, 403);
 });

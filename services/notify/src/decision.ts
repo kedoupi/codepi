@@ -38,7 +38,7 @@ export function quietEnd(now = new Date()) {
 
 export interface Decision { decision: string; shouldSend: boolean; reason: string; }
 export function decideNotification(event: NotifyEvent, rule: NotifyRule, incident: { status?: string; firstSeen?: string; lastNotificationAt?: string | null; pendingUntil?: string | null } | null, now = Date.now()): Decision {
-  if (rule.mode === "record") return { decision: "record", shouldSend: false, reason: "record_only" };
+  if (rule.mode === "record" || rule.infoMode === "record" && event.severity === "info") return { decision: "record", shouldSend: false, reason: "record_only" };
   // A closed incident that fires again is a new episode: no for/cooldown state carries over.
   if (event.state !== "resolved" && incident && incident.status !== "open") incident = null;
   if (event.state === "resolved") {

@@ -11,6 +11,7 @@ export interface NotifyRule {
   cooldown?: number;
   cooldownMs?: number;
   notifyResolved?: boolean;
+  infoMode?: "record";
   quiet: QuietMode;
 }
 
@@ -27,6 +28,7 @@ export const RULES: readonly NotifyRule[] = DATA_RULES.map(rule => ({
   quiet: oneOf(rule.quiet, QUIET_MODES, "quiet"),
   for: rule.forMs,
   cooldown: rule.cooldownMs,
+  infoMode: rule.infoMode === "record" ? "record" : undefined,
 }));
 
 export function findRule(source: string, kind: string) {

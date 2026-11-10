@@ -18,6 +18,7 @@ test('issueToken validates rules and emits only a hash SQL row', async t => {
   assert.equal(result.insert.includes(result.token), false);
   assert.equal(result.insert.includes(result.hash), true);
   assert.equal(result.insert.includes(result.id), true);
+  assert.doesNotThrow(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'daily-review', out: path.join(dir, 'daily.token'), sql: path.join(dir, 'daily.sql'), randomId: Buffer.from('id-seed-daily'), randomSecret: Buffer.from('secret-seed-daily') }));
   assert.throws(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'unknown', out, sql }), /not allowed/);
   assert.throws(() => issueToken({ source: 'rpc', kinds: 'notify.selftest', out, sql }), /rpc source/);
 });
