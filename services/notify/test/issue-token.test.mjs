@@ -45,4 +45,7 @@ test('issue-token subprocess writes 0600 files, hides plaintext and rejects reus
   await assert.rejects(async () => {
     execFileSync(process.execPath, [script.pathname, '--source', 'rpc', '--kinds', 'notify.selftest', '--out', path.join(dir, 'rpc.token'), '--sql', path.join(dir, 'rpc.sql')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   }, /rpc source/);
+  await assert.rejects(async () => {
+    execFileSync(process.execPath, [script.pathname, '--source', 'surgeconf.watchdog', '--kinds', 'unknown', '--out', path.join(dir, 'unknown.token'), '--sql', path.join(dir, 'unknown.sql')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  }, /not allowed/);
 });

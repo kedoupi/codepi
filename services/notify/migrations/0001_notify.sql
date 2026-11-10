@@ -33,6 +33,7 @@ CREATE TABLE deliveries (
   event_id TEXT NOT NULL,
   incident_key TEXT NOT NULL,
   notification_no INTEGER NOT NULL,
+  notification_type TEXT NOT NULL DEFAULT 'first',
   channel TEXT NOT NULL DEFAULT 'email',
   status TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,

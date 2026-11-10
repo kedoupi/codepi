@@ -243,6 +243,15 @@ test('notify requires a destination secret and injects it only into the temporar
   assert.ok(calls.at(-1).includes('destination_address = "notify-test@example.invalid"'));
   assert.ok(!(await readFile(path.join(f.appDir, 'wrangler.toml'), 'utf8')).includes('notify-test@example.invalid'));
 });
+test('notify destination injection handles plus addresses without leaking evidence', async t => {
+  const f = await fixture(t, 'notify');
+  let rendered;
+  const e = executor({ databaseName: 'codepi-notify', inspect: text => { rendered = text; } });
+  const address = 'notify+test@example.invalid';
+  const result = await deployDomain('notify', { cwd: f.cwd, execute: e.execute, env: { NOTIFY_DESTINATION_ADDRESS: address } });
+  assert.equal((rendered.split(address).length - 1), 1);
+  assert.equal(JSON.stringify(result).includes(address), false);
+});
 test('reviewed notify Wrangler config keeps only its domain and destination placeholder', async () => {
   const source = await readFile(new URL('../../services/notify/wrangler.toml', import.meta.url), 'utf8');
   assert.match(source, /^name = "codepi-notify"$/m);

@@ -1,14 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, open, writeFile } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { RULES } from '../src/rules.data.mjs';
 
-const rulesFile = new URL('../src/rules.ts', import.meta.url);
 const allowedBySource = new Map();
-for (const match of readFileSync(rulesFile, 'utf8').matchAll(/\{ kind: "([^"]+)", sources: \[([^\]]+)\]/g)) {
-  const sources = [...match[2].matchAll(/"([^"]+)"/g)].map(item => item[1]);
-  for (const source of sources) {
+for (const rule of RULES) {
+  for (const source of rule.sources) {
     if (!allowedBySource.has(source)) allowedBySource.set(source, new Set());
-    allowedBySource.get(source).add(match[1]);
+    allowedBySource.get(source).add(rule.kind);
   }
 }
 function arg(name, args) { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }

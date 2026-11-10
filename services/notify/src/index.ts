@@ -35,6 +35,11 @@ function eventFromRow(row: Record<string, unknown>): NotifyEvent {
     ...(row.link ? { link: String(row.link) } : {}),
   };
 }
+function deliveryEventFromRow(row: Record<string, unknown>): NotifyEvent {
+  const event = eventFromRow(row);
+  if (row.notification_type === "repeat") return { ...event, title: `${event.title}，仍未恢复` };
+  return event;
+}
 
 async function findExisting(env: Env, eventId: string) {
   return env.DB.prepare("SELECT * FROM events WHERE event_id = ?1").bind(eventId).first<Record<string, unknown>>();
@@ -131,18 +136,19 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   }
   await upsertIncident(env, event, key, decision);
   const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' LIMIT 1").bind(key).first<{ id: number }>();
-  if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
+  if (queued && event.state !== "resolved") return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
+  if (queued && event.state === "resolved") await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE id = ?1").bind(queued.id).run();
+  const notificationType = event.state === "resolved" ? "resolved" : decision.reason === "cooldown_elapsed" ? "repeat" : "first";
   if (!decision.shouldSend && decision.reason === "quiet_hours") {
     const notificationNo = Number(current?.event_count ?? 0) + 1;
-    await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, status, next_attempt_at) VALUES (?1,?2,?3,'pending',?4)").bind(event.event_id, key, notificationNo, quietEnd()).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, notification_type, status, next_attempt_at) VALUES (?1,?2,?3,?4,'pending',?5)").bind(event.event_id, key, notificationNo, notificationType, quietEnd()).run();
   }
   if (!decision.shouldSend) return { event_id: event.event_id, decision: decision.decision, duplicate: false };
   const quota = await reserveQuota(env);
   if (!quota.allowed) return { event_id: event.event_id, decision: "quota_deferred", duplicate: false, omitted: quota.omitted };
   const notificationNo = Number(current?.event_count ?? 0) + 1;
-  const delivery = await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, status) VALUES (?1,?2,?3,'pending') RETURNING id")
-    .bind(event.event_id, key, notificationNo).first<{ id: number }>();
-  const deliveryEvent = decision.reason === "cooldown_elapsed" ? { ...event, title: `${event.title}，仍未恢复` } : event;
+  const delivery = await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, notification_type, status) VALUES (?1,?2,?3,?4,'pending') RETURNING id").bind(event.event_id, key, notificationNo, notificationType).first<{ id: number }>();
+  const deliveryEvent = notificationType === "repeat" ? { ...event, title: `${event.title}，仍未恢复` } : event;
   const result = rule.mode === "immediate" ? await deliver(env, deliveryEvent, key, delivery?.id) : { status: "pending" };
   if (result.status === "sent") await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(nowIso(), key).run();
   return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: result.status, ...(result.message_id ? { message_id: result.message_id } : {}) };
@@ -206,7 +212,9 @@ async function route(request: Request, env: Env) {
   if (request.method === "GET" && /^\/v1\/events\/[^/]+$/.test(url.pathname)) {
     const token = await readToken(env, request);
     if (!token) return json({ error: "unauthorized" }, 401);
-    const eventId = decodeURIComponent(url.pathname.slice("/v1/events/".length));
+    let eventId: string;
+    try { eventId = decodeURIComponent(url.pathname.slice("/v1/events/".length)); }
+    catch { return json({ error: "invalid_event_id" }, 400); }
     const event = await env.DB.prepare("SELECT event_id, source, kind, subject, state, severity, occurred_at, title, summary, facts_json, link, decision FROM events WHERE event_id = ?1 AND source = ?2").bind(eventId, token.source).first<Record<string, unknown>>();
     if (!event) return json({ error: "not_found" }, 404);
     const deliveries = await env.DB.prepare("SELECT id, event_id, incident_key, notification_no, channel, status, attempts, next_attempt_at, error_code, message_id, created_at, sent_at FROM deliveries WHERE event_id = ?1 ORDER BY id").bind(eventId).all();
@@ -222,16 +230,16 @@ export class NotifyApi extends WorkerEntrypoint<Env> {
 export default {
   fetch(request: Request, env: Env) { return route(request, env); },
   async scheduled(_controller: ScheduledController, env: Env) {
-    const pending = await env.DB.prepare("SELECT d.id, d.attempts, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id WHERE d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1) ORDER BY d.id LIMIT 50").bind(nowIso()).all<Record<string, unknown>>();
+    const pending = await env.DB.prepare("SELECT d.id, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id WHERE d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1) ORDER BY d.id LIMIT 50").bind(nowIso()).all<Record<string, unknown>>();
     if (!pending.results.length) return;
     const rows = pending.results;
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
-    const first = eventFromRow(rows[0]);
+    const first = deliveryEventFromRow(rows[0]);
     const highest = rows.reduce((current, row) => rank[String(row.severity)] > rank[current] ? String(row.severity) : current, first.severity);
     const merged: NotifyEvent = rows.length === 1 ? first : {
       ...first,
       severity: highest as NotifyEvent["severity"],
-      title: `${rows.length} 条提醒`,
+      title: `${rows.length} 条提醒${rows.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
       summary: rows.map(row => String(row.title)).join("；").slice(0, 500),
       facts: rows.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
     };
