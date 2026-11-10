@@ -35,7 +35,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - staging 已退役：`codepi-<service>[-<role>]-staging` 命名保留为历史记录，新增即违规
 - 临时：`codepi-<service>[-<role>]-pr-<number>`
 
-`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`health`、`desk`、`mcp`、`ops`、`project`、`me`、`blog`。
+`service` 是稳定逻辑边界：`www`、`auth`、`gu`、`health`、`desk`、`mcp`、`ops`、`project`、`me`、`blog`、`notify`。
 `role` 只用于独立组件：`api`、`sync`、`assets`、`cache`、`uploads`、`imports`、`mcp`、`backups`。
 
 禁止把分支全文、secret、邮箱、用户名、供应商凭证放进资源名。
@@ -54,6 +54,7 @@ Workers/D1/域名与残留 routes 均已删除（证据见资源登记表）。�
 - PR 默认使用 Pages/Workers provider URL（`*.pages.dev` / `*.workers.dev`），
   不分配 `codepi.app` wildcard host。
 - 同一 hostname 不得同时映射到 production 与 staging。
+`notify-api.codepi.app` 是唯一允许的服务级 `-api` hostname 命名例外；其他服务使用类似 `xxx-api.codepi.app` 仍违反本节命名契约。
 
 ## 4. staging 已退役
 
@@ -157,8 +158,7 @@ MCP migration/deploy/smoke → Health frontend / Ops。Project/Me 首次上传�
 
 ## 8. 静态守门
 
-`scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、
-auth、mcp、ops、health-api、health-pages）与登记表，对每个 declared service 强制：
+`scripts/cloudflare/validate-governance.mjs` 读取全部 Wrangler 配置（web、gu、auth、mcp、ops、notify、health-api、health-pages）与登记表，对每个 declared service 强制：
 
 1. production 资源名不含环境后缀且 `ENVIRONMENT` 为 `production`（Health 前端
    纯代理除外：它不得声明 ENVIRONMENT 等业务 vars，仅发布时注入 BUILD_SHA 元数据）；

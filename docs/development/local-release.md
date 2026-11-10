@@ -85,6 +85,7 @@ PR 前的检查若与合并后树完全一致，可保留证据并只重跑受�
 | Rhythm | `apps/rhythm` | 先设置本机环境变量 `RHYTHM_STATUS_READ_SERVICE`（所有者私有上游 Worker 名，不入库、不打印）→ `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app rhythm --sha <完整sourceSHA>`；首发见末节「Rhythm 首发」 |
 | MCP | `services/mcp` | `pnpm build` → `pnpm run deploy <完整sourceSHA>`（解析/创建独立 D1、迁移、部署） |
 | Health 前端 | `apps/health/apps/web` | `pnpm build` → `node ../../../../scripts/cloudflare/deploy-worker.mjs health-web <完整sourceSHA>` |
+| Notify | `services/notify` | `pnpm build` → `node ../../scripts/cloudflare/deploy-domain.mjs --app notify --sha <完整sourceSHA>`；首次初始化需同时提供 `NOTIFY_DESTINATION_ADDRESS` |
 | Ops | `services/ops` | `pnpm build` → `node ../../scripts/cloudflare/deploy-worker.mjs ops <完整sourceSHA>`；首次初始化见[运维说明](cloudflare-operations.md) |
 
 当 MCP 使用 `BLOG → codepi-www#BlogMcp` 时，必须先完成 Web / Desk（含

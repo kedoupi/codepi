@@ -15,7 +15,7 @@ This is the shared project contract for all coding agents. Tool-specific entry f
 
 - This repository is **kedoupi（codepi）**, a pnpm workspace whose products live under `apps/`.
 - Use `kedoupi（codepi）` for shared login, transactional email and cross-product identity; reuse the shared brand and OTP modules.
-- `services/auth/`, `services/mcp/`, `services/ops/` and `packages/shared/` are support layers, not products.
+- `services/auth/`, `services/mcp/`, `services/ops/`, `services/notify/` and `packages/shared/` are support layers, not products.
 - The former tool sites, homepage calculator/guides, `/tools/`, `kdp.cool`, `oura.kdp.cool` and advertising are retired; do not restore them.
 - `packages/shared/products.ts` is the single source for the public product registry. Keep it free of private business data.
 - Shared visual authority is `docs/architecture/codepi-design-system.md`; `personal-design-system.md` supplements homepage-specific guidance.

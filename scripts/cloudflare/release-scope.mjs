@@ -1,7 +1,7 @@
 export const WORKERS = {
   auth: 'codepi-auth', web: 'codepi-www', gu: 'codepi-gu',
   project: 'codepi-project', me: 'codepi-me', rhythm: 'codepi-rhythm',
-  'health-api': 'codepi-health-api', 'health-web': 'codepi-health', mcp: 'codepi-mcp', ops: 'codepi-ops',
+  'health-api': 'codepi-health-api', 'health-web': 'codepi-health', mcp: 'codepi-mcp', ops: 'codepi-ops', notify: 'codepi-notify',
 };
 const all = Object.keys(WORKERS);
 
@@ -24,10 +24,11 @@ export function affectedWorkers(files) {
       || /\/scripts\/(?:check[^/]*|verify[^/]*|deploy[^/]*|browser[^/]*|test[^/]*)\.mjs$/.test(file)
       || file === '.gitignore') continue;
     if (file.startsWith('packages/shared/mcp/')) add(['health-api', 'mcp', 'gu', 'project', 'me', 'web']);
-    else if (file.startsWith('packages/shared/')) add(all);
+    else if (file.startsWith('packages/shared/notify/') || file === 'packages/shared/email/notification.ts') add(['notify']);
     else if (file.startsWith('services/auth/')) add(all);
     else if (file.startsWith('services/mcp/')) add(['mcp']);
     else if (file.startsWith('services/ops/')) add(['ops']);
+    else if (file.startsWith('services/notify/')) add(['notify']);
     else if (file.startsWith('apps/health/apps/web/')) add(['health-web']);
     else if (file.startsWith('apps/health/workers/api/') || file.startsWith('apps/health/migrations/')) add(['health-api', 'mcp']);
     else if (file.startsWith('apps/health/')) add(['health-api', 'health-web', 'mcp']);

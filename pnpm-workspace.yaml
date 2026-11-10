@@ -10,5 +10,6 @@ packages:
   - services/auth
   - services/mcp
   - services/ops
+  - services/notify
   - packages/shared
   - packages/cli

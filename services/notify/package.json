@@ -1,0 +1,19 @@
+{
+  "name": "@codepi/notify",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "build": "wrangler deploy --dry-run --outdir=dist",
+    "typecheck": "../mcp/node_modules/.bin/tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --experimental-loader ./test/cloudflare-loader.mjs --test test/*.test.mjs",
+    "deploy": "node ../../scripts/cloudflare/deploy-domain.mjs --app notify"
+  },
+  "dependencies": {
+    "@kedoupi/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "4.156.0"
+  }
+}

@@ -5,7 +5,7 @@
 生产部署继续遵循 [本地发布](local-release.md)。
 
 v4 的博客媒体备份与巡检覆盖已随 `0ce86cf987b8` 上线。公众号稿件台 gzh 已于 2026-11-08 退役，数据已按所有者决定删除。
-当前 v4 完整备份以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准，覆盖八库。
+当前 v4 完整备份以 `backup-core.mjs` 的 `DATABASE_NAMES` / `ORIGINAL_COLLECTIONS` 为准，覆盖九库。
 生产备份实例 `cf_d2bc8d1d03d9bb71feedde0f1c1d1da2afa95b56a0758fcb2bfbf418e821df71`
 于 2026-10-26 完成，覆盖当时的九库、GU 112 件、Me 2 件与 Blog 2 件，私有 R2 密文、manifest
 和完成回执已核对；下文六库/v2 与八库/v3 的记录是旧覆盖的证据，不是当前清单版本。
