@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 import { buildNotificationEmail, notificationSender } from "@kedoupi/shared/email/notification";
 import { validateNotifyEvent, NotifyValidationError, type NotifyEvent } from "@kedoupi/shared/notify/contract";
-import { findRule, RPC_SOURCE, type NotifyRule } from "./rules.ts";
+import { findRule, RPC_SOURCE } from "./rules.ts";
+import { decideNotification, quietEnd, retryAt, type Decision } from "./decision.ts";
+export { decideNotification, isQuietHours, quietEnd, retryAt } from "./decision.ts";
 
 export interface D1Result<T = Record<string, unknown>> { results: T[]; success?: boolean; meta?: Record<string, unknown>; }
 export interface D1Statement { bind(...values: unknown[]): D1Statement; first<T = Record<string, unknown>>(): Promise<T | null>; all<T = Record<string, unknown>>(): Promise<D1Result<T>>; run(): Promise<D1Result>; }
@@ -17,49 +19,9 @@ export interface Env {
 }
 
 const MAX_BODY_BYTES = 16 * 1024;
-const RETRYABLE = new Set(["E_RATE_LIMIT_EXCEEDED", "E_DELIVERY_FAILED", "E_INTERNAL_SERVER_ERROR"]);
-const RETRY_MINUTES = [5, 15, 60];
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json; charset=utf-8" } });
 const nowIso = () => new Date().toISOString();
 const incidentKey = (event: NotifyEvent) => `${event.source}:${event.kind}:${event.subject}`;
-
-export function retryAt(errorCode: string, attempts: number, now = Date.now()): string | null {
-  if (!RETRYABLE.has(errorCode) || attempts >= 4) return null;
-  const minutes = RETRY_MINUTES[Math.min(attempts, RETRY_MINUTES.length - 1)];
-  return new Date(now + minutes * 60 * 1000).toISOString();
-}
-
-export function isQuietHours(date = new Date()): boolean {
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Shanghai", hour: "2-digit", hour12: false }).format(date));
-  return hour >= 23 || hour < 8;
-}
-function quietEnd(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(now);
-  const values = Object.fromEntries(parts.filter(part => part.type !== "literal").map(part => [part.type, part.value]));
-  const date = `${values.year}-${values.month}-${values.day}`;
-  const hour = Number(values.hour);
-  const end = new Date(`${date}T08:00:00+08:00`);
-  if (hour >= 8 && hour < 23) return end.toISOString();
-  if (hour >= 23) end.setUTCDate(end.getUTCDate() + 1);
-  return end.toISOString();
-}
-
-export interface Decision { decision: string; shouldSend: boolean; reason: string; }
-export function decideNotification(event: NotifyEvent, rule: NotifyRule, incident: { status?: string; firstSeen?: string; lastNotificationAt?: string | null; pendingUntil?: string | null } | null, now = Date.now()): Decision {
-  if (rule.mode === "record") return { decision: "record", shouldSend: false, reason: "record_only" };
-  if (event.state === "resolved") {
-    if (!incident || incident.status !== "open" || !rule.notifyResolved) return { decision: "resolved", shouldSend: false, reason: "resolved_without_notification" };
-    if (incident.pendingUntil && Date.parse(incident.pendingUntil) > now) return { decision: "resolved", shouldSend: false, reason: "resolved_before_for" };
-    return { decision: "send_resolved", shouldSend: true, reason: "resolved" };
-  }
-  if (rule.forMs > 0 && incident?.firstSeen && now - Date.parse(incident.firstSeen) < rule.forMs) return { decision: "deferred_for", shouldSend: false, reason: "for_not_elapsed" };
-  if (rule.cooldownMs && incident?.lastNotificationAt) {
-    if (now - Date.parse(incident.lastNotificationAt) < rule.cooldownMs) return { decision: "cooled_down", shouldSend: false, reason: "cooldown" };
-    return { decision: rule.mode === "immediate" ? "send_immediate" : "send_alert", shouldSend: true, reason: "cooldown_elapsed" };
-  }
-  if (rule.quiet === "defer" && event.severity === "warning" && isQuietHours(new Date(now))) return { decision: "deferred_quiet", shouldSend: false, reason: "quiet_hours" };
-  return { decision: rule.mode === "immediate" ? "send_immediate" : "send_alert", shouldSend: true, reason: "rule_matched" };
-}
 
 function eventFromRow(row: Record<string, unknown>): NotifyEvent {
   return {
@@ -148,7 +110,11 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   const key = incidentKey(event);
   const current = await incident(env, key);
   const decision = decideNotification(event, rule, rowIncident(current));
-  await insertEvent(env, event, key, decision.decision);
+  const inserted = await insertEvent(env, event, key, decision.decision);
+  if (!inserted) {
+    const duplicate = await findExisting(env, event.event_id);
+    return { event_id: event.event_id, decision: String(duplicate?.decision ?? decision.decision), duplicate: true };
+  }
   await upsertIncident(env, event, key, decision);
   if (!decision.shouldSend && decision.reason === "quiet_hours") {
     const notificationNo = Number(current?.event_count ?? 0) + 1;

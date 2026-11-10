@@ -66,7 +66,8 @@ export const specialRules = [
   { prefixes: ['packages/shared/mcp/'], apps: ['web', 'health', 'gu', 'project', 'me', 'mcp', 'cli'] },
   { prefixes: ['services/auth/', 'packages/shared/auth/'], apps: allApps, sharedAuth: true },
   { prefixes: ['packages/shared/layouts/', 'packages/shared/i18n/'], files: ['packages/shared/products.ts', 'packages/shared/privacy-redirects.js', 'packages/shared/sitemap-filter.js'], apps: ['web'] },
-  { prefixes: ['packages/shared/notify/', 'packages/shared/email/notification.ts'], apps: ['notify'] },
+  { prefixes: ['packages/shared/notify/'], apps: ['notify'] },
+  { prefixes: ['packages/shared/email/notification.ts'], apps: allApps, sharedAuth: true },
   { prefixes: ['packages/shared/'], apps: allApps, sharedAuth: true },
 ];
 

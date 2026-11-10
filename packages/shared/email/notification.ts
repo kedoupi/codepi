@@ -2,7 +2,7 @@ import { PRODUCT_BRAND } from "../brand";
 import { brandedSender } from "./otp";
 import type { NotifyEvent, NotifySeverity } from "../notify/contract";
 
-export interface NotificationEmailInput {
+export interface NotificationEmailOptions {
   event: NotifyEvent;
   duration?: string;
   firstSeen?: string;
@@ -12,13 +12,21 @@ export interface NotificationEmailInput {
   count?: number;
   digest?: boolean;
 }
+export type NotificationEmailInput = NotificationEmailOptions | NotifyEvent;
+
+function notificationParts(input: NotificationEmailInput): { event: NotifyEvent; options: Omit<NotificationEmailOptions, "event"> } {
+  if ("event" in input) {
+    const { event, ...options } = input;
+    return { event, options };
+  }
+  return { event: input, options: {} };
+}
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 const severityLabel: Record<NotifySeverity, string> = { critical: "严重", warning: "注意", info: "通知" };
 
-function prefix(input: NotificationEmailInput) {
-  const { event } = input;
+function prefix(event: NotifyEvent) {
   if (event.state === "resolved") return "[恢复]";
   if (event.kind === "notify.selftest") return "[自检]";
   return `[${severityLabel[event.severity]}]`;
@@ -30,9 +38,9 @@ export function notificationSender(configured = DEFAULT_NOTIFICATION_SENDER) {
 }
 
 export function buildNotificationEmail(input: NotificationEmailInput) {
-  const { event } = input;
+  const { event, options } = notificationParts(input);
   const facts = event.facts ?? [];
-  const subject = `${prefix(input)} ${event.title}`.trim().slice(0, 180);
+  const subject = `${prefix(event)} ${event.title}`.trim().slice(0, 180);
   const conclusion = event.state === "resolved" ? `${event.title}，问题已经恢复。` : event.summary || event.title;
   const rows = facts.map(fact => `${fact.label}: ${fact.value}`);
   const text = [
@@ -42,14 +50,14 @@ export function buildNotificationEmail(input: NotificationEmailInput) {
     conclusion,
     ...rows,
     "",
-    `开始时间：${input.firstSeen ?? event.occurred_at}`,
-    `最近一次观察：${input.lastSeen ?? event.occurred_at}`,
-    ...(input.duration ? [`持续时长：${input.duration}`] : []),
+    `开始时间：${options.firstSeen ?? event.occurred_at}`,
+    `最近一次观察：${options.lastSeen ?? event.occurred_at}`,
+    ...(options.duration ? [`持续时长：${options.duration}`] : []),
     ...(event.link ? ["", `查看详情：${event.link}`] : []),
     "",
     `来源：${event.source}`,
-    ...(input.incidentId ? [`事故编号：${input.incidentId}`] : []),
-    `为什么收到这封邮件：${input.reason ?? "这是统一通知服务根据事件规则生成的提醒。"}`,
+    ...(options.incidentId ? [`事故编号：${options.incidentId}`] : []),
+    `为什么收到这封邮件：${options.reason ?? "这是统一通知服务根据事件规则生成的提醒。"}`,
     "",
     `${PRODUCT_BRAND} · 你的个人工作空间`,
   ].join("\n");

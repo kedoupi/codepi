@@ -1,15 +1,20 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, open, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
-const rules = {
-  'surgeconf.watchdog': new Set(['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest']),
-  rpc: new Set(['notify.selftest']),
-};
+const rulesFile = new URL('../src/rules.ts', import.meta.url);
+const allowedBySource = new Map();
+for (const match of readFileSync(rulesFile, 'utf8').matchAll(/\{ kind: "([^"]+)", sources: \[([^\]]+)\]/g)) {
+  const sources = [...match[2].matchAll(/"([^"]+)"/g)].map(item => item[1]);
+  for (const source of sources) {
+    if (!allowedBySource.has(source)) allowedBySource.set(source, new Set());
+    allowedBySource.get(source).add(match[1]);
+  }
+}
 function arg(name, args) { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; }
 export function issueToken({ source, kinds, out, sql, random = randomBytes(24) }) {
   if (!source || !out || !sql || !kinds) throw new Error('Usage: --source <source> --kinds <kinds> --out <path> --sql <path>');
-  const allowed = rules[source];
+  const allowed = allowedBySource.get(source);
   if (!allowed) throw new Error(`unknown source: ${source}`);
   const selected = kinds.split(',').map(value => value.trim()).filter(Boolean);
   if (!selected.length || selected.some(kind => !allowed.has(kind))) throw new Error('kind is not allowed for source');

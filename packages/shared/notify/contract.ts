@@ -37,6 +37,7 @@ const allowed = new Set([
   "occurred_at", "title", "summary", "facts", "link",
 ]);
 const scalar = (value: unknown): value is string => typeof value === "string" && !/[<>]/.test(value);
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export function validateNotifyEvent(input: unknown): NotifyEvent {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new NotifyValidationError("event must be an object");
@@ -55,7 +56,7 @@ export function validateNotifyEvent(input: unknown): NotifyEvent {
   if (!/^[^\r\n<>]{1,200}$/.test(value.subject as string)) throw new NotifyValidationError("invalid subject");
   if (!["firing", "resolved", "info"].includes(value.state as string)) throw new NotifyValidationError("invalid state");
   if (!["info", "warning", "critical"].includes(value.severity as string)) throw new NotifyValidationError("invalid severity");
-  if (typeof value.occurred_at !== "string" || Number.isNaN(Date.parse(value.occurred_at))) throw new NotifyValidationError("occurred_at must be ISO time");
+  if (typeof value.occurred_at !== "string" || !ISO_TIME.test(value.occurred_at) || Number.isNaN(Date.parse(value.occurred_at))) throw new NotifyValidationError("occurred_at must be ISO time");
   if (value.facts !== undefined) {
     if (!Array.isArray(value.facts) || value.facts.length > 12) throw new NotifyValidationError("facts must contain at most 12 items");
     for (const fact of value.facts) {
