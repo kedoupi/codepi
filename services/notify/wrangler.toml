@@ -1,0 +1,38 @@
+name = "codepi-notify"
+main = "src/index.ts"
+compatibility_date = "2026-11-10"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+routes = [
+  { pattern = "notify-api.codepi.app", custom_domain = true }
+]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+ENVIRONMENT = "production"
+BUILD_SHA = "local"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+[observability.issues]
+enabled = true
+[observability.logs]
+enabled = true
+invocation_logs = true
+persist = true
+head_sampling_rate = 1
+
+[[d1_databases]]
+binding = "DB"
+database_name = "codepi-notify"
+migrations_dir = "migrations"
+
+[[send_email]]
+name = "EMAIL"
+destination_address = "notify-destination-placeholder@example.invalid"
+allowed_sender_addresses = ["notify\u0040notify.codepi.app"]

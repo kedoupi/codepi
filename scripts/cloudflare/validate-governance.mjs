@@ -10,7 +10,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const REGISTRY = 'docs/development/cloudflare-resource-registry.md';
 
 const PROD_HOSTS = new Set(['codepi.app', 'www.codepi.app', 'auth.codepi.app',
-  'gu.codepi.app', 'health.codepi.app', 'mcp.codepi.app',
+  'gu.codepi.app', 'health.codepi.app', 'mcp.codepi.app', 'notify-api.codepi.app',
   'project.codepi.app', 'me.codepi.app', 'jw.codepi.app']);
 const STAGING_HOSTS = new Set(['staging.codepi.app', 'auth-staging.codepi.app',
   'gu-staging.codepi.app', 'health-staging.codepi.app']);
@@ -142,6 +142,10 @@ function parseTomlEnv(root, tables, prefix) {
   const d1All = tomlTableBodies(tables, `[[${p}d1_databases]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), name: tomlString(body, 'database_name'),
       id: /^REPLACE_WITH_[A-Z0-9_]+$/.test(tomlString(body, 'database_id') ?? '') ? undefined : tomlString(body, 'database_id') }));
+  const sendEmailAll = tomlTableBodies(tables, '[[send_email]]').map(body => {
+    const allowed = body.match(/^\s*allowed_sender_addresses\s*=\s*\[\s*"([^"]+)"\s*\]\s*$/m)?.[1];
+    return { name: tomlString(body, 'name'), destination: tomlString(body, 'destination_address'), allowed: allowed ? JSON.parse(`"${allowed}"`) : undefined };
+  });
   const servicesAll = tomlTableBodies(tables, `[[${p}services]]`)
     .map(body => ({ binding: tomlString(body, 'binding'), service: tomlString(body, 'service'), entrypoint: tomlString(body, 'entrypoint') }));
   const routes = tomlRoutes(section);
@@ -156,6 +160,7 @@ function parseTomlEnv(root, tables, prefix) {
   const r2DuplicateBindings = duplicate(r2All, 'binding');
   const duplicateWorkflowBindings = duplicate(workflowsAll, 'binding');
   return {
+    sendEmailAll,
     workersDev: tomlBoolean(section, 'workers_dev'),
     previewUrls: tomlBoolean(section, 'preview_urls'),
     r2All, r2Malformed, duplicateR2Bindings: r2DuplicateBindings,
@@ -488,6 +493,15 @@ function checkService(spec, cfg, index, violations) {
   if (spec.id === 'mcp' && (prod.mcpOrigin !== 'https://mcp.codepi.app' || prod.authClientId !== 'mcp')) {
     at('MCP_ORIGIN and AUTH_CLIENT_ID must identify the canonical CodePi MCP service');
   }
+  if (spec.id === 'notify') {
+    if (prod.workersDev !== false || prod.previewUrls !== false) at('notify must disable workers_dev and preview_urls');
+    if (prod.sendEmailAll.length !== 1) at('notify must declare exactly one EMAIL send_email binding');
+    const email = prod.sendEmailAll[0];
+    const expectedSender = ["notify", String.fromCharCode(64), "notify.codepi.app"].join("");
+    if (email && (email.name !== 'EMAIL' || email.destination !== 'notify-destination-placeholder@example.invalid' || email.allowed !== expectedSender)) {
+      at('notify EMAIL binding must keep its reviewed destination placeholder and one notify.codepi.app sender');
+    }
+  }
   if (spec.authClientId && prod.authClientId !== spec.authClientId) {
     at(`AUTH_CLIENT_ID must be ${spec.authClientId}, got ${prod.authClientId}`);
   }
@@ -714,6 +728,10 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
     { id: 'gu', file: 'apps/gu/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-gu', d1Name: 'codepi-gu', envKey: 'staging',
       serviceBindings: { AUTH: { production: 'codepi-auth' } } },
+    { id: 'notify', file: 'services/notify/wrangler.toml', format: 'toml', kind: 'worker', prodName: 'codepi-notify', d1Name: 'codepi-notify', envKey: 'staging',
+      provisionOnRelease: true, noAuth: true, routesRequired: true, cronsRequired: true, optional: true,
+      allowPlanned: { worker: true, d1: true, hosts: ['notify-api.codepi.app'] },
+      requiredRoutes: { prod: ['notify-api.codepi.app'] }, serviceBindings: {} },
     // Health 前端只做静态资产与 API 代理：无 AUTH 绑定、无 D1、无 vars。
     { id: 'health-pages', file: 'apps/health/apps/web/wrangler.toml', format: 'toml', kind: 'worker-assets', prodName: 'codepi-health', envKey: 'staging', spa: true,
       noD1: true, noVars: true,
@@ -731,7 +749,7 @@ export function collectViolations({ root = ROOT, registryFile = REGISTRY, requir
   for (const spec of specs) {
     const file = path.join(root, spec.file);
     if (!existsSync(file)) {
-      if (requireAll) violations.push(`${spec.id}: missing config ${spec.file}`);
+      if (requireAll && !spec.optional) violations.push(`${spec.id}: missing config ${spec.file}`);
       continue;
     }
     const text = readFileSync(file, 'utf8');

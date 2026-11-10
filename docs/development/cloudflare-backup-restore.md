@@ -9,7 +9,7 @@
 
 ## 当前 v4 覆盖与恢复边界
 
-必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`，共八库；原件集合来自
+必需库名来自 `backup-core.mjs` 的 `DATABASE_NAMES`，共九库；原件集合来自
 `ORIGINAL_COLLECTIONS`：GU `gu_materials`、Me `imports`、Blog `blog_media`，分别通过
 `GuMaterialsBackup`、`MeImportsBackup`、`BlogMediaBackup` 只读获取。Ops 不直接绑定业务桶。
 新写出的 v4 manifest 必须包含全部数据库和三组原件；缺少任何一组（包括空组记录）均不完整。

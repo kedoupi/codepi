@@ -11,6 +11,7 @@ export const DOMAINS = Object.freeze({
   mcp: { appDir: 'services/mcp', worker: 'codepi-mcp', database: 'codepi-mcp' },
   project: { appDir: 'apps/project', worker: 'codepi-project', database: 'codepi-project' },
   me: { appDir: 'apps/me', worker: 'codepi-me', database: 'codepi-me' },
+  notify: { appDir: 'services/notify', worker: 'codepi-notify', database: 'codepi-notify', destinationEnv: 'NOTIFY_DESTINATION_ADDRESS' },
   // STATUS_READ points at the owner's private upstream Worker. The reviewed source keeps a
   // placeholder; the real name comes from the release machine's environment and only reaches
   // the temporary config, never the repository or the printed evidence.
@@ -77,7 +78,7 @@ export function resolveServices(domain, source, env = process.env) {
   return resolved;
 }
 
-function renderConfig(source, appDir, databaseId, services = {}) {
+function renderConfig(source, appDir, databaseId, services = {}, destinationAddress) {
   const config = { source, databaseId };
   assert.equal((source.match(/^main\s*=\s*"[^"]+"/gm) ?? []).length, 1, 'Wrangler config must declare main once');
   assert.equal((source.match(/^database_name\s*=\s*"[^"]+"/gm) ?? []).length, 1,
@@ -119,6 +120,9 @@ function renderConfig(source, appDir, databaseId, services = {}) {
       }
       for (const { placeholder } of Object.values(services)) {
         assert.ok(!text.includes(placeholder), 'temporary config still contains a service placeholder');
+      }
+      if (destinationAddress) {
+        text = text.replace(/^destination_address\s*=\s*"[^"]+"/m, `destination_address = ${JSON.stringify(destinationAddress)}`);
       }
       return text;
     },
@@ -211,11 +215,13 @@ export async function deployDomain(app, {
     `Wrangler config does not identify ${domain.worker}`);
   assert.match(source, new RegExp(`^database_name\\s*=\\s*"${domain.database}"$`, 'm'),
     `Wrangler config does not reserve ${domain.database}`);
+  const destinationAddress = domain.destinationEnv ? env[domain.destinationEnv] : undefined;
+  if (domain.destinationEnv) assert.ok(destinationAddress, `${domain.destinationEnv} is required for notify deployment`);
   const services = resolveServices(domain, source, env);
   const migrationDirectory = path.join(appDir, 'migrations');
   const migrations = await checkMigrations(migrationDirectory);
   const databaseId = await resolveD1(domain.database, { appDir, provisionD1, execute, assertRemote });
-  const config = renderConfig(source, appDir, databaseId, services);
+  const config = renderConfig(source, appDir, databaseId, services, destinationAddress);
   await mkdir(path.join(appDir, '.wrangler'), { recursive: true });
   const work = await mkdtemp(path.join(appDir, '.wrangler', 'release-'));
   try {

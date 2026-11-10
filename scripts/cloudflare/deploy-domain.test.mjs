@@ -29,7 +29,7 @@ async function fixture(t, app) {
 name = "${domain.worker}"
 main = "worker/index.ts"
 routes = [{ pattern = "${app}.codepi.app", custom_domain = true }]
-[assets]
+${app === 'notify' ? 'destination_address = "notify-destination-placeholder@example.invalid"\n' : ''}[assets]
 directory = "./dist"
 binding = "ASSETS"
 run_worker_first = true
@@ -134,7 +134,7 @@ test('deploy-domain supports the required --app form and injects one exact-name 
     const f = await fixture(t, app);
     let rendered;
     const e = executor({ databaseName: DOMAINS[app].database, inspect: text => { rendered = text; } });
-    const result = await deployDomain(app, { cwd: f.cwd, execute: e.execute, env: upstreamEnv });
+    const result = await deployDomain(app, { cwd: f.cwd, execute: e.execute, env: { ...upstreamEnv, NOTIFY_DESTINATION_ADDRESS: 'notify-test@example.invalid' } });
     assert.equal(result.app, app);
     assert.equal(result.database, DOMAINS[app].database);
     assert.equal(result.database_id, databaseId);
@@ -231,6 +231,17 @@ test('deploy-domain rechecks remote main after discovery before remote mutation'
   );
   assert.equal(e.calls.filter(call => ['create', 'migrations', 'deploy'].includes(wranglerArgs(call)[1]
     ?? wranglerArgs(call)[0])).length, 0);
+});
+test('notify requires a destination secret and injects it only into the temporary config', async t => {
+  const f = await fixture(t, 'notify');
+  const calls = [];
+  const e = executor({ databaseName: 'codepi-notify', inspect: text => calls.push(text) });
+  await assert.rejects(deployDomain('notify', { cwd: f.cwd, execute: e.execute, env: {} }), /NOTIFY_DESTINATION_ADDRESS/);
+  assert.equal(e.calls.length, 0);
+  const result = await deployDomain('notify', { cwd: f.cwd, execute: e.execute, env: { NOTIFY_DESTINATION_ADDRESS: 'notify-test@example.invalid' } });
+  assert.equal(result.worker, 'codepi-notify');
+  assert.ok(calls.at(-1).includes('destination_address = "notify-test@example.invalid"'));
+  assert.ok(!(await readFile(path.join(f.appDir, 'wrangler.toml'), 'utf8')).includes('notify-test@example.invalid'));
 });
 
 test('the reviewed apps/rhythm/wrangler.toml passes the release preflight', async () => {

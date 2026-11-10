@@ -24,6 +24,7 @@
     "apps/project/migrations/0003_workbench.sql": "531ba27fca45c502f463c5ef7a28d96c5b41f7550c0ee9b9d3c4076869e2f521",
     "apps/rhythm/migrations/0001_init.sql": "c75be3dd5a5876ca22375a1f79e4665c0c9a4c329250b631a2b4d994d3191033",
     "apps/rhythm/migrations/0002_daily_summary.sql": "b106ca3e0ac0a29a76ff789605b7ba3ea438eaa52e379d988101c7fb4f21709b",
+    "apps/rhythm/migrations/0003_work_page.sql": "7c85df32ed7f8f2410348162cb596ad61029a5afe529671f356713f7b7eb2c28",
     "apps/web/migrations-blog/0001_blog.sql": "1605cca4f1ce5bb4d87e45821a3178dfb95cded9b8dfe49b8467f0dd6c751fd3",
     "apps/web/migrations-blog/0002_blog_media.sql": "fa237b69fccf8d44602db9052eb1a4a5b5307374793672133c14763db6adad14",
     "apps/web/migrations-blog/0003_blog_review.sql": "1d001b85c170bed0ab01d9062f5f021a3ac91d60da2cf967910b304b7ab9813d",
@@ -34,9 +35,10 @@
     "services/mcp/migrations/0001_mcp.sql": "0fd5f65c887c3e219820771bbe789f40090c7c7a5dee04ba526125d2382a909c",
     "services/mcp/migrations/0002_client_auth.sql": "ddd6b70acf6c5e566b37efb9a177ed5c92f166613eb3365fbfc62f0653aad81f",
     "services/mcp/migrations/0003_personal_tokens.sql": "0e508cc0947e4c53b8fde761d5a334be6cfddc6a3c350936234ac10c6766ec76",
-    "services/mcp/migrations/0004_oauth_maintenance.sql": "1b26c700e87ba47c989b0d660c0cf3c121cff10579ae8d7d71d8ac0c3d78165d"
+    "services/mcp/migrations/0004_oauth_maintenance.sql": "1b26c700e87ba47c989b0d660c0cf3c121cff10579ae8d7d71d8ac0c3d78165d",
+    "services/notify/migrations/0001_notify.sql": "433ef488d69d9358439ddb2b796eca461d8433b45070346f85a4cf28f9363049"
   },
-  "notApplied": ["apps/project/migrations/0004_today.sql", "apps/project/migrations/0005_owner_deleted.sql", "apps/project/migrations/0006_agent_checked.sql", "apps/rhythm/migrations/0003_work_page.sql"],
+  "notApplied": ["apps/project/migrations/0004_today.sql", "apps/project/migrations/0005_owner_deleted.sql", "apps/project/migrations/0006_agent_checked.sql"],
   "generated": "2026-10-29",
   "note": "Frozen SHA-256 for every applied migration; unbaselined files fail closed."
 }

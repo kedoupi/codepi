@@ -35,6 +35,9 @@ export const packageCommands = {
     { name: 'test', tier: 'quick', locks: ['health-api-dist', 'cli-dist', 'mcp-dist'] }, { name: 'typecheck', tier: 'quick' },
     { name: 'build', tier: 'full', exclusive: true }, { name: 'test:browser:built', after: 'build', tier: 'full', locks: ['mcp-dist'] },
   ] },
+  notify: { name: '@codepi/notify', cwd: 'services/notify', commands: [
+    { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+  ] },
   ops: { name: '@codepi/ops', cwd: 'services/ops', commands: [
     { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true }, { name: 'test:runtime', tier: 'full' },
   ] },
@@ -63,14 +66,15 @@ export const specialRules = [
   { prefixes: ['packages/shared/mcp/'], apps: ['web', 'health', 'gu', 'project', 'me', 'mcp', 'cli'] },
   { prefixes: ['services/auth/', 'packages/shared/auth/'], apps: allApps, sharedAuth: true },
   { prefixes: ['packages/shared/layouts/', 'packages/shared/i18n/'], files: ['packages/shared/products.ts', 'packages/shared/privacy-redirects.js', 'packages/shared/sitemap-filter.js'], apps: ['web'] },
+  { prefixes: ['packages/shared/notify/', 'packages/shared/email/notification.ts'], apps: ['notify'] },
   { prefixes: ['packages/shared/'], apps: allApps, sharedAuth: true },
 ];
 
 export const wranglerConfigs = ['apps/web/wrangler.toml', 'apps/gu/wrangler.toml',
   'apps/project/wrangler.toml', 'apps/me/wrangler.toml', 'apps/rhythm/wrangler.toml', 'services/auth/wrangler.jsonc',
-  'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
+  'services/mcp/wrangler.toml', 'services/ops/wrangler.toml', 'services/notify/wrangler.toml', 'apps/health/workers/api/wrangler.toml', 'apps/health/apps/web/wrangler.toml'];
 export const migrationDirs = ['apps/web/migrations/', 'apps/web/migrations-blog/', 'apps/gu/migrations/',
-  'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'apps/health/migrations/'];
+  'apps/project/migrations/', 'apps/me/migrations/', 'apps/rhythm/migrations/', 'services/auth/migrations/', 'services/mcp/migrations/', 'services/notify/migrations/', 'apps/health/migrations/'];
 
 export function packageCheck(app, command) {
   const { name, args = [] } = command;

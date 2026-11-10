@@ -26,6 +26,7 @@
 | `services/auth/` | `auth.codepi.app` | worker `codepi-auth` | 统一登录，客户端表见 shared/auth/clients.ts |
 | `services/mcp/` | `mcp.codepi.app` | worker `codepi-mcp` | 统一 MCP，逐工具授权与领域 RPC；独立授权 D1 |
 | `services/ops/` | 无公网入口 | worker/workflow `codepi-ops` | 定时巡检、私有 R2 加密备份；见[Ops 说明](services/ops/README.md)与[运维说明](docs/development/cloudflare-operations.md) |
+| `services/notify/` | `notify-api.codepi.app` | worker `codepi-notify` | 结构化事件、事故状态与统一提醒邮件 |
 | `packages/cli/` | — | — | 官方 MCP SDK 客户端；本地 CLI |
 | `packages/shared/` | — | — | 布局、样式 token、产品登记等共享源码 |
 

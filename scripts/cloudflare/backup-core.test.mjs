@@ -11,6 +11,7 @@ const newIds = {
   'codepi-project': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'codepi-me': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'codepi-blog': 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'codepi-notify': 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
 };
 const completeMapping = Object.fromEntries(DATABASE_NAMES.map(name => [name, DATABASES[name] ?? newIds[name]]));
 const env = { CLOUDFLARE_ACCOUNT_ID: 'synthetic-account', CLOUDFLARE_API_TOKEN: 'synthetic-token' };
@@ -35,10 +36,11 @@ function inventoryRequest(mutate = rows => rows) {
 }
 
 test('the required inventory keeps pinned IDs while resolving the new names', async () => {
-  assert.equal(DATABASE_NAMES.length, 8);
+  assert.equal(DATABASE_NAMES.length, 9);
   assert.equal(Object.keys(DATABASES).length, 6);
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-project'));
   assert.ok(!Object.hasOwn(DATABASES, 'codepi-me'));
+  assert.ok(!Object.hasOwn(DATABASES, 'codepi-notify'));
   const staged = inventoryRequest(rows => rows.reverse());
   const result = await resolveProductionDatabases({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,
