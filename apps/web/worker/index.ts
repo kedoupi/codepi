@@ -1,3 +1,4 @@
+import { handleDeskRequest, type DeskEnv } from "../server/desk";
 import { getDraft, getPost, listPublished, listLatestPublished, listCategories, countPublished, parseTags, parseSources, readingMinutes, postNeighbors, type BlogEnv, type Post, type LatestPost } from "../server/blog";
 import { getMedia, handleMediaRequest, mediaUrl } from "../server/media";
 import { readSsoSession } from "@kedoupi/shared/auth/client";
