@@ -32,7 +32,7 @@ export interface NotificationParts {
 
 export function notificationParts(input: NotificationEmailInput): NotificationParts {
   const event = "event" in input ? input.event : input;
-  const options = "event" in input ? input : {};
+  const options: Omit<NotificationEmailOptions, "event"> = "event" in input ? input : {};
   const prefixValue = prefix(event);
   const subject = `${prefixValue} ${event.title}`.trim().slice(0, 180);
   return {

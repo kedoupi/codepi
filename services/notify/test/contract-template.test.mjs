@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import snapshots from './email-snapshots.json' with { type: 'json' };
 import test from 'node:test';
 import { validateNotifyEvent } from '@kedoupi/shared/notify/contract';
 import { buildNotificationEmail } from '@kedoupi/shared/email/notification';
@@ -85,4 +86,19 @@ test('buildNotificationEmail escapes producer text and ships no remote assets', 
   assert.match(buildNotificationEmail({ ...valid, severity: 'critical' }).subject, /^\[严重\]/);
   assert.match(buildNotificationEmail({ ...valid, state: 'resolved' }).subject, /^\[恢复\]/);
   assert.match(buildNotificationEmail({ ...valid, kind: 'notify.selftest', state: 'info', severity: 'info' }).subject, /^\[自检\]/);
+});
+
+test('notification email snapshots remain byte-for-byte stable', () => {
+  const base = {
+    schema: 'notify.event/v1', event_id: 'snapshot', source: 'surgeconf.watchdog', kind: 'agent.stuck', subject: 'agent:one',
+    state: 'firing', severity: 'critical', occurred_at: '2026-11-10T01:00:00Z', title: 'CPU saturated', summary: 'CPU exceeded the threshold.',
+    facts: [{ label: '主机', value: 'worker-1' }, { label: '持续', value: '5 分钟' }], link: 'https://project.codepi.app/details',
+  };
+  const actual = {
+    firing: buildNotificationEmail(base),
+    resolved: buildNotificationEmail({ ...base, event_id: 'snapshot-resolved', state: 'resolved', title: 'CPU recovered', summary: undefined }),
+    selftest: buildNotificationEmail({ ...base, event_id: 'snapshot-selftest', kind: 'notify.selftest', state: 'info', severity: 'info', title: 'Notification selftest' }),
+    options: buildNotificationEmail({ event: { ...base, event_id: 'snapshot-options', severity: 'warning', title: 'Approval pending' }, firstSeen: '2026-11-09T00:00:00Z', lastSeen: '2026-11-10T01:00:00Z', duration: '25 小时', incidentId: 'incident-42', reason: '测试快照' }),
+  };
+  assert.deepEqual(actual, snapshots);
 });

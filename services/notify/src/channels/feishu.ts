@@ -13,6 +13,7 @@ type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Respo
 type TokenCacheEntry = { token: string; expiresAt: number };
 
 const tokenCache = new Map<string, TokenCacheEntry>();
+let fetchOverride: FetchLike | undefined;
 const RETRYABLE_CODES = new Set(["99991663", "99991400", "230020"]);
 const PERMANENT_CODES = new Set(["230013", "230053", "99991543", "99991672", "99991401", "230006", "230025", "230099"]);
 const TOKEN_URL = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
@@ -87,9 +88,13 @@ export function resetFeishuTokenCache() {
   tokenCache.clear();
 }
 
+export function setFeishuFetchForTest(fetchImpl?: FetchLike) {
+  fetchOverride = fetchImpl;
+}
+
 export const __resetFeishuTokenCache = resetFeishuTokenCache;
 
-export async function sendFeishu(env: FeishuChannelEnv, card: unknown, uuid: string, fetchImpl: FetchLike = fetch) {
+export async function sendFeishu(env: FeishuChannelEnv, card: unknown, uuid: string, fetchImpl: FetchLike = fetchOverride ?? fetch) {
   if (!env.FEISHU_APP_ID || !env.FEISHU_APP_SECRET || !env.FEISHU_RECEIVE_OPEN_ID) throw coded("E_FEISHU_NOT_CONFIGURED", false);
   let token = await getToken(env, fetchImpl);
   try {

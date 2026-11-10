@@ -96,6 +96,7 @@ async function insertEvent(env: Env, event: NotifyEvent, key: string, decision: 
     .bind(event.event_id, event.source, event.kind, event.subject, event.state, event.severity, event.occurred_at, event.title, event.summary ?? null, event.facts ? JSON.stringify(event.facts) : null, event.link ?? null, key, decision).run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
+// `for` is measured from the episode's first_seen; a new or reopened episode starts at this event's occurred_at.
 function pendingUntilFrom(event: NotifyEvent, firstSeen: string, decision: Decision) {
   if (decision.decision !== "deferred_for") return null;
   return new Date(Date.parse(firstSeen) + (findRule(event.source, event.kind)?.forMs ?? 0)).toISOString();
@@ -113,6 +114,8 @@ async function upsertIncident(env: Env, event: NotifyEvent, key: string, decisio
   }
   const status = event.state === "resolved" ? "closed" : "open";
   if (current.status !== "open" && status === "open") {
+    // A firing after recovery reopens the incident as a new episode: fresh first_seen, no cooldown carry-over,
+    // and a recovery email that has not gone out yet is no longer true.
     await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_REOPENED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending' AND notification_type = 'resolved'").bind(key).run();
     await cancelChannelAttempts(env, key, "E_REOPENED_BEFORE_SEND");
     const pendingUntil = pendingUntilFrom(event, event.occurred_at, decision);
@@ -130,6 +133,7 @@ function beijingBuckets(now = new Date()) {
   const values = Object.fromEntries(parts.filter(part => part.type !== "literal").map(part => [part.type, part.value]));
   return { day: `day:${values.year}-${values.month}-${values.day}`, hour: `hour:${values.year}-${values.month}-${values.day}T${values.hour}` };
 }
+// Reserves one email in the Beijing day (≤20) and hour (≤6) buckets right before a real send.
 async function reserveQuota(env: Env, now = new Date()): Promise<boolean> {
   const { day, hour } = beijingBuckets(now);
   const dayRow = await env.DB.prepare("INSERT INTO quota (bucket, day_count) VALUES (?1, 1) ON CONFLICT(bucket) DO UPDATE SET day_count = day_count + 1, updated_at = datetime('now') WHERE day_count < 20 RETURNING day_count").bind(day).first<{ day_count: number }>();
@@ -145,11 +149,13 @@ async function addOmitted(env: Env, count: number) {
   if (count <= 0) return;
   await env.DB.prepare("INSERT INTO quota (bucket, omitted_count) VALUES (?1, ?2) ON CONFLICT(bucket) DO UPDATE SET omitted_count = omitted_count + ?2, updated_at = datetime('now')").bind(beijingBuckets().day, count).run();
 }
+// Each pending delivery denied by quota is counted as omitted at most once, however many Cron runs see it.
 async function markOmitted(env: Env, deliveryIds: number[]) {
   if (!deliveryIds.length) return;
   const result = await env.DB.prepare(`UPDATE deliveries SET quota_omitted = 1 WHERE quota_omitted = 0 AND id IN (${placeholders(deliveryIds.length)})`).bind(...deliveryIds).run();
   await addOmitted(env, Number(result.meta?.changes ?? 0));
 }
+// Allocates the incident's next notification number atomically and writes the outbox row.
 async function createDelivery(env: Env, eventId: string, key: string, notificationType: string, nextAttemptAt: string | null) {
   const counter = await env.DB.prepare("UPDATE incidents SET notification_count = notification_count + 1 WHERE incident_key = ?1 RETURNING notification_count").bind(key).first<{ notification_count: number }>();
   if (!counter) throw codedError("E_INCIDENT_MISSING");
@@ -168,8 +174,8 @@ async function loadDeliveries(env: Env, ids: number[]) {
 async function getChannelAttempt(env: Env, deliveryId: number, channel: Channel) {
   return env.DB.prepare("SELECT id, delivery_id, channel, status, attempts, next_attempt_at, error_code, message_id, sent_at FROM channel_attempts WHERE delivery_id = ?1 AND channel = ?2").bind(deliveryId, channel).first<ChannelAttempt>();
 }
-async function ensureChannelAttempt(env: Env, deliveryId: number, channel: Channel) {
-  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', attempts FROM deliveries WHERE id = ?1").bind(deliveryId, channel).run();
+async function ensureChannelAttempt(env: Env, deliveryId: number, channel: Channel, inheritDeliveryAttempts = true) {
+  await env.DB.prepare("INSERT OR IGNORE INTO channel_attempts (delivery_id, channel, status, attempts) SELECT ?1, ?2, 'pending', CASE WHEN ?3 = 1 THEN attempts ELSE 0 END FROM deliveries WHERE id = ?1").bind(deliveryId, channel, inheritDeliveryAttempts ? 1 : 0).run();
   return getChannelAttempt(env, deliveryId, channel);
 }
 async function successfulChannels(env: Env, key: string) {
@@ -215,6 +221,7 @@ async function sendChannel(env: Env, channel: Channel, rows: DeliveryData[], eve
     else messageId = await sendEmail(env, { event: merged, incidentId, reason });
   } catch (error) {
     const code = errorCode(error);
+    console.error(JSON.stringify({ channel, error_code: code }));
     if (channel === "feishu" && code === "E_FEISHU_NOT_CONFIGURED") {
       await markFeishuSkipped(env, ready);
       return { status: "skipped" as const, code };
@@ -247,7 +254,7 @@ async function addWarningFallback(env: Env, rows: DeliveryData[], routes: Map<Ch
     const route = await routeForDelivery(env, row);
     const feishu = await getChannelAttempt(env, row.id, "feishu");
     if (route.includes("feishu") && (!feishu || feishu.status === "failed" || feishu.status === "skipped")) {
-      await ensureChannelAttempt(env, row.id, "email");
+      await ensureChannelAttempt(env, row.id, "email", false);
       fallback.push(row);
     }
   }
@@ -341,7 +348,7 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
   const deliveryEvent = notificationType === "repeat" ? { ...event, title: `${event.title}，仍未恢复` } : event;
   const result = await deliver(env, deliveryEvent, key, [{ id: deliveryId, attempts: 0 }]);
   if (result.status === "sent") await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(nowIso(), key).run();
-  return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: result.status, ...(result.message_id ? { message_id: result.message_id } : {}) };
+  return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: result.status, ...("message_id" in result && result.message_id ? { message_id: result.message_id } : {}) };
 }
 
 async function readToken(env: Env, request: Request) {
