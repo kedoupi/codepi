@@ -248,6 +248,21 @@ test('latest JSON exposes only the newest published posts', async t => {
   assert.equal(await head.text(), '');
 });
 
+test('blog-filter-count includes uncategorized published posts on every category page', async t => {
+  const f = await deskFixture(t);
+  const worker = await f.runtime.getWorker('desk');
+  await seedPost(f, 'uncategorized-a');
+  await seedPost(f, 'uncategorized-b');
+  await seedPost(f, 'categorized-post');
+  await f.blog.prepare("UPDATE blog_posts SET category='tech' WHERE slug='categorized-post'").run();
+  const all = await (await worker.fetch('http://localhost:8804/blog/')).text();
+  const category = await (await worker.fetch('http://localhost:8804/blog/?category=tech')).text();
+  assert.match(all, /href="\/blog\/"[^>]*>全部<span class="blog-filter-count">3<\/span>/);
+  assert.match(all, /href="\/blog\/\?category=tech"[^>]*>技术实践<span class="blog-filter-count">1<\/span>/);
+  assert.match(category, /href="\/blog\/"[^>]*>全部<span class="blog-filter-count">3<\/span>/);
+  assert.match(category, /href="\/blog\/\?category=tech"[^>]*>技术实践<span class="blog-filter-count">1<\/span>/);
+});
+
 test('category empty state and missing cover follow brand blog structure', async t => {
   const f = await deskFixture(t);
   const worker = await f.runtime.getWorker('desk');
