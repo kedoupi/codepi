@@ -26,7 +26,8 @@ CREATE TABLE incidents (
   event_count INTEGER NOT NULL DEFAULT 1,
   last_notification_at TEXT,
   closed_at TEXT,
-  pending_until TEXT
+  pending_until TEXT,
+  notification_count INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE deliveries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +43,7 @@ CREATE TABLE deliveries (
   message_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   sent_at TEXT,
+  quota_omitted INTEGER NOT NULL DEFAULT 0,
   UNIQUE (incident_key, notification_no)
 );
 CREATE INDEX deliveries_event_idx ON deliveries (event_id);

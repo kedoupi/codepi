@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { buildNotificationEmail, notificationSender } from "@kedoupi/shared/email/notification";
 import { validateNotifyEvent, NotifyValidationError, type NotifyEvent } from "@kedoupi/shared/notify/contract";
@@ -71,56 +70,74 @@ async function upsertIncident(env: Env, event: NotifyEvent, key: string, decisio
     .bind(now, status, key).run();
 }
 
-async function reserveQuota(env: Env, now = new Date()): Promise<{ allowed: boolean; omitted: number }> {
+function beijingBuckets(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23" }).formatToParts(now);
   const values = Object.fromEntries(parts.filter(part => part.type !== "literal").map(part => [part.type, part.value]));
-  const day = `day:${values.year}-${values.month}-${values.day}`;
-  const hour = `hour:${values.year}-${values.month}-${values.day}T${values.hour}`;
+  return { day: `day:${values.year}-${values.month}-${values.day}`, hour: `hour:${values.year}-${values.month}-${values.day}T${values.hour}` };
+}
+const placeholders = (count: number, offset = 0) => Array.from({ length: count }, (_, index) => `?${index + offset + 1}`).join(",");
+
+// Reserves one email in the Beijing day (≤20) and hour (≤6) buckets right before a real send.
+async function reserveQuota(env: Env, now = new Date()): Promise<boolean> {
+  const { day, hour } = beijingBuckets(now);
   const dayRow = await env.DB.prepare("INSERT INTO quota (bucket, day_count) VALUES (?1, 1) ON CONFLICT(bucket) DO UPDATE SET day_count = day_count + 1, updated_at = datetime('now') WHERE day_count < 20 RETURNING day_count").bind(day).first<{ day_count: number }>();
-  if (!dayRow) {
-    await env.DB.prepare("INSERT INTO quota (bucket, omitted_count) VALUES (?1, 1) ON CONFLICT(bucket) DO UPDATE SET omitted_count = omitted_count + 1, updated_at = datetime('now')").bind(day).run();
-    const omitted = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(day).first<{ omitted_count: number }>();
-    return { allowed: false, omitted: Number(omitted?.omitted_count ?? 1) };
-  }
+  if (!dayRow) return false;
   const hourRow = await env.DB.prepare("INSERT INTO quota (bucket, hour_count) VALUES (?1, 1) ON CONFLICT(bucket) DO UPDATE SET hour_count = hour_count + 1, updated_at = datetime('now') WHERE hour_count < 6 RETURNING hour_count").bind(hour).first<{ hour_count: number }>();
   if (!hourRow) {
     await env.DB.prepare("UPDATE quota SET day_count = day_count - 1 WHERE bucket = ?1").bind(day).run();
-    await env.DB.prepare("INSERT INTO quota (bucket, omitted_count) VALUES (?1, 1) ON CONFLICT(bucket) DO UPDATE SET omitted_count = omitted_count + 1, updated_at = datetime('now')").bind(day).run();
-    const omitted = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(day).first<{ omitted_count: number }>();
-    return { allowed: false, omitted: Number(omitted?.omitted_count ?? 1) };
+    return false;
   }
-  return { allowed: true, omitted: 0 };
+  return true;
+}
+async function addOmitted(env: Env, count: number) {
+  if (count <= 0) return;
+  await env.DB.prepare("INSERT INTO quota (bucket, omitted_count) VALUES (?1, ?2) ON CONFLICT(bucket) DO UPDATE SET omitted_count = omitted_count + ?2, updated_at = datetime('now')").bind(beijingBuckets().day, count).run();
+}
+// Each pending delivery denied by quota is counted as omitted at most once, however many Cron runs see it.
+async function markOmitted(env: Env, deliveryIds: number[]) {
+  const result = await env.DB.prepare(`UPDATE deliveries SET quota_omitted = 1 WHERE quota_omitted = 0 AND id IN (${placeholders(deliveryIds.length)})`).bind(...deliveryIds).run();
+  await addOmitted(env, Number(result.meta?.changes ?? 0));
 }
 
-export async function deliver(env: Env, event: NotifyEvent, incidentId: string, deliveryId?: number, attempts = 0) {
+// Allocates the incident's next notification number atomically and writes the outbox row.
+async function createDelivery(env: Env, eventId: string, key: string, notificationType: string, nextAttemptAt: string | null) {
+  const counter = await env.DB.prepare("UPDATE incidents SET notification_count = notification_count + 1 WHERE incident_key = ?1 RETURNING notification_count").bind(key).first<{ notification_count: number }>();
+  if (!counter) throw Object.assign(new Error("incident_missing"), { code: "E_INCIDENT_MISSING", status: 500 });
+  const row = await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, notification_type, status, next_attempt_at) VALUES (?1,?2,?3,?4,'pending',?5) RETURNING id")
+    .bind(eventId, key, Number(counter.notification_count), notificationType, nextAttemptAt).first<{ id: number }>();
+  if (!row) throw Object.assign(new Error("delivery_conflict"), { code: "E_DELIVERY_CONFLICT", status: 500 });
+  return Number(row.id);
+}
+
+export async function deliver(env: Env, event: NotifyEvent, incidentId: string, deliveryIds: number[], attempts = 0) {
+  const ids = placeholders(deliveryIds.length, 1);
   if (!env.NOTIFY_TO) {
-    if (deliveryId !== undefined) await env.DB.prepare("UPDATE deliveries SET status = 'failed', error_code = 'E_RECIPIENT_NOT_ALLOWED' WHERE id = ?1").bind(deliveryId).run();
+    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'failed', error_code = ?1 WHERE id IN (${ids})`).bind("E_RECIPIENT_NOT_ALLOWED", ...deliveryIds).run();
     throw Object.assign(new Error("E_RECIPIENT_NOT_ALLOWED"), { code: "E_RECIPIENT_NOT_ALLOWED", status: 500 });
   }
-  const dayParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const dayValues = Object.fromEntries(dayParts.filter(part => part.type !== "literal").map(part => [part.type, part.value]));
-  const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(`day:${dayValues.year}-${dayValues.month}-${dayValues.day}`).first<{ omitted_count: number }>();
+  const { day } = beijingBuckets();
+  const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(day).first<{ omitted_count: number }>();
   const omitted = Number(omittedRow?.omitted_count ?? 0);
   const reason = omitted > 0 ? `有 ${omitted} 条提醒因限额未单独发送。` : "这是统一通知服务根据事件规则生成的提醒。";
   const email = buildNotificationEmail({ event, incidentId, reason });
   try {
     const result = await env.EMAIL.send({ to: env.NOTIFY_TO, from: notificationSender(env.NOTIFY_FROM), subject: email.subject, text: email.text, html: email.html });
     const messageId = result?.messageId ?? result?.id;
-    if (deliveryId !== undefined) await env.DB.prepare("UPDATE deliveries SET status = 'sent', sent_at = ?1, message_id = ?2, attempts = attempts + 1 WHERE id = ?3").bind(nowIso(), messageId ?? null, deliveryId).run();
-    if (omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = 0 WHERE bucket = ?1").bind(`day:${dayValues.year}-${dayValues.month}-${dayValues.day}`).run();
+    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = 'sent', sent_at = ?1, message_id = ?2, next_attempt_at = NULL, attempts = attempts + 1 WHERE id IN (${placeholders(deliveryIds.length, 2)})`).bind(nowIso(), messageId ?? null, ...deliveryIds).run();
+    if (omitted > 0) await env.DB.prepare("UPDATE quota SET omitted_count = MAX(omitted_count - ?2, 0) WHERE bucket = ?1").bind(day, omitted).run();
     return { status: "sent", message_id: messageId };
   } catch (error) {
     const code = typeof error === "object" && error && "code" in error ? String(error.code) : "E_DELIVERY_FAILED";
     const retryAtValue = retryAt(code, attempts);
-    if (deliveryId !== undefined) await env.DB.prepare("UPDATE deliveries SET status = ?1, error_code = ?2, next_attempt_at = ?3, attempts = attempts + 1 WHERE id = ?4").bind(retryAtValue ? "pending" : "failed", code, retryAtValue, deliveryId).run();
+    // A merged Cron batch shares one send, so every row records the same attempt, error and next retry time.
+    if (deliveryIds.length) await env.DB.prepare(`UPDATE deliveries SET status = ?1, error_code = ?2, next_attempt_at = ?3, attempts = attempts + 1 WHERE id IN (${placeholders(deliveryIds.length, 3)})`).bind(retryAtValue ? "pending" : "failed", code, retryAtValue, ...deliveryIds).run();
     if (retryAtValue) return { status: "pending", error_code: code, next_attempt_at: retryAtValue };
     throw Object.assign(error instanceof Error ? error : new Error(code), { code, status: 500 });
   }
 }
 
 export async function ingest(input: unknown, env: Env, fixedSource?: string) {
-  let event: NotifyEvent;
-  try { event = validateNotifyEvent(input); } catch (error) { throw error; }
+  const event = validateNotifyEvent(input);
   if (fixedSource && event.source !== fixedSource) throw Object.assign(new Error("source_not_allowed"), { code: "E_SOURCE_NOT_ALLOWED", status: 403 });
   const rule = findRule(event.source, event.kind);
   if (!rule) throw Object.assign(new Error("kind_not_allowed"), { code: "E_KIND_NOT_ALLOWED", status: 403 });
@@ -135,21 +152,30 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
     return { event_id: event.event_id, decision: String(duplicate?.decision ?? decision.decision), duplicate: true };
   }
   await upsertIncident(env, event, key, decision);
-  const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' LIMIT 1").bind(key).first<{ id: number }>();
-  if (queued && event.state !== "resolved") return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
-  if (queued && event.state === "resolved") await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE id = ?1").bind(queued.id).run();
+  if (event.state === "resolved") {
+    await env.DB.prepare("UPDATE deliveries SET status = 'cancelled', error_code = 'E_RESOLVED_BEFORE_SEND' WHERE incident_key = ?1 AND status = 'pending'").bind(key).run();
+  } else {
+    const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' LIMIT 1").bind(key).first<{ id: number }>();
+    if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
+  }
   const notificationType = event.state === "resolved" ? "resolved" : decision.reason === "cooldown_elapsed" ? "repeat" : "first";
   if (!decision.shouldSend && decision.reason === "quiet_hours") {
-    const notificationNo = Number(current?.event_count ?? 0) + 1;
-    await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, notification_type, status, next_attempt_at) VALUES (?1,?2,?3,?4,'pending',?5)").bind(event.event_id, key, notificationNo, notificationType, quietEnd()).run();
+    await createDelivery(env, event.event_id, key, notificationType, quietEnd());
+    return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
   }
   if (!decision.shouldSend) return { event_id: event.event_id, decision: decision.decision, duplicate: false };
-  const quota = await reserveQuota(env);
-  if (!quota.allowed) return { event_id: event.event_id, decision: "quota_deferred", duplicate: false, omitted: quota.omitted };
-  const notificationNo = Number(current?.event_count ?? 0) + 1;
-  const delivery = await env.DB.prepare("INSERT OR IGNORE INTO deliveries (event_id, incident_key, notification_no, notification_type, status) VALUES (?1,?2,?3,?4,'pending') RETURNING id").bind(event.event_id, key, notificationNo, notificationType).first<{ id: number }>();
+  // alert deliveries reserve quota only in Cron, right before the real send.
+  if (rule.mode !== "immediate") {
+    await createDelivery(env, event.event_id, key, notificationType, null);
+    return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
+  }
+  if (!(await reserveQuota(env))) {
+    await addOmitted(env, 1);
+    return { event_id: event.event_id, decision: "quota_deferred", duplicate: false };
+  }
+  const deliveryId = await createDelivery(env, event.event_id, key, notificationType, null);
   const deliveryEvent = notificationType === "repeat" ? { ...event, title: `${event.title}，仍未恢复` } : event;
-  const result = rule.mode === "immediate" ? await deliver(env, deliveryEvent, key, delivery?.id) : { status: "pending" };
+  const result = await deliver(env, deliveryEvent, key, [deliveryId]);
   if (result.status === "sent") await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(nowIso(), key).run();
   return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: result.status, ...(result.message_id ? { message_id: result.message_id } : {}) };
 }
@@ -159,7 +185,8 @@ async function readToken(env: Env, request: Request) {
   if (!header.startsWith("Bearer ")) return null;
   const token = header.slice(7).trim();
   if (!token || token.length > 256) return null;
-  const hash = createHash("sha256").update(token).digest("hex");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  const hash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
   return env.DB.prepare("SELECT source, kinds_json FROM producer_tokens WHERE token_hash = ?1 AND revoked_at IS NULL").bind(hash).first<{ source: string; kinds_json: string }>();
 }
 
@@ -235,22 +262,23 @@ export default {
     const rows = pending.results;
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
     const first = deliveryEventFromRow(rows[0]);
-    const highest = rows.reduce((current, row) => rank[String(row.severity)] > rank[current] ? String(row.severity) : current, first.severity);
+    const highest = rows.reduce<NotifyEvent["severity"]>((current, row) => rank[String(row.severity)] > rank[current] ? String(row.severity) as NotifyEvent["severity"] : current, first.severity);
     const merged: NotifyEvent = rows.length === 1 ? first : {
       ...first,
-      severity: highest as NotifyEvent["severity"],
+      severity: highest,
       title: `${rows.length} 条提醒${rows.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
       summary: rows.map(row => String(row.title)).join("；").slice(0, 500),
       facts: rows.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
     };
-    const quota = await reserveQuota(env);
-    if (!quota.allowed) return;
-    const result = await deliver(env, merged, String(rows[0].incident_key), Number(rows[0].id), Number(rows[0].attempts ?? 0));
+    const ids = rows.map(row => Number(row.id));
+    if (!(await reserveQuota(env))) {
+      await markOmitted(env, ids);
+      return;
+    }
+    const attempts = Math.max(...rows.map(row => Number(row.attempts ?? 0)));
+    const result = await deliver(env, merged, String(rows[0].incident_key), ids, attempts);
     if (result.status !== "sent") return;
     const sentAt = nowIso();
-    const messageId = result.message_id ?? null;
-    const statements = rows.slice(1).map(row => env.DB.prepare("UPDATE deliveries SET status = 'sent', sent_at = ?1, message_id = ?2, attempts = attempts + 1 WHERE id = ?3").bind(sentAt, messageId, Number(row.id)));
-    if (env.DB.batch && statements.length) await env.DB.batch(statements);
-    for (const row of rows) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, String(row.incident_key)).run();
+    for (const key of new Set(rows.map(row => String(row.incident_key)))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();
   },
 } satisfies ExportedHandler<Env>;

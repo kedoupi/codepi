@@ -36,7 +36,7 @@
     "services/mcp/migrations/0002_client_auth.sql": "ddd6b70acf6c5e566b37efb9a177ed5c92f166613eb3365fbfc62f0653aad81f",
     "services/mcp/migrations/0003_personal_tokens.sql": "0e508cc0947e4c53b8fde761d5a334be6cfddc6a3c350936234ac10c6766ec76",
     "services/mcp/migrations/0004_oauth_maintenance.sql": "1b26c700e87ba47c989b0d660c0cf3c121cff10579ae8d7d71d8ac0c3d78165d",
-    "services/notify/migrations/0001_notify.sql": "9d64bc6298b8bfa9a98b472c9456c4c1642d5898695a73bc7f6bb70fca7d2a4f"
+    "services/notify/migrations/0001_notify.sql": "1353838f6799fd1af7aa6ba13b286e8ba71db9f53a391cd5f8e561b971ec3f66"
   },
   "notApplied": ["apps/project/migrations/0004_today.sql", "apps/project/migrations/0005_owner_deleted.sql", "apps/project/migrations/0006_agent_checked.sql", "services/notify/migrations/0001_notify.sql"],
   "generated": "2026-10-29",

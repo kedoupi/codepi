@@ -15,11 +15,19 @@ export interface NotifyRule {
 }
 
 export { RPC_SOURCE };
+const MODES: readonly NotifyMode[] = ["alert", "immediate", "digest", "record"];
+const QUIET_MODES: readonly QuietMode[] = ["defer", "ignore", "none"];
+function oneOf<T extends string>(value: string, allowed: readonly T[], field: string): T {
+  if (!(allowed as readonly string[]).includes(value)) throw new Error(`invalid rule ${field}: ${value}`);
+  return value as T;
+}
 export const RULES: readonly NotifyRule[] = DATA_RULES.map(rule => ({
   ...rule,
+  mode: oneOf(rule.mode, MODES, "mode"),
+  quiet: oneOf(rule.quiet, QUIET_MODES, "quiet"),
   for: rule.forMs,
   cooldown: rule.cooldownMs,
-})) satisfies readonly NotifyRule[];
+}));
 
 export function findRule(source: string, kind: string) {
   const rule = RULES.find(candidate => candidate.kind === kind);

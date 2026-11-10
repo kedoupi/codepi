@@ -6,11 +6,13 @@ const RETRYABLE: Record<string, true> = {
   E_DELIVERY_FAILED: true,
   E_INTERNAL_SERVER_ERROR: true,
 };
+// At most 4 attempts in total: the first send plus retries after 5, 15 and 60 minutes.
 const RETRY_MINUTES = [5, 15, 60];
 
+// attempts = failed attempts recorded before this failure.
 export function retryAt(errorCode: string, attempts: number, now = Date.now()): string | null {
-  if (!RETRYABLE[errorCode] || attempts >= 4) return null;
-  const minutes = RETRY_MINUTES[Math.min(attempts, RETRY_MINUTES.length - 1)];
+  const minutes = RETRY_MINUTES[attempts];
+  if (!RETRYABLE[errorCode] || minutes === undefined) return null;
   return new Date(now + minutes * 60 * 1000).toISOString();
 }
 export function isQuietHours(date = new Date()): boolean {
