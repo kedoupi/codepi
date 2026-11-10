@@ -37,6 +37,7 @@ export const packageCommands = {
   ] },
   notify: { name: '@codepi/notify', cwd: 'services/notify', commands: [
     { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true },
+    { name: 'typecheck', tier: 'quick' },
   ] },
   ops: { name: '@codepi/ops', cwd: 'services/ops', commands: [
     { name: 'test', tier: 'quick' }, { name: 'build', tier: 'full', exclusive: true }, { name: 'test:runtime', tier: 'full' },
