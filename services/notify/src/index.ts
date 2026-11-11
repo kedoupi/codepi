@@ -2,10 +2,10 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { buildFeishuCard } from "@kedoupi/shared/email/notification";
 import { validateNotifyEvent, NotifyValidationError, type NotifyEvent } from "@kedoupi/shared/notify/contract";
 import { findRule, RPC_SOURCE } from "./rules.ts";
-import { decideNotification, isQuietHours, quietEnd, retryAt, type Decision } from "./decision.ts";
+import { decideNotification, retryAt, type Decision } from "./decision.ts";
 import { sendEmail } from "./channels/email.ts";
 import { sendFeishu } from "./channels/feishu.ts";
-export { decideNotification, isQuietHours, quietEnd, retryAt } from "./decision.ts";
+export { decideNotification, retryAt } from "./decision.ts";
 
 export interface D1Result<T = Record<string, unknown>> { results: T[]; success?: boolean; meta?: Record<string, unknown>; }
 export interface D1Statement { bind(...values: unknown[]): D1Statement; first<T = Record<string, unknown>>(): Promise<T | null>; all<T = Record<string, unknown>>(): Promise<D1Result<T>>; run(): Promise<D1Result>; }
@@ -376,10 +376,6 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
     if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
   }
   const notificationType = event.state === "resolved" ? "resolved" : decision.reason === "cooldown_elapsed" ? "repeat" : "first";
-  if (!decision.shouldSend && decision.reason === "quiet_hours") {
-    await createDelivery(env, event.event_id, key, notificationType, quietEnd());
-    return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
-  }
   if (!decision.shouldSend) return { event_id: event.event_id, decision: decision.decision, duplicate: false };
   // alert deliveries reserve quota only in Cron, right before the real send.
   if (rule.mode !== "immediate") {
@@ -485,14 +481,7 @@ export default {
   fetch(request: Request, env: Env) { return route(request, env); },
   async scheduled(_controller: ScheduledController, env: Env) {
     const pending = await env.DB.prepare("SELECT DISTINCT d.id, d.status, d.attempts, d.notification_type, e.event_id, e.source, e.kind, e.subject, e.state, e.severity, e.occurred_at, e.title, e.summary, e.facts_json, e.link, d.incident_key FROM deliveries d JOIN events e ON e.event_id = d.event_id LEFT JOIN channel_attempts ca ON ca.delivery_id = d.id WHERE ((d.status = 'pending' AND (d.next_attempt_at IS NULL OR d.next_attempt_at <= ?1)) OR (ca.status = 'pending' AND (ca.next_attempt_at IS NULL OR ca.next_attempt_at <= ?1))) ORDER BY d.id LIMIT 50").bind(nowIso()).all<DeliveryData>();
-    const quietDeferred = isQuietHours() ? pending.results.filter(row => row.severity === "warning" && findRule(String(row.source), String(row.kind))?.quiet === "defer") : [];
-    if (quietDeferred.length) {
-      // Warnings that come due inside 23:00–08:00 Beijing wait for the end of quiet hours; critical is unaffected.
-      const ids = quietDeferred.map(row => Number(row.id));
-      await env.DB.prepare(`UPDATE deliveries SET next_attempt_at = ?1 WHERE status = 'pending' AND id IN (${placeholders(ids.length, 1)})`).bind(quietEnd(), ...ids).run();
-      await env.DB.prepare(`UPDATE channel_attempts SET next_attempt_at = ?1 WHERE status = 'pending' AND delivery_id IN (${placeholders(ids.length, 1)})`).bind(quietEnd(), ...ids).run();
-    }
-    const rows = pending.results.filter(row => !quietDeferred.includes(row));
+    const rows = pending.results;
     if (!rows.length) return;
     // Merged metadata comes from the firing rows when any exist (a mixed batch is never 「[恢复]」),
     // led by the highest severity among them. Rules marked alone retain their original card metadata.

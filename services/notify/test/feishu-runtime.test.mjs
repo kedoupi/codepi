@@ -246,24 +246,24 @@ test('Cron retry-only batches do not reserve quota and quota denial omits only n
   assert.equal(db.row("SELECT day_count FROM quota WHERE bucket LIKE 'day:%'").day_count, 20);
 });
 
-test('warning retries and fallback defer in quiet hours while critical still sends', async t => {
+test('warning retries and fallback send during the night', async t => {
   const evening = Date.parse('2026-11-10T14:58:00Z');
   const time = clock(t, evening);
-  const fetchImpl = feishuFetch(index => index === 1 ? { code: 230020 } : { code: 0, data: { message_id: `quiet-${index}` } });
+  const fetchImpl = feishuFetch(index => index === 1 ? { code: 230020 } : { code: 0, data: { message_id: `night-${index}` } });
   const { db, sent, env } = setup({ fetchImpl });
-  await ingest(warning('quiet-retry'), env);
+  await ingest(warning('night-retry'), env);
   await worker.scheduled({}, env);
-  const retry = latestDelivery(db, 'quiet-retry');
+  const retry = latestDelivery(db, 'night-retry');
   db.sqlite.prepare("INSERT INTO channel_attempts (delivery_id, channel, status, attempts) VALUES (?, 'email', 'pending', 0)").run(retry.id);
   time.set(Date.parse('2026-11-10T15:03:00Z'));
-  await ingest(critical('quiet-critical'), env);
+  await ingest(critical('night-critical'), env);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
   assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
-  const criticalDelivery = latestDelivery(db, 'quiet-critical');
+  const criticalDelivery = latestDelivery(db, 'night-critical');
   assert.equal(criticalDelivery.channel, 'feishu,email');
-  assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", retry.id).next_attempt_at, '2026-11-11T00:00:00.000Z');
-  assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", retry.id).next_attempt_at, '2026-11-11T00:00:00.000Z');
+  assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'feishu'", retry.id).next_attempt_at, null);
+  assert.equal(db.row("SELECT next_attempt_at FROM channel_attempts WHERE delivery_id = ? AND channel = 'email'", retry.id).next_attempt_at, null);
 });
 
 test('resolved and reopen cancel pending channel attempts including retries after a sent delivery', async t => {
@@ -412,14 +412,17 @@ test('daily-review warning follows the alert Feishu route', async t => {
   assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
 });
 
-test('daily-review warning during quiet hours defers to quietEnd', async t => {
+test('daily-review warning at night sends on the next Cron run', async t => {
   clock(t, Date.parse('2026-11-10T16:00:00Z'));
-  const { db, env } = setup();
-  const result = await ingest(dailyReview('daily-quiet'), env);
+  const { db, env, fetchImpl } = setup();
+  const result = await ingest(dailyReview('daily-night'), env);
   assert.equal(result.delivery, 'pending');
-  const delivery = latestDelivery(db, 'daily-quiet');
-  assert.equal(delivery.status, 'pending');
-  assert.equal(delivery.next_attempt_at, '2026-11-11T00:00:00.000Z');
+  assert.equal(result.decision, 'send_alert');
+  await worker.scheduled({}, env);
+  const delivery = latestDelivery(db, 'daily-night');
+  assert.equal(delivery.status, 'sent');
+  assert.equal(delivery.next_attempt_at, null);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
 });
 
 test('HTTP allows daily-review only for tokens that list the kind', async t => {
@@ -546,18 +549,16 @@ test('job.unhealthy sends repeated firing and resolved Feishu notifications', as
   assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 3);
 });
 
-test('job.unhealthy firing during quiet hours is deferred until 08:00 Beijing', async t => {
+test('job.unhealthy firing at night sends on the next Cron run', async t => {
   const time = clock(t, Date.parse('2026-11-10T17:00:00Z'));
   const { db, sent, env } = setup();
-  const result = await ingest(healthEvent('unhealthy-quiet', 'job.unhealthy', 'warning', 'firing', 'quiet-service'), env);
-  assert.equal(result.decision, 'deferred_quiet');
+  const result = await ingest(healthEvent('unhealthy-night', 'job.unhealthy', 'warning', 'firing', 'night-service'), env);
+  assert.equal(result.decision, 'send_alert');
   await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'unhealthy-night').status, 'sent');
+  assert.equal(latestDelivery(db, 'unhealthy-night').next_attempt_at, null);
   assert.equal(sent.length, 0);
-  assert.equal(db.row("SELECT next_attempt_at FROM deliveries WHERE event_id = 'unhealthy-quiet'").next_attempt_at, '2026-11-11T00:00:00.000Z');
-  time.set(Date.parse('2026-11-11T00:00:00Z'));
-  await worker.scheduled({}, env);
-  assert.equal(latestDelivery(db, 'unhealthy-quiet').status, 'sent');
-  assert.equal(sent.length, 0);
+  time.set(Date.parse('2026-11-10T17:01:00Z'));
 });
 
 test('job.health remains a standalone card beside a warning batch and preserves twelve facts', async t => {

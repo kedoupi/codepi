@@ -3,7 +3,7 @@ import snapshots from './email-snapshots.json' with { type: 'json' };
 import test from 'node:test';
 import { validateNotifyEvent } from '@kedoupi/shared/notify/contract';
 import { buildNotificationEmail } from '@kedoupi/shared/email/notification';
-import { decideNotification, quietEnd, retryAt } from '../src/decision.ts';
+import { decideNotification, retryAt } from '../src/decision.ts';
 import { RULES } from '../src/rules.ts';
 
 const valid = {
@@ -42,14 +42,13 @@ test('delivery decisions cover cooldown, recovery and retry classes', () => {
   assert.equal(Date.parse(retryAt('E_DELIVERY_FAILED', 2, now)) - now, 60 * 60 * 1000);
   assert.equal(retryAt('E_DELIVERY_FAILED', 4, now), null);
   assert.equal(retryAt('E_RECIPIENT_NOT_ALLOWED', 0, now), null);
-  assert.equal(quietEnd(new Date('2026-11-10T18:00:00Z')), '2026-11-11T00:00:00.000Z');
 });
 
-test('for and quiet rules suppress warning before the alert is due', () => {
+test('for rules suppress warning before the alert is due', () => {
   const rule = { ...RULES[0], forMs: 60 * 60 * 1000, cooldownMs: 0 };
   const now = Date.parse('2026-11-10T18:00:00Z');
   assert.equal(decideNotification(valid, rule, { status: 'open', firstSeen: '2026-11-10T17:30:00Z' }, now).decision, 'deferred_for');
-  assert.equal(decideNotification(valid, { ...rule, forMs: 0 }, null, now).decision, 'deferred_quiet');
+  assert.equal(decideNotification(valid, { ...rule, forMs: 0 }, null, now).decision, 'send_alert');
   assert.equal(decideNotification({ ...valid, severity: 'critical' }, { ...rule, forMs: 0 }, null, now).shouldSend, true);
   assert.equal(decideNotification({ ...valid, state: 'resolved' }, rule, { status: 'open', pendingUntil: '2026-11-10T19:00:00Z' }, now).reason, 'resolved_before_for');
 });
@@ -104,15 +103,15 @@ test('notification email snapshots remain byte-for-byte stable', () => {
   assert.deepEqual(actual, snapshots);
 });
 
-test('health rules send info alerts and defer unhealthy warnings', () => {
+test('health rules send info alerts and unhealthy warnings', () => {
   const health = RULES.find(rule => rule.kind === 'job.health');
   assert.ok(health);
-  assert.deepEqual({ sources: health.sources, mode: health.mode, forMs: health.forMs, notifyResolved: health.notifyResolved, quiet: health.quiet, batch: health.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: false, quiet: 'none', batch: 'alone' });
+  assert.deepEqual({ sources: health.sources, mode: health.mode, forMs: health.forMs, notifyResolved: health.notifyResolved, batch: health.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: false, batch: 'alone' });
   assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.health', state: 'info', severity: 'info' }, health, null, Date.parse('2026-11-11T01:00:00Z')).decision, 'send_alert');
   const unhealthy = RULES.find(rule => rule.kind === 'job.unhealthy');
   assert.ok(unhealthy);
-  assert.deepEqual({ sources: unhealthy.sources, mode: unhealthy.mode, forMs: unhealthy.forMs, notifyResolved: unhealthy.notifyResolved, quiet: unhealthy.quiet, batch: unhealthy.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: true, quiet: 'defer', batch: undefined });
-  assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.unhealthy', state: 'firing', severity: 'warning' }, unhealthy, null, Date.parse('2026-11-10T17:00:00Z')).decision, 'deferred_quiet');
+  assert.deepEqual({ sources: unhealthy.sources, mode: unhealthy.mode, forMs: unhealthy.forMs, notifyResolved: unhealthy.notifyResolved, batch: unhealthy.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: true, batch: undefined });
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.unhealthy', state: 'firing', severity: 'warning' }, unhealthy, null, Date.parse('2026-11-10T17:00:00Z')).decision, 'send_alert');
 });
 
 test('twelve facts render in the notification email without truncation', () => {
