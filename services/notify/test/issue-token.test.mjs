@@ -50,3 +50,12 @@ test('issue-token subprocess writes 0600 files, hides plaintext and rejects reus
     execFileSync(process.execPath, [script.pathname, '--source', 'surgeconf.watchdog', '--kinds', 'unknown', '--out', path.join(dir, 'unknown.token'), '--sql', path.join(dir, 'unknown.sql')], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   }, /not allowed/);
 });
+
+test('issueToken derives both health kinds and rejects cross-source kinds', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'notify-health-token-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const result = issueToken({ source: 'mybrain.job-health', kinds: 'job.health,job.unhealthy', out: path.join(dir, 'token'), sql: path.join(dir, 'token.sql'), randomId: Buffer.from('health-id'), randomSecret: Buffer.from('health-secret') });
+  assert.deepEqual(result.selected, ['job.health', 'job.unhealthy']);
+  assert.throws(() => issueToken({ source: 'mybrain.job-health', kinds: 'agent.stuck', out: path.join(dir, 'bad-watchdog-token'), sql: path.join(dir, 'bad-watchdog.sql') }), /not allowed/);
+  assert.throws(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
+});

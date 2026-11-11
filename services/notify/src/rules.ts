@@ -13,6 +13,7 @@ export interface NotifyRule {
   notifyResolved?: boolean;
   infoMode?: "record";
   quiet: QuietMode;
+  batch?: "alone";
 }
 
 export { RPC_SOURCE };
@@ -29,6 +30,7 @@ export const RULES: readonly NotifyRule[] = DATA_RULES.map(rule => ({
   for: rule.forMs,
   cooldown: rule.cooldownMs,
   infoMode: rule.infoMode === "record" ? "record" : undefined,
+  batch: rule.batch === "alone" ? "alone" : undefined,
 }));
 
 export function findRule(source: string, kind: string) {

@@ -586,3 +586,19 @@ test('missing NOTIFY_TO fails closed without calling EMAIL', async t => {
   await assert.rejects(worker.scheduled({}, missing), /E_RECIPIENT_NOT_ALLOWED/);
   assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'missing-alert'").status, 'failed');
 });
+
+test('HTTP rejects a watchdog token when it submits a mybrain health event', async t => {
+  clock(t);
+  const { db, env } = setup();
+  const token = seedToken(db);
+  const response = await worker.fetch(request(token, {
+    ...base,
+    event_id: 'wrong-health-source',
+    source: 'mybrain.job-health',
+    kind: 'job.health',
+    state: 'info',
+    severity: 'info',
+  }), env);
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: 'forbidden' });
+});
