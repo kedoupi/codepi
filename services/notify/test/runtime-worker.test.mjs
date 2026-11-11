@@ -11,7 +11,7 @@ const { default: worker, NotifyApi, ingest } = await import('../src/index.ts');
 import { RULES } from '../src/rules.ts';
 
 const MINUTE = 60 * 1000;
-// 09:00 Beijing time, outside quiet hours.
+// 09:00 Beijing time, used as the default test clock.
 const MORNING = Date.parse('2026-11-11T01:00:00Z');
 
 class D1 {
@@ -106,8 +106,8 @@ test('HTTP entry enforces token, source, kind, payload and size boundaries', asy
   assert.equal(sent.length, 0);
 });
 
-test('immediate selftest sends once, reads back without the recipient and stays idempotent', async t => {
-  clock(t);
+test('immediate selftest sends once at night, reads back without the recipient and stays idempotent', async t => {
+  clock(t, Date.parse('2026-11-10T16:00:00Z'));
   const { db, sent, env } = setup();
   const token = seedToken(db);
   const response = await worker.fetch(request(token, base), env);
@@ -168,7 +168,7 @@ test('alert events wait for Cron, which merges due deliveries into one email', a
 test('alert forMs waits for a later firing before Cron sends once', async t => {
   const time = clock(t);
   const { db, sent, env } = setup();
-  RULES.push({ kind: 'test.for', sources: ['surgeconf.watchdog'], mode: 'alert', for: 5 * MINUTE, forMs: 5 * MINUTE, cooldown: 0, cooldownMs: 0, notifyResolved: true, quiet: 'none' });
+  RULES.push({ kind: 'test.for', sources: ['surgeconf.watchdog'], mode: 'alert', for: 5 * MINUTE, forMs: 5 * MINUTE, cooldown: 0, cooldownMs: 0, notifyResolved: true });
   t.after(() => RULES.pop());
   const first = alert('for-first', 'for-subject', { kind: 'test.for', occurred_at: new Date(MORNING).toISOString() });
   assert.equal((await ingest(first, env)).decision, 'deferred_for');
@@ -333,28 +333,31 @@ test('a firing before the recovery email goes out cancels it and sends only a fi
   assert.deepEqual({ ...db.row("SELECT status, notification_type FROM deliveries WHERE event_id = 'reopen-2'") }, { status: 'sent', notification_type: 'first' });
 });
 
-test('quiet hours: a warning recovered at 01:00 and firing again at 03:00 sends only the first email at 08:00', async t => {
-  // 22:00 Beijing on 2026-11-10: the warning is sent before quiet hours start.
-  const time = clock(t, Date.parse('2026-11-10T14:00:00Z'));
+test('warning at 23:30 sends on the next Cron run', async t => {
+  const time = clock(t, Date.parse('2026-11-10T15:30:00Z'));
   const { db, sent, env } = setup();
-  await ingest(alert('night-1', 'night', { severity: 'warning' }), env);
+  const result = await ingest(alert('night-warning', 'night-warning', { severity: 'warning' }), env);
+  assert.equal(result.decision, 'send_alert');
+  assert.equal(db.row("SELECT next_attempt_at FROM deliveries WHERE event_id = 'night-warning'").next_attempt_at, null);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
-  time.set(Date.parse('2026-11-10T17:00:00Z'));
-  await ingest(alert('night-resolved', 'night', { severity: 'warning', state: 'resolved' }), env);
+  assert.match(sent[0].subject, /^\[注意\] night-warning$/);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'night-warning'").status, 'sent');
+  time.set(Date.parse('2026-11-10T15:31:00Z'));
+});
+
+test('a legacy 08:00 delivery sends after its scheduled time', async t => {
+  const time = clock(t, Date.parse('2026-11-10T19:00:00Z'));
+  const { db, sent, env } = setup();
+  await ingest(alert('legacy-night', 'legacy-night', { severity: 'warning' }), env);
+  db.sqlite.prepare("UPDATE deliveries SET next_attempt_at = '2026-11-11T00:00:00.000Z' WHERE event_id = 'legacy-night'").run();
+  time.set(Date.parse('2026-11-10T23:59:00Z'));
   await worker.scheduled({}, env);
-  assert.equal(sent.length, 1);
-  assert.equal(db.row("SELECT next_attempt_at FROM deliveries WHERE event_id = 'night-resolved'").next_attempt_at, '2026-11-11T00:00:00.000Z');
-  time.set(Date.parse('2026-11-10T19:00:00Z'));
-  await ingest(alert('night-2', 'night', { severity: 'warning', occurred_at: '2026-11-10T19:00:00.000Z' }), env);
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 1);
+  assert.equal(sent.length, 0);
   time.set(Date.parse('2026-11-11T00:00:00Z'));
   await worker.scheduled({}, env);
-  assert.equal(sent.length, 2);
-  assert.match(sent[1].subject, /^\[注意\] night-2$/);
-  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'night-resolved'").status, 'cancelled');
-  assert.equal(db.row("SELECT notification_type FROM deliveries WHERE event_id = 'night-2'").notification_type, 'first');
+  assert.equal(sent.length, 1);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'legacy-night'").status, 'sent');
 });
 
 test('a merged batch takes its metadata from the firing rows, never 「[恢复]」 when firing is present', async t => {
@@ -379,7 +382,7 @@ test('a merged batch takes its metadata from the firing rows, never 「[恢复]�
   assert.match(sent[2].subject, /^\[恢复\] 2 条提醒/);
 });
 
-test('Cron defers warnings that come due inside quiet hours but still sends critical', async t => {
+test('Cron sends warnings due at night with critical alerts', async t => {
   // 22:58 Beijing on 2026-11-10.
   const evening = Date.parse('2026-11-10T14:58:00Z');
   const time = clock(t, evening);
@@ -389,16 +392,9 @@ test('Cron defers warnings that come due inside quiet hours but still sends crit
   await ingest(alert('late-critical', 'late-critical'), env);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].subject, /^\[严重\] late-critical/);
-  const warning = db.row("SELECT status, next_attempt_at FROM deliveries WHERE event_id = 'late-warning'");
-  assert.deepEqual({ ...warning }, { status: 'pending', next_attempt_at: '2026-11-11T00:00:00.000Z' });
-  time.set(Date.parse('2026-11-10T20:00:00Z'));
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 1);
-  time.set(Date.parse('2026-11-11T00:00:00Z'));
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 2);
-  assert.match(sent[1].subject, /^\[注意\] late-warning/);
+  assert.match(sent[0].subject, /^\[严重\] 2 条提醒/);
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'late-warning'").status, 'sent');
+  assert.equal(db.row("SELECT status FROM deliveries WHERE event_id = 'late-critical'").status, 'sent');
 });
 
 test('an ignored outbox insert fails explicitly instead of silently dropping the delivery', async t => {
@@ -548,29 +544,18 @@ test('HTTP returns only the error code when an immediate send fails', async t =>
   assert.match(logged.join('\n'), /E_SENDER_NOT_VERIFIED/);
 });
 
-test('quiet hours defer warnings to 08:00 Beijing and merge them, while critical still sends', async t => {
-  // 00:00 Beijing on 2026-11-11.
+test('night warnings send on the next Cron run and merge normally', async t => {
   const night = Date.parse('2026-11-10T16:00:00Z');
   const time = clock(t, night);
   const { db, sent, env } = setup();
-  assert.equal((await ingest(alert('quiet-a', 'quiet-a', { severity: 'warning' }), env)).decision, 'deferred_quiet');
+  assert.equal((await ingest(alert('night-a', 'night-a', { severity: 'warning' }), env)).decision, 'send_alert');
   time.set(night + 3 * 60 * MINUTE);
-  await ingest(alert('quiet-b', 'quiet-b', { severity: 'warning' }), env);
-  assert.deepEqual(db.rows("SELECT next_attempt_at FROM deliveries WHERE event_id LIKE 'quiet-%' ORDER BY id").map(row => row.next_attempt_at), ['2026-11-11T00:00:00.000Z', '2026-11-11T00:00:00.000Z']);
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 0);
-  await ingest(alert('night-critical', 'night-critical'), env);
+  assert.equal((await ingest(alert('night-b', 'night-b', { severity: 'warning' }), env)).decision, 'send_alert');
+  assert.deepEqual(db.rows("SELECT next_attempt_at FROM deliveries WHERE event_id LIKE 'night-%' ORDER BY id").map(row => row.next_attempt_at), [null, null]);
   await worker.scheduled({}, env);
   assert.equal(sent.length, 1);
-  assert.match(sent[0].subject, /^\[严重\] night-critical/);
-  time.set(Date.parse('2026-11-10T23:55:00Z'));
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 1);
-  time.set(Date.parse('2026-11-11T00:00:00Z'));
-  await worker.scheduled({}, env);
-  assert.equal(sent.length, 2);
-  assert.match(sent[1].subject, /^\[注意\] 2 条提醒/);
-  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE event_id LIKE 'quiet-%' AND status = 'sent'"), 2);
+  assert.match(sent[0].subject, /^\[注意\] 2 条提醒/);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE event_id LIKE 'night-%' AND status = 'sent'"), 2);
 });
 
 test('missing NOTIFY_TO fails closed without calling EMAIL', async t => {
