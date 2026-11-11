@@ -506,6 +506,9 @@ export default {
       const newGroupRows = group.filter(row => Number(row.attempts ?? 0) === 0);
       if (newGroupRows.length && !(await reserveQuota(env))) {
         await markOmitted(env, newGroupRows.map(row => Number(row.id)));
+        // A denied group still sends its retry rows; only the new rows wait for the next quota window.
+        const keep = group.filter(row => Number(row.attempts ?? 0) > 0);
+        if (keep.length) readyGroups.push(keep);
         continue;
       }
       readyGroups.push(group);

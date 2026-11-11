@@ -606,3 +606,21 @@ test('standalone and merged groups each reserve one quota when only one remains'
   assert.equal(db.row("SELECT hour_count FROM quota WHERE bucket = 'hour:2026-11-11T09'").hour_count, 6);
   assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
 });
+
+test('a quota denial keeps the retry rows of the same batch and omits only the new one', async t => {
+  const time = clock(t);
+  const fetchImpl = feishuFetch(index => index === 1 ? { code: 230020 } : { code: 0, data: { message_id: `retry-after-denial-${index}` } });
+  const { db, env } = setup({ fetchImpl });
+  await ingest(warning('denied-retry'), env);
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'denied-retry').status, 'pending');
+  await ingest(warning('denied-new'), env);
+  db.sqlite.prepare("UPDATE quota SET day_count = 20, hour_count = 6 WHERE bucket LIKE 'day:%' OR bucket LIKE 'hour:%'").run();
+  time.set(MORNING + 5 * MINUTE);
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'denied-retry').status, 'sent');
+  assert.equal(latestDelivery(db, 'denied-new').status, 'pending');
+  assert.equal(latestDelivery(db, 'denied-new').quota_omitted, 1);
+  assert.equal(db.row("SELECT day_count FROM quota WHERE bucket LIKE 'day:%'").day_count, 20);
+  assert.equal(db.row("SELECT hour_count FROM quota WHERE bucket LIKE 'hour:%'").hour_count, 6);
+});
