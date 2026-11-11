@@ -18,7 +18,7 @@ For the health producer, issue a token with both event kinds:
 node scripts/issue-token.mjs --source mybrain.job-health --kinds job.health,job.unhealthy --out /path/to/job-health-token --sql /path/to/job-health-token.sql
 ```
 
-`job.health` info events are alert deliveries sent through Cron, with each daily card delivered alone so its original title, summary and facts remain intact. `job.unhealthy` warning events send firing and, after a successful firing delivery, resolved notifications; firing events received during Beijing 23:00–08:00 quiet hours are deferred until 08:00. Both kinds use Feishu first with the existing email fallback. Feishu card titles carry the `[通知] ` prefix.
+`job.health` info events are alert deliveries sent through Cron, with each daily card delivered alone so its original title, summary and facts remain intact; each standalone daily card consumes one quota slot. `job.unhealthy` warning events send firing and, after a successful firing delivery, resolved notifications; firing events received during Beijing 23:00–08:00 quiet hours are deferred until 08:00. Both kinds use Feishu first with the existing email fallback. Feishu card titles carry the `[通知] ` prefix.
 
 `NOTIFY_TO` is injected as a runtime secret by the authorized release operator; it is never committed or stored in D1. After release, read back a synthetic `notify.selftest` event and confirm the delivery status and provider message id. Binding success means accepted for delivery, not mailbox receipt.
 

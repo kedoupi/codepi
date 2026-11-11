@@ -494,12 +494,6 @@ export default {
     }
     const rows = pending.results.filter(row => !quietDeferred.includes(row));
     if (!rows.length) return;
-    const newRows = rows.filter(row => Number(row.attempts ?? 0) === 0);
-    if (newRows.length && !(await reserveQuota(env))) {
-      await markOmitted(env, newRows.map(row => Number(row.id)));
-      rows.splice(0, rows.length, ...rows.filter(row => !newRows.includes(row)));
-    }
-    if (!rows.length) return;
     // Merged metadata comes from the firing rows when any exist (a mixed batch is never 「[恢复]」),
     // led by the highest severity among them. Rules marked alone retain their original card metadata.
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
@@ -507,7 +501,18 @@ export default {
     const groups: DeliveryData[][] = rows.filter(row => aloneIds.has(row.id)).map(row => [row]);
     const mergedRows = rows.filter(row => !aloneIds.has(row.id));
     if (mergedRows.length) groups.push(mergedRows);
+    const readyGroups: DeliveryData[][] = [];
     for (const group of groups) {
+      const newGroupRows = group.filter(row => Number(row.attempts ?? 0) === 0);
+      if (newGroupRows.length && !(await reserveQuota(env))) {
+        await markOmitted(env, newGroupRows.map(row => Number(row.id)));
+        continue;
+      }
+      readyGroups.push(group);
+    }
+    if (!readyGroups.length) return;
+    let firstError: unknown;
+    for (const group of readyGroups) {
       const firing = group.filter(row => row.state !== "resolved");
       const leaders = firing.length ? firing : group;
       const leadRow = leaders.reduce((best, row) => rank[String(row.severity)] > rank[String(best.severity)] ? row : best, leaders[0]);
@@ -519,12 +524,19 @@ export default {
         facts: group.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
       };
       const unsentRows = group.filter(row => row.status !== "sent");
-      const result = await deliver(env, merged, String(leadRow.incident_key), group.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
-      if (result.status !== "sent") return;
+      let result: { status: string } | null = null;
+      try {
+        result = await deliver(env, merged, String(leadRow.incident_key), group.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
+      } catch (error) {
+        firstError ??= error;
+        continue;
+      }
+      if (!result || result.status !== "sent") continue;
       if (!unsentRows.length) continue;
       const turnedSent = await env.DB.prepare(`SELECT incident_key FROM deliveries WHERE id IN (${placeholders(unsentRows.length)}) AND status = 'sent'`).bind(...unsentRows.map(row => row.id)).all<{ incident_key: string }>();
       const sentAt = nowIso();
       for (const key of new Set(turnedSent.results.map(row => row.incident_key))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();
     }
+    if (firstError) throw firstError;
   },
 } satisfies ExportedHandler<Env>;

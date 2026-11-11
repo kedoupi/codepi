@@ -567,12 +567,42 @@ test('job.health remains a standalone card beside a warning batch and preserves 
     title: '🟩 编号 42', summary: 'daily summary',
     facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: `value-${index}` })),
   }), env);
-  await ingest(warning('other-warning', { title: 'warning-title' }), env);
+  await ingest(warning('other-warning-1', { title: 'warning-title-1' }), env);
+  await ingest(warning('other-warning-2', { title: 'warning-title-2' }), env);
   await worker.scheduled({}, env);
   const cards = sentCards(fetchImpl);
   assert.equal(cards.length, 2);
   const healthCard = cards.find(card => card.header.title.content === '[通知] 🟩 编号 42');
   assert.ok(healthCard);
   assert.equal(healthCard.body.elements.filter(element => element.text?.content?.startsWith('- fact-')).length, 12);
-  assert.equal(cards.some(card => card.header.title.content.includes('2 条提醒')), false);
+  assert.ok(healthCard.body.elements.length <= 200);
+  assert.ok(cards.some(card => card.header.title.content === '[注意] 2 条提醒'));
+});
+
+test('a pending standalone Feishu failure does not skip the same-run warning group', async t => {
+  clock(t);
+  const fetchImpl = feishuFetch([{ code: 230020 }, { code: 0, data: { message_id: 'warning-after-health-failure' } }]);
+  const { db, env } = setup({ fetchImpl });
+  await ingest(healthEvent('health-failure-group', 'job.health', 'info', 'info', 'daily-failure'), env);
+  await ingest(warning('warning-after-health-failure'), env);
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'health-failure-group').status, 'pending');
+  assert.equal(latestDelivery(db, 'warning-after-health-failure').status, 'sent');
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
+});
+
+test('standalone and merged groups each reserve one quota when only one remains', async t => {
+  clock(t);
+  const { db, env, fetchImpl } = setup();
+  db.sqlite.prepare("INSERT INTO quota (bucket, day_count) VALUES ('day:2026-11-11', 19)").run();
+  db.sqlite.prepare("INSERT INTO quota (bucket, hour_count) VALUES ('hour:2026-11-11T09', 5)").run();
+  await ingest(healthEvent('health-quota-one', 'job.health', 'info', 'info', 'quota-health'), env);
+  await ingest(warning('warning-quota-two'), env);
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'health-quota-one').status, 'sent');
+  assert.equal(latestDelivery(db, 'warning-quota-two').status, 'pending');
+  assert.equal(latestDelivery(db, 'warning-quota-two').quota_omitted, 1);
+  assert.equal(db.row("SELECT day_count FROM quota WHERE bucket = 'day:2026-11-11'").day_count, 20);
+  assert.equal(db.row("SELECT hour_count FROM quota WHERE bucket = 'hour:2026-11-11T09'").hour_count, 6);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 1);
 });
