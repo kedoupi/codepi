@@ -31,3 +31,11 @@ Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU
 `NOTIFY_TO` 是 Worker runtime secret，固定实际收件地址；`NOTIFY_DESTINATION_ADDRESS` 只在授权的 `deploy-domain.mjs --app notify` 过程中注入临时 Wrangler 配置的 Email Sending destination，占位配置和 Git 中不保存真实地址。两者都不写入事件或 D1。
 
 发布前运行受影响检查和 `pnpm --filter @codepi/notify build`，再执行 `pnpm --dir services/notify deploy -- --sha <reviewed-source-sha>`。发布后用合成 `notify.selftest` 读回 delivery 状态和 provider message id。回滚沿用根发布流程的已核对 Worker version；D1 migration 不随 Worker 回滚，任何 schema 不兼容都先停止。
+
+For the ledger producer, issue a token for the single digest kind:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.ledger --kinds ledger.digest --out /path/to/ledger-token --sql /path/to/ledger-token.sql
+```
+
+`ledger.digest` info events are delivered by Cron through Feishu, with each `subject` as an independent standalone card. The card keeps the event title and facts unchanged; email is the fallback when Feishu fails. A new digest for the same subject can create a new standalone delivery even while an earlier one is still pending.

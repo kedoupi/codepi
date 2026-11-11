@@ -22,8 +22,8 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
   assert.throws(() => validateNotifyEvent({ ...valid, facts: Array.from({ length: 13 }, (_, index) => ({ label: String(index), value: 'v' })) }), /at most 12/);
 });
 
-test('the rule table registers the seven documented kinds with documented modes', () => {
-  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy']);
+test('the rule table registers the eight documented kinds with documented modes', () => {
+  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest']);
   assert.equal(RULES.find(rule => rule.kind === 'plans.orphan_digest')?.mode, 'record');
   assert.equal(RULES.find(rule => rule.kind === 'notify.selftest')?.mode, 'immediate');
   assert.equal(RULES.find(rule => rule.kind === 'daily-review')?.infoMode, 'record');
@@ -121,4 +121,13 @@ test('twelve facts render in the notification email without truncation', () => {
     assert.match(email.text, new RegExp(`fact-${index}: value-${index}`));
     assert.match(email.html, new RegExp(`fact-${index}`));
   }
+});
+
+test('ledger digest is an independent alert card rule', () => {
+  const rule = RULES.find(candidate => candidate.kind === 'ledger.digest');
+  assert.ok(rule);
+  assert.deepEqual({ sources: rule.sources, mode: rule.mode, forMs: rule.forMs, notifyResolved: rule.notifyResolved, batch: rule.batch }, { sources: ['mybrain.ledger'], mode: 'alert', forMs: 0, notifyResolved: false, batch: 'alone' });
+  assert.equal(rule.infoMode, undefined);
+  assert.equal(rule.cooldownMs, undefined);
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.ledger', kind: 'ledger.digest', state: 'info', severity: 'info' }, rule, null, Date.parse('2026-11-11T01:00:00Z')).decision, 'send_alert');
 });

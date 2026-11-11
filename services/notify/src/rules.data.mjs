@@ -7,4 +7,5 @@ export const RULES = [
   { kind: "daily-review", sources: ["surgeconf.watchdog"], mode: "alert", forMs: 0, notifyResolved: false, infoMode: "record" },
   { kind: "job.health", sources: ["mybrain.job-health"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
   { kind: "job.unhealthy", sources: ["mybrain.job-health"], mode: "alert", forMs: 0, notifyResolved: true },
+  { kind: "ledger.digest", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
 ];

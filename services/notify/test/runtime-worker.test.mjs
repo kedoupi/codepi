@@ -587,3 +587,20 @@ test('HTTP rejects a watchdog token when it submits a mybrain health event', asy
   assert.equal(response.status, 403);
   assert.deepEqual(await response.json(), { error: 'forbidden' });
 });
+
+test('HTTP rejects a watchdog token when it submits a mybrain ledger digest', async t => {
+  clock(t);
+  const { db, env } = setup();
+  const token = seedToken(db);
+  const response = await worker.fetch(request(token, {
+    ...base,
+    event_id: 'wrong-ledger-source',
+    source: 'mybrain.ledger',
+    kind: 'ledger.digest',
+    state: 'info',
+    severity: 'info',
+    title: 'ledger digest',
+  }), env);
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: 'forbidden' });
+});
