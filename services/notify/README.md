@@ -12,6 +12,14 @@ node scripts/issue-token.mjs --source surgeconf.watchdog --kinds agent.stuck,app
 
 The token file is created with mode `0600`; SQL stores only the token id, SHA-256 hash, source and allowed kinds. `rpc` is reserved for the named RPC entrypoint and cannot be issued here. To revoke, set `revoked_at` for the token id in `producer_tokens`; the old token must then return HTTP 401 before replacement use.
 
+For the health producer, issue a token with both event kinds:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.job-health --kinds job.health,job.unhealthy --out /path/to/job-health-token --sql /path/to/job-health-token.sql
+```
+
+`job.health` info events are alert deliveries sent through Cron, with each daily card delivered alone so its original title, summary and facts remain intact. `job.unhealthy` warning events send firing and, after a successful firing delivery, resolved notifications; firing events received during Beijing 23:00–08:00 quiet hours are deferred until 08:00. Both kinds use Feishu first with the existing email fallback. Feishu card titles carry the `[通知] ` prefix.
+
 `NOTIFY_TO` is injected as a runtime secret by the authorized release operator; it is never committed or stored in D1. After release, read back a synthetic `notify.selftest` event and confirm the delivery status and provider message id. Binding success means accepted for delivery, not mailbox receipt.
 
 Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU_RECEIVE_OPEN_ID`; they are never committed, returned by the read-back API or written to logs. Token caching is isolated to the Worker runtime and keyed by app id. The card UUID is `notify-<minimum delivery id>` and Feishu's one-hour idempotency window means a retry after that window may produce a duplicate message. Conversely, if Feishu accepted a send but the Worker timed out locally, a batch with the same minimum id within one hour may be deduplicated by Feishu and the new content may not be delivered.

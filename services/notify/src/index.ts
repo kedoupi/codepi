@@ -501,23 +501,30 @@ export default {
     }
     if (!rows.length) return;
     // Merged metadata comes from the firing rows when any exist (a mixed batch is never 「[恢复]」),
-    // led by the highest severity among them.
+    // led by the highest severity among them. Rules marked alone retain their original card metadata.
     const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
-    const firing = rows.filter(row => row.state !== "resolved");
-    const leaders = firing.length ? firing : rows;
-    const leadRow = leaders.reduce((best, row) => rank[String(row.severity)] > rank[String(best.severity)] ? row : best, leaders[0]);
-    const lead = deliveryEventFromRow(leadRow);
-    const merged: NotifyEvent = rows.length === 1 ? lead : {
-      ...lead,
-      title: `${rows.length} 条提醒${rows.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
-      summary: rows.map(row => String(row.title)).join("；").slice(0, 500),
-      facts: rows.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
-    };
-    const unsentRows = rows.filter(row => row.status !== "sent");
-    const result = await deliver(env, merged, String(leadRow.incident_key), rows.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
-    if (result.status !== "sent" || !unsentRows.length) return;
-    const turnedSent = await env.DB.prepare(`SELECT incident_key FROM deliveries WHERE id IN (${placeholders(unsentRows.length)}) AND status = 'sent'`).bind(...unsentRows.map(row => row.id)).all<{ incident_key: string }>();
-    const sentAt = nowIso();
-    for (const key of new Set(turnedSent.results.map(row => row.incident_key))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();
+    const aloneIds = new Set(rows.filter(row => findRule(String(row.source), String(row.kind))?.batch === "alone").map(row => row.id));
+    const groups: DeliveryData[][] = rows.filter(row => aloneIds.has(row.id)).map(row => [row]);
+    const mergedRows = rows.filter(row => !aloneIds.has(row.id));
+    if (mergedRows.length) groups.push(mergedRows);
+    for (const group of groups) {
+      const firing = group.filter(row => row.state !== "resolved");
+      const leaders = firing.length ? firing : group;
+      const leadRow = leaders.reduce((best, row) => rank[String(row.severity)] > rank[String(best.severity)] ? row : best, leaders[0]);
+      const lead = deliveryEventFromRow(leadRow);
+      const merged: NotifyEvent = group.length === 1 ? lead : {
+        ...lead,
+        title: `${group.length} 条提醒${group.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
+        summary: group.map(row => String(row.title)).join("；").slice(0, 500),
+        facts: group.slice(0, 12).map(row => ({ label: String(row.kind), value: String(row.title) })),
+      };
+      const unsentRows = group.filter(row => row.status !== "sent");
+      const result = await deliver(env, merged, String(leadRow.incident_key), group.map(row => ({ id: Number(row.id), attempts: Number(row.attempts ?? 0) })));
+      if (result.status !== "sent") return;
+      if (!unsentRows.length) continue;
+      const turnedSent = await env.DB.prepare(`SELECT incident_key FROM deliveries WHERE id IN (${placeholders(unsentRows.length)}) AND status = 'sent'`).bind(...unsentRows.map(row => row.id)).all<{ incident_key: string }>();
+      const sentAt = nowIso();
+      for (const key of new Set(turnedSent.results.map(row => row.incident_key))) await env.DB.prepare("UPDATE incidents SET last_notification_at = ?1 WHERE incident_key = ?2").bind(sentAt, key).run();
+    }
   },
 } satisfies ExportedHandler<Env>;

@@ -22,8 +22,8 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
   assert.throws(() => validateNotifyEvent({ ...valid, facts: Array.from({ length: 13 }, (_, index) => ({ label: String(index), value: 'v' })) }), /at most 12/);
 });
 
-test('the rule table registers the five watchdog kinds with documented modes', () => {
-  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review']);
+test('the rule table registers the seven documented kinds with documented modes', () => {
+  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy']);
   assert.equal(RULES.find(rule => rule.kind === 'plans.orphan_digest')?.mode, 'record');
   assert.equal(RULES.find(rule => rule.kind === 'notify.selftest')?.mode, 'immediate');
   assert.equal(RULES.find(rule => rule.kind === 'daily-review')?.infoMode, 'record');
@@ -102,4 +102,24 @@ test('notification email snapshots remain byte-for-byte stable', () => {
     options: buildNotificationEmail({ event: { ...base, event_id: 'snapshot-options', severity: 'warning', title: 'Approval pending' }, firstSeen: '2026-11-09T00:00:00Z', lastSeen: '2026-11-10T01:00:00Z', duration: '25 小时', incidentId: 'incident-42', reason: '测试快照' }),
   };
   assert.deepEqual(actual, snapshots);
+});
+
+test('health rules send info alerts and defer unhealthy warnings', () => {
+  const health = RULES.find(rule => rule.kind === 'job.health');
+  assert.ok(health);
+  assert.deepEqual({ sources: health.sources, mode: health.mode, forMs: health.forMs, notifyResolved: health.notifyResolved, quiet: health.quiet, batch: health.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: false, quiet: 'none', batch: 'alone' });
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.health', state: 'info', severity: 'info' }, health, null, Date.parse('2026-11-11T01:00:00Z')).decision, 'send_alert');
+  const unhealthy = RULES.find(rule => rule.kind === 'job.unhealthy');
+  assert.ok(unhealthy);
+  assert.deepEqual({ sources: unhealthy.sources, mode: unhealthy.mode, forMs: unhealthy.forMs, notifyResolved: unhealthy.notifyResolved, quiet: unhealthy.quiet, batch: unhealthy.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: true, quiet: 'defer', batch: undefined });
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.unhealthy', state: 'firing', severity: 'warning' }, unhealthy, null, Date.parse('2026-11-10T17:00:00Z')).decision, 'deferred_quiet');
+});
+
+test('twelve facts render in the notification email without truncation', () => {
+  const event = { ...valid, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: `value-${index}` })) };
+  const email = buildNotificationEmail(event);
+  for (let index = 0; index < 12; index += 1) {
+    assert.match(email.text, new RegExp(`fact-${index}: value-${index}`));
+    assert.match(email.html, new RegExp(`fact-${index}`));
+  }
 });

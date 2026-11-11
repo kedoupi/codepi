@@ -492,3 +492,87 @@ test('follow channel episode comparison normalizes Z and +08:00 timestamps', asy
   assert.equal(resolved.channel, 'feishu');
   assert.equal(sent.length, 0);
 });
+
+const healthEvent = (id, kind = 'job.health', severity = 'info', state = 'info', subject = id, extra = {}) => ({
+  schema: 'notify.event/v1', event_id: id, source: 'mybrain.job-health', kind, subject, state, severity,
+  occurred_at: new Date(MORNING).toISOString(), title: id, ...extra,
+});
+function seedHealthToken(db, token = 'cpn_health_test') {
+  const hash = createHash('sha256').update(token).digest('hex');
+  db.sqlite.prepare('INSERT INTO producer_tokens (token_id, token_hash, source, kinds_json, created_at) VALUES (?, ?, ?, ?, ?)').run(`test-${token}`, hash, 'mybrain.job-health', JSON.stringify(['job.health', 'job.unhealthy']), new Date().toISOString());
+  return token;
+}
+function sentCards(fetchImpl) {
+  return fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).map(call => JSON.parse(JSON.parse(call.init.body).content));
+}
+
+test('job.health info alerts send through Feishu and send again for the next daily subject', async t => {
+  const time = clock(t);
+  const { db, sent, env, fetchImpl } = setup();
+  const token = seedHealthToken(db);
+  const firstResponse = await worker.fetch(request(token, healthEvent('health-daily-1', 'job.health', 'info', 'info', 'daily')), env);
+  assert.equal(firstResponse.status, 200);
+  const first = await firstResponse.json();
+  assert.equal(first.decision, 'send_alert');
+  assert.equal(first.delivery, 'pending');
+  assert.equal(sent.length, 0);
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'health-daily-1').status, 'sent');
+  assert.equal(latestDelivery(db, 'health-daily-1').channel, 'feishu');
+  assert.equal(sent.length, 0);
+  time.set(MORNING + 24 * 60 * MINUTE);
+  const secondResponse = await worker.fetch(request(token, healthEvent('health-daily-2', 'job.health', 'info', 'info', 'daily')), env);
+  assert.equal(secondResponse.status, 200);
+  const second = await secondResponse.json();
+  assert.equal(second.decision, 'send_alert');
+  await worker.scheduled({}, env);
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE status = 'sent'"), 2);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
+});
+
+test('job.unhealthy sends repeated firing and resolved Feishu notifications', async t => {
+  const time = clock(t);
+  const { db, sent, env, fetchImpl } = setup();
+  assert.equal((await ingest(healthEvent('unhealthy-1', 'job.unhealthy', 'warning', 'firing', 'service-x', { title: 'unhealthy-1' }), env)).decision, 'send_alert');
+  await worker.scheduled({}, env);
+  time.set(MORNING + MINUTE);
+  assert.equal((await ingest(healthEvent('unhealthy-2', 'job.unhealthy', 'warning', 'firing', 'service-x', { title: 'unhealthy-2' }), env)).decision, 'send_alert');
+  await worker.scheduled({}, env);
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 2);
+  assert.equal(sent.length, 0);
+  assert.equal((await ingest(healthEvent('unhealthy-resolved', 'job.unhealthy', 'warning', 'resolved', 'service-x', { title: 'recovered' }), env)).decision, 'send_resolved');
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'unhealthy-resolved').status, 'sent');
+  assert.equal(fetchImpl.calls.filter(call => call.url.includes('/im/v1/messages')).length, 3);
+});
+
+test('job.unhealthy firing during quiet hours is deferred until 08:00 Beijing', async t => {
+  const time = clock(t, Date.parse('2026-11-10T17:00:00Z'));
+  const { db, sent, env } = setup();
+  const result = await ingest(healthEvent('unhealthy-quiet', 'job.unhealthy', 'warning', 'firing', 'quiet-service'), env);
+  assert.equal(result.decision, 'deferred_quiet');
+  await worker.scheduled({}, env);
+  assert.equal(sent.length, 0);
+  assert.equal(db.row("SELECT next_attempt_at FROM deliveries WHERE event_id = 'unhealthy-quiet'").next_attempt_at, '2026-11-11T00:00:00.000Z');
+  time.set(Date.parse('2026-11-11T00:00:00Z'));
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'unhealthy-quiet').status, 'sent');
+  assert.equal(sent.length, 0);
+});
+
+test('job.health remains a standalone card beside a warning batch and preserves twelve facts', async t => {
+  clock(t);
+  const { env, fetchImpl } = setup();
+  await ingest(healthEvent('health-card', 'job.health', 'info', 'info', 'daily-card', {
+    title: '🟩 编号 42', summary: 'daily summary',
+    facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: `value-${index}` })),
+  }), env);
+  await ingest(warning('other-warning', { title: 'warning-title' }), env);
+  await worker.scheduled({}, env);
+  const cards = sentCards(fetchImpl);
+  assert.equal(cards.length, 2);
+  const healthCard = cards.find(card => card.header.title.content === '[通知] 🟩 编号 42');
+  assert.ok(healthCard);
+  assert.equal(healthCard.body.elements.filter(element => element.text?.content?.startsWith('- fact-')).length, 12);
+  assert.equal(cards.some(card => card.header.title.content.includes('2 条提醒')), false);
+});
