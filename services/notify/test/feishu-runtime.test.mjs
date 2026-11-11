@@ -625,3 +625,71 @@ test('a quota denial keeps the retry rows of the same batch and omits only the n
   assert.equal(db.row("SELECT day_count FROM quota WHERE bucket LIKE 'day:%'").day_count, 20);
   assert.equal(db.row("SELECT hour_count FROM quota WHERE bucket LIKE 'hour:%'").hour_count, 6);
 });
+
+function seedLedgerToken(db, token = 'cpn_ledger_test') {
+  const hash = createHash('sha256').update(token).digest('hex');
+  db.sqlite.prepare('INSERT INTO producer_tokens (token_id, token_hash, source, kinds_json, created_at) VALUES (?, ?, ?, ?, ?)').run(`test-${token}`, hash, 'mybrain.ledger', JSON.stringify(['ledger.digest']), new Date().toISOString());
+  return token;
+}
+function ledgerEvent(id, subject, title, occurredAt = MORNING) {
+  return {
+    schema: 'notify.event/v1', event_id: id, source: 'mybrain.ledger', kind: 'ledger.digest', subject,
+    state: 'info', severity: 'info', occurred_at: new Date(occurredAt).toISOString(), title,
+    summary: `${subject} summary`, facts: Array.from({ length: 12 }, (_, index) => ({ label: `${subject}-fact-${index}`, value: `${subject}-value-${index}` })),
+  };
+}
+
+test('ledger.digest sends noon evening and close as separate cards and repeats the subject next day', async t => {
+  const time = clock(t);
+  const { db, env, fetchImpl } = setup();
+  const token = seedLedgerToken(db);
+  const digests = [
+    ['ledger-noon', 'noon', '🟩 编号 101'],
+    ['ledger-evening', 'evening', '🟦 编号 102'],
+    ['ledger-close', 'close', '🟨 编号 103'],
+  ];
+  for (const [id, subject, title] of digests) {
+    const response = await worker.fetch(request(token, ledgerEvent(id, subject, title)), env);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).decision, 'send_alert');
+  }
+  await ingest(warning('ledger-warning', { title: 'warning beside ledger' }), env);
+  await worker.scheduled({}, env);
+  const firstCards = sentCards(fetchImpl);
+  assert.equal(firstCards.length, 4);
+  for (const [, subject, title] of digests) {
+    const card = firstCards.find(candidate => candidate.header.title.content === `[通知] ${title}`);
+    assert.ok(card);
+    const facts = card.body.elements.filter(element => element.text?.content?.startsWith(`- ${subject}-fact-`));
+    assert.equal(facts.length, 12);
+    for (let index = 0; index < 12; index += 1) assert.ok(facts.some(element => element.text.content === `- ${subject}-fact-${index}：${subject}-value-${index}`));
+  }
+  assert.ok(firstCards.some(card => card.header.title.content === '[注意] warning beside ledger'));
+
+  time.set(MORNING + 24 * 60 * MINUTE);
+  const next = await worker.fetch(request(token, ledgerEvent('ledger-noon-next', 'noon', '🟩 编号 104', MORNING + 24 * 60 * MINUTE)), env);
+  assert.equal(next.status, 200);
+  await worker.scheduled({}, env);
+  const cards = sentCards(fetchImpl);
+  assert.equal(cards.length, 5);
+  assert.ok(cards.some(card => card.header.title.content === '[通知] 🟩 编号 104'));
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM events WHERE kind = 'ledger.digest'"), 4);
+});
+
+test('ledger.digest creates a new standalone delivery when yesterday is still pending', async t => {
+  const time = clock(t);
+  const { db, env, fetchImpl } = setup();
+  await ingest(ledgerEvent('ledger-pending-old', 'noon', '🟩 编号 201'), env);
+  db.sqlite.prepare("INSERT INTO quota (bucket, day_count, hour_count) VALUES ('day:2026-11-11', 20, 6)").run();
+  await worker.scheduled({}, env);
+  assert.equal(latestDelivery(db, 'ledger-pending-old').status, 'pending');
+
+  time.set(MORNING + 24 * 60 * MINUTE);
+  const next = await ingest(ledgerEvent('ledger-pending-new', 'noon', '🟩 编号 202', MORNING + 24 * 60 * MINUTE), env);
+  assert.equal(next.delivery, 'pending');
+  assert.equal(db.count("SELECT COUNT(*) AS count FROM deliveries WHERE incident_key = 'mybrain.ledger:ledger.digest:noon'"), 2);
+  await worker.scheduled({}, env);
+  assert.ok(fetchImpl.calls.some(call => call.url.includes('/im/v1/messages')));
+  assert.equal(latestDelivery(db, 'ledger-pending-new').status, 'sent');
+  assert.ok(sentCards(fetchImpl).some(card => card.header.title.content === '[通知] 🟩 编号 202'));
+});

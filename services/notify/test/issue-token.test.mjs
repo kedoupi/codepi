@@ -59,3 +59,12 @@ test('issueToken derives both health kinds and rejects cross-source kinds', asyn
   assert.throws(() => issueToken({ source: 'mybrain.job-health', kinds: 'agent.stuck', out: path.join(dir, 'bad-watchdog-token'), sql: path.join(dir, 'bad-watchdog.sql') }), /not allowed/);
   assert.throws(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
 });
+
+test('issueToken derives only the ledger digest kind for mybrain.ledger', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'notify-ledger-token-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const result = issueToken({ source: 'mybrain.ledger', kinds: 'ledger.digest', out: path.join(dir, 'token'), sql: path.join(dir, 'token.sql'), randomId: Buffer.from('ledger-id'), randomSecret: Buffer.from('ledger-secret') });
+  assert.deepEqual(result.selected, ['ledger.digest']);
+  assert.throws(() => issueToken({ source: 'mybrain.ledger', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
+  assert.throws(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'ledger.digest', out: path.join(dir, 'bad-ledger-token'), sql: path.join(dir, 'bad-ledger.sql') }), /not allowed/);
+});

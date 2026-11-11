@@ -373,7 +373,7 @@ export async function ingest(input: unknown, env: Env, fixedSource?: string) {
     await cancelChannelAttempts(env, key, "E_RESOLVED_BEFORE_SEND", true);
   } else {
     const queued = await env.DB.prepare("SELECT id FROM deliveries WHERE incident_key = ?1 AND status = 'pending' AND notification_type <> 'resolved' LIMIT 1").bind(key).first<{ id: number }>();
-    if (queued) return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
+    if (queued && rule.batch !== "alone") return { event_id: event.event_id, decision: decision.decision, duplicate: false, delivery: "pending" };
   }
   const notificationType = event.state === "resolved" ? "resolved" : decision.reason === "cooldown_elapsed" ? "repeat" : "first";
   if (!decision.shouldSend) return { event_id: event.event_id, decision: decision.decision, duplicate: false };
