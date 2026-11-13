@@ -30,7 +30,7 @@ Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU
 
 `NOTIFY_TO` 是 Worker runtime secret，固定实际收件地址；`NOTIFY_DESTINATION_ADDRESS` 只在授权的 `deploy-domain.mjs --app notify` 过程中注入临时 Wrangler 配置的 Email Sending destination，占位配置和 Git 中不保存真实地址。两者都不写入事件或 D1。
 
-发布前运行受影响检查和 `pnpm --filter @codepi/notify build`，再执行 `pnpm --dir services/notify deploy -- --sha <reviewed-source-sha>`。发布后用合成 `notify.selftest` 读回 delivery 状态和 provider message id。回滚沿用根发布流程的已核对 Worker version；D1 migration 不随 Worker 回滚，任何 schema 不兼容都先停止。
+发布前运行受影响检查和 `pnpm --filter @codepi/notify build`，再执行 `pnpm --dir services/notify run deploy --sha <reviewed-source-sha>`（必须带 `run`，否则会被 pnpm 内置的 `deploy` 命令截走）。每次部署都要在环境中提供 `NOTIFY_DESTINATION_ADDRESS`，缺失时脚本直接报错；没有其他来源时，可用 `wrangler versions view <当前线上版本> --name codepi-notify --json` 读出现有 `send_email` 绑定的 destination，只放进环境变量，不打印、不入库，部署后读回新旧版本的 destination 一致。发布后用合成 `notify.selftest` 读回 delivery 状态和 provider message id。回滚沿用根发布流程的已核对 Worker version；D1 migration 不随 Worker 回滚，任何 schema 不兼容都先停止。
 
 For the ledger producer, issue a token for the single digest kind:
 
