@@ -38,28 +38,23 @@ test('missing Feishu configuration fails before fetch', async () => {
   assert.equal(calls, 0);
 });
 
-test('Feishu card is JSON 2.0, structurally bounded and uses plain_text', () => {
+test('Feishu card is JSON 2.0, bounded and uses grouped markdown', () => {
   const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(4000) })) }));
   const json = JSON.stringify(card);
-  const textElements = card.body.elements.filter(element => element.tag === 'div' && element.text?.tag === 'plain_text');
-  const facts = textElements.filter(element => element.text.content.startsWith('- fact-'));
-  const notice = textElements.find(element => element.text.text_size === 'notation');
+  const markdown = card.body.elements.filter(element => element.tag === 'markdown');
+  const facts = card.body.elements.find(element => element.tag === 'column_set');
   const button = card.body.elements.find(element => element.tag === 'button');
   const unsupported = [];
-  const walk = value => {
-    if (Array.isArray(value)) return value.forEach(walk);
-    if (!value || typeof value !== 'object') return;
-    if (['note', 'action'].includes(value.tag)) unsupported.push(value.tag);
-    Object.values(value).forEach(walk);
-  };
+  const walk = value => { if (Array.isArray(value)) return value.forEach(walk); if (!value || typeof value !== 'object') return; if (['note', 'action', 'div'].includes(value.tag)) unsupported.push(value.tag); Object.values(value).forEach(walk); };
   walk(card);
   assert.equal(card.schema, '2.0');
   assert.equal(card.header.template, 'red');
+  assert.equal(card.header.title.content, 'stuck');
+  assert.equal(card.header.text_tag_list[0].text.content, '严重');
+  assert.equal(card.body.elements[0].tag, 'markdown');
   assert.ok(new TextEncoder().encode(json).byteLength <= 30 * 1024);
-  assert.ok(card.body.elements.length <= 200);
-  assert.ok(facts.length < 12);
-  assert.ok(facts.length > 0);
-  assert.equal(notice.text.tag, 'plain_text');
+  assert.ok(markdown.length <= 2);
+  assert.ok(facts);
   assert.deepEqual(unsupported, []);
   assert.equal(button.text.content, '查看详情');
   assert.equal(button.behaviors[0].type, 'open_url');

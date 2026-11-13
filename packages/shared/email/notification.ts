@@ -96,18 +96,67 @@ export function buildNotificationEmail(input: NotificationEmailInput) {
 }
 
 const FEISHU_CARD_LIMIT = 30 * 1024;
-const cardTemplate = (parts: NotificationParts) => parts.event.state === "resolved" ? "green" : parts.event.kind === "notify.selftest" || parts.event.severity === "info" ? "blue" : parts.event.severity === "critical" ? "red" : "orange";
 
-function plainTextElement(content: string) {
-  return { tag: "div", text: { tag: "plain_text", content } };
-}
+export type FeishuCardCategory = "alert" | "status" | "approval" | "delivery" | "notice";
+
+const CATEGORY_NAMES: Record<FeishuCardCategory, string> = {
+  alert: "提醒",
+  status: "状态变化",
+  approval: "待批准",
+  delivery: "已交付",
+  notice: "通知",
+};
+
+const KIND_CATEGORY: Record<string, FeishuCardCategory> = {
+  "agent.stuck": "alert", "job.unhealthy": "alert", "magpie.unresponsive": "alert",
+  "magpie.source_disabled": "alert", "magpie.spend": "alert", "ledger.status": "status",
+  "approval.pending": "approval", "ledger.delivered": "delivery",
+};
+
+const KIND_LABELS: Record<string, string> = {
+  "agent.stuck": "提醒", "job.unhealthy": "提醒", "magpie.unresponsive": "提醒",
+  "magpie.source_disabled": "提醒", "magpie.spend": "提醒", "ledger.status": "状态变化",
+  "approval.pending": "待批准", "ledger.delivered": "已交付", "ledger.digest": "账务摘要",
+  "daily-review": "日常复盘", "job.health": "健康检查", "notify.selftest": "自检",
+  "notify.merged": "合并提醒",
+};
+
+export const feishuCardCategory = (kind: string): FeishuCardCategory => KIND_CATEGORY[kind] ?? "notice";
+export const feishuKindLabel = (kind: string): string => KIND_LABELS[kind] ?? kind;
+
+const escapeMarkdown = (value: string) => value.replace(/[\\*_`[\]<>\n]/g, char => ({ "\\": "\\\\", "*": "\\*", "_": "\\_", "`": "\\`", "[": "\\[", "]": "\\]", "<": "\\<", ">": "\\>", "\n": " " }[char] ?? char));
+const categoryColor = (category: FeishuCardCategory, parts: NotificationParts) => {
+  if (parts.event.state === "resolved") return "green";
+  if (category === "alert") return parts.event.severity === "critical" ? "red" : parts.event.severity === "warning" ? "orange" : "green";
+  return category === "approval" ? "yellow" : category === "delivery" ? "green" : "blue";
+};
+const categoryTag = (category: FeishuCardCategory, parts: NotificationParts) => parts.event.state === "resolved" ? "已恢复" : category === "alert" ? (parts.event.severity === "critical" ? "严重" : parts.event.severity === "warning" ? "注意" : "通知") : CATEGORY_NAMES[category];
+const beijingTime = (value: string) => { const parts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value)); const get = (type: string) => parts.find(part => part.type === type)?.value ?? ""; return `${get("month")}-${get("day")} ${get("weekday")} ${get("hour")}:${get("minute")}`; };
+
+type CardElement = Record<string, unknown>;
+const markdown = (content: string): CardElement => ({ tag: "markdown", content });
+const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement => ({ tag: "column_set", flex_mode: "none", columns: Array.from({ length: Math.ceil(facts.length / 2) * 2 }, (_, index) => ({ tag: "column", width: "weighted", weight: 1, elements: index < facts.length ? [markdown(`**${escapeMarkdown(facts[index].label)}**\\n${escapeMarkdown(facts[index].value)}`)] : [] })) });
+const factRows = (facts: NonNullable<NotificationParts["facts"]>) => facts.length ? [columns(facts)] : [];
 
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
-  const factElements = facts.map(fact => plainTextElement(`- ${fact.label}：${fact.value}`));
-  const metadata = [`开始时间：${parts.firstSeen}`, `最近一次观察：${parts.lastSeen}`, ...(parts.duration ? [`持续时长：${parts.duration}`] : []), `来源：${parts.source}`, ...(parts.incidentId ? [`事故编号：${parts.incidentId}`] : [])].map(plainTextElement);
-  const elements: Record<string, unknown>[] = [plainTextElement(conclusion), ...factElements, ...metadata, { tag: "div", text: { tag: "plain_text", content: parts.reason, text_size: "notation" } }];
-  if (parts.link) elements.push({ tag: "button", text: { tag: "plain_text", content: "查看详情" }, type: "default", behaviors: [{ type: "open_url", default_url: parts.link }] });
-  return { schema: "2.0", header: { template: cardTemplate(parts), title: { tag: "plain_text", content: parts.subject } }, body: { elements } };
+  const category = feishuCardCategory(parts.event.kind);
+  const tag = categoryTag(category, parts);
+  const elements: CardElement[] = [markdown(`**${escapeMarkdown(conclusion)}**`)];
+  if (category === "status") {
+    const old = facts.find(fact => fact.label === "旧状态");
+    const next = facts.find(fact => fact.label === "新状态");
+    if (old && next) elements.push(columns([old, next]), ...factRows(facts.filter(fact => fact !== old && fact !== next)));
+    else elements.push(...factRows(facts));
+  } else if (category === "delivery") {
+    const accepted = facts.find(fact => fact.label === "验收");
+    if (accepted) elements.push(columns([accepted]), ...factRows(facts.filter(fact => fact !== accepted)));
+    else elements.push(...factRows(facts));
+  } else elements.push(...factRows(facts));
+  elements.push({ tag: "hr" });
+  const footer = `北京时间 ${beijingTime(parts.event.occurred_at)} · 来源：${escapeMarkdown(parts.source)}${parts.reason && parts.reason !== "这是统一通知服务根据事件规则生成的提醒。" ? ` · ${escapeMarkdown(parts.reason)}` : ""}`;
+  elements.push({ ...markdown(`<font color='grey'>${footer}</font>`), text_size: "notation" });
+  if (parts.link) elements.push({ tag: "button", text: { tag: "text", content: category === "approval" ? "去批准" : category === "delivery" ? "查看交付" : "查看详情" }, type: "primary", behaviors: [{ type: "open_url", default_url: parts.link }] });
+  return { schema: "2.0", header: { title: { tag: "plain_text", content: parts.event.title }, subtitle: { tag: "plain_text", content: CATEGORY_NAMES[category] }, template: categoryColor(category, parts), text_tag_list: [{ tag: "text_tag", text: { tag: "plain_text", content: tag }, color: categoryColor(category, parts) }] }, body: { elements } };
 }
 
 export function buildFeishuCard(input: NotificationParts | NotificationEmailInput) {
@@ -116,19 +165,8 @@ export function buildFeishuCard(input: NotificationParts | NotificationEmailInpu
   let conclusion = parts.conclusion;
   let card = feishuCardValue(parts, facts, conclusion);
   const size = () => new TextEncoder().encode(JSON.stringify(card)).byteLength;
-  while (size() > FEISHU_CARD_LIMIT && facts.length > 0) {
-    facts = facts.slice(0, -1);
-    card = feishuCardValue(parts, facts, conclusion);
-  }
-  while (size() > FEISHU_CARD_LIMIT && conclusion.length > 128) {
-    const nextLength = Math.max(0, Math.min(conclusion.length - 2, Math.floor(conclusion.length * 0.75)));
-    if (nextLength >= conclusion.length - 1) break;
-    conclusion = `${conclusion.slice(0, nextLength)}…`;
-    card = feishuCardValue(parts, facts, conclusion);
-  }
-  if (size() > FEISHU_CARD_LIMIT) {
-    const compact = { ...parts, subject: parts.subject.slice(0, 120), conclusion: conclusion.slice(0, 64) };
-    card = feishuCardValue(compact, [], compact.conclusion);
-  }
+  while (size() > FEISHU_CARD_LIMIT && facts.length > 0) { facts = facts.slice(0, -1); card = feishuCardValue(parts, facts, conclusion); }
+  while (size() > FEISHU_CARD_LIMIT && conclusion.length > 128) { const nextLength = Math.max(0, Math.min(conclusion.length - 2, Math.floor(conclusion.length * 0.75))); if (nextLength >= conclusion.length - 1) break; conclusion = `${conclusion.slice(0, nextLength)}…`; card = feishuCardValue(parts, facts, conclusion); }
+  if (size() > FEISHU_CARD_LIMIT) { const compact = { ...parts, subject: parts.subject.slice(0, 120), conclusion: conclusion.slice(0, 64) }; card = feishuCardValue(compact, [], compact.conclusion); }
   return card;
 }

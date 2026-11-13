@@ -11,4 +11,6 @@ export const RULES = [
   { kind: "magpie.unresponsive", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: true, infoMode: "record" },
   { kind: "magpie.source_disabled", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: true },
   { kind: "magpie.spend", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: false },
+  { kind: "ledger.status", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
+  { kind: "ledger.delivered", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
 ];
