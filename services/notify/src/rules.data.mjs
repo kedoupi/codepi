@@ -8,4 +8,7 @@ export const RULES = [
   { kind: "job.health", sources: ["mybrain.job-health"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
   { kind: "job.unhealthy", sources: ["mybrain.job-health"], mode: "alert", forMs: 0, notifyResolved: true },
   { kind: "ledger.digest", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
+  { kind: "magpie.unresponsive", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: true, infoMode: "record" },
+  { kind: "magpie.source_disabled", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: true },
+  { kind: "magpie.spend", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: false },
 ];

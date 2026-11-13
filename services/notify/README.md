@@ -39,3 +39,9 @@ node scripts/issue-token.mjs --source mybrain.ledger --kinds ledger.digest --out
 ```
 
 `ledger.digest` info events are delivered by Cron through Feishu, with each `subject` as an independent standalone card. The card keeps the event title and facts unchanged; email is the fallback when Feishu fails. A new digest for the same subject can create a new standalone delivery even while an earlier one is still pending.
+
+For the Magpie gateway watcher, issue a token for its three alert kinds:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.magpie --kinds magpie.unresponsive,magpie.source_disabled,magpie.spend --out /path/to/magpie-token --sql /path/to/magpie-token.sql
+```

@@ -68,3 +68,12 @@ test('issueToken derives only the ledger digest kind for mybrain.ledger', async 
   assert.throws(() => issueToken({ source: 'mybrain.ledger', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
   assert.throws(() => issueToken({ source: 'surgeconf.watchdog', kinds: 'ledger.digest', out: path.join(dir, 'bad-ledger-token'), sql: path.join(dir, 'bad-ledger.sql') }), /not allowed/);
 });
+
+test('issueToken derives the three magpie kinds for mybrain.magpie only', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'notify-magpie-token-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const result = issueToken({ source: 'mybrain.magpie', kinds: 'magpie.unresponsive,magpie.source_disabled,magpie.spend', out: path.join(dir, 'token'), sql: path.join(dir, 'token.sql'), randomId: Buffer.from('magpie-id'), randomSecret: Buffer.from('magpie-secret') });
+  assert.deepEqual(result.selected, ['magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend']);
+  assert.throws(() => issueToken({ source: 'mybrain.magpie', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
+  assert.throws(() => issueToken({ source: 'mybrain.job-health', kinds: 'magpie.spend', out: path.join(dir, 'bad-magpie-token'), sql: path.join(dir, 'bad-magpie.sql') }), /not allowed/);
+});
