@@ -22,8 +22,8 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
   assert.throws(() => validateNotifyEvent({ ...valid, facts: Array.from({ length: 13 }, (_, index) => ({ label: String(index), value: 'v' })) }), /at most 12/);
 });
 
-test('the rule table registers the eight documented kinds with documented modes', () => {
-  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest']);
+test('the rule table registers the eleven documented kinds with documented modes', () => {
+  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest', 'magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend']);
   assert.equal(RULES.find(rule => rule.kind === 'plans.orphan_digest')?.mode, 'record');
   assert.equal(RULES.find(rule => rule.kind === 'notify.selftest')?.mode, 'immediate');
   assert.equal(RULES.find(rule => rule.kind === 'daily-review')?.infoMode, 'record');
@@ -112,6 +112,19 @@ test('health rules send info alerts and unhealthy warnings', () => {
   assert.ok(unhealthy);
   assert.deepEqual({ sources: unhealthy.sources, mode: unhealthy.mode, forMs: unhealthy.forMs, notifyResolved: unhealthy.notifyResolved, batch: unhealthy.batch }, { sources: ['mybrain.job-health'], mode: 'alert', forMs: 0, notifyResolved: true, batch: undefined });
   assert.equal(decideNotification({ ...valid, source: 'mybrain.job-health', kind: 'job.unhealthy', state: 'firing', severity: 'warning' }, unhealthy, null, Date.parse('2026-11-10T17:00:00Z')).decision, 'send_alert');
+});
+
+test('magpie rules accept only the mybrain.magpie source with documented modes', () => {
+  const pick = rule => ({ sources: rule.sources, mode: rule.mode, forMs: rule.forMs, notifyResolved: rule.notifyResolved, infoMode: rule.infoMode });
+  const unresponsive = RULES.find(rule => rule.kind === 'magpie.unresponsive');
+  const disabled = RULES.find(rule => rule.kind === 'magpie.source_disabled');
+  const spend = RULES.find(rule => rule.kind === 'magpie.spend');
+  assert.ok(unresponsive && disabled && spend);
+  assert.deepEqual(pick(unresponsive), { sources: ['mybrain.magpie'], mode: 'alert', forMs: 0, notifyResolved: true, infoMode: 'record' });
+  assert.deepEqual(pick(disabled), { sources: ['mybrain.magpie'], mode: 'alert', forMs: 0, notifyResolved: true, infoMode: undefined });
+  assert.deepEqual(pick(spend), { sources: ['mybrain.magpie'], mode: 'alert', forMs: 0, notifyResolved: false, infoMode: undefined });
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.magpie', kind: 'magpie.spend', state: 'firing', severity: 'warning' }, spend, null, Date.parse('2026-11-13T01:00:00Z')).decision, 'send_alert');
+  assert.equal(decideNotification({ ...valid, source: 'mybrain.magpie', kind: 'magpie.unresponsive', state: 'firing', severity: 'warning' }, unresponsive, null, Date.parse('2026-11-13T01:00:00Z')).decision, 'send_alert');
 });
 
 test('twelve facts render in the notification email without truncation', () => {
