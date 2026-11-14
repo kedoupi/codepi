@@ -158,6 +158,8 @@ describe("ProjectMcp", () => {
   it("returns migration notices and does not write today state", async () => {
     const existing = (await data("task_list")).tasks[0].key;
     expect(await data("today_get")).toEqual({ migrated: true, notice: expect.stringContaining("飞书清单「建国工作台」") });
+    expect(await owner("today_pick", { items: Array.from({ length: 21 }, () => ({ project: "codepi", key: existing })) }))
+      .toMatchObject({ ok: false, error: "invalid_arguments", status: 400 });
     expect(await data("today_pick", { items: [{ project: "codepi", key: existing }] }))
       .toMatchObject({ migrated: true, written: 0 });
     expect(await data("today_check", { items: [{ project: "codepi", key: existing, note: "已检查" }] }))

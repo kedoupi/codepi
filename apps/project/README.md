@@ -7,7 +7,7 @@ kedoupi（codepi）的私有工作台。Worker 名为 `codepi-project`，生产�
 
 2026-11-04 起由「GitHub 同步的项目卡」重做为工作台（任务记录见
 [2026-11-04-project-workbench](../../docs/development/tasks/2026-11-04-project-workbench.md)）：
-仓库是待办的唯一真源；网页「今天/池子」页已迁到飞书清单「建国工作台」，旧 `/api/today*` 路由与 `today_*` MCP 接口保留并返回迁移提示，待办内容仍需在仓库中删除并推送。
+GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN` 均已删除。仓库是待办的唯一真源；网页「今天/池子」页已迁到飞书清单「建国工作台」，旧 `/api/today*` 路由与 `today_*` MCP 接口保留并返回迁移提示，待办内容仍需在仓库中删除并推送。
 
 ## 数据流
 
@@ -84,14 +84,10 @@ kedoupi（codepi）的私有工作台。Worker 名为 `codepi-project`，生产�
 
 ## ProjectMcp
 
-`ProjectMcp.execute` 的操作为 `overview`、`task_list`、`task_get`、`project_get`、`handoff_save`、`today_get`、`today_pick`、`today_check`，
-每个回复不超过 12 KiB，不再有片段分页：`overview` 与 `project_get` 超出时按 `truncated` 列出截短的列表，
-计数保持准确；`today_get` 的 `deleted` 是主人在网页删除、仓库里还在的待办，助手应在仓库删除对应待办；池子和今天项目可带 `checks`（检查天数、最近结论、是否今天检查），
-`today_check` 记录助手今天已检查但尚未完成的事项并将其移回池子，同日重复会更新结论；它也按
-`pool → done → deleted → today` 顺序截短并保持计数准确。`task_list` 用 `offset` + `revision`（筛选与完整结果的 SHA-256），续页缺首屏
-revision 或列表变化时返回 `cursor_stale`。`handoff_save` 的 `task` 是任务键或自由任务 ID，
-`branch`、`base_sha` 可选，`request_id` 内容相同才幂等。`summary` 给 `get_context`：需要你、
-逾期、7 天内到期、进行中分支和需要你的前几条链接，不超过 4 KiB，最近推送超过 3 天标记 stale。
+`ProjectMcp.execute` 的操作为 `overview`、`task_list`、`task_get`、`project_get`、`handoff_save`、`today_get`、`today_pick`、`today_check`。
+每个回复不超过 12 KiB，不再有片段分页；`overview` 与 `project_get` 超出时按 `truncated` 列出截短的列表，计数保持准确。`today_get`、`today_pick`、`today_check` 仅为兼容旧会话保留，返回 `{ migrated: true, notice }`；`today_pick` 与 `today_check` 还返回 `written: 0`，不读写 `today_picks`、`agent_checked` 等 today 状态表。
+`task_list` 用 `offset` + `revision`（筛选与完整结果的 SHA-256），续页缺首屏 revision 或列表变化时返回 `cursor_stale`。`handoff_save` 的 `task` 是任务键或自由任务 ID，
+`branch`、`base_sha` 可选，`request_id` 内容相同才幂等。`summary` 给 `get_context`：需要你、逾期、7 天内到期、进行中分支和需要你的前几条链接，不超过 4 KiB，最近推送超过 3 天标记 stale。
 
 ## 配置
 

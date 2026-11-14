@@ -57,13 +57,12 @@ Health 超限响应使用 `health_data_json_v1` JSON 片段分页；保持原参
 
 2026-11-04 起 Project 是个人工作台（[任务](../development/tasks/2026-11-04-project-workbench.md)）：
 各项目仓库合并后用项目令牌推送 `workbench.v1` 快照（待办、分支、changelog），Worker 做凭据形态扫描、
-按内容哈希幂等，消失的待办记为完成；网页 today 入口已迁到飞书清单「建国工作台」，旧 `/api/today*` 路由保留，MCP today_* 调用返回迁移提示且不再写入 today 状态，待办以仓库为唯一真源。
+按内容哈希幂等，消失的待办记为完成；网页 today 入口已迁到飞书清单「建国工作台」，旧 `/api/today*` 路由保留，MCP today_* 调用返回迁移提示且不再写入 today 状态，待办以仓库为唯一真源。GitHub 拉取同步已删除。
 `work_overview` 是开工入口：需要所有者决定、到场、授权、确认的事按截止排序，逾期与 7 天内到期、
 进行中分支、最近 7 天完成。`task_list` 返回紧凑行，使用 `offset/limit`、`next_offset` 和覆盖筛选与
 `revision`，列表变化返回 `cursor_stale`，不得输出漏项的部分列表；`task_get` 读一条待办的四项文字与交接。
 `project_get` 返回规则入口与 Agent 协作适配段（隔离、提交、验收、合并）、按状态计数、分支、近期变更标题和
 `today_get`、`today_pick`、`today_check` 为兼容接口，返回飞书迁移提示并不再读写 today 状态表；开窗应读本地「要办」队列和收件箱。所有回复都在 12 KiB 内。
-所有 MCP 回复都在 12 KiB 内。
 交接挂在任务键或自由任务 ID 上，状态为 in_progress/blocked/ready_for_review/done；分支、base SHA、
 commit、PR 可选，没有远端的仓库也能写。写入只追加；重复请求使用相同 request_id。
 

@@ -80,21 +80,20 @@ function mockScript() {
       task("t7", "已完成的示例", "doing", "流程", "none", null, "alpha", new Date().toISOString()),
     ];
     const open = tasks.filter(item => !item.done_at);
-    const who = item => ["attend", "decide", "confirm"].includes(item.need_kind) ? "you" : "agent";
-    const deleted = new Set();
+    const todayCalls = [];
     const projects = [
       { id: "alpha", name: "Alpha", repo: "synthetic/alpha", status: "active", last_push_at: new Date().toISOString(),
         open: 5, need_you: 4, branches: 1, url: "" },
       { id: "beta", name: "Beta", repo: null, status: "active", last_push_at: null, open: 1, need_you: 0, branches: 0, url: "" },
     ];
     const branches = [{ project: "alpha", name: "team/synthetic-work", ahead: 3, last_commit_at: new Date().toISOString(), has_fragment: true }];
-    const state = { authenticated: false };
+    const state = { authenticated: false, todayCalls };
     window.__projectSmoke = state;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init = {}) => {
       const url = new URL(typeof input === "string" ? input : input.url, location.origin);
-      const method = String(init.method || "GET").toUpperCase();
       if (url.origin !== location.origin) return originalFetch(input, init);
+      if (url.pathname.startsWith("/api/today")) todayCalls.push(url.pathname);
       if (url.pathname === "/api/me") {
         return state.authenticated ? json({ ok: true, authenticated: true }) : json({ error: "authentication_required" }, 401);
       }
@@ -212,7 +211,7 @@ async function main() {
     await page.cdp("Page.addScriptToEvaluateOnNewDocument", { source: "window.__projectSmoke.authenticated = true" });
     await visit(page, `${origin}/`, "今天");
     assert.ok(await page.evaluate(() => document.querySelector(".migration-notice")?.innerText.includes("飞书清单「建国工作台」")), "today migration notice");
-    assert.equal(await page.evaluate(() => performance.getEntriesByType("resource").some(entry => entry.name.includes("/api/today"))), false, "today APIs are not requested");
+    assert.deepEqual(await page.evaluate(() => window.__projectSmoke.todayCalls), [], "today APIs are not requested");
     await assertNoOverflow(page, "desktop today migration", 1440);
     await page.screenshot({ path: "desktop-today.png" });
 
@@ -244,8 +243,9 @@ async function main() {
       await visit(page, `${origin}${path}`, text);
       await assertNoOverflow(page, `mobile ${path}`, 390);
       if (path === "/") {
-        assert.ok(await page.evaluate(() => document.querySelector(".migration-notice")?.innerText.includes("飞书清单「建国工作台」")), "mobile today migration notice");
-        assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 0, "today board is removed");
+        assert.deepEqual(await page.evaluate(() => window.__projectSmoke.todayCalls), [], "mobile today APIs are not requested");
+        assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "grid", "mobile global navigation");
+        assert.equal(await page.evaluate(() => document.querySelectorAll(".tabbar a").length), 2, "mobile navigation has two items");
       } else if (path === "/log") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "mobile seven journal days");
         await assertJournalInteractions(page);
