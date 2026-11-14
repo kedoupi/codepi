@@ -56,6 +56,7 @@ test('Feishu card is JSON 2.0, bounded and uses grouped markdown', () => {
   assert.ok(markdown.length <= 2);
   assert.ok(facts);
   assert.deepEqual(unsupported, []);
+  assert.equal(button.text.tag, 'plain_text');
   assert.equal(button.text.content, '查看详情');
   assert.equal(button.behaviors[0].type, 'open_url');
 });

@@ -125,23 +125,44 @@ export const feishuCardCategory = (kind: string): FeishuCardCategory => KIND_CAT
 export const feishuKindLabel = (kind: string): string => KIND_LABELS[kind] ?? kind;
 
 const escapeMarkdown = (value: string) => value.replace(/[\\*_`[\]<>\n]/g, char => ({ "\\": "\\\\", "*": "\\*", "_": "\\_", "`": "\\`", "[": "\\[", "]": "\\]", "<": "\\<", ">": "\\>", "\n": " " }[char] ?? char));
+const limitMarkdownValue = (value: string) => value.length > 300 ? `${value.slice(0, 299)}…` : value;
 const categoryColor = (category: FeishuCardCategory, parts: NotificationParts) => {
   if (parts.event.state === "resolved") return "green";
   if (category === "alert") return parts.event.severity === "critical" ? "red" : parts.event.severity === "warning" ? "orange" : "green";
   return category === "approval" ? "yellow" : category === "delivery" ? "green" : "blue";
 };
-const categoryTag = (category: FeishuCardCategory, parts: NotificationParts) => parts.event.state === "resolved" ? "已恢复" : category === "alert" ? (parts.event.severity === "critical" ? "严重" : parts.event.severity === "warning" ? "注意" : "通知") : CATEGORY_NAMES[category];
-const beijingTime = (value: string) => { const parts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value)); const get = (type: string) => parts.find(part => part.type === type)?.value ?? ""; return `${get("month")}-${get("day")} ${get("weekday")} ${get("hour")}:${get("minute")}`; };
+const categoryTag = (category: FeishuCardCategory, parts: NotificationParts) => {
+  if (parts.event.state === "resolved") return "已恢复";
+  if (category === "alert") return parts.event.severity === "critical" ? "严重" : parts.event.severity === "warning" ? "注意" : "通知";
+  return CATEGORY_NAMES[category];
+};
+const beijingTime = (value: string) => {
+  const parts = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find(part => part.type === type)?.value ?? "";
+  return `${get("month")}-${get("day")} ${get("weekday")} ${get("hour")}:${get("minute")}`;
+};
 
 type CardElement = Record<string, unknown>;
 const markdown = (content: string): CardElement => ({ tag: "markdown", content });
-const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement => ({ tag: "column_set", flex_mode: "none", columns: Array.from({ length: Math.ceil(facts.length / 2) * 2 }, (_, index) => ({ tag: "column", width: "weighted", weight: 1, elements: index < facts.length ? [markdown(`**${escapeMarkdown(facts[index].label)}**\\n${escapeMarkdown(facts[index].value)}`)] : [] })) });
+const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement => ({
+  tag: "column_set",
+  flex_mode: "none",
+  horizontal_spacing: "8px",
+  columns: Array.from({ length: Math.ceil(facts.length / 2) * 2 }, (_, index) => ({
+    tag: "column",
+    width: "weighted",
+    weight: 1,
+    vertical_align: "center",
+    elements: index < facts.length ? [markdown(`**${escapeMarkdown(facts[index].label)}**\n${escapeMarkdown(limitMarkdownValue(facts[index].value))}`)] : [],
+  })),
+});
 const factRows = (facts: NonNullable<NotificationParts["facts"]>) => facts.length ? [columns(facts)] : [];
 
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
   const category = feishuCardCategory(parts.event.kind);
   const tag = categoryTag(category, parts);
-  const elements: CardElement[] = [markdown(`**${escapeMarkdown(conclusion)}**`)];
+  const renderedConclusion = limitMarkdownValue(conclusion);
+  const elements: CardElement[] = [markdown(`**${escapeMarkdown(renderedConclusion)}**`)];
   if (category === "status") {
     const old = facts.find(fact => fact.label === "旧状态");
     const next = facts.find(fact => fact.label === "新状态");
@@ -155,7 +176,10 @@ function feishuCardValue(parts: NotificationParts, facts: NonNullable<Notificati
   elements.push({ tag: "hr" });
   const footer = `北京时间 ${beijingTime(parts.event.occurred_at)} · 来源：${escapeMarkdown(parts.source)}${parts.reason && parts.reason !== "这是统一通知服务根据事件规则生成的提醒。" ? ` · ${escapeMarkdown(parts.reason)}` : ""}`;
   elements.push({ ...markdown(`<font color='grey'>${footer}</font>`), text_size: "notation" });
-  if (parts.link) elements.push({ tag: "button", text: { tag: "text", content: category === "approval" ? "去批准" : category === "delivery" ? "查看交付" : "查看详情" }, type: "primary", behaviors: [{ type: "open_url", default_url: parts.link }] });
+  if (parts.link) {
+    const buttonLabel = category === "status" ? "查看需求页" : category === "approval" ? "去处理" : category === "delivery" ? "查看交付" : "查看详情";
+    elements.push({ tag: "button", text: { tag: "plain_text", content: buttonLabel }, type: "primary", behaviors: [{ type: "open_url", default_url: parts.link }] });
+  }
   return { schema: "2.0", header: { title: { tag: "plain_text", content: parts.event.title }, subtitle: { tag: "plain_text", content: CATEGORY_NAMES[category] }, template: categoryColor(category, parts), text_tag_list: [{ tag: "text_tag", text: { tag: "plain_text", content: tag }, color: categoryColor(category, parts) }] }, body: { elements } };
 }
 
@@ -165,8 +189,19 @@ export function buildFeishuCard(input: NotificationParts | NotificationEmailInpu
   let conclusion = parts.conclusion;
   let card = feishuCardValue(parts, facts, conclusion);
   const size = () => new TextEncoder().encode(JSON.stringify(card)).byteLength;
-  while (size() > FEISHU_CARD_LIMIT && facts.length > 0) { facts = facts.slice(0, -1); card = feishuCardValue(parts, facts, conclusion); }
-  while (size() > FEISHU_CARD_LIMIT && conclusion.length > 128) { const nextLength = Math.max(0, Math.min(conclusion.length - 2, Math.floor(conclusion.length * 0.75))); if (nextLength >= conclusion.length - 1) break; conclusion = `${conclusion.slice(0, nextLength)}…`; card = feishuCardValue(parts, facts, conclusion); }
-  if (size() > FEISHU_CARD_LIMIT) { const compact = { ...parts, subject: parts.subject.slice(0, 120), conclusion: conclusion.slice(0, 64) }; card = feishuCardValue(compact, [], compact.conclusion); }
+  while (size() > FEISHU_CARD_LIMIT && facts.length > 0) {
+    facts = facts.slice(0, -1);
+    card = feishuCardValue(parts, facts, conclusion);
+  }
+  while (size() > FEISHU_CARD_LIMIT && conclusion.length > 128) {
+    const nextLength = Math.max(0, Math.min(conclusion.length - 2, Math.floor(conclusion.length * 0.75)));
+    if (nextLength >= conclusion.length - 1) break;
+    conclusion = `${conclusion.slice(0, nextLength)}…`;
+    card = feishuCardValue(parts, facts, conclusion);
+  }
+  if (size() > FEISHU_CARD_LIMIT) {
+    const compact = { ...parts, subject: parts.subject.slice(0, 120), conclusion: conclusion.slice(0, 64) };
+    card = feishuCardValue(compact, [], compact.conclusion);
+  }
   return card;
 }
