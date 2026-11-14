@@ -77,3 +77,18 @@ test('issueToken derives the three magpie kinds for mybrain.magpie only', async 
   assert.throws(() => issueToken({ source: 'mybrain.magpie', kinds: 'job.health', out: path.join(dir, 'bad-health-token'), sql: path.join(dir, 'bad-health.sql') }), /not allowed/);
   assert.throws(() => issueToken({ source: 'mybrain.job-health', kinds: 'magpie.spend', out: path.join(dir, 'bad-magpie-token'), sql: path.join(dir, 'bad-magpie.sql') }), /not allowed/);
 });
+
+test('issueToken derives each MyBrain alert kind only for its source', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'notify-mybrain-token-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const cases = [
+    ['mybrain.cert-expiry', 'cert-expiry', 'cert-id', 'cert-secret'],
+    ['mybrain.cf-d1-backup', 'cf-d1-backup', 'backup-id', 'backup-secret'],
+    ['mybrain.feishu-report', 'report.failed', 'report-id', 'report-secret'],
+  ];
+  for (const [source, kind, id, secret] of cases) {
+    const result = issueToken({ source, kinds: kind, out: path.join(dir, `${kind}.token`), sql: path.join(dir, `${kind}.sql`), randomId: Buffer.from(id), randomSecret: Buffer.from(secret) });
+    assert.deepEqual(result.selected, [kind]);
+    assert.throws(() => issueToken({ source, kinds: 'agent.stuck', out: path.join(dir, `${kind}-bad.token`), sql: path.join(dir, `${kind}-bad.sql`) }), /not allowed/);
+  }
+});

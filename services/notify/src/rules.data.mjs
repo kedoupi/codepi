@@ -13,4 +13,7 @@ export const RULES = [
   { kind: "magpie.spend", sources: ["mybrain.magpie"], mode: "alert", forMs: 0, notifyResolved: false },
   { kind: "ledger.status", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
   { kind: "ledger.delivered", sources: ["mybrain.ledger"], mode: "alert", forMs: 0, notifyResolved: false, batch: "alone" },
+  { kind: "cert-expiry", sources: ["mybrain.cert-expiry"], mode: "alert", forMs: 0, notifyResolved: true },
+  { kind: "cf-d1-backup", sources: ["mybrain.cf-d1-backup"], mode: "alert", forMs: 0, notifyResolved: true },
+  { kind: "report.failed", sources: ["mybrain.feishu-report"], mode: "alert", forMs: 0, notifyResolved: false },
 ];
