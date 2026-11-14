@@ -13,9 +13,10 @@ import { resolveProject } from "./projects";
 import { buildSummary } from "./summary";
 import { NEED_KINDS, WORK_STATUSES, type Env, type NeedKind } from "./types";
 import { fit, getTask, overview, projectCard, taskPage, type TaskFilter } from "./work";
-import { checkAgentToday, fitToday, pickAgentToday, todayRef, todayView } from "./today";
+import { todayRef } from "./today";
 
 const BUDGET = MCP_LIMITS.detail;
+const TODAY_MIGRATED_NOTICE = "今天/池子已迁到飞书清单「建国工作台」；开窗请读本地「要办」队列和收件箱，不再调用 today_*。";
 
 function failure(error: unknown): DomainReply {
   if (error instanceof AppError) return { ok: false, error: error.code, status: error.status };
@@ -124,32 +125,31 @@ export async function executeProject(env: Env, input: DomainRequest<ProjectOpera
     }
     if (input.operation === "today_get") {
       assertKeys(args, ["project"]);
-      const projectRef = optional(args.project, value => text(value, "project_required", { max: 200 })!);
-      const project = projectRef === undefined ? undefined : await resolveProject(env, projectRef);
-      const data = await todayView(env, new Date(), project?.id);
-      return { ok: true, data: fitToday({ ...data, notice: DATA_NOTICE }, BUDGET - 256) };
+      optional(args.project, value => text(value, "project_required", { max: 200 }));
+      return { ok: true, data: { migrated: true, notice: TODAY_MIGRATED_NOTICE } };
     }
     if (input.operation === "today_pick") {
       assertKeys(args, ["items"]);
       if (!Array.isArray(args.items) || args.items.length > 20) throw new AppError("invalid_arguments", 400);
-      const refs = args.items.map(value => {
+      args.items.forEach(value => {
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new AppError("invalid_arguments", 400);
         const target = value as Record<string, unknown>;
         assertKeys(target, ["project", "key"]);
-        return todayRef(target.project, target.key);
+        todayRef(target.project, target.key);
       });
-      return { ok: true, data: await pickAgentToday(env, refs) };
+      return { ok: true, data: { migrated: true, written: 0, notice: TODAY_MIGRATED_NOTICE } };
     }
     if (input.operation === "today_check") {
       assertKeys(args, ["items"]);
       if (!Array.isArray(args.items) || args.items.length > 20) throw new AppError("invalid_arguments", 400);
-      const refs = args.items.map(value => {
+      args.items.forEach(value => {
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new AppError("invalid_arguments", 400);
         const target = value as Record<string, unknown>;
         assertKeys(target, ["project", "key", "note"]);
-        return { ...todayRef(target.project, target.key), note: text(target.note, "invalid_note", { min: 1, max: 200 })! };
+        todayRef(target.project, target.key);
+        text(target.note, "invalid_note", { min: 1, max: 200 });
       });
-      return { ok: true, data: await checkAgentToday(env, refs) };
+      return { ok: true, data: { migrated: true, written: 0, notice: TODAY_MIGRATED_NOTICE } };
     }
     if (input.operation === "handoff_save") {
       const project = await resolveProject(env, text(args.project, "project_required", { max: 200 })!);

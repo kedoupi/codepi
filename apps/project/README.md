@@ -7,7 +7,7 @@ kedoupi（codepi）的私有工作台。Worker 名为 `codepi-project`，生产�
 
 2026-11-04 起由「GitHub 同步的项目卡」重做为工作台（任务记录见
 [2026-11-04-project-workbench](../../docs/development/tasks/2026-11-04-project-workbench.md)）：
-GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN` 均已删除。仓库是待办的唯一真源；「今天」看板的挑选、完成和池子删除只记录工作台状态，待办内容仍需在仓库中删除并推送。
+仓库是待办的唯一真源；网页「今天/池子」页已迁到飞书清单「建国工作台」，旧 `/api/today*` 路由与 `today_*` MCP 接口保留并返回迁移提示，待办内容仍需在仓库中删除并推送。
 
 ## 数据流
 
@@ -54,7 +54,7 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 
 | 路径 | 内容 |
 | --- | --- |
-| `/` 今天 | 顶部日期与「已完成 x / y」进度；池子按分类折叠并支持标题/分类搜索、「只看需要你」和「7 天内到期」组合筛选；中间按「你的 / 建国的」分组挑选今天的待办；右侧只留当天做完的事。桌面三列，手机为「今天 / 池子 / 做完」三个标签。|
+| `/` 今天 | 显示「今天/池子已迁到飞书清单『建国工作台』」说明；不请求 `/api/today*`。|
 | `/log` 动态（工作日报） | 当前周一到周日的完成、上线、查过汇总与 7 格每日条数；每天按上线、完成、查过和其它改动分块，可切换周与项目。|
 | `/board` | 旧链接由 Worker 302 到 `/`，保留 `?task=` 以打开任务抽屉。|
 | `/p/:id` 项目 | 状态构成条、项目卡（规则入口与 Agent 协作适配段）、分支、该项目待办、最近变更、每个任务最新交接、推送令牌与项目状态。|
@@ -69,8 +69,8 @@ GitHub 同步、项目卡手工编辑字段、`PROJECT_REPOS` 和 `GITHUB_TOKEN`
 | `GET /api/health` | 公开构建与 SSO 状态 |
 | `GET /api/auth/login` / `callback`、`POST /api/auth/logout` | 共享 SSO |
 | `POST /api/ingest/:project` | 项目令牌推送快照；不走 SSO 与 Origin 校验，错误令牌与未知项目同为 401 |
-| `GET /api/overview` | 项目页和任务详情使用的概览统计；首页今天使用 `GET /api/today`。|
-| `POST /api/today/pick`、`/unpick`、`/done`、`/delete` | 今天的挑选、退回、标记完成与池子删除；删除写入 `owner_deleted`，待办仍需在仓库中删除。|
+| `GET /api/overview` | 项目页和任务详情使用的概览统计；首页今天显示迁移说明。|
+| `POST /api/today/pick`、`/unpick`、`/done`、`/delete` | 旧今天接口保留用于兼容与回退，当前首页不调用。|
 | `GET /api/tasks` | `project`、`status`、`need`（含 `any`）、`category`、`include_done=1` |
 | `GET /api/tasks/:project/:key` | 任务详情与交接 |
 | `GET /api/projects`、`GET /api/projects/:id` | 项目列表；项目卡（含令牌创建与最近使用时间，不含令牌） |
@@ -112,6 +112,4 @@ pnpm test:browser:built
 pnpm dev
 ```
 
-测试只用合成项目、任务和交接：推送鉴权、凭据扫描、schema、幂等、完成判定、快照裁剪、页面接口的
-SSO 与 Origin 边界、MCP 预算与分页、组件渲染与路由。浏览器冒烟检查今天看板的三列、池子操作、当天完成、看板抽屉、项目、动态在
-1440px、1024px 与 390px 下的渲染和无横向滚动；它不替代真实 SSO、真实推送和线上验收。
+测试只用合成项目、任务与交接：推送鉴权、凭据扫描、schema、幂等、完成判定、快照裁剪、页面接口的 SSO 与 Origin 边界、MCP 迁移提示、组件渲染与路由。浏览器冒烟检查迁移说明、项目、动态在 1440px、1024px 与 390px 下的渲染和无横向滚动；它不替代真实 SSO、真实推送和线上验收。

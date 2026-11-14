@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import { cleanup, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App.svelte";
 
@@ -24,7 +24,6 @@ function backend(failMutation = false) {
     calls.push(path);
     if (path === "/api/me") return Response.json({ authenticated: true });
     if (path === "/api/projects") return Response.json({ projects: overview.projects });
-    if (path === "/api/today") return Response.json({ today: [{ ...overview.need_you[0], carried: false, who: "you" }], pool: [], done: [], counts: { today: 1, pool: 0, done: 0 }, date: overview.today });
     if (path === "/api/overview") return Response.json(overview);
     if (path === "/api/tasks/alpha/a") {
       return Response.json({ project: { id: "alpha" }, task: { ...overview.need_you[0], what: "示例说明", impact: null, advice: "示例建议",
@@ -43,20 +42,11 @@ afterEach(() => {
 });
 
 describe("App routing", () => {
-  it("renders the today board and sends pool return actions", async () => {
+  it("renders the Feishu migration notice without requesting today APIs", async () => {
     const calls = backend();
     render(App);
-    expect(await screen.findByText("选择示例方案")).toBeTruthy();
-    await fireEvent.click(await screen.findByRole("button", { name: "退回池子" }));
-    await waitFor(() => expect(calls).toContain("/api/today/unpick"));
-    expect(screen.getByText("你的")).toBeTruthy();
-  });
-
-  it("shows a mutation error when returning a task fails", async () => {
-    backend(true);
-    render(App);
-    await fireEvent.click(await screen.findByRole("button", { name: "退回池子" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("today_failed");
+    expect(await screen.findByRole("heading", { name: "今天/池子已迁到飞书清单「建国工作台」" })).toBeTruthy();
+    expect(calls.filter(path => path.startsWith("/api/today"))).toEqual([]);
   });
 
   it("deep-links straight to a task from a summary link", async () => {

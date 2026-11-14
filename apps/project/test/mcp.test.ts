@@ -155,19 +155,15 @@ describe("ProjectMcp", () => {
     expect((await data("handoff_save", handoffArgs({ branch: "team/x", base_sha: TEST_BASE_SHA }))).deduplicated).toBe(false);
   });
 
-  it("validates today_check inputs and preserves checked counts when clipping today_get", async () => {
+  it("returns migration notices and does not write today state", async () => {
     const existing = (await data("task_list")).tasks[0].key;
-    expect(await owner("today_check", { items: Array.from({ length: 21 }, () => ({ project: "codepi", key: existing, note: "检查" })) }))
-      .toMatchObject({ ok: false, error: "invalid_arguments", status: 400 });
-    expect(await owner("today_check", { items: [{ project: "codepi", key: existing, note: "x".repeat(201) }] }))
-      .toMatchObject({ ok: false, error: "invalid_note", status: 400 });
-    await worker.fetch(ingestRequest("codepi", token, samplePayload({ tasks: manyTasks(300) })), env);
-    const key = (await data("task_list", { limit: 1 })).tasks[0].key;
-    expect(await owner("today_check", { items: [{ project: "codepi", key, note: "已检查" }] }))
-      .toMatchObject({ ok: true, data: { written: 1, skipped: 0 } });
-    const board = await data("today_get");
-    expect(board.truncated).toContain("pool");
-    expect(board.counts.checked).toBe(1);
+    expect(await data("today_get")).toEqual({ migrated: true, notice: expect.stringContaining("飞书清单「建国工作台」") });
+    expect(await data("today_pick", { items: [{ project: "codepi", key: existing }] }))
+      .toMatchObject({ migrated: true, written: 0 });
+    expect(await data("today_check", { items: [{ project: "codepi", key: existing, note: "已检查" }] }))
+      .toMatchObject({ migrated: true, written: 0 });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks").first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM agent_checked").first<{ n: number }>())?.n).toBe(0);
   });
 
   it("summary reports need-you counts and links within the overview budget", async () => {
