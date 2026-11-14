@@ -25,12 +25,52 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
 });
 
 test('the rule table registers the documented kinds with documented modes', () => {
-  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest', 'magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend', 'ledger.status', 'ledger.delivered']);
+  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest', 'magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend', 'ledger.status', 'ledger.delivered', 'cert-expiry', 'cf-d1-backup', 'report.failed']);
   assert.equal(RULES.find(candidate => candidate.kind === 'ledger.status')?.batch, 'alone');
   assert.equal(RULES.find(candidate => candidate.kind === 'ledger.delivered')?.batch, 'alone');
   assert.equal(RULES.find(rule => rule.kind === 'plans.orphan_digest')?.mode, 'record');
   assert.equal(RULES.find(rule => rule.kind === 'notify.selftest')?.mode, 'immediate');
   assert.equal(RULES.find(rule => rule.kind === 'daily-review')?.infoMode, 'record');
+});
+test('MyBrain alert rules accept sender-shaped events and only their sources', () => {
+  const cases = [
+    {
+      kind: 'cert-expiry', source: 'mybrain.cert-expiry', state: 'firing', severity: 'warning',
+      subject: 'cert/example.test', title: '证书将到期：example.test 剩 7 天',
+      facts: [{ label: '域名', value: 'example.test' }, { label: '剩余天数', value: '7' }, { label: '到期日', value: '2026-11-21 08:00' }],
+    },
+    {
+      kind: 'cert-expiry', source: 'mybrain.cert-expiry', state: 'resolved', severity: 'info',
+      subject: 'cert/example.test', title: '证书已续期：example.test',
+      facts: [{ label: '域名', value: 'example.test' }, { label: '剩余天数', value: '已续期' }, { label: '到期日', value: '2027-11-21 08:00' }],
+    },
+    {
+      kind: 'cf-d1-backup', source: 'mybrain.cf-d1-backup', state: 'firing', severity: 'warning',
+      subject: 'cf-d1/app', title: 'D1 备份失败：app',
+      facts: [{ label: '数据库', value: 'app' }, { label: '结果', value: '阶段 导出 失败：BackupError' }],
+    },
+    {
+      kind: 'cf-d1-backup', source: 'mybrain.cf-d1-backup', state: 'resolved', severity: 'info',
+      subject: 'cf-d1/all', title: 'D1 备份已恢复',
+      facts: [{ label: '数据库', value: 'all' }, { label: '结果', value: '上次失败后的备份已成功完成' }],
+    },
+    {
+      kind: 'report.failed', source: 'mybrain.feishu-report', state: 'firing', severity: 'warning',
+      subject: '2026-11-14-noon', title: '飞书日报发送失败', summary: '日报发送失败。',
+      facts: [{ label: '时段', value: '2026-11-14-noon' }, { label: '原因', value: 'FeishuError' }],
+    },
+  ];
+  for (const [index, sample] of cases.entries()) {
+    const event = { ...valid, event_id: `mybrain-sample-${index}`, ...sample };
+    const rule = RULES.find(candidate => candidate.kind === sample.kind);
+    assert.ok(rule, sample.kind);
+    assert.deepEqual({ sources: rule.sources, mode: rule.mode, forMs: rule.forMs, notifyResolved: rule.notifyResolved }, {
+      sources: [sample.source], mode: 'alert', forMs: 0, notifyResolved: sample.kind !== 'report.failed',
+    });
+    assert.equal(validateNotifyEvent(event).source, sample.source);
+    assert.equal(decideNotification(event, rule, null, Date.parse(event.occurred_at)).decision, sample.state === 'resolved' ? 'resolved' : 'send_alert');
+  }
+  assert.equal(RULES.find(rule => rule.kind === 'cert-expiry')?.sources.includes('mybrain.cf-d1-backup'), false);
 });
 
 test('delivery decisions cover cooldown, recovery and retry classes', () => {
