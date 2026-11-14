@@ -77,3 +77,23 @@ For the Magpie gateway watcher, issue a token for its three alert kinds:
 ```bash
 node scripts/issue-token.mjs --source mybrain.magpie --kinds magpie.unresponsive,magpie.source_disabled,magpie.spend --out /path/to/magpie-token --sql /path/to/magpie-token.sql
 ```
+
+For the certificate expiry watcher, issue its alert token:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.cert-expiry --kinds cert-expiry --out /path/to/cert-expiry-token --sql /path/to/cert-expiry-token.sql
+```
+
+For the Cloudflare D1 backup job, issue its alert token:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.cf-d1-backup --kinds cf-d1-backup --out /path/to/cf-d1-backup-token --sql /path/to/cf-d1-backup-token.sql
+```
+
+For the Feishu report job, issue its failure alert token:
+
+```bash
+node scripts/issue-token.mjs --source mybrain.feishu-report --kinds report.failed --out /path/to/feishu-report-token --sql /path/to/feishu-report-token.sql
+```
+
+新增 kind 需重新签发对应 source 令牌。

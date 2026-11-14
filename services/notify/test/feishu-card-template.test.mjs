@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
-import { buildFeishuCard } from '@kedoupi/shared/email/notification';
+import { buildFeishuCard, feishuCardCategory, feishuKindLabel } from '@kedoupi/shared/email/notification';
 import { mergeChannelEvent } from '../src/index.ts';
 
 const base = {
@@ -66,6 +66,14 @@ test('all five templates expose the JSON 2.0 header, conclusion, facts and categ
       assert.equal(button(card).text.tag, 'plain_text');
       assert.equal(button(card).text.content, label);
     }
+  }
+});
+
+test('new MyBrain alert kinds use alert cards and their Chinese labels', () => {
+  const cases = [['cert-expiry', '证书到期'], ['cf-d1-backup', '备份提醒'], ['report.failed', '提醒']];
+  for (const [kind, label] of cases) {
+    assert.equal(feishuCardCategory(kind), 'alert');
+    assert.equal(feishuKindLabel(kind), label);
   }
 });
 

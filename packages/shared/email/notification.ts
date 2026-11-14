@@ -112,6 +112,7 @@ const KIND_CATEGORY: Record<string, FeishuCardCategory> = {
   "agent.stuck": "alert", "job.unhealthy": "alert", "magpie.unresponsive": "alert",
   "magpie.source_disabled": "alert", "magpie.spend": "alert", "ledger.status": "status",
   "approval.pending": "approval", "ledger.delivered": "delivery",
+  "cert-expiry": "alert", "cf-d1-backup": "alert", "report.failed": "alert",
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -119,7 +120,7 @@ const KIND_LABELS: Record<string, string> = {
   "magpie.source_disabled": "提醒", "magpie.spend": "提醒", "ledger.status": "状态变化",
   "approval.pending": "待批准", "ledger.delivered": "已交付", "ledger.digest": "账务摘要",
   "daily-review": "日常复盘", "job.health": "健康检查", "notify.selftest": "自检",
-  "notify.merged": "合并提醒",
+  "notify.merged": "合并提醒", "cert-expiry": "证书到期", "cf-d1-backup": "备份提醒", "report.failed": "提醒",
 };
 
 export const feishuCardCategory = (kind: string): FeishuCardCategory => KIND_CATEGORY[kind] ?? "notice";
