@@ -576,7 +576,7 @@ test('job.health remains a standalone card beside a warning batch and preserves 
   assert.equal(cards.length, 2);
   const healthCard = cards.find(card => card.header.title.content === '🟩 编号 42');
   assert.ok(healthCard);
-  assert.match(JSON.stringify(healthCard), /fact-0/);
+  for (let index = 0; index < 12; index += 1) assert.match(JSON.stringify(healthCard), new RegExp(`fact-${index}.*value-${index}`));
   assert.ok(healthCard.body.elements.length <= 200);
   assert.ok(cards.some(card => card.header.title.content === '2 条提醒'));
 });
@@ -661,7 +661,7 @@ test('ledger.digest sends noon evening and close as separate cards and repeats t
   for (const [, subject, title] of digests) {
     const card = firstCards.find(candidate => candidate.header.title.content === title);
     assert.ok(card);
-    assert.match(JSON.stringify(card), new RegExp(`${subject}-fact-0`));
+    for (let index = 0; index < 12; index += 1) assert.match(JSON.stringify(card), new RegExp(`${subject}-fact-${index}.*${subject}-value-${index}`));
   }
   assert.ok(firstCards.some(card => card.header.title.content === 'warning beside ledger'));
 

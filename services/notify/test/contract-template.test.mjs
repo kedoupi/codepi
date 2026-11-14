@@ -18,7 +18,7 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
   assert.throws(() => validateNotifyEvent({ ...valid, occurred_at: 'tomorrow' }), /ISO/);
   assert.throws(() => validateNotifyEvent({ ...valid, link: 'https://example.com/path' }), /https/);
   assert.equal(validateNotifyEvent({ ...valid, link: 'https://tenant.feishu.cn/docx/demo' }).link, 'https://tenant.feishu.cn/docx/demo');
-  for (const link of ['https://feishu.cn/docx/demo', 'http://tenant.feishu.cn/docx/demo', 'https://tenant.feishu.cn:443/docx/demo', `https://user:${['pass', 'word'].join('-')}@tenant.feishu.cn/docx/demo`, 'https://feishu.cn.evil.com/docx/demo']) assert.throws(() => validateNotifyEvent({ ...valid, link }), /https/);
+  for (const link of ['https://feishu.cn/docx/demo', 'https://evilfeishu.cn/docx/demo', 'http://tenant.feishu.cn/docx/demo', 'https://tenant.feishu.cn:443/docx/demo', `https://user:${['pass', 'word'].join('-')}@tenant.feishu.cn/docx/demo`, 'https://feishu.cn.evil.com/docx/demo']) assert.throws(() => validateNotifyEvent({ ...valid, link }), /https/);
   assert.throws(() => validateNotifyEvent({ ...valid, summary: 'x'.repeat(501) }), /summary is too long/);
   assert.throws(() => validateNotifyEvent({ ...valid, facts: [{ label: 'x', value: 1 }] }), /fact values must be strings/);
   assert.throws(() => validateNotifyEvent({ ...valid, facts: Array.from({ length: 13 }, (_, index) => ({ label: String(index), value: 'v' })) }), /at most 12/);

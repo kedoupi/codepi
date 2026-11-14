@@ -218,7 +218,7 @@ async function markFeishuSkipped(env: Env, rows: DeliveryData[]) {
     await env.DB.prepare("UPDATE channel_attempts SET status = 'skipped', error_code = 'E_FEISHU_NOT_CONFIGURED', next_attempt_at = NULL WHERE delivery_id = ?1 AND channel = 'feishu' AND status = 'pending'").bind(row.id).run();
   }
 }
-function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
+export function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
   if (rows.length === 1) return deliveryEventFromRow(rows[0]);
   const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
   const firing = rows.filter(row => row.state !== "resolved");

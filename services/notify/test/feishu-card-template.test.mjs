@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import { buildFeishuCard } from '@kedoupi/shared/email/notification';
+import { mergeChannelEvent } from '../src/index.ts';
 
 const base = {
   schema: 'notify.event/v1', event_id: 'template-test', source: 'synthetic.source', subject: 'subject',
@@ -21,6 +22,7 @@ function assertCardShape(card) {
   assert.equal(body(card)[0].tag, 'markdown');
   assert.match(body(card)[0].content, /^\*\*/);
   assert.ok(new TextEncoder().encode(JSON.stringify(card)).byteLength <= 30 * 1024);
+  for (const set of columns(card)) assert.equal(set.columns.length, 2);
   let previousMarkdown = false;
   const walk = value => {
     if (Array.isArray(value)) return value.forEach(walk);
@@ -46,7 +48,8 @@ test('all five templates expose the JSON 2.0 header, conclusion, facts and categ
     ['agent.stuck', 'green', '提醒', '已恢复', '查看详情', 'warning', { state: 'resolved' }],
     ['ledger.status', 'blue', '状态变化', '状态变化', '查看需求页', 'info'],
     ['approval.pending', 'yellow', '待批准', '待批准', '去处理', 'warning'],
-    ['ledger.delivered', 'green', '已交付', '已交付', '查看交付', 'info'],
+    ['notify.merged', 'red', '通知', '通知', '查看详情', 'critical'],
+    ['notify.merged', 'orange', '通知', '通知', '查看详情', 'warning'],
     ['job.health', 'blue', '通知', '通知', '查看详情', 'info', { link: undefined }],
   ];
   for (const [kind, color, subtitle, tag, label, severity, extra = {}] of cases) {
@@ -88,10 +91,35 @@ test('large and odd fact collections remain valid and add an empty final column'
   const facts = Array.from({ length: 11 }, (_, index) => ({ label: `fact-${index}`, value: 'value' }));
   const card = buildFeishuCard(makeEvent('agent.stuck', { facts }));
   assertCardShape(card);
-  const last = columns(card)[0].columns.at(-1);
-  assert.deepEqual(last.elements, []);
-  const huge = buildFeishuCard(makeEvent('agent.stuck', { facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(4000) })) }));
+  assert.equal(columns(card).length, 6);
+  assert.deepEqual(columns(card).at(-1).columns.at(-1).elements, []);
+  const twelve = buildFeishuCard(makeEvent('agent.stuck', { facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'value' })) }));
+  assert.equal(columns(twelve).length, 6);
+  const huge = buildFeishuCard(makeEvent('agent.stuck', { facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: `${'x'.repeat(4000)}-${'y'.repeat(4000)}` })) }));
   assertCardShape(huge);
+});
+
+test('cards omit private metadata and show Beijing time and explicit quota reason only', () => {
+  const card = buildFeishuCard(makeEvent('job.health', { link: undefined, occurred_at: '2026-11-13T17:30:00Z', incidentId: 'incident-42' }));
+  const serialized = JSON.stringify(card);
+  assert.equal(serialized.includes('incidentId'), false);
+  assert.equal(serialized.includes('为什么收到'), false);
+  assert.equal(serialized.includes('/Users/'), false);
+  assert.equal(serialized.includes('~/'), false);
+  assert.equal(serialized.includes('bin/'), false);
+  assert.equal(serialized.includes('这是统一通知服务根据事件规则生成的提醒。'), false);
+  assert.match(serialized, /北京时间 11-14 周六 01:30/);
+  const withReason = buildFeishuCard({ event: makeEvent('job.health', { link: undefined }), reason: '有 2 条提醒因限额未单独发送。' });
+  assert.match(JSON.stringify(withReason), /有 2 条提醒因限额未单独发送/);
+});
+
+test('merged events use Chinese kind labels and preserve unknown kinds', () => {
+  const event = makeEvent('agent.stuck');
+  const row = (kind, title, severity = 'critical') => ({ event_id: kind, source: 'synthetic.source', kind, subject: kind, state: 'firing', severity, occurred_at: event.occurred_at, title, notification_type: 'initial' });
+  const merged = mergeChannelEvent(event, [row('agent.stuck', '需要处理'), row('unknown.kind', '未知提醒')]);
+  assert.equal(merged.kind, 'notify.merged');
+  assert.deepEqual(merged.facts, [{ label: '提醒', value: '需要处理' }, { label: 'unknown.kind', value: '未知提醒' }]);
+  assert.equal(buildFeishuCard(merged).header.template, 'red');
 });
 
 test('preview emits six cards that pass the same structural contract', () => {

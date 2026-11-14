@@ -48,9 +48,10 @@ export function notificationParts(input: NotificationEmailInput): NotificationPa
     ...(event.link ? { link: event.link } : {}),
     source: event.source,
     ...(options.incidentId ? { incidentId: options.incidentId } : {}),
-    reason: options.reason ?? "这是统一通知服务根据事件规则生成的提醒。",
+    reason: options.reason ?? DEFAULT_NOTIFICATION_REASON,
   };
 }
+export const DEFAULT_NOTIFICATION_REASON = "这是统一通知服务根据事件规则生成的提醒。";
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
@@ -124,11 +125,21 @@ const KIND_LABELS: Record<string, string> = {
 export const feishuCardCategory = (kind: string): FeishuCardCategory => KIND_CATEGORY[kind] ?? "notice";
 export const feishuKindLabel = (kind: string): string => KIND_LABELS[kind] ?? kind;
 
-const escapeMarkdown = (value: string) => value.replace(/[\\*_`[\]<>\n]/g, char => ({ "\\": "\\\\", "*": "\\*", "_": "\\_", "`": "\\`", "[": "\\[", "]": "\\]", "<": "\\<", ">": "\\>", "\n": " " }[char] ?? char));
-const limitMarkdownValue = (value: string) => value.length > 300 ? `${value.slice(0, 299)}…` : value;
+const escapeMarkdown = (value: string) => {
+  const replacements: Record<string, string> = { "\\": "\\\\", "*": "\\*", "_": "\\_", "`": "\\`", "[": "\\[", "]": "\\]", "<": "\\<", ">": "\\>", "\n": " " };
+  return value.replace(/[\\*_`[\]<>\n]/g, char => replacements[char] ?? char);
+};
+const limitMarkdownValue = (value: string) => {
+  const escaped = escapeMarkdown(value);
+  return escaped.length > 300 ? `${escaped.slice(0, 299)}…` : escaped;
+};
 const categoryColor = (category: FeishuCardCategory, parts: NotificationParts) => {
   if (parts.event.state === "resolved") return "green";
-  if (category === "alert") return parts.event.severity === "critical" ? "red" : parts.event.severity === "warning" ? "orange" : "green";
+  if (category === "alert" || category === "notice") {
+    if (parts.event.severity === "critical") return "red";
+    if (parts.event.severity === "warning") return "orange";
+    return "blue";
+  }
   return category === "approval" ? "yellow" : category === "delivery" ? "green" : "blue";
 };
 const categoryTag = (category: FeishuCardCategory, parts: NotificationParts) => {
@@ -144,43 +155,60 @@ const beijingTime = (value: string) => {
 
 type CardElement = Record<string, unknown>;
 const markdown = (content: string): CardElement => ({ tag: "markdown", content });
-const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement => ({
-  tag: "column_set",
-  flex_mode: "none",
-  horizontal_spacing: "8px",
-  columns: Array.from({ length: Math.ceil(facts.length / 2) * 2 }, (_, index) => ({
-    tag: "column",
-    width: "weighted",
-    weight: 1,
-    vertical_align: "center",
-    elements: index < facts.length ? [markdown(`**${escapeMarkdown(facts[index].label)}**\n${escapeMarkdown(limitMarkdownValue(facts[index].value))}`)] : [],
-  })),
-});
-const factRows = (facts: NonNullable<NotificationParts["facts"]>) => facts.length ? [columns(facts)] : [];
+const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement[] => {
+  const sets: CardElement[] = [];
+  for (let index = 0; index < facts.length; index += 2) {
+    const pair = facts.slice(index, index + 2);
+    sets.push({
+      tag: "column_set",
+      flex_mode: "none",
+      horizontal_spacing: "8px",
+      columns: [0, 1].map(columnIndex => ({
+        tag: "column",
+        width: "weighted",
+        weight: 1,
+        vertical_align: "center",
+        elements: pair[columnIndex] ? [markdown(`**${escapeMarkdown(pair[columnIndex].label)}**\n${limitMarkdownValue(pair[columnIndex].value)}`)] : [],
+      })),
+    });
+  }
+  return sets;
+};
+const factRows = (facts: NonNullable<NotificationParts["facts"]>) => columns(facts);
 
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
   const category = feishuCardCategory(parts.event.kind);
+  const color = categoryColor(category, parts);
   const tag = categoryTag(category, parts);
   const renderedConclusion = limitMarkdownValue(conclusion);
-  const elements: CardElement[] = [markdown(`**${escapeMarkdown(renderedConclusion)}**`)];
+  const elements: CardElement[] = [markdown(`**${renderedConclusion}**`)];
   if (category === "status") {
     const old = facts.find(fact => fact.label === "旧状态");
     const next = facts.find(fact => fact.label === "新状态");
-    if (old && next) elements.push(columns([old, next]), ...factRows(facts.filter(fact => fact !== old && fact !== next)));
+    if (old && next) elements.push(...columns([old, next]), ...factRows(facts.filter(fact => fact !== old && fact !== next)));
     else elements.push(...factRows(facts));
   } else if (category === "delivery") {
     const accepted = facts.find(fact => fact.label === "验收");
-    if (accepted) elements.push(columns([accepted]), ...factRows(facts.filter(fact => fact !== accepted)));
+    if (accepted) elements.push(...columns([accepted]), ...factRows(facts.filter(fact => fact !== accepted)));
     else elements.push(...factRows(facts));
   } else elements.push(...factRows(facts));
   elements.push({ tag: "hr" });
-  const footer = `北京时间 ${beijingTime(parts.event.occurred_at)} · 来源：${escapeMarkdown(parts.source)}${parts.reason && parts.reason !== "这是统一通知服务根据事件规则生成的提醒。" ? ` · ${escapeMarkdown(parts.reason)}` : ""}`;
+  const footer = `北京时间 ${beijingTime(parts.event.occurred_at)} · 来源：${escapeMarkdown(parts.source)}${parts.reason && parts.reason !== DEFAULT_NOTIFICATION_REASON ? ` · ${escapeMarkdown(parts.reason)}` : ""}`;
   elements.push({ ...markdown(`<font color='grey'>${footer}</font>`), text_size: "notation" });
   if (parts.link) {
     const buttonLabel = category === "status" ? "查看需求页" : category === "approval" ? "去处理" : category === "delivery" ? "查看交付" : "查看详情";
     elements.push({ tag: "button", text: { tag: "plain_text", content: buttonLabel }, type: "primary", behaviors: [{ type: "open_url", default_url: parts.link }] });
   }
-  return { schema: "2.0", header: { title: { tag: "plain_text", content: parts.event.title }, subtitle: { tag: "plain_text", content: CATEGORY_NAMES[category] }, template: categoryColor(category, parts), text_tag_list: [{ tag: "text_tag", text: { tag: "plain_text", content: tag }, color: categoryColor(category, parts) }] }, body: { elements } };
+  return {
+    schema: "2.0",
+    header: {
+      title: { tag: "plain_text", content: parts.event.title },
+      subtitle: { tag: "plain_text", content: CATEGORY_NAMES[category] },
+      template: color,
+      text_tag_list: [{ tag: "text_tag", text: { tag: "plain_text", content: tag }, color }],
+    },
+    body: { elements },
+  };
 }
 
 export function buildFeishuCard(input: NotificationParts | NotificationEmailInput) {

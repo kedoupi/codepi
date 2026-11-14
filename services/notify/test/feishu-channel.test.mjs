@@ -39,10 +39,10 @@ test('missing Feishu configuration fails before fetch', async () => {
 });
 
 test('Feishu card is JSON 2.0, bounded and uses grouped markdown', () => {
-  const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `fact-${index}`, value: 'x'.repeat(4000) })) }));
+  const card = buildFeishuCard(notificationParts({ ...event, facts: Array.from({ length: 12 }, (_, index) => ({ label: `${'L'.repeat(4000)}-${index}`, value: 'x'.repeat(4000) })) }));
   const json = JSON.stringify(card);
   const markdown = card.body.elements.filter(element => element.tag === 'markdown');
-  const facts = card.body.elements.find(element => element.tag === 'column_set');
+  const columnSets = card.body.elements.filter(element => element.tag === 'column_set');
   const button = card.body.elements.find(element => element.tag === 'button');
   const unsupported = [];
   const walk = value => { if (Array.isArray(value)) return value.forEach(walk); if (!value || typeof value !== 'object') return; if (['note', 'action', 'div'].includes(value.tag)) unsupported.push(value.tag); Object.values(value).forEach(walk); };
@@ -54,7 +54,8 @@ test('Feishu card is JSON 2.0, bounded and uses grouped markdown', () => {
   assert.equal(card.body.elements[0].tag, 'markdown');
   assert.ok(new TextEncoder().encode(json).byteLength <= 30 * 1024);
   assert.ok(markdown.length <= 2);
-  assert.ok(facts);
+  assert.ok(columnSets.length > 0);
+  assert.ok(columnSets.length < 6);
   assert.deepEqual(unsupported, []);
   assert.equal(button.text.tag, 'plain_text');
   assert.equal(button.text.content, '查看详情');

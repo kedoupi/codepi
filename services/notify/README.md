@@ -7,7 +7,7 @@ validated events, incident state, channel attempts and one outbox delivery row p
 Issue an HTTP producer token locally:
 
 ```bash
-node scripts/issue-token.mjs --source surgeconf.watchdog --kinds agent.stuck,approval.pending,plans.orphan_digest,notify.selftest,daily-review --out /path/to/token --sql /path/to/token.sql
+node scripts/issue-token.mjs --source surgeconf.watchdog --kinds agent.stuck,approval.pending,plans.orphan_digest,notify.selftest --out /path/to/token --sql /path/to/token.sql
 ```
 
 The token file is created with mode `0600`; SQL stores only the token id, SHA-256 hash, source and allowed kinds. `rpc` is reserved for the named RPC entrypoint and cannot be issued here. To revoke, set `revoked_at` for the token id in `producer_tokens`; the old token must then return HTTP 401 before replacement use.
@@ -30,23 +30,33 @@ Feishu uses the runtime secrets `FEISHU_APP_ID`, `FEISHU_APP_SECRET` and `FEISHU
 
 `buildFeishuCard` 使用卡片 JSON 2.0，并按 kind 选择模板：
 
-| 类别 | kind | 样式 |
-| --- | --- | --- |
-| alert | `agent.stuck`、`job.unhealthy`、`magpie.unresponsive`、`magpie.source_disabled`、`magpie.spend` | 按严重度显示红、橙或恢复绿标签，首行给出处理结论 |
-| status | `ledger.status` | 蓝色状态变化卡，优先显示旧状态 → 新状态 |
-| approval | `approval.pending` | 黄色待批准卡，链接按钮显示“去批准” |
-| delivery | `ledger.delivered` | 绿色已交付卡，优先显示验收结果 |
-| notice | `daily-review`、`job.health`、`ledger.digest`、`notify.selftest`、`notify.merged` 及未知 kind | 蓝色通知卡，统一结论、事实分栏和来源页脚 |
+| 类别 | kind | 旧问题 | 改版后样式 |
+| --- | --- | --- | --- |
+| alert | `agent.stuck` | 旧卡片把严重度前缀拼进标题，信息纵向堆叠 | 红/橙/蓝严重度标签，结论 markdown 与双栏 facts |
+| alert | `job.unhealthy` | 旧卡片缺少恢复语义 | 按严重度显示提醒，resolved 显示绿色已恢复 |
+| alert | `magpie.unresponsive` | 旧卡片信息纵向堆叠 | 严重度颜色、双栏 facts、来源页脚 |
+| alert | `magpie.source_disabled` | 旧卡片信息纵向堆叠 | 严重度颜色、双栏 facts、来源页脚 |
+| alert | `magpie.spend` | 旧卡片信息纵向堆叠 | 严重度颜色、双栏 facts、来源页脚 |
+| status | `ledger.status` | 旧卡片没有状态专用布局 | 蓝色状态变化卡，优先显示旧状态和新状态 |
+| approval | `approval.pending` | 旧卡片按钮语义不明确 | 黄色待批准卡，按钮为“去处理” |
+| delivery | `ledger.delivered` | 旧卡片没有验收专用布局 | 绿色已交付卡，优先显示验收 fact |
+| notice | `daily-review` | 旧卡片与提醒混用 | 蓝色通知卡，结论和 facts 双栏分组 |
+| notice | `job.health` | 旧卡片把日常检查当普通提醒 | 蓝色健康检查通知卡 |
+| notice | `ledger.digest` | 旧卡片纵向堆叠 facts | 蓝色账务摘要通知卡 |
+| notice | `notify.selftest` | 旧卡片使用自检前缀 | 蓝色自检通知卡 |
+| notice | `notify.merged` | 旧卡片事实标签是原始 kind | 按最高严重度着色，标签仍为“通知”，kind 标签中文化 |
+| notice | 未知 kind | 没有稳定兜底版式 | 蓝色通知卡，未知 kind 原样保留为 fact 标签 |
 
-每张卡都使用 header、markdown、column_set/column、hr、button 和 text_tag_list；标题使用事件标题，facts 每行两栏，页脚显示北京时间、来源及仅在实际省略提醒时出现的限额提示。飞书页链接只接受无端口、无账号密码的 `https://*.feishu.cn` 子域，或原有 `https://*.codepi.app` 子域。新增 kind 后需为 `mybrain.ledger` 重发令牌。
+每张卡都使用 header、markdown、column_set/column、hr、button 和 text_tag_list；每个 `column_set` 恰好两栏，facts 每两个一组，页脚显示北京时间、来源及仅在实际省略提醒时出现的限额提示。飞书页链接只接受无端口、无账号密码的 `https://*.feishu.cn` 子域，或原有 `https://*.codepi.app` 子域。新增 kind 后需为 `mybrain.ledger` 重发令牌。
 
-离线预览：
+离线预览（从仓库根目录运行）：
 
 ```bash
-node services/notify/scripts/preview-feishu-cards.mjs
+node --experimental-strip-types --experimental-loader ./services/notify/test/cloudflare-loader.mjs services/notify/scripts/preview-feishu-cards.mjs
 ```
 
-组件参考：[卡片 JSON 2.0](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-overview)、[卡片 header](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/card-header)、[column_set](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/column-set)、[markdown](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/content-components/markdown)、[button](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/action-components/button)、[hr](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/content-components/divider)。Markdown 中的控制字符会被转义，待样卡目视确认具体渲染效果。
+组件参考（正文未在本环境逐页核验，待样卡目视确认）：[卡片 JSON 2.0](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-overview)、[卡片 header](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/card-header)、[column_set](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/column-set)、[markdown](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/content-components/markdown)、[button](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/action-components/button)、[hr](https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/card-json-v2-components/content-components/divider)。Markdown 中的控制字符会被转义。
+
 
 ## 发布与回滚
 
