@@ -17,13 +17,17 @@ test('the shared contract rejects forbidden fields and malformed boundaries', ()
   assert.throws(() => validateNotifyEvent({ ...valid, title: 'x'.repeat(81) }), /too long/);
   assert.throws(() => validateNotifyEvent({ ...valid, occurred_at: 'tomorrow' }), /ISO/);
   assert.throws(() => validateNotifyEvent({ ...valid, link: 'https://example.com/path' }), /https/);
+  assert.equal(validateNotifyEvent({ ...valid, link: 'https://tenant.feishu.cn/docx/demo' }).link, 'https://tenant.feishu.cn/docx/demo');
+  for (const link of ['https://feishu.cn/docx/demo', 'https://evilfeishu.cn/docx/demo', 'http://tenant.feishu.cn/docx/demo', 'https://tenant.feishu.cn:443/docx/demo', `https://user:${['pass', 'word'].join('-')}@tenant.feishu.cn/docx/demo`, 'https://feishu.cn.evil.com/docx/demo']) assert.throws(() => validateNotifyEvent({ ...valid, link }), /https/);
   assert.throws(() => validateNotifyEvent({ ...valid, summary: 'x'.repeat(501) }), /summary is too long/);
   assert.throws(() => validateNotifyEvent({ ...valid, facts: [{ label: 'x', value: 1 }] }), /fact values must be strings/);
   assert.throws(() => validateNotifyEvent({ ...valid, facts: Array.from({ length: 13 }, (_, index) => ({ label: String(index), value: 'v' })) }), /at most 12/);
 });
 
-test('the rule table registers the eleven documented kinds with documented modes', () => {
-  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest', 'magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend']);
+test('the rule table registers the documented kinds with documented modes', () => {
+  assert.deepEqual(RULES.map(rule => rule.kind), ['agent.stuck', 'approval.pending', 'plans.orphan_digest', 'notify.selftest', 'daily-review', 'job.health', 'job.unhealthy', 'ledger.digest', 'magpie.unresponsive', 'magpie.source_disabled', 'magpie.spend', 'ledger.status', 'ledger.delivered']);
+  assert.equal(RULES.find(candidate => candidate.kind === 'ledger.status')?.batch, 'alone');
+  assert.equal(RULES.find(candidate => candidate.kind === 'ledger.delivered')?.batch, 'alone');
   assert.equal(RULES.find(rule => rule.kind === 'plans.orphan_digest')?.mode, 'record');
   assert.equal(RULES.find(rule => rule.kind === 'notify.selftest')?.mode, 'immediate');
   assert.equal(RULES.find(rule => rule.kind === 'daily-review')?.infoMode, 'record');

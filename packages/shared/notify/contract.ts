@@ -71,8 +71,10 @@ export function validateNotifyEvent(input: unknown): NotifyEvent {
     if (typeof value.link !== "string") throw new NotifyValidationError("link must be a URL");
     let url: URL;
     try { url = new URL(value.link); } catch { throw new NotifyValidationError("link must be a URL"); }
-    if (url.protocol !== "https:" || !url.hostname.endsWith(".codepi.app") || url.hostname === "codepi.app" || url.username || url.password) {
-      throw new NotifyValidationError("link must be an https codepi.app page");
+    const isCodepi = url.hostname.endsWith(".codepi.app") && url.hostname !== "codepi.app";
+    const isFeishu = url.hostname.endsWith(".feishu.cn") && url.hostname !== "feishu.cn";
+    if (url.protocol !== "https:" || /:\/\/[^/]+:\d+(?:\/|$)/.test(value.link) || url.port || (!isCodepi && !isFeishu) || url.username || url.password) {
+      throw new NotifyValidationError("link must be an https codepi.app or feishu.cn page");
     }
   }
   return {

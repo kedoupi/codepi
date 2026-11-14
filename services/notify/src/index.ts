@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { buildFeishuCard } from "@kedoupi/shared/email/notification";
+import { buildFeishuCard, feishuKindLabel } from "@kedoupi/shared/email/notification";
 import { validateNotifyEvent, NotifyValidationError, type NotifyEvent } from "@kedoupi/shared/notify/contract";
 import { findRule, RPC_SOURCE } from "./rules.ts";
 import { decideNotification, retryAt, type Decision } from "./decision.ts";
@@ -218,7 +218,7 @@ async function markFeishuSkipped(env: Env, rows: DeliveryData[]) {
     await env.DB.prepare("UPDATE channel_attempts SET status = 'skipped', error_code = 'E_FEISHU_NOT_CONFIGURED', next_attempt_at = NULL WHERE delivery_id = ?1 AND channel = 'feishu' AND status = 'pending'").bind(row.id).run();
   }
 }
-function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
+export function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
   if (rows.length === 1) return deliveryEventFromRow(rows[0]);
   const rank: Record<string, number> = { info: 0, warning: 1, critical: 2 };
   const firing = rows.filter(row => row.state !== "resolved");
@@ -226,9 +226,10 @@ function mergeChannelEvent(event: NotifyEvent, rows: DeliveryData[]) {
   const lead = leaders.reduce((best, row) => rank[row.severity] > rank[best.severity] ? row : best, leaders[0]);
   return {
     ...deliveryEventFromRow(lead),
+    kind: "notify.merged",
     title: `${rows.length} 条提醒${rows.some(row => row.notification_type === "repeat") ? "，仍未恢复" : ""}`,
     summary: rows.map(row => row.title).join("；").slice(0, 500),
-    facts: rows.slice(0, 12).map(row => ({ label: row.kind, value: row.title })),
+    facts: rows.slice(0, 12).map(row => ({ label: feishuKindLabel(row.kind), value: row.title })),
   };
 }
 async function sendChannel(env: Env, channel: Channel, rows: DeliveryData[], event: NotifyEvent, incidentId: string) {
@@ -245,7 +246,7 @@ async function sendChannel(env: Env, channel: Channel, rows: DeliveryData[], eve
   const merged = mergeChannelEvent(event, ready);
   const omittedRow = await env.DB.prepare("SELECT omitted_count FROM quota WHERE bucket = ?1").bind(beijingBuckets().day).first<{ omitted_count: number }>();
   const omitted = Number(omittedRow?.omitted_count ?? 0);
-  const reason = omitted > 0 ? `有 ${omitted} 条提醒因限额未单独发送。` : "这是统一通知服务根据事件规则生成的提醒。";
+  const reason = omitted > 0 ? `有 ${omitted} 条提醒因限额未单独发送。` : undefined;
   let messageId: string | undefined;
   try {
     if (channel === "feishu") messageId = await sendFeishu(env, buildFeishuCard({ event: merged, incidentId, reason }), `notify-${Math.min(...ids)}`);

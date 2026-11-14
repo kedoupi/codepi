@@ -444,8 +444,9 @@ test('Feishu-only warning carries and clears omitted notice once', async t => {
   await worker.scheduled({}, env);
   const message = fetchImpl.calls.find(call => call.url.includes('/im/v1/messages'));
   const card = JSON.parse(JSON.parse(message.init.body).content);
-  const note = card.body.elements.find(element => element.tag === 'div' && element.text?.text_size === 'notation');
-  assert.match(note.text.content, /有 2 条提醒因限额未单独发送/);
+  const note = card.body.elements.find(element => element.tag === 'markdown' && element.content.includes('有 2 条提醒因限额未单独发送'));
+  assert.ok(note);
+  assert.match(note.content, /有 2 条提醒因限额未单独发送/);
   assert.equal(db.row("SELECT omitted_count FROM quota WHERE bucket = 'day:2026-11-11'").omitted_count, 0);
 });
 
@@ -573,11 +574,11 @@ test('job.health remains a standalone card beside a warning batch and preserves 
   await worker.scheduled({}, env);
   const cards = sentCards(fetchImpl);
   assert.equal(cards.length, 2);
-  const healthCard = cards.find(card => card.header.title.content === '[通知] 🟩 编号 42');
+  const healthCard = cards.find(card => card.header.title.content === '🟩 编号 42');
   assert.ok(healthCard);
-  assert.equal(healthCard.body.elements.filter(element => element.text?.content?.startsWith('- fact-')).length, 12);
+  for (let index = 0; index < 12; index += 1) assert.match(JSON.stringify(healthCard), new RegExp(`fact-${index}.*value-${index}`));
   assert.ok(healthCard.body.elements.length <= 200);
-  assert.ok(cards.some(card => card.header.title.content === '[注意] 2 条提醒'));
+  assert.ok(cards.some(card => card.header.title.content === '2 条提醒'));
 });
 
 test('a pending standalone Feishu failure does not skip the same-run warning group', async t => {
@@ -658,13 +659,11 @@ test('ledger.digest sends noon evening and close as separate cards and repeats t
   const firstCards = sentCards(fetchImpl);
   assert.equal(firstCards.length, 4);
   for (const [, subject, title] of digests) {
-    const card = firstCards.find(candidate => candidate.header.title.content === `[通知] ${title}`);
+    const card = firstCards.find(candidate => candidate.header.title.content === title);
     assert.ok(card);
-    const facts = card.body.elements.filter(element => element.text?.content?.startsWith(`- ${subject}-fact-`));
-    assert.equal(facts.length, 12);
-    for (let index = 0; index < 12; index += 1) assert.ok(facts.some(element => element.text.content === `- ${subject}-fact-${index}：${subject}-value-${index}`));
+    for (let index = 0; index < 12; index += 1) assert.match(JSON.stringify(card), new RegExp(`${subject}-fact-${index}.*${subject}-value-${index}`));
   }
-  assert.ok(firstCards.some(card => card.header.title.content === '[注意] warning beside ledger'));
+  assert.ok(firstCards.some(card => card.header.title.content === 'warning beside ledger'));
 
   time.set(MORNING + 24 * 60 * MINUTE);
   const next = await worker.fetch(request(token, ledgerEvent('ledger-noon-next', 'noon', '🟩 编号 104', MORNING + 24 * 60 * MINUTE)), env);
@@ -672,7 +671,7 @@ test('ledger.digest sends noon evening and close as separate cards and repeats t
   await worker.scheduled({}, env);
   const cards = sentCards(fetchImpl);
   assert.equal(cards.length, 5);
-  assert.ok(cards.some(card => card.header.title.content === '[通知] 🟩 编号 104'));
+  assert.ok(cards.some(card => card.header.title.content === '🟩 编号 104'));
   assert.equal(db.count("SELECT COUNT(*) AS count FROM events WHERE kind = 'ledger.digest'"), 4);
 });
 
@@ -691,5 +690,5 @@ test('ledger.digest creates a new standalone delivery when yesterday is still pe
   await worker.scheduled({}, env);
   assert.ok(fetchImpl.calls.some(call => call.url.includes('/im/v1/messages')));
   assert.equal(latestDelivery(db, 'ledger-pending-new').status, 'sent');
-  assert.ok(sentCards(fetchImpl).some(card => card.header.title.content === '[通知] 🟩 编号 202'));
+  assert.ok(sentCards(fetchImpl).some(card => card.header.title.content === '🟩 编号 202'));
 });
