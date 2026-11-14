@@ -115,7 +115,7 @@ export const MODULES: ToolModule[] = [{
 
 MODULES.push({
   id: "project", title: "项目 Project", sensitive: false, readScope: "projects.read",
-  consent: { "projects.read": "读取各项目的待办、今天安排、需要你拍板的事、进行中分支、变更与交接", "projects.write": "追加任务交接记录、为今天提出挑选建议或记录助手今天已检查的事项" },
+  consent: { "projects.read": "读取各项目的待办、需要你拍板的事、进行中分支、变更与交接", "projects.write": "追加任务交接记录" },
   instructions: "今天/池子已迁到飞书清单「建国工作台」；开窗请读本地「要办」队列和收件箱，不再调用 today_*；before changing a project read project_get (rules entry, acceptance and merge commands). Tasks are pushed from each repository;网页不编辑待办内容。Handoffs attach to a task key or free task id; save one only when the user authorizes it.",
   summary: (env, subject) => env.PROJECT.summary(subject),
   tools: [
