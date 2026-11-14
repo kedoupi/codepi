@@ -30,6 +30,7 @@ export interface NotificationParts {
   reason: string;
 }
 
+export const DEFAULT_NOTIFICATION_REASON = "这是统一通知服务根据事件规则生成的提醒。";
 export function notificationParts(input: NotificationEmailInput): NotificationParts {
   const event = "event" in input ? input.event : input;
   const options: Omit<NotificationEmailOptions, "event"> = "event" in input ? input : {};
@@ -51,7 +52,6 @@ export function notificationParts(input: NotificationEmailInput): NotificationPa
     reason: options.reason ?? DEFAULT_NOTIFICATION_REASON,
   };
 }
-export const DEFAULT_NOTIFICATION_REASON = "这是统一通知服务根据事件规则生成的提醒。";
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
@@ -131,7 +131,10 @@ const escapeMarkdown = (value: string) => {
 };
 const limitMarkdownValue = (value: string) => {
   const escaped = escapeMarkdown(value);
-  return escaped.length > 300 ? `${escaped.slice(0, 299)}…` : escaped;
+  if (escaped.length <= 300) return escaped;
+  let clipped = escaped.slice(0, 299);
+  while (clipped.endsWith("\\")) clipped = clipped.slice(0, -1);
+  return `${clipped}…`;
 };
 const categoryColor = (category: FeishuCardCategory, parts: NotificationParts) => {
   if (parts.event.state === "resolved") return "green";
@@ -174,7 +177,6 @@ const columns = (facts: NonNullable<NotificationParts["facts"]>): CardElement[] 
   }
   return sets;
 };
-const factRows = (facts: NonNullable<NotificationParts["facts"]>) => columns(facts);
 
 function feishuCardValue(parts: NotificationParts, facts: NonNullable<NotificationParts["facts"]>, conclusion: string) {
   const category = feishuCardCategory(parts.event.kind);
@@ -185,13 +187,13 @@ function feishuCardValue(parts: NotificationParts, facts: NonNullable<Notificati
   if (category === "status") {
     const old = facts.find(fact => fact.label === "旧状态");
     const next = facts.find(fact => fact.label === "新状态");
-    if (old && next) elements.push(...columns([old, next]), ...factRows(facts.filter(fact => fact !== old && fact !== next)));
-    else elements.push(...factRows(facts));
+    if (old && next) elements.push(...columns([old, next]), ...columns(facts.filter(fact => fact !== old && fact !== next)));
+    else elements.push(...columns(facts));
   } else if (category === "delivery") {
     const accepted = facts.find(fact => fact.label === "验收");
-    if (accepted) elements.push(...columns([accepted]), ...factRows(facts.filter(fact => fact !== accepted)));
-    else elements.push(...factRows(facts));
-  } else elements.push(...factRows(facts));
+    if (accepted) elements.push(...columns([accepted]), ...columns(facts.filter(fact => fact !== accepted)));
+    else elements.push(...columns(facts));
+  } else elements.push(...columns(facts));
   elements.push({ tag: "hr" });
   const footer = `北京时间 ${beijingTime(parts.event.occurred_at)} · 来源：${escapeMarkdown(parts.source)}${parts.reason && parts.reason !== DEFAULT_NOTIFICATION_REASON ? ` · ${escapeMarkdown(parts.reason)}` : ""}`;
   elements.push({ ...markdown(`<font color='grey'>${footer}</font>`), text_size: "notation" });

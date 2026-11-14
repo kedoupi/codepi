@@ -43,11 +43,12 @@ function assertCardShape(card) {
 
 test('all five templates expose the JSON 2.0 header, conclusion, facts and category button', () => {
   const cases = [
-    ['agent.stuck', 'red', '提醒', '严重', '查看详情', 'critical'],
+    ['agent.stuck', 'blue', '提醒', '通知', '查看详情', 'info'],
     ['agent.stuck', 'orange', '提醒', '注意', '查看详情', 'warning'],
     ['agent.stuck', 'green', '提醒', '已恢复', '查看详情', 'warning', { state: 'resolved' }],
     ['ledger.status', 'blue', '状态变化', '状态变化', '查看需求页', 'info'],
     ['approval.pending', 'yellow', '待批准', '待批准', '去处理', 'warning'],
+    ['ledger.delivered', 'green', '已交付', '已交付', '查看交付', 'info'],
     ['notify.merged', 'red', '通知', '通知', '查看详情', 'critical'],
     ['notify.merged', 'orange', '通知', '通知', '查看详情', 'warning'],
     ['job.health', 'blue', '通知', '通知', '查看详情', 'info', { link: undefined }],
@@ -87,6 +88,14 @@ test('markdown facts escape controls, preserve real newlines in column markdown 
   assert.ok(JSON.stringify(long).length < 30 * 1024);
 });
 
+test('long escaped values stay within the post-escape limit and end cleanly', () => {
+  const card = buildFeishuCard(makeEvent('agent.stuck', { facts: [{ label: '长值', value: '*_`'.repeat(200) }] }));
+  const value = columns(card)[0].columns[0].elements[0].content.split('\n')[1];
+  assert.ok(value.length <= 300);
+  assert.equal(value.endsWith('…'), true);
+  assert.equal(value.endsWith('\\\\…'), false);
+});
+
 test('large and odd fact collections remain valid and add an empty final column', () => {
   const facts = Array.from({ length: 11 }, (_, index) => ({ label: `fact-${index}`, value: 'value' }));
   const card = buildFeishuCard(makeEvent('agent.stuck', { facts }));
@@ -100,7 +109,7 @@ test('large and odd fact collections remain valid and add an empty final column'
 });
 
 test('cards omit private metadata and show Beijing time and explicit quota reason only', () => {
-  const card = buildFeishuCard(makeEvent('job.health', { link: undefined, occurred_at: '2026-11-13T17:30:00Z', incidentId: 'incident-42' }));
+  const card = buildFeishuCard({ event: makeEvent('job.health', { link: undefined, occurred_at: '2026-11-13T17:30:00Z' }), incidentId: 'incident-42' });
   const serialized = JSON.stringify(card);
   assert.equal(serialized.includes('incidentId'), false);
   assert.equal(serialized.includes('为什么收到'), false);
@@ -111,6 +120,7 @@ test('cards omit private metadata and show Beijing time and explicit quota reaso
   assert.match(serialized, /北京时间 11-14 周六 01:30/);
   const withReason = buildFeishuCard({ event: makeEvent('job.health', { link: undefined }), reason: '有 2 条提醒因限额未单独发送。' });
   assert.match(JSON.stringify(withReason), /有 2 条提醒因限额未单独发送/);
+  assert.equal(JSON.stringify(card).includes('incident-42'), false);
 });
 
 test('merged events use Chinese kind labels and preserve unknown kinds', () => {
