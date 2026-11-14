@@ -80,65 +80,25 @@ function mockScript() {
       task("t7", "已完成的示例", "doing", "流程", "none", null, "alpha", new Date().toISOString()),
     ];
     const open = tasks.filter(item => !item.done_at);
-    const who = item => ["attend", "decide", "confirm"].includes(item.need_kind) ? "you" : "agent";
-    const deleted = new Set();
-    const today = {
-      today: open.filter(item => ["t1", "t2"].includes(item.key)).map(item => ({ ...item, carried: false, who: who(item) })),
-      pool: open.filter(item => ["t3", "t5", "t6"].includes(item.key)).map(item => item.key === "t6"
-        ? { ...item, checks: { count: 2, last_at: new Date().toISOString(), last_note: "合成检查结论", today: true } }
-        : item),
-      done: tasks.filter(item => item.done_at),
-    };
-    const visible = name => today[name].filter(item => !deleted.has(item.key));
-    const checked = [...visible("today"), ...visible("pool")].filter(item => item.checks?.today).length;
-    const todayResponse = () => ({
-      today: visible("today"),
-      pool: visible("pool"),
-      done: visible("done"),
-      deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).map(item => ({
-        project: item.project, key: item.key, title: item.title, deleted_at: new Date().toISOString(),
-      })),
-      counts: { today: visible("today").length, pool: visible("pool").length, done: visible("done").length,
-        deleted: tasks.filter(item => deleted.has(item.key) && !item.done_at).length, checked },
-      date: day,
-    });
+    const todayCalls = [];
     const projects = [
       { id: "alpha", name: "Alpha", repo: "synthetic/alpha", status: "active", last_push_at: new Date().toISOString(),
         open: 5, need_you: 4, branches: 1, url: "" },
       { id: "beta", name: "Beta", repo: null, status: "active", last_push_at: null, open: 1, need_you: 0, branches: 0, url: "" },
     ];
     const branches = [{ project: "alpha", name: "team/synthetic-work", ahead: 3, last_commit_at: new Date().toISOString(), has_fragment: true }];
-    const state = { authenticated: false };
+    const state = { authenticated: false, todayCalls };
     window.__projectSmoke = state;
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init = {}) => {
       const url = new URL(typeof input === "string" ? input : input.url, location.origin);
       const method = String(init.method || "GET").toUpperCase();
       if (url.origin !== location.origin) return originalFetch(input, init);
+      if (url.pathname.startsWith("/api/today")) todayCalls.push(url.pathname);
       if (url.pathname === "/api/me") {
         return state.authenticated ? json({ ok: true, authenticated: true }) : json({ error: "authentication_required" }, 401);
       }
       if (url.pathname === "/api/projects" && method === "GET") return json({ projects });
-      if (url.pathname === "/api/today" && method === "GET") return json(todayResponse());
-      if (["/api/today/pick", "/api/today/unpick", "/api/today/done", "/api/today/delete"].includes(url.pathname) && method === "POST") {
-        const body = JSON.parse(init.body || "{}");
-        const index = today.today.findIndex(item => item.project === body.project && item.key === body.key);
-        const poolIndex = today.pool.findIndex(item => item.project === body.project && item.key === body.key);
-        if (url.pathname.endsWith("/pick") && poolIndex >= 0) {
-          const [item] = today.pool.splice(poolIndex, 1);
-          today.today.push({ ...item, carried: false, who: who(item) });
-        } else if (url.pathname.endsWith("/unpick") && index >= 0) {
-          const [item] = today.today.splice(index, 1);
-          today.pool.push(item);
-        } else if (url.pathname.endsWith("/done") && index >= 0) {
-          const [item] = today.today.splice(index, 1);
-          today.done.push(item);
-        } else if (url.pathname.endsWith("/delete") && poolIndex >= 0) {
-          const [item] = today.pool.splice(poolIndex, 1);
-          deleted.add(item.key);
-        }
-        return json({ written: 1 });
-      }
       if (url.pathname === "/api/overview") {
         const need = open.filter(item => item.need_kind !== "none").sort((a, b) => (a.due || "9") < (b.due || "9") ? -1 : 1);
         return json({
@@ -251,34 +211,15 @@ async function main() {
 
     await page.cdp("Page.addScriptToEvaluateOnNewDocument", { source: "window.__projectSmoke.authenticated = true" });
     await visit(page, `${origin}/`, "今天");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-group").length), 2, "your and agent groups");
-    const columnBoxes = await page.evaluate(() => [...document.querySelectorAll(".today-column")].map(column => {
-      const box = column.getBoundingClientRect();
-      return { left: box.left, top: box.top };
-    }));
-    assert.ok(columnBoxes[0].left < columnBoxes[1].left && columnBoxes[1].left < columnBoxes[2].left, "today columns increase left-to-right");
-    assert.equal(new Set(columnBoxes.map(box => box.top)).size, 1, "today columns share a top edge");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".pool-groups details").length), 3, "pool categories");
-    assert.ok(await page.evaluate(() => document.body.innerText.includes("查过 2 次 · 最近")), "desktop checked hint");
-    assert.equal(await page.evaluate(() => document.querySelector('[role="tablist"]')), null, "desktop hides tablist semantics");
-    assert.equal(await page.evaluate(() => document.querySelector('[role="tabpanel"]')), null, "desktop hides tabpanel semantics");
-    await assertNoOverflow(page, "desktop today", 1440);
+    assert.ok(await page.evaluate(() => document.querySelector(".migration-notice")?.innerText.includes("飞书清单「建国工作台」")), "today migration notice");
+    assert.deepEqual(await page.evaluate(() => window.__projectSmoke.todayCalls), [], "today APIs are not requested");
+    await assertNoOverflow(page, "desktop today migration", 1440);
     await page.screenshot({ path: "desktop-today.png" });
-
-    await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("授权示例上线"))?.querySelector("button")?.click());
-    await page.waitForFunction(() => document.querySelector(".main-today-column")?.innerText.includes("授权示例上线"));
-    await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("修复示例缺陷"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
-    await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("修复示例缺陷"));
-    await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("续费示例服务器"))?.querySelector("button")?.click());
-    await page.waitForFunction(() => !document.querySelector(".main-today-column")?.innerText.includes("续费示例服务器"));
-    await page.evaluate(() => [...document.querySelectorAll(".today-card")].find(card => card.textContent?.includes("选择示例方案"))?.querySelector("button.primary")?.click());
-    await page.waitForFunction(() => document.querySelector(".done-today-list")?.innerText.includes("选择示例方案"));
 
     await page.cdp("Emulation.setDeviceMetricsOverride", { width: 1024, height: 900, deviceScaleFactor: 1, mobile: false });
     await visit(page, `${origin}/`, "今天");
-    assert.equal(await page.evaluate(() => document.querySelectorAll(".today-column").length), 3, "three today columns at 1024px");
-    await assertNoOverflow(page, "1024px today", 1024);
+    assert.ok(await page.evaluate(() => document.querySelector(".migration-notice")), "migration notice at 1024px");
+    await assertNoOverflow(page, "1024px today migration", 1024);
     await page.cdp("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await visit(page, `${origin}/log`, "工作日报");
     assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "seven journal days");
@@ -303,27 +244,9 @@ async function main() {
       await visit(page, `${origin}${path}`, text);
       await assertNoOverflow(page, `mobile ${path}`, 390);
       if (path === "/") {
-        assert.equal(await page.evaluate(() => document.querySelectorAll(".today-tabs button").length), 3, "mobile today tabs");
+        assert.deepEqual(await page.evaluate(() => window.__projectSmoke.todayCalls), [], "mobile today APIs are not requested");
         assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".tabbar")).display), "grid", "mobile global navigation");
         assert.equal(await page.evaluate(() => document.querySelectorAll(".tabbar a").length), 2, "mobile navigation has two items");
-        assert.ok(await page.evaluate(() => document.querySelector('[role="tablist"]')), "mobile tablist semantics");
-        assert.equal(await page.evaluate(() => document.querySelectorAll('[role="tabpanel"]').length), 3, "mobile tabpanel semantics");
-        await page.evaluate(() => [...document.querySelectorAll(".today-tabs button")].find(button => button.textContent === "池子")?.click());
-        await page.waitForFunction(() => getComputedStyle(document.querySelector("#today-panel-pool")).display !== "none");
-        assert.ok(await page.evaluate(() => document.querySelector("input[aria-label=\"搜索标题或分类\"]")), "pool search");
-        await page.evaluate(() => {
-          const input = document.querySelector("input[aria-label=\"搜索标题或分类\"]");
-          input.value = "授权";
-          input.dispatchEvent(new Event("input", { bubbles: true }));
-        });
-        await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
-        await page.evaluate(() => [...document.querySelectorAll(".pool-filters .pill")].find(button => button.textContent?.includes("只看需要你"))?.click());
-        await page.evaluate(() => [...document.querySelectorAll(".pool-filters .pill")].find(button => button.textContent?.includes("7 天内到期"))?.click());
-        assert.ok(await page.evaluate(() => document.querySelector(".pool-clear")), "pool filter clear control");
-        await page.evaluate(() => document.querySelector(".pool-clear")?.click());
-        await page.waitForFunction(() => document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
-        await page.evaluate(() => [...document.querySelectorAll(".pool-list li")].find(item => item.textContent?.includes("示例想法"))?.querySelector('button[aria-label^="删除池子任务"]')?.click());
-        await page.waitForFunction(() => !document.querySelector("#today-panel-pool")?.innerText.includes("示例想法"));
       } else if (path === "/log") {
         assert.equal(await page.evaluate(() => document.querySelectorAll(".journal-day-cell").length), 7, "mobile seven journal days");
         await assertJournalInteractions(page);

@@ -1,9 +1,7 @@
 import { env } from "cloudflare:test";
-import { MCP_LIMITS } from "@kedoupi/shared/mcp/contract";
 import { beforeEach, describe, expect, it } from "vitest";
 import worker from "../worker/index";
 import { executeProject } from "../worker/mcp";
-import { jsonBytes } from "../worker/lib";
 import { checkAgentToday, deleteToday, markOwnerDone, pickToday, pickAgentToday, todayView, unpickToday } from "../worker/today";
 import { ingestRequest, resetDb, samplePayload, seedProject } from "./helpers";
 
@@ -120,36 +118,27 @@ describe("today board", () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks WHERE project_id='codepi'").first<{ n: number }>())?.n).toBe(0);
   });
 
-  it("clips today_get within budget while retaining full counts", async () => {
-    await seedToday(Array.from({ length: 300 }, (_, index) => ({
-      key: `pool-${index}`, title: `合成池任务 ${index} ${"长标题".repeat(8)}`,
-      status: "doing", category: "流程", need_kind: "none",
+  it("returns migration notice without reading the today board", async () => {
+    await seedToday(Array.from({ length: 3 }, (_, index) => ({
+      key: `pool-${index}`, title: `合成池任务 ${index}`, status: "doing", category: "流程", need_kind: "none",
     })));
     const board = await data("today_get");
-    expect(jsonBytes(board)).toBeLessThanOrEqual(MCP_LIMITS.detail);
-    expect(board.truncated).toContain("pool");
-    expect(board.counts).toEqual({ today: 0, pool: 300, done: 0, deleted: 0, checked: 0 });
-    expect(board.pool.length).toBeLessThan(300);
+    expect(board).toEqual({ migrated: true, notice: expect.stringContaining("飞书清单「建国工作台」") });
   });
 
-  it("keeps MCP today picks from replacing an owner pick and keeps counts after clipping", async () => {
+  it("returns a zero-write migration notice for today_pick", async () => {
     await seedToday();
-    await pickToday(env, "codepi", "you", "owner", day);
-    const picked = await data("today_pick", { items: [
-      { project: "codepi", key: "you" }, { project: "codepi", key: "agent" },
-    ] });
-    expect(picked.written).toBe(1);
-    const board = await data("today_get");
-    expect(board.today.some((task: { key: string; who: string }) => task.key === "you" && task.who === "you")).toBe(true);
-    expect(board.counts.today).toBe(2);
-  });
-  it("validates every MCP today pick before writing any row", async () => {
-    await seedToday();
-    const reply = await owner("today_pick", { items: [
-      { project: "codepi", key: "agent" }, { project: "codepi", key: "missing" },
-    ] });
-    expect(reply).toMatchObject({ ok: false, error: "task_not_found", status: 404 });
+    const picked = await data("today_pick", { items: [{ project: "codepi", key: "agent" }] });
+    expect(picked).toMatchObject({ migrated: true, written: 0 });
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM today_picks").first<{ n: number }>())?.n).toBe(0);
+  });
+  it("returns a zero-write migration notice for today_check", async () => {
+    await seedToday();
+    const checked = await data("today_check", { items: [{ project: "codepi", key: "agent", note: "已检查" }] });
+    expect(checked).toMatchObject({ migrated: true, written: 0 });
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM agent_checked").first<{ n: number }>())?.n).toBe(0);
+    expect(await owner("today_check", { items: [{ project: "codepi", key: "agent", note: "x".repeat(201) }] }))
+      .toMatchObject({ ok: false, error: "invalid_note", status: 400 });
   });
 
   it("deletes only pool tasks, reports deleted rows, and is idempotent", async () => {
