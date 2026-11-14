@@ -92,6 +92,7 @@ function mockScript() {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init = {}) => {
       const url = new URL(typeof input === "string" ? input : input.url, location.origin);
+      const method = String(init.method || "GET").toUpperCase();
       if (url.origin !== location.origin) return originalFetch(input, init);
       if (url.pathname.startsWith("/api/today")) todayCalls.push(url.pathname);
       if (url.pathname === "/api/me") {
